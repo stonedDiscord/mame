@@ -30962,6 +30962,9 @@ mirderby                        // (c) 1988 Home Data?
 @source:misc/mjsenpu.cpp
 mjsenpu
 
+@source:misc/modyssey.cpp
+modyssey
+
 @source:misc/mole.cpp
 mole                            // (c) 1982 Yachiyo Electronics, Ltd.
 

@@ -544,17 +544,26 @@ void nl_convert_spice_t::process_line(const pstring &line)
 					add_term(tt[2], tt[0] + ".2");
 				}
 				break;
+
+			case 'B':  // arbitrary behavioural current source - needs manual work afterwards
+				add_device("CS", tt[0], "/*" + rem(tt, 3) + "*/");
+				add_term(tt[1], tt[0] + ".P");
+				add_term(tt[2], tt[0] + ".N");
+				break;
+
 			case 'C':
 				val = get_sp_val(tt[3]);
 				add_device("CAP", tt[0], val);
 				add_term(tt[1], tt[0] + ".1");
 				add_term(tt[2], tt[0] + ".2");
 				break;
-			case 'B':  // arbitrary behavioural current source - needs manual work afterwards
-				add_device("CS", tt[0], "/*" + rem(tt, 3) + "*/");
-				add_term(tt[1], tt[0] + ".P");
-				add_term(tt[2], tt[0] + ".N");
+
+			case 'D':
+				add_device("DIODE", tt[0], m_subckt + tt[3]);
+				add_term(tt[1], tt[0], 0);
+				add_term(tt[2], tt[0], 1);
 				break;
+
 			case 'E':
 			{
 				auto n=get_poly_count(tt[3]);
@@ -626,14 +635,6 @@ void nl_convert_spice_t::process_line(const pstring &line)
 					}
 				}
 				break;
-			case 'H':
-				add_device("CCVS", tt[0], get_sp_val(tt[4]));
-				add_term(tt[1], tt[0] + ".OP");
-				add_term(tt[2], tt[0] + ".ON");
-				m_replace.push_back({tt[3], tt[0] + ".IP", tt[2] + "a" });
-				add_term(tt[2] + "a", tt[0] + ".IN");
-				//add_device_extra(tt[0], "PARAM({}, {})", tt[0] + ".G", tt[4]);
-				break;
 			case 'G':
 				add_device("VCCS", tt[0], get_sp_val(tt[5]));
 				add_term(tt[1], tt[0], 0);
@@ -642,13 +643,16 @@ void nl_convert_spice_t::process_line(const pstring &line)
 				add_term(tt[4], tt[0], 3);
 				//add_device_extra(tt[0], "PARAM({}, {})", tt[0] + ".G", tt[5]);
 				break;
-			case 'V':
-				// only DC Voltage sources ....
-				val = get_sp_val(tt[3] == "DC" ? tt[4] : tt[3]);
-				add_device("VS", tt[0], val);
-				add_term(tt[1], tt[0] + ".1");
-				add_term(tt[2], tt[0] + ".2");
+
+			case 'H':
+				add_device("CCVS", tt[0], get_sp_val(tt[4]));
+				add_term(tt[1], tt[0] + ".OP");
+				add_term(tt[2], tt[0] + ".ON");
+				m_replace.push_back({tt[3], tt[0] + ".IP", tt[2] + "a" });
+				add_term(tt[2] + "a", tt[0] + ".IN");
+				//add_device_extra(tt[0], "PARAM({}, {})", tt[0] + ".G", tt[4]);
 				break;
+
 			case 'I':
 				{
 					val = get_sp_val(tt[3] == "DC" ? tt[4] : tt[3]);
@@ -657,10 +661,20 @@ void nl_convert_spice_t::process_line(const pstring &line)
 					add_term(tt[2], tt[0] + ".2");
 				}
 				break;
-			case 'D':
-				add_device("DIODE", tt[0], m_subckt + tt[3]);
-				add_term(tt[1], tt[0], 0);
-				add_term(tt[2], tt[0], 1);
+
+			case 'L':
+				val = get_sp_val(tt[3]);
+				add_device("IND", tt[0], val);
+				add_term(tt[1], tt[0] + ".1");
+				add_term(tt[2], tt[0] + ".2");
+				break;
+
+			case 'V':
+				// only DC Voltage sources ....
+				val = get_sp_val(tt[3] == "DC" ? tt[4] : tt[3]);
+				add_device("VS", tt[0], val);
+				add_term(tt[1], tt[0] + ".1");
+				add_term(tt[2], tt[0] + ".2");
 				break;
 			case 'U':
 			case 'X':
