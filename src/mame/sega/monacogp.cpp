@@ -168,8 +168,6 @@ static NETLIST_START(monacogp)
 	// schematics
 	//...
 
-//  NETDEV_ANALOG_CALLBACK(sound_cb, sound, exidyttl_state, sound_cb, "")
-//  NETDEV_ANALOG_CALLBACK(video_cb, videomix, fixedfreq_device, update_vid, "fixfreq")
 }
 
 
@@ -200,6 +198,11 @@ void monacogp_state::monacogp(machine_config &config)
 	m_video->set_vert_params(V_TOTAL-22,V_TOTAL-19,V_TOTAL-12,V_TOTAL);
 	m_video->set_fieldcount(1);
 	m_video->set_threshold(0.30);
+
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("video_red", "fixfreq", FUNC(fixedfreq_device::update_red));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("video_green", "fixfreq", FUNC(fixedfreq_device::update_green));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("video_blue", "fixfreq", FUNC(fixedfreq_device::update_blue));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("video_sync", "fixfreq", FUNC(fixedfreq_device::update_sync));
 }
 
 
