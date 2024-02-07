@@ -38,9 +38,6 @@ namespace {
 static const int NS_PER_CLOCK  = static_cast<int>((double) netlist::config::INTERNAL_RES::value / (double) 7159000 + 0.5);
 static const int MASTER_CLOCK  = static_cast<int>((double) netlist::config::INTERNAL_RES::value / (double) NS_PER_CLOCK + 0.5);
 
-#define V_TOTAL    (0x105+1)       // 262
-#define H_TOTAL    (0x1C5+1)       // 454
-
 enum input_changed_enum
 {
 	IC_PADDLE1,
@@ -92,7 +89,8 @@ static INPUT_PORTS_START( modyssey )
 	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0)   NETLIST_ANALOG_PORT_CHANGED("maincpu", "p1ver")
 	PORT_START( "PADDLE0E" )
 	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0)   NETLIST_ANALOG_PORT_CHANGED("maincpu", "p1eng")
-	//PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_START1 )     NETLIST_LOGIC_PORT_CHANGED("maincpu", "SW4_1")
+	PORT_START( "PADDLE0R" )
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_START1 )     NETLIST_LOGIC_PORT_CHANGED("maincpu", "p1reset")
 
 	PORT_START( "PADDLE1H" ) /* fake input port for player 2 paddle */
 	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2) NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2hor")
@@ -100,7 +98,8 @@ static INPUT_PORTS_START( modyssey )
 	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2)  NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2ver")
 	PORT_START( "PADDLE1E" )
 	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2)  NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2eng")
-	//PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_START2 )     NETLIST_LOGIC_PORT_CHANGED("maincpu", "SW3_1")
+	PORT_START( "PADDLE1R" )
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_START2 )     NETLIST_LOGIC_PORT_CHANGED("maincpu", "p2reset")
 
 	PORT_START("POT_3")
 	PORT_ADJUSTER( 50, "Pot: Ball Speed" )  NETLIST_ANALOG_PORT_CHANGED("maincpu", "ballspeed")
@@ -136,8 +135,8 @@ void modyssey_state::modyssey(machine_config &config)
 	NETLIST_ANALOG_INPUT(config, "maincpu:p2ver", "RV3_8.DIAL");
 	NETLIST_ANALOG_INPUT(config, "maincpu:p2eng", "RV3_62.DIAL");
 
-	//NETLIST_LOGIC_INPUT(config, "maincpu:p1reset", "SW4_1.POS", 0);
-	//NETLIST_LOGIC_INPUT(config, "maincpu:p2reset", "SW3_1.POS", 0);
+	NETLIST_LOGIC_INPUT(config, "maincpu:p1reset", "SW4_1.POS", 0);
+	NETLIST_LOGIC_INPUT(config, "maincpu:p2reset", "SW3_1.POS", 0);
 
 	NETLIST_ANALOG_INPUT(config, "maincpu:ballspeed", "RV3.DIAL");
 	NETLIST_ANALOG_INPUT(config, "maincpu:ballheight", "RV4.DIAL");
@@ -153,13 +152,8 @@ void modyssey_state::modyssey(machine_config &config)
 
 	/* video hardware */
 	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
-	//SCREEN(config, "screen", SCREEN_TYPE_VECTOR);
 	FIXFREQ(config, m_video)
-		.set_monitor_clock(MASTER_CLOCK)
-		.set_horz_params(H_TOTAL-66,H_TOTAL-40,H_TOTAL-8,H_TOTAL)
-		.set_vert_params(V_TOTAL-22,V_TOTAL-10,V_TOTAL-8,V_TOTAL)
-		.set_fieldcount(1)
-		.set_threshold(0.11)
+		.set_mode_ntsc704()
 		.set_gain(2.37)
 		.set_horz_scale(4)
 		.set_screen("screen");
