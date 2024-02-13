@@ -40,18 +40,22 @@ static const int MASTER_CLOCK  = static_cast<int>((double) netlist::config::INTE
 
 enum input_changed_enum
 {
-	IC_PADDLE1,
-	IC_PADDLE2,
-	IC_COIN,
-	IC_SWITCH,
-	IC_VR1,
-	IC_VR2
+	IC_PADDLE0H,
+	IC_PADDLE0V,
+	IC_PADDLE0E,
+	IC_PADDLE1H,
+	IC_PADDLE1V,
+	IC_PADDLE1E,
+	IC_PADDLE0R,
+	IC_PADDLE1R,
+	IC_POT_3,
+	IC_POT_4
 };
 
-class ttl_mono_state : public driver_device
+class nl_mono_state : public driver_device
 {
 public:
-	ttl_mono_state(const machine_config &mconfig, device_type type, const char *tag)
+	nl_mono_state(const machine_config &mconfig, device_type type, const char *tag)
 		: driver_device(mconfig, type, tag)
 		, m_maincpu(*this, "maincpu")
 		, m_video(*this, "fixfreq")
@@ -66,11 +70,11 @@ private:
 
 };
 
-class modyssey_state : public ttl_mono_state
+class modyssey_state : public nl_mono_state
 {
 public:
 	modyssey_state(const machine_config &mconfig, device_type type, const char *tag)
-		: ttl_mono_state(mconfig, type, tag)
+		: nl_mono_state(mconfig, type, tag)
 	{
 	}
 
@@ -84,20 +88,20 @@ private:
 
 static INPUT_PORTS_START( modyssey )
 	PORT_START( "PADDLE0H" ) /* fake input port for player 1 paddle */
-	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0)   NETLIST_ANALOG_PORT_CHANGED("maincpu", "p1hor")
+	PORT_BIT( 0xff, 0x00, IPT_PADDLE_H ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0)   NETLIST_ANALOG_PORT_CHANGED("maincpu", "p1hor")
 	PORT_START( "PADDLE0V" )
-	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0)   NETLIST_ANALOG_PORT_CHANGED("maincpu", "p1ver")
+	PORT_BIT( 0xff, 0x00, IPT_PADDLE_V ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0)   NETLIST_ANALOG_PORT_CHANGED("maincpu", "p1ver")
 	PORT_START( "PADDLE0E" )
-	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0)   NETLIST_ANALOG_PORT_CHANGED("maincpu", "p1eng")
+	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0)   NETLIST_ANALOG_PORT_CHANGED("maincpu", "p1eng")
 	PORT_START( "PADDLE0R" )
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_START1 )     NETLIST_LOGIC_PORT_CHANGED("maincpu", "p1reset")
 
 	PORT_START( "PADDLE1H" ) /* fake input port for player 2 paddle */
-	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2) NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2hor")
+	PORT_BIT( 0xff, 0x00, IPT_PADDLE_H ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2) NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2hor")
 	PORT_START( "PADDLE1V" )
-	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2)  NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2ver")
+	PORT_BIT( 0xff, 0x00, IPT_PADDLE_V ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2)  NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2ver")
 	PORT_START( "PADDLE1E" )
-	PORT_BIT( 0xff, 0x00, IPT_PADDLE ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2)  NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2eng")
+	PORT_BIT( 0xff, 0x00, IPT_DIAL ) PORT_SENSITIVITY(2) PORT_KEYDELTA(100) PORT_CENTERDELTA(0) PORT_PLAYER(2)  NETLIST_ANALOG_PORT_CHANGED("maincpu", "p2eng")
 	PORT_START( "PADDLE1R" )
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_START2 )     NETLIST_LOGIC_PORT_CHANGED("maincpu", "p2reset")
 
