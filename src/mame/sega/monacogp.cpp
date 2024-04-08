@@ -116,6 +116,7 @@
 #include "netlist/devices/net_lib.h"
 #include "video/fixfreq.h"
 
+#include "nl_monacogp.h"
 
 namespace {
 
@@ -157,19 +158,6 @@ private:
 
 	virtual void video_start() override;
 };
-
-
-static NETLIST_START(monacogp)
-{
-	SOLVER(Solver, 48000)
-//  PARAM(Solver.FREQ, 48000)
-	PARAM(Solver.ACCURACY, 1e-4) // works and is sufficient
-
-	// schematics
-	//...
-
-}
-
 
 
 void monacogp_state::machine_start()
