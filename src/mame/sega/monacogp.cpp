@@ -187,10 +187,10 @@ void monacogp_state::monacogp(machine_config &config)
 	m_video->set_fieldcount(1);
 	m_video->set_threshold(0.30);
 
-	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("video_red", "fixfreq", FUNC(fixedfreq_device::update_red));
-	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("video_green", "fixfreq", FUNC(fixedfreq_device::update_green));
-	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("video_blue", "fixfreq", FUNC(fixedfreq_device::update_blue));
-	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("video_sync", "fixfreq", FUNC(fixedfreq_device::update_sync));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0r", 0).set_params("video_red", "fixfreq", FUNC(fixedfreq_device::update_red));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0g", 0).set_params("video_green", "fixfreq", FUNC(fixedfreq_device::update_green));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0b", 0).set_params("video_blue", "fixfreq", FUNC(fixedfreq_device::update_blue));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0s", 0).set_params("video_sync", "fixfreq", FUNC(fixedfreq_device::update_sync));
 }
 
 
@@ -204,59 +204,87 @@ void monacogp_state::monacogp(machine_config &config)
 ROM_START( monacogp )
 	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASE00 )
 
-	ROM_REGION( 0x0400, "roms", ROMREGION_ERASE00 )
+	ROM_REGION( 0x0400, "maincpu:pra125.ic59", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra125.ic59",     0x0000, 0x0200, CRC(7a66ed4c) SHA1(514e129c334a551b931c90b063b073a9b4bdffc3) )
+	ROM_REGION( 0x0400, "maincpu:pra126.ic65", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra126.ic65",     0x0000, 0x0200, CRC(5d7a8f12) SHA1(b4f0d21b91a7cf7002f99c08788669c7c38be51d) )
+	ROM_REGION( 0x0400, "maincpu:pra131.ic71", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra131.ic71",     0x0000, 0x0200, CRC(ff31eb01) SHA1(fd6bcd92c4bd919bb1a96ca97688d46cb310b39d) )
+	ROM_REGION( 0x0400, "maincpu:pra127.ic77", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra127.ic77",     0x0000, 0x0200, CRC(8ffdc2f0) SHA1(05cc3330c067965b8b90b5d27119fe9f26580a13) )
+	ROM_REGION( 0x0400, "maincpu:pra128.ic84", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra128.ic84",     0x0000, 0x0200, CRC(dde29dea) SHA1(34c413edff991297471bd0bc193c4bd8ede4e468) )
+	ROM_REGION( 0x0400, "maincpu:pra129.ic91", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra129.ic91",     0x0000, 0x0200, CRC(7b18af26) SHA1(3d1ff2610813544c3b9b65182f081272a9537640) )
+	ROM_REGION( 0x0400, "maincpu:pra130.ic98", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra130.ic98",     0x0000, 0x0200, CRC(9ef1913b) SHA1(58830121781b8a13532eaf8ea13ec07f10522320) )
+	ROM_REGION( 0x0400, "maincpu:pra132.ic111", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra132.ic111",    0x0000, 0x0200, CRC(6b8ad9bc) SHA1(be36e3b6b647d3a9565bc45903027c791dc889e5) )
-
+	ROM_REGION( 0x0400, "maincpu:prm39.ic105", ROMREGION_ERASE00 )
 	ROM_LOAD( "prm39.ic105",     0x0000, 0x0020, CRC(6acfa0da) SHA1(1e56da4cdf71a095eac29878969b831babac222b) )
+	ROM_REGION( 0x0400, "maincpu:prm38.ic115", ROMREGION_ERASE00 )
 	ROM_LOAD( "prm38.ic115",     0x0000, 0x0020, CRC(82dd0a0f) SHA1(3e7e475c3270853d70c1fe90a773172532b60cfb) )
-
+	ROM_REGION( 0x0400, "maincpu:pra140.ic12", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra140.ic12",     0x0000, 0x0200, CRC(48e9971b) SHA1(c0c265cdc08727e3caaf49cdfe728a91c4c46ba2) )
+	ROM_REGION( 0x0400, "maincpu:pra141.ic17", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra141.ic17",     0x0000, 0x0200, CRC(99934236) SHA1(ec271f3e690d5c57ead9132b22b9b1b966e4d170) )
+	ROM_REGION( 0x0400, "maincpu:pra138.ic30", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra138.ic30",     0x0000, 0x0200, CRC(058e53cf) SHA1(7c3aaaca5a9e9ce3a3badd0dcc8360342673a397) )
+	ROM_REGION( 0x0400, "maincpu:pra139.ic51", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra139.ic51",     0x0000, 0x0200, CRC(e8ba0794) SHA1(eadd7425134f26b1c126bbcd3d3dabf4b2e1fe70) )
+	ROM_REGION( 0x0400, "maincpu:pra133.ic64", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra133.ic64",     0x0000, 0x0200, CRC(d50641d9) SHA1(bf399e9830c88e4d8f8fb386305f54ef766946d9) )
+	ROM_REGION( 0x0400, "maincpu:pra136.ic99", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra136.ic99",     0x0000, 0x0200, CRC(ecc5d1a2) SHA1(33bff7381785557a85e4c8bdd74679b59e0ed9d5) )
+	ROM_REGION( 0x0400, "maincpu:pra135.ic106", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra135.ic106",    0x0000, 0x0200, CRC(986eda32) SHA1(73fa539d4c83748952d9339985208520fec955f3) )
+	ROM_REGION( 0x0400, "maincpu:pra134.ic113", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra134.ic113",    0x0000, 0x0200, CRC(8ebd50bb) SHA1(98d51f503753d4d7191a09b509d26c1e049e981a) )
+	ROM_REGION( 0x0400, "maincpu:pra137.ic120", ROMREGION_ERASE00 )
 	ROM_LOAD( "pra137.ic120",    0x0000, 0x0200, CRC(ddd9004e) SHA1(5229c34578e66d9c51a05439a516513946ba69ed) )
-
+	ROM_REGION( 0x0400, "maincpu:prm40.ic21", ROMREGION_ERASE00 )
 	ROM_LOAD( "prm40.ic21",      0x0000, 0x0020, CRC(87d12d57) SHA1(54682ce464449a3084cba29a82ff80288c87ad36) )
 ROM_END
 
 
 ROM_START( monacogpa )
-	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASE00 )
-
-	ROM_REGION( 0x0400, "roms", ROMREGION_ERASE00 )
+	ROM_REGION( 0x0400, "maincpu:prb01.ic59", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-01.ic59",     0x0000, 0x0200, CRC(7a66ed4c) SHA1(514e129c334a551b931c90b063b073a9b4bdffc3) )
+	ROM_REGION( 0x0400, "maincpu:prb02.ic65", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-02.ic65",     0x0000, 0x0200, CRC(5d7a8f12) SHA1(b4f0d21b91a7cf7002f99c08788669c7c38be51d) )
+	ROM_REGION( 0x0400, "maincpu:prb04.ic71", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-04.ic71",     0x0000, 0x0200, CRC(ff31eb01) SHA1(fd6bcd92c4bd919bb1a96ca97688d46cb310b39d) )
+	ROM_REGION( 0x0400, "maincpu:prb13.ic77", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-13.ic77",     0x0000, 0x0200, CRC(8ffdc2f0) SHA1(05cc3330c067965b8b90b5d27119fe9f26580a13) )
+	ROM_REGION( 0x0400, "maincpu:prb03.ic84", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-03.ic84",     0x0000, 0x0200, CRC(dde29dea) SHA1(34c413edff991297471bd0bc193c4bd8ede4e468) )
 	// nothing at IC91
+	ROM_REGION( 0x0400, "maincpu:prb15.ic98", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-14.ic98",     0x0000, 0x0400, CRC(8ec80107) SHA1(8182c52dae83a6fc876d484c543894fa768896ca) )
+	ROM_REGION( 0x0400, "maincpu:prb15.ic111", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-15.ic111",    0x0000, 0x0200, CRC(6b8ad9bc) SHA1(be36e3b6b647d3a9565bc45903027c791dc889e5) )
-
+	ROM_REGION( 0x0400, "maincpu:prb39.ic105", ROMREGION_ERASE00 )
 	ROM_LOAD( "prm39.ic105",     0x0000, 0x0020, CRC(6acfa0da) SHA1(1e56da4cdf71a095eac29878969b831babac222b) )
+	ROM_REGION( 0x0400, "maincpu:prb38.ic115", ROMREGION_ERASE00 )
 	ROM_LOAD( "prm38.ic115",     0x0000, 0x0020, CRC(82dd0a0f) SHA1(3e7e475c3270853d70c1fe90a773172532b60cfb) )
-
 	// nothing at IC12
+	ROM_REGION( 0x0400, "maincpu:prb16.ic17", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-16.ic17",     0x0000, 0x0400, CRC(719c5ca4) SHA1(103f6f1ecf30a7c81eb0926d794d1c3bf7d5760b) )
+	ROM_REGION( 0x0400, "maincpu:prb10.ic30", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-10.ic30",     0x0000, 0x0200, CRC(058e53cf) SHA1(7c3aaaca5a9e9ce3a3badd0dcc8360342673a397) )
+	ROM_REGION( 0x0400, "maincpu:prb11.ic51", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-11.ic51",     0x0000, 0x0200, CRC(e8ba0794) SHA1(eadd7425134f26b1c126bbcd3d3dabf4b2e1fe70) )
+	ROM_REGION( 0x0400, "maincpu:prb05.ic64", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-05.ic64",     0x0000, 0x0200, CRC(d50641d9) SHA1(bf399e9830c88e4d8f8fb386305f54ef766946d9) )
+	ROM_REGION( 0x0400, "maincpu:prb08.ic99", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-08.ic99",     0x0000, 0x0200, CRC(ecc5d1a2) SHA1(33bff7381785557a85e4c8bdd74679b59e0ed9d5) )
+	ROM_REGION( 0x0400, "maincpu:prb07.ic106", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-07.ic106",    0x0000, 0x0200, CRC(986eda32) SHA1(73fa539d4c83748952d9339985208520fec955f3) )
+	ROM_REGION( 0x0400, "maincpu:prb06.ic113", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-06.ic113",    0x0000, 0x0200, CRC(8ebd50bb) SHA1(98d51f503753d4d7191a09b509d26c1e049e981a) )
+	ROM_REGION( 0x0400, "maincpu:prb09.ic120", ROMREGION_ERASE00 )
 	ROM_LOAD( "prb-09.ic120",    0x0000, 0x0200, CRC(ddd9004e) SHA1(5229c34578e66d9c51a05439a516513946ba69ed) )
-
+	ROM_REGION( 0x0400, "maincpu:prm40.ic21", ROMREGION_ERASE00 )
 	ROM_LOAD( "prm40.ic21",      0x0000, 0x0020, CRC(87d12d57) SHA1(54682ce464449a3084cba29a82ff80288c87ad36) )
 ROM_END
 
