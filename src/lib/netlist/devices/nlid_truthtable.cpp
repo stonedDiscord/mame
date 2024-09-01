@@ -586,6 +586,8 @@ namespace netlist::devices {
 			std::vector<pstring> out(plib::psplit(io[1], ','));
 			nl_assert_always(out.size() == m_NO, "output count not matching");
 			std::vector<pstring> times(plib::psplit(io[2], ','));
+			if (times.size() == 1)
+				times.resize(m_NO, times[0]);
 			nl_assert_always(times.size() == m_NO, "timing count not matching");
 
 			tt_bitset val = 0;
