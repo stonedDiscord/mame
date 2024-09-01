@@ -2792,6 +2792,34 @@ static NETLIST_START(TTL_74379_DIP)
 	)
 }
 
+//- Identifier: TTL_74390_DIP
+//- Title: Dual 4-Bit Binary Counter
+//- Pinalias: 1A,1CLR,1QA,1QB,1QC,1QD,GND,2QD,2QC,2QB,2QA,2CLR,2A,VCC
+//- Package: DIP
+//- NamingConvention: Naming conventions follow National Semiconductor datasheet
+//- FunctionTable:
+//-   http://pdf.datasheetcatalog.com/datasheet/nationalsemiconductor/DS006434.PDF
+//-
+static NETLIST_START(TTL_74390_DIP)
+{
+	TTL_74390(A)
+	TTL_74390(B)
+
+	NET_C(A.VCC, B.VCC)
+	NET_C(A.GND, B.GND)
+
+	DIPPINS(         //       +--------------+
+		A.CP, A.VCC, //    1A |1    ++     14| VCC
+		A.MR, B.CP,  //  1CLR |2           13| 2A
+		A.Q0, B.MR,  //   1QA |3           12| 2CLR
+		A.Q1, B.Q0,  //   1QB |4   74390   11| 2QA
+		A.Q2, B.Q1,  //   1QC |5           10| 2QB
+		A.Q3, B.Q2,  //   1QD |6            9| 2QC
+		A.GND, B.Q3  //   GND |7            8| 2QD
+					 //       +--------------+
+	)
+}
+
 //- Identifier: TTL_74393_DIP
 //- Title: Dual 4-Bit Binary Counter
 //- Pinalias: 1A,1CLR,1QA,1QB,1QC,1QD,GND,2QD,2QC,2QB,2QA,2CLR,2A,VCC
@@ -3699,6 +3727,7 @@ NETLIST_START(ttl74xx_lib)
 	LOCAL_LIB_ENTRY(TTL_74377_DIP)
 	LOCAL_LIB_ENTRY(TTL_74378_DIP)
 	LOCAL_LIB_ENTRY(TTL_74379_DIP)
+	LOCAL_LIB_ENTRY(TTL_74390_DIP)
 	LOCAL_LIB_ENTRY(TTL_74393_DIP)
 	LOCAL_LIB_ENTRY(SN74LS629_DIP)
 	LOCAL_LIB_ENTRY(TTL_9310_DIP)

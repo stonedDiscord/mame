@@ -400,6 +400,11 @@
 // Source: ../devices/nld_74393.cpp
 // ---------------------------------------------------------------------
 
+// usage       : TTL_74390(name, CP, MR)
+// auto connect: VCC, GND
+#define TTL_74390(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74390, __VA_ARGS__)
+
 // usage       : TTL_74393(name, CP, MR)
 // auto connect: VCC, GND
 #define TTL_74393(...)                                                   \
@@ -1484,6 +1489,10 @@ NETLIST_EXTERNAL(ttl74xx_lib)
 #define TTL_74139_DIP(...)                                                   \
 	NET_REGISTER_DEVEXT(TTL_74139_DIP, __VA_ARGS__)
 
+// usage       : TTL_74145_DIP(name, )
+#define TTL_74145_DIP(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74145_DIP, __VA_ARGS__)
+
 // usage       : TTL_74147_DIP(name, )
 #define TTL_74147_DIP(...)                                                   \
 	NET_REGISTER_DEVEXT(TTL_74147_DIP, __VA_ARGS__)
@@ -1587,6 +1596,10 @@ NETLIST_EXTERNAL(ttl74xx_lib)
 // usage       : TTL_74379_DIP(name, )
 #define TTL_74379_DIP(...)                                                   \
 	NET_REGISTER_DEVEXT(TTL_74379_DIP, __VA_ARGS__)
+
+// usage       : TTL_74390_DIP(name, )
+#define TTL_74390_DIP(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74390_DIP, __VA_ARGS__)
 
 // usage       : TTL_74393_DIP(name, )
 #define TTL_74393_DIP(...)                                                   \
