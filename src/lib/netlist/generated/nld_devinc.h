@@ -444,6 +444,11 @@
 // Source: ../devices/nld_74393.cpp
 // ---------------------------------------------------------------------
 
+// usage       : TTL_74390(name, CP, MR)
+// auto connect: VCC, GND
+#define TTL_74390(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74390, __VA_ARGS__)
+
 // usage       : TTL_74393(name, CP, MR)
 // auto connect: VCC, GND
 #define TTL_74393(name, ...) \
@@ -1608,21 +1613,25 @@ NETLIST_EXTERNAL(ttl74xx_lib)
 #define TTL_74139_DIP(name) \
 	NET_REGISTER_DEV(TTL_74139_DIP, name)
 
+// usage       : TTL_74145_DIP(name, )
+#define TTL_74145_DIP(name)  \
+	NET_REGISTER_DEVEXT(TTL_74145_DIP, name)
+
 // usage       : TTL_74147_DIP(name, )
-#define TTL_74147_DIP(...)                                                   \
-	NET_REGISTER_DEVEXT(TTL_74147_DIP, __VA_ARGS__)
+#define TTL_74147_DIP(name)  \
+	NET_REGISTER_DEVEXT(TTL_74147_DIP, name)
 
 // usage       : TTL_74148_DIP(name, )
-#define TTL_74148_DIP(...)                                                   \
-	NET_REGISTER_DEVEXT(TTL_74148_DIP, __VA_ARGS__)
+#define TTL_74148_DIP(name)  \
+	NET_REGISTER_DEVEXT(TTL_74148_DIP, name)
 
 // usage       : TTL_74151_DIP(name, )
-#define TTL_74151_DIP(...)                                                   \
-	NET_REGISTER_DEVEXT(TTL_74151_DIP, __VA_ARGS__)
+#define TTL_74151_DIP(name)  \
+	NET_REGISTER_DEVEXT(TTL_74151_DIP, name)
 
 // usage       : TTL_74153_DIP(name, )
-#define TTL_74153_DIP(...)                                                   \
-	NET_REGISTER_DEVEXT(TTL_74153_DIP, __VA_ARGS__)
+#define TTL_74153_DIP(name)  \
+	NET_REGISTER_DEVEXT(TTL_74153_DIP, name)
 
 // usage       : TTL_74148_DIP(name)
 #define TTL_74148_DIP(name) \
@@ -1702,11 +1711,11 @@ NETLIST_EXTERNAL(ttl74xx_lib)
 
 // usage       : TTL_74368_DIP(name, )
 #define TTL_74368_DIP(name) \
-	NET_REGISTER_DEVEXT(TTL_74368_DIP, name)
+	NET_REGISTER_DEV(TTL_74368_DIP, name)
 
 // usage       : TTL_74377_DIP(name, )
 #define TTL_74377_DIP(name) \
-	NET_REGISTER_DEVEXT(TTL_74377_DIP, name)
+	NET_REGISTER_DEV(TTL_74377_DIP, name)
 
 // usage       : TTL_74293_DIP(name)
 #define TTL_74293_DIP(name) \
@@ -1719,6 +1728,14 @@ NETLIST_EXTERNAL(ttl74xx_lib)
 // usage       : TTL_74368_DIP(name)
 #define TTL_74368_DIP(name) \
 	NET_REGISTER_DEV(TTL_74368_DIP, name)
+
+// usage       : TTL_74390_DIP(name, )
+#define TTL_74390_DIP(name)  \
+	NET_REGISTER_DEV(TTL_74390_DIP, name)
+
+// usage       : TTL_74393_DIP(name, )
+#define TTL_74393_DIP(name)  \
+	NET_REGISTER_DEV(TTL_74393_DIP, name)
 
 // usage       : TTL_74377_DIP(name)
 #define TTL_74377_DIP(name) \
