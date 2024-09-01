@@ -1349,9 +1349,25 @@ NETLIST_EXTERNAL(roms_lib)
 #define TTL_74139_GATE(name) \
 	NET_REGISTER_DEV(TTL_74139_GATE, name)
 
-// usage       : TTL_74147_GATE(name)
-#define TTL_74147_GATE(name) \
-	NET_REGISTER_DEV(TTL_74147_GATE, name)
+// usage       : TTL_74145_GATE(name, )
+#define TTL_74145_GATE(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74145_GATE, __VA_ARGS__)
+
+// usage       : TTL_74147_GATE(name, )
+#define TTL_74147_GATE(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74147_GATE, __VA_ARGS__)
+
+// usage       : TTL_74148_GATE(name, )
+#define TTL_74148_GATE(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74148_GATE, __VA_ARGS__)
+
+// usage       : TTL_74151_GATE(name, )
+#define TTL_74151_GATE(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74151_GATE, __VA_ARGS__)
+
+// usage       : TTL_74155A_GATE(name, )
+#define TTL_74155A_GATE(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74155A_GATE, __VA_ARGS__)
 
 // usage       : TTL_74148_GATE(name)
 #define TTL_74148_GATE(name) \
@@ -1395,15 +1411,13 @@ NETLIST_EXTERNAL(roms_lib)
 #define TTL_74279B(name) \
 	NET_REGISTER_DEV(TTL_74279B, name)
 
-// usage       : TTL_74368_GATE(name)
-#define TTL_74368_GATE(name) \
-	NET_REGISTER_DEV(TTL_74368_GATE, name)
+// usage       : TTL_74368_GATE(name, )
+#define TTL_74368_GATE(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74368_GATE, __VA_ARGS__)
 
-// usage       : TTL_9312(name, A, B, C, G, D0, D1, D2, D3, D4, D5, D6, D7)
-// auto connect: VCC, GND
-#define TTL_9312(name, ...) \
-	__VA_OPT__(NET_CHECK_PARAM_COUNT(TTL_9312, PNARGS(__VA_ARGS__), 12)) \
-	NET_REGISTER_DEV(TTL_9312, name __VA_OPT__(,) __VA_ARGS__)
+// usage       : TTL_9312(name, )
+#define TTL_9312(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_9312, __VA_ARGS__)
 
 NETLIST_EXTERNAL(ttl74xx_lib)
 // usage       : TTL_7400_DIP(name)
@@ -1594,9 +1608,21 @@ NETLIST_EXTERNAL(ttl74xx_lib)
 #define TTL_74139_DIP(name) \
 	NET_REGISTER_DEV(TTL_74139_DIP, name)
 
-// usage       : TTL_74147_DIP(name)
-#define TTL_74147_DIP(name) \
-	NET_REGISTER_DEV(TTL_74147_DIP, name)
+// usage       : TTL_74147_DIP(name, )
+#define TTL_74147_DIP(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74147_DIP, __VA_ARGS__)
+
+// usage       : TTL_74148_DIP(name, )
+#define TTL_74148_DIP(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74148_DIP, __VA_ARGS__)
+
+// usage       : TTL_74151_DIP(name, )
+#define TTL_74151_DIP(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74151_DIP, __VA_ARGS__)
+
+// usage       : TTL_74153_DIP(name, )
+#define TTL_74153_DIP(...)                                                   \
+	NET_REGISTER_DEVEXT(TTL_74153_DIP, __VA_ARGS__)
 
 // usage       : TTL_74148_DIP(name)
 #define TTL_74148_DIP(name) \
@@ -1673,6 +1699,14 @@ NETLIST_EXTERNAL(ttl74xx_lib)
 // usage       : TTL_74290_DIP(name)
 #define TTL_74290_DIP(name) \
 	NET_REGISTER_DEV(TTL_74290_DIP, name)
+
+// usage       : TTL_74368_DIP(name, )
+#define TTL_74368_DIP(name) \
+	NET_REGISTER_DEVEXT(TTL_74368_DIP, name)
+
+// usage       : TTL_74377_DIP(name, )
+#define TTL_74377_DIP(name) \
+	NET_REGISTER_DEVEXT(TTL_74377_DIP, name)
 
 // usage       : TTL_74293_DIP(name)
 #define TTL_74293_DIP(name) \
