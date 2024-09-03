@@ -23,11 +23,11 @@
 
 namespace netlist::devices {
 
-	template <char MAXCNT>
+	static constexpr const unsigned MAXCNT = 15;
 
-	NETLIB_OBJECT(74393_BASE)
+	NETLIB_OBJECT(74393)
 	{
-		NETLIB_CONSTRUCTOR(74393_BASE)
+		NETLIB_CONSTRUCTOR(74393)
 		, m_CP(*this, "CP", NETLIB_DELEGATE(cp))
 		, m_MR(*this, "MR", NETLIB_DELEGATE(mr))
 		, m_Q(*this, {"Q0", "Q1", "Q2", "Q3"})
@@ -83,10 +83,6 @@ namespace netlist::devices {
 		nld_power_pins m_power_pins;
 	};
 
-	using NETLIB_NAME(74390) = NETLIB_NAME(74393_BASE)<9>;
-	using NETLIB_NAME(74393) = NETLIB_NAME(74393_BASE)<15>;
-
-	NETLIB_DEVICE_IMPL(74390,     "TTL_74390", "+CP,+MR,@VCC,@GND")
 	NETLIB_DEVICE_IMPL(74393,     "TTL_74393", "+CP,+MR,@VCC,@GND")
 
 } // namespace netlist::devices
