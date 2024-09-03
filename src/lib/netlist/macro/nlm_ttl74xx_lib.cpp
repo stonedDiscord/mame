@@ -2794,7 +2794,7 @@ static NETLIST_START(TTL_74379_DIP)
 
 //- Identifier: TTL_74390_DIP
 //- Title: Dual 4-Bit Binary Counter
-//- Pinalias: 1A,1CLR,1QA,1QB,1QC,1QD,GND,2QD,2QC,2QB,2QA,2CLR,2A,VCC
+//- Pinalias: 1A,1,1QA,1B,1QB,1QC,1QD,GND,2QD,2QC,2QB,2B,2QA,2,2A,VCC
 //- Package: DIP
 //- NamingConvention: Naming conventions follow National Semiconductor datasheet
 //- FunctionTable:
@@ -2809,13 +2809,14 @@ static NETLIST_START(TTL_74390_DIP)
 	NET_C(A.GND, B.GND)
 
 	DIPPINS(         //       +--------------+
-		A.CP, A.VCC, //    1A |1    ++     14| VCC
-		A.MR, B.CP,  //  1CLR |2           13| 2A
-		A.Q0, B.MR,  //   1QA |3           12| 2CLR
-		A.Q1, B.Q0,  //   1QB |4   74390   11| 2QA
-		A.Q2, B.Q1,  //   1QC |5           10| 2QB
-		A.Q3, B.Q2,  //   1QD |6            9| 2QC
-		A.GND, B.Q3  //   GND |7            8| 2QD
+		A.A, A.VCC,  //  1CKA |1    ++     16| VCC
+		A.MR, B.A,   //  1CLR |2           15| 2A
+		A.Q0, B.MR,  //   1QA |3           14| 2CLR
+		A.B,  B.Q0,  //  1CKB |4           13| 2QA
+		A.Q1, B.B,   //   1QB |5   74390   12| 2CKB
+		A.Q2, B.Q1,  //   1QC |6           11| 2QB
+		A.Q3, B.Q2,  //   1QD |7           10| 2QC
+		A.GND, B.Q3  //   GND |8            9| 2QD
 					 //       +--------------+
 	)
 }
