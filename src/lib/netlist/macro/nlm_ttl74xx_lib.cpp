@@ -1769,7 +1769,7 @@ static NETLIST_START(TTL_74139_DIP)
 
 //- Identifier: TTL_74145_DIP
 //- Title: SN74145 BCD-TO-DECIMAL DECODERS/DRIVERS
-//- Pinalias: 4,5,6,7,8,C,B,GND,A,9,1,2,3,D,NC,Vcc
+//- Pinalias: 4,5,6,7,8,P2,P1,GND,P0,9,1,2,3,P3,NC,Vcc
 //- Package: DIP-16
 //- NamingConvention: Naming conventions follow Texas Instruments datasheet
 //- FunctionTable:
@@ -1795,14 +1795,14 @@ static NETLIST_START(TTL_74145_DIP)
 	NET_REGISTER_DEV(TTL_74145_GATE, A)
 
 	DIPPINS(          //        +--------------+
-		A.I0,  A.VCC, //      0 |1     ++    16| VCC
-		A.I1,  A.A,   //      1 |2           15| A
-		A.I2,  A.B,   //      2 |3           14| B
-		A.I3,  A.C,   //      3 |4   74145   13| C
-		A.I4,  A.D,   //      4 |5           12| D
-		A.I5,  A.I9,  //      5 |6           11| 9
-		A.I6,  A.I8,  //      6 |7           10| 8
-		A.GND, A.I7   //    GND |8            9| 7
+		A.Q0,  A.VCC, //      0 |1     ++    16| VCC
+		A.Q1,  A.A,   //      1 |2           15| A
+		A.Q2,  A.B,   //      2 |3           14| B
+		A.Q3,  A.C,   //      3 |4   74145   13| C
+		A.Q4,  A.D,   //      4 |5           12| D
+		A.Q5,  A.Q9,  //      5 |6           11| 9
+		A.Q6,  A.Q8,  //      6 |7           10| 8
+		A.GND, A.Q7   //    GND |8            9| 7
 					  //        +--------------+
 	)
 }
@@ -3390,7 +3390,7 @@ static TRUTH_TABLE(TTL_74139_GATE, 3, 4, "")
 
 static TRUTH_TABLE(TTL_74145_GATE, 4, 10, "")
 {
-	TT_HEAD("D,C,B,A|0,1,2,3,4,5,6,7,8,9")
+	TT_HEAD("D,C,B,A|Q0,Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9")
 	TT_LINE("0,0,0,0|0,1,1,1,1,1,1,1,1,1|50")
 	TT_LINE("0,0,0,1|1,0,1,1,1,1,1,1,1,1|50")
 	TT_LINE("0,0,1,0|1,1,0,1,1,1,1,1,1,1|50")
