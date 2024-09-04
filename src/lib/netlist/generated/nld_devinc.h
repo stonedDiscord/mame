@@ -397,13 +397,17 @@
 	NET_REGISTER_DEVEXT(TTL_74377_GATE, __VA_ARGS__)
 
 // ---------------------------------------------------------------------
-// Source: ../devices/nld_74393.cpp
+// Source: ../devices/nld_74390.cpp
 // ---------------------------------------------------------------------
 
-// usage       : TTL_74390(name, CP, MR)
+// usage       : TTL_74390(name, A, B, MR)
 // auto connect: VCC, GND
 #define TTL_74390(...)                                                   \
 	NET_REGISTER_DEVEXT(TTL_74390, __VA_ARGS__)
+
+// ---------------------------------------------------------------------
+// Source: ../devices/nld_74393.cpp
+// ---------------------------------------------------------------------
 
 // usage       : TTL_74393(name, CP, MR)
 // auto connect: VCC, GND
