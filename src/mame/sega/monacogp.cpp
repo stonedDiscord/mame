@@ -187,10 +187,10 @@ void monacogp_state::monacogp(machine_config &config)
 	m_video->set_fieldcount(1);
 	m_video->set_threshold(0.30);
 
-	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0r", 0).set_params("video_red", "fixfreq", FUNC(fixedfreq_device::update_red));
-	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0g", 0).set_params("video_green", "fixfreq", FUNC(fixedfreq_device::update_green));
-	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0b", 0).set_params("video_blue", "fixfreq", FUNC(fixedfreq_device::update_blue));
-	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0s", 0).set_params("video_sync", "fixfreq", FUNC(fixedfreq_device::update_sync));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0r", 0).set_params("D11", "fixfreq", FUNC(fixedfreq_device::update_red));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0g", 0).set_params("D13", "fixfreq", FUNC(fixedfreq_device::update_green));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0b", 0).set_params("D12", "fixfreq", FUNC(fixedfreq_device::update_blue));
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0s", 0).set_params("D10", "fixfreq", FUNC(fixedfreq_device::update_sync));
 }
 
 
