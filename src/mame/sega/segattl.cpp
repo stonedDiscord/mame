@@ -63,6 +63,7 @@
 #include "netlist/devices/net_lib.h"
 #include "video/fixfreq.h"
 
+#include "nl_secretbase.h"
 
 namespace {
 
@@ -117,7 +118,7 @@ static NETLIST_START(segattl)
 void segattl_state::segattl(machine_config &config)
 {
 	// basic machine hardware
-	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_segattl);
+	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_secretbase);
 
 	// video hardware
 	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
