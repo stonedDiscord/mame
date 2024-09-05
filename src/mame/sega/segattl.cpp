@@ -62,6 +62,7 @@
 #include "netlist/devices/net_lib.h"
 #include "video/fixfreq.h"
 
+#include "nl_secretbase.h"
 
 namespace {
 
@@ -107,21 +108,6 @@ private:
 };
 
 
-static NETLIST_START(segattl)
-{
-	SOLVER(Solver, 48000)
-//  PARAM(Solver.FREQ, 48000)
-	PARAM(Solver.ACCURACY, 1e-4) // works and is sufficient
-
-	// schematics
-	//...
-
-	//  NETDEV_ANALOG_CALLBACK(sound_cb, sound, exidyttl_state, sound_cb, "")
-	//  NETDEV_ANALOG_CALLBACK(video_cb, videomix, fixedfreq_device, update_vid, "fixfreq")
-}
-
-
-
 void segattl_state::machine_start()
 {
 }
@@ -138,7 +124,7 @@ void segattl_state::video_start()
 void segattl_state::segattl(machine_config &config)
 {
 	/* basic machine hardware */
-	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_segattl);
+	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_secretbase);
 
 	/* video hardware */
 	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
