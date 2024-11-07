@@ -33,10 +33,6 @@ NETLIST_START(modyssey)
 	ANALOG_INPUT(V5, 5.6)
 	ALIAS(VCC, V5)
 
-	TTL_INPUT(high, 1)
-	TTL_INPUT(low, 0)
-
-
 	NET_MODEL("142N7 NPN(IS=2.39E-14 NF=1.008 ISE=3.545E-15 NE=1.541 BF=294.3 IKF=0.1357 VAF=63.2 NR=1.004 \
 				ISC=6.272E-14 NC=1.243 BR=7.946 IKR=0.1144 VAR=25.9 RB=1 IRB=1E-06 RBM=1 RE=0.4683 RC=0.85 \
 				XTB=0 EG=1.11 XTI=3 CJE=1.358E-11 VJE=0.65 MJE=0.3279 TF=4.391E-10 XTF=120 VTF=2.643       \
@@ -563,7 +559,4 @@ NETLIST_START(modyssey)
 	// power terminals
 	// ----------------------------------------------------------------------------------------
 
-	NET_C(VCC, high.VCC, low.VCC)
-	NET_C(GND, high.GND, low.GND)
-	
 }
