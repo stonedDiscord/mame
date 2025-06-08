@@ -56,7 +56,7 @@ INPUT_PORTS_END
 
 void ballyw_state::ballyw(machine_config &config)
 {
-	M68000(config, m_maincpu, 10000000 ); //?
+	M68000(config, m_maincpu, 16_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &ballyw_state::mem_map);
 
     RTC72421(config, "rtc", XTAL(32'768)); // internal oscillator
@@ -64,14 +64,14 @@ void ballyw_state::ballyw(machine_config &config)
 
 ROM_START( gloriasl )
 	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "123-S4.0_even_GLORIA_SL.ic15", 0x00001, 0x80000, CRC(1be58a11) SHA1(1a1b1f51c9c3f4bd16832a689ee90a5f8faac453) )
-	ROM_LOAD16_BYTE( "123-S4.0_odd_GLORIA_SL.ic10", 0x00000, 0x80000, CRC(06d7ee41) SHA1(8bf4b1ce16d9f021381b7dae5069ba8383b150cd) )
+	ROM_LOAD16_BYTE( "123-S4.0_even_GLORIA_SL.ic10", 0x00001, 0x80000, CRC(1be58a11) SHA1(1a1b1f51c9c3f4bd16832a689ee90a5f8faac453) )
+	ROM_LOAD16_BYTE( "123-S4.0_odd_GLORIA_SL.ic15", 0x00000, 0x80000, CRC(06d7ee41) SHA1(8bf4b1ce16d9f021381b7dae5069ba8383b150cd) )
 ROM_END
 
 ROM_START( sunfun )
 	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "sunfun_even.ic15", 0x00001, 0x80000, CRC(f03bdbef) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
-	ROM_LOAD16_BYTE( "sunfun_odd.ic10", 0x00000, 0x80000, CRC(5b52038a) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
+	ROM_LOAD16_BYTE( "sunfun_even.ic10", 0x00001, 0x80000, CRC(f03bdbef) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
+	ROM_LOAD16_BYTE( "sunfun_odd.ic15", 0x00000, 0x80000, CRC(5b52038a) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
 ROM_END
 
 } // anonymous namespace
