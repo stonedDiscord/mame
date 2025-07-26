@@ -245,26 +245,32 @@ void i8256_device::write(offs_t offset, u8 data)
 
 uint8_t i8256_device::p1_r()
 {
-    // if control bit is 0 (input), read from callback else use output latch
+    // Reading Port 1 transfers the data in Port 1 onto the data bus.
     uint8_t input = m_in_p1_cb(0);
     uint8_t result = 0;
+
     for (int i = 0; i < 8; i++) {
         if (BIT(m_port1_control, i)) // output
             result |= (m_port1_int & (1 << i));
         else // input
             result |= (input & (1 << i));
     }
+
     return result;
 }
 
 void i8256_device::p1_w(uint8_t data)
 {
+    // Writing to Port 1 sets the data in the Port 1 output latch.
+	// Writing to an input pin does not affect the pin, but the data is stored and will be output if the direction of the pin is changed later.
+
     m_port1_int = (m_port1_int & ~m_port1_control) | (data & m_port1_control);
     m_out_p1_cb(0, m_port1_int & m_port1_control);
 }
 
 uint8_t i8256_device::p2_r()
 {
+    // Reading Port 2 puts the input pins onto the bus or the contents of the output latch for output pins.
     uint8_t p2c = m_mode & 0x03;
     if (p2c == I8256_PORT2C_II || p2c == I8256_PORT2C_IO)
         return m_in_p2_cb(0);
@@ -274,6 +280,8 @@ uint8_t i8256_device::p2_r()
 
 void i8256_device::p2_w(uint8_t data)
 {
+    // Writing to Port 2 sets the data in the Port 2 output latch.
+	// Writing to an input pin does not affect the pin, but it does store the data in the latch.
     uint8_t p2c = m_mode & 0x03;
     m_port2_int = data;
     uint8_t port2_data = 0;
