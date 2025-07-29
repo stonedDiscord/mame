@@ -11,6 +11,7 @@ German Fruit Machines / Gambling Machines
 #include "cpu/m68000/m68000.h"
 #include "machine/nvram.h"
 #include "machine/msm6242.h"
+#include "sound/okim6376.h"
 #include "speaker.h"
 
 #include "stellafr.lh"
