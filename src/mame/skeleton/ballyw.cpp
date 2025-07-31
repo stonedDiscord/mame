@@ -85,8 +85,8 @@ ROM_END
 
 ROM_START( sunfun )
 	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "sunfun_even.ic10", 0x00001, 0x80000, CRC(f03bdbef) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
-	ROM_LOAD16_BYTE( "sunfun_odd.ic15", 0x00000, 0x80000, CRC(5b52038a) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
+	ROM_LOAD16_BYTE( "sunfun_even.ic10", 0x00001, 0x80000, CRC(5b52038a) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
+	ROM_LOAD16_BYTE( "sunfun_odd.ic15", 0x00000, 0x80000, CRC(8dfdf298) SHA1(986b7e8d118f5edeaa1c930c3e7de77d3922a088) )
 
 	ROM_REGION( 0x100000, "snd", 0 )
 	ROM_LOAD( "sound_sunfun.ic13", 0x00000, 0x100000, NO_DUMP )
@@ -94,5 +94,5 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL(2003, gloriasl,        0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
-GAMEL(2003, sunfun,   gloriasl, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(2003, gloriasl, 0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(2003, sunfun,   0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
