@@ -1,8 +1,19 @@
 // license:BSD-3-Clause
 /*
 
-Bally Wulff
+Bally Wulff Eurotec
 German Fruit Machines / Gambling Machines
+
+The CPU board has the CPU, RTC, RAM and ROM
+It sits on a main board that has the OKI sound and a PLCC84 labeled
+
+ATMEL/TEMIC MBZ
+ULC 1240 V2.0
+5/98
+Bally Wulff
+YYWW
+
+Could be a ATF1504 or custom.
 
 */
 
@@ -10,6 +21,7 @@ German Fruit Machines / Gambling Machines
 #include "emu.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/nvram.h"
+//#include "machine/ds2430a.h" //DS1985 die under an epoxy blob
 #include "machine/msm6242.h"
 #include "machine/roc10937.h"
 #include "sound/okim6376.h"
@@ -81,6 +93,9 @@ ROM_START( gloriasl )
 
 	ROM_REGION( 0x100000, "snd", 0 )
 	ROM_LOAD( "123-sound_1.4_gloria_sl.ic13", 0x00000, 0x100000, CRC(71cfbd7e) SHA1(efe2e92cfb7de4b6145aa3462fda010282b31090) )
+
+	ROM_REGION( 0x800, "eeprom", 0 )
+	ROM_LOAD( "127401373.p15", 0x000, 0x800, CRC(215275b6) SHA1(297dd49d42122e2f5f131d610d6a00b42beee677) )
 ROM_END
 
 ROM_START( sunfun )
