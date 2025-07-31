@@ -74,8 +74,8 @@ ROM_START( gloriasl )
 	ROM_LOAD16_BYTE( "123-s4.0_even_gloria_sl.ic10", 0x00001, 0x80000, CRC(1be58a11) SHA1(1a1b1f51c9c3f4bd16832a689ee90a5f8faac453) )
 	ROM_LOAD16_BYTE( "123-s4.0_odd_gloria_sl.ic15", 0x00000, 0x80000, CRC(06d7ee41) SHA1(8bf4b1ce16d9f021381b7dae5069ba8383b150cd) )
 
-	ROM_REGION( 0x80000, "snd", 0 )
-	ROM_LOAD( "123-sound_1.4_gloria_sl.ic13", 0x00000, 0x80000, CRC(71cfbd7e) SHA1(efe2e92cfb7de4b6145aa3462fda010282b31090) )
+	ROM_REGION( 0x100000, "snd", 0 )
+	ROM_LOAD( "123-sound_1.4_gloria_sl.ic13", 0x00000, 0x100000, CRC(71cfbd7e) SHA1(efe2e92cfb7de4b6145aa3462fda010282b31090) )
 ROM_END
 
 ROM_START( sunfun )
@@ -83,8 +83,8 @@ ROM_START( sunfun )
 	ROM_LOAD16_BYTE( "sunfun_even.ic10", 0x00001, 0x80000, CRC(f03bdbef) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
 	ROM_LOAD16_BYTE( "sunfun_odd.ic15", 0x00000, 0x80000, CRC(5b52038a) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
 
-	ROM_REGION( 0x80000, "snd", 0 )
-	ROM_LOAD( "sound_sunfun.ic13", 0x00000, 0x80000, NO_DUMP )
+	ROM_REGION( 0x100000, "snd", 0 )
+	ROM_LOAD( "sound_sunfun.ic13", 0x00000, 0x100000, NO_DUMP )
 ROM_END
 
 } // anonymous namespace
