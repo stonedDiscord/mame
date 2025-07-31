@@ -11,10 +11,11 @@ German Fruit Machines / Gambling Machines
 #include "cpu/m68000/m68000.h"
 #include "machine/nvram.h"
 #include "machine/msm6242.h"
+#include "machine/roc10937.h"
 #include "sound/okim6376.h"
 #include "speaker.h"
 
-#include "stellafr.lh"
+#include "proconn.lh"
 
 namespace {
 
@@ -25,7 +26,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
         m_rtc(*this, "rtc"),
-		m_digits(*this, "digit%u", 0U)
+		m_vfd(*this, "vfd")
 	{ }
 
 	void ballyw(machine_config &config);
@@ -36,7 +37,7 @@ private:
 	// devices
 	required_device<cpu_device> m_maincpu;
     required_device<rtc72421_device> m_rtc;
-	output_finder<8> m_digits;
+	optional_device<rocvfd_device> m_vfd;
 };
 
 
@@ -65,8 +66,12 @@ void ballyw_state::ballyw(machine_config &config)
 
     RTC72421(config, "rtc", XTAL(32'768)); // internal oscillator
 
+	MSC1937(config, m_vfd);
+
 	SPEAKER(config, "mono").front_center();
 	OKIM6376(config, "snd", 4_MHz_XTAL).add_route(ALL_OUTPUTS, "mono", 1.0);
+
+	config.set_default_layout(layout_proconn);
 }
 
 ROM_START( gloriasl )
@@ -89,5 +94,5 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL(2003, gloriasl,        0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
-GAMEL(2003, sunfun,   gloriasl, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(2003, gloriasl,        0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(2003, sunfun,   gloriasl, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
