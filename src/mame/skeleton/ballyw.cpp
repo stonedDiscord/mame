@@ -65,8 +65,8 @@ void ballyw_state::ballyw(machine_config &config)
 
 ROM_START( gloriasl )
 	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "123-S4.0_even_GLORIA_SL.ic10", 0x00001, 0x80000, CRC(1be58a11) SHA1(1a1b1f51c9c3f4bd16832a689ee90a5f8faac453) )
-	ROM_LOAD16_BYTE( "123-S4.0_odd_GLORIA_SL.ic15", 0x00000, 0x80000, CRC(06d7ee41) SHA1(8bf4b1ce16d9f021381b7dae5069ba8383b150cd) )
+	ROM_LOAD16_BYTE( "123-s4.0_even_gloria_sl.ic10", 0x00001, 0x80000, CRC(1be58a11) SHA1(1a1b1f51c9c3f4bd16832a689ee90a5f8faac453) )
+	ROM_LOAD16_BYTE( "123-s4.0_odd_gloria_sl.ic15", 0x00000, 0x80000, CRC(06d7ee41) SHA1(8bf4b1ce16d9f021381b7dae5069ba8383b150cd) )
 ROM_END
 
 ROM_START( sunfun )
@@ -77,5 +77,5 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL(2003, gloriasl,        0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
-GAMEL(2003, sunfun,   gloriasl, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(2003, gloriasl,        0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(2003, sunfun,   gloriasl, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
