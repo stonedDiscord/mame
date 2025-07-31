@@ -43,6 +43,9 @@ private:
 void ballyw_state::mem_map(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
+	map(0x100000, 0x117fff).ram();
+	map(0x800000, 0x8001ff).ram();
+	map(0x900000, 0x9002ff).ram();
 }
 
 static INPUT_PORTS_START( ballyw )
