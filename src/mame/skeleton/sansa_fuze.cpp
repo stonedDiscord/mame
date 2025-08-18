@@ -11,6 +11,7 @@
 #include "emu.h"
 #include "cpu/arm7/arm7.h"
 
+#include "screen.h"
 
 namespace {
 
@@ -26,17 +27,26 @@ public:
 
 private:
 	required_device<cpu_device> m_maincpu;
+	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	void sansa_fuze_map(address_map &map) ATTR_COLD;
 };
 
-
+uint32_t sansa_fuze_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+{
+	return 0;
+}
 
 void sansa_fuze_state::sansa_fuze_map(address_map &map)
 {
-	map(0x00000000, 0x0001ffff).rom();
+	map(0x00000000, 0x0001ffff).rom(); // Internal ROM
 
-	map(0x80000000, 0x8001ffff).rom().region("maincpu", 0x00000);
-	map(0x81000000, 0x81ffffff).ram();
+	map(0x80000000, 0x8001ffff).rom().region("maincpu", 0x00000); // Internal ROM
+	map(0x81000000, 0x81ffffff).ram(); // Embedded 1T-RAM
+
+	map(0xc80f0000, 0xc80f003f).ram(); // Clock Generation Unit
+	map(0xc8100000, 0xc810001f).ram(); // Chip Control Unit
+	map(0xc8110000, 0xc811001f).ram(); // Debug UART
+	map(0xc8120000, 0xc812001f).ram(); // DBOP (Display and GPIO)
 }
 
 
@@ -47,8 +57,13 @@ INPUT_PORTS_END
 void sansa_fuze_state::sansa_fuze(machine_config &config)
 {
 	/* basic machine hardware */
-	ARM7(config, m_maincpu, 50000000); // arm based, speed unknown
+	ARM920T(config, m_maincpu, 50000000); // arm based, speed unknown
 	m_maincpu->set_addrmap(AS_PROGRAM, &sansa_fuze_state::sansa_fuze_map);
+
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_size(220, 176);
+	screen.set_refresh_hz(50); /* not accurate */
+	screen.set_screen_update(FUNC(sansa_fuze_state::screen_update));
 }
 
 ROM_START( sanfuze2 )
