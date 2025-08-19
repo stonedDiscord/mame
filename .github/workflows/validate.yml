@@ -7,12 +7,14 @@ on:
     - 'ctrlr/*'
     - 'hash/*'
     - 'plugins/**'
+    - 'src/mame/layout/**'
   pull_request:
     paths:
     - '.github/workflows/**'
     - 'ctrlr/*'
     - 'hash/*'
     - 'plugins/**'
+    - 'src/mame/layout/**'
 
 permissions:
   contents: read
@@ -36,3 +38,5 @@ jobs:
       run: for x in hash/*.xml ; do xmllint --noout --valid "$x" ; done
     - name: Validate (plugin properties)
       run: for x in plugins/*/plugin.json ; do jsonschema -i "$x" plugins/plugin.schema ; done
+    - name: Validate (layouts)
+      run: for x in src/mame/layout/*.lay ; do xmllint --noout "$x" ; done
