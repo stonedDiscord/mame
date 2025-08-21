@@ -241,7 +241,7 @@ void re900_state::cpu_port_0_w(uint8_t data)
 
 void re900_state::watchdog_reset_w(uint8_t data)
 {
-	//watchdog_reset_w(space,0,0); /* To do! */
+	//watchdog_reset_w(space,0,0); /* TODO: watchdog */
 }
 
 
