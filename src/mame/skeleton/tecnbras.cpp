@@ -21,6 +21,10 @@
 
 #include "emu.h"
 #include "cpu/mcs51/mcs51.h"
+#include "machine/pcf8583.h"
+#include "sound/beep.h"
+
+#include "speaker.h"
 
 #include <algorithm>
 
@@ -36,6 +40,7 @@ public:
 		: driver_device(mconfig, type, tag)
 		, m_maincpu(*this, "maincpu")
 		, m_dmds(*this, "dmd_%u", 0U)
+		, m_beeper(*this, "beeper")
 	{ }
 
 	void tecnbras(machine_config &config);
@@ -54,6 +59,7 @@ private:
 
 	required_device<i80c31_device> m_maincpu;
 	output_finder<14 * 7> m_dmds;
+	required_device<beep_device> m_beeper;
 
 	int m_xcoord = 0;
 	char m_digit[14][7]{};
@@ -68,6 +74,7 @@ void tecnbras_state::i80c31_prg(address_map &map)
 #define DMD_OFFSET 24 //This is a guess. We should verify the real hardware behaviour
 void tecnbras_state::i80c31_io(address_map &map)
 {
+	//map(0x0000, 0x00FF).ram();
 	map(0x0100+DMD_OFFSET, 0x0145+DMD_OFFSET).w(FUNC(tecnbras_state::set_x_position_w));
 	map(0x06B8, 0x06BC).w(FUNC(tecnbras_state::print_column_w));
 }
@@ -119,17 +126,15 @@ void tecnbras_state::tecnbras(machine_config &config)
 	I80C31(config, m_maincpu, 12_MHz_XTAL); // verified on pcb
 	m_maincpu->set_addrmap(AS_PROGRAM, &tecnbras_state::i80c31_prg);
 	m_maincpu->set_addrmap(AS_IO, &tecnbras_state::i80c31_io);
-	m_maincpu->port_out_cb<1>().set_nop(); // buzzer ?
+	m_maincpu->port_out_cb<1>().set(m_beeper, FUNC(beep_device::set_state)).mask(0x01); //CPU P1.0 (pin 1)
+	m_maincpu->port_in_cb<3>().set("rtc", FUNC(pcf8583_device::sda_r)).mask(0x20); //pin 5 (SDA): cpu T1/P3.5 (pin 15)
+	m_maincpu->port_out_cb<3>().set("rtc", FUNC(pcf8583_device::sda_w)).mask(0x20);
+	m_maincpu->port_out_cb<3>().set("rtc", FUNC(pcf8583_device::scl_w)).mask(0x10); //pin 6 (SCL): cpu T0/P3.4 (pin 14)
 
-/* TODO: Add an I2C RTC (Philips PCF8583P)
-   pin 6 (SCL): cpu T0/P3.4 (pin 14)
-   pin 5 (SDA): cpu T1/P3.5 (pin 15)
-*/
+	PCF8583(config, "rtc", 32.768_kHz_XTAL);
 
-/*
-    TODO: Add a speaker
-    CPU P1.0 (pin 1)
-*/
+	SPEAKER(config, "beeps").front_center();
+	BEEP(config, m_beeper, 480).add_route(ALL_OUTPUTS, "beeps", 1.0);
 
 /*
     TODO: Add a communications port to receive commands from the remote control
