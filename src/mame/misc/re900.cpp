@@ -122,7 +122,7 @@ private:
 	void mem_io(address_map &map) ATTR_COLD;
 	void mem_prg(address_map &map) ATTR_COLD;
 
-	required_device<cpu_device> m_maincpu;
+	required_device<mcs51_cpu_device> m_maincpu;
 
 	// re900 specific
 	uint8_t m_psg_pa = 0;
@@ -385,7 +385,7 @@ INPUT_PORTS_END
 void re900_state::re900(machine_config &config)
 {
 	/* basic machine hardware */
-	i8051_device &maincpu(I8051(config, m_maincpu, MAIN_CLOCK));
+	i80c31_device &maincpu(I80C31(config, m_maincpu, MAIN_CLOCK));
 	maincpu.set_addrmap(AS_PROGRAM, &re900_state::mem_prg);
 	maincpu.set_addrmap(AS_IO, &re900_state::mem_io);
 	maincpu.port_out_cb<0>().set(FUNC(re900_state::cpu_port_0_w));
