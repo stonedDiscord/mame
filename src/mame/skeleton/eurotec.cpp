@@ -13,7 +13,7 @@ ULC 1240 V2.0
 Bally Wulff
 YYWW
 
-Could be a ATF1504 or custom.
+which seems to be an Ultimate Logic Conversion from an FPGA
 
 */
 
