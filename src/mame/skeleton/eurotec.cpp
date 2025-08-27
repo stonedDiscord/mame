@@ -103,6 +103,14 @@ ROM_START( gloriasl )
 	ROM_LOAD( "127401373.p15", 0x000, 0x800, CRC(215275b6) SHA1(297dd49d42122e2f5f131d610d6a00b42beee677) )
 ROM_END
 
+ROM_START( harlekin )
+	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_LOAD( "harlekin_patched.bin", 0x00000, 0x80000, BAD_DUMP CRC(d4b96450) SHA1(c3477ad9fd64e39b5402995cbc757d3ad0dffed6) )
+
+	ROM_REGION( 0x100000, "snd", 0 )
+	ROM_LOAD( "sound_harlekin.ic13", 0x00000, 0x100000, NO_DUMP )
+ROM_END
+
 ROM_START( sunfun )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD16_BYTE( "sunfun_even.ic10", 0x00001, 0x80000, CRC(5b52038a) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
@@ -114,5 +122,6 @@ ROM_END
 
 } // anonymous namespace
 
+GAMEL(1999, harlekin, 0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Harlekin",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, gloriasl, 0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, sunfun,   0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
