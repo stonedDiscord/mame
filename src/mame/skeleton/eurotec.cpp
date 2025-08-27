@@ -5,6 +5,11 @@ Bally Wulff Eurotec
 German Fruit Machines / Gambling Machines
 
 The CPU board has the CPU, RTC, RAM and ROM
+
+CPU: Motorola MC68EC000
+RAM: Samsung K6T4016C3C 256Kx16 bit Low Power CMOS Static RAM
+RTC: Epson RTC72421
+
 It sits on a main board that has the OKI sound and a PLCC84 labeled
 
 ATMEL/TEMIC MBZ
