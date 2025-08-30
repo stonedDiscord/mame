@@ -48,8 +48,10 @@ protected:
 	//required_ioport m_sustain;
 	//required_ioport m_pitch_bend;
 
+	/* very bad comment */
 	bool const m_is_eos;
 
+	/* */
 	u8 m_mlatch, m_slatch;
 	bool m_mlatch_full, m_slatch_full;
 
