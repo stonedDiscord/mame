@@ -205,10 +205,10 @@ private:
 	required_device<nvram_device> m_nvram;
 	required_ioport m_in0;
 
-	/* misc */
+	// misc
 	uint8_t m_mux_data;
 
-	/* devices */
+	// devices
 	uint16_t input_r();
 	void input_w(uint16_t data);
 	void adp_palette(palette_device &device) const;
