@@ -208,7 +208,7 @@ private:
 	// misc
 	uint8_t m_mux_data;
 
-	/* devices */
+	// devices
 	uint16_t input_r();
 	void input_w(uint16_t data);
 	void adp_palette(palette_device &device) const;
@@ -271,11 +271,11 @@ void adp_state::adp_palette(palette_device &palette) const
 {
 	for (int i = 0; i < palette.entries(); i++)
 	{
-		int const r = 0x21 * BIT(i, 0) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 0);
-		int const g = 0x21 * BIT(i, 1) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 1);
-		int const b = 0x21 * BIT(i, 2) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 2);
+		int const R = 0x21 * BIT(i, 0) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 0);
+		int const G = 0x21 * BIT(i, 1) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 1);
+		int const B = 0x21 * BIT(i, 2) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 2);
 
-		palette.set_pen_color(i, rgb_t(r, g, b));
+		palette.set_pen_color(i, rgb_t(R, G, B));
 	}
 }
 
