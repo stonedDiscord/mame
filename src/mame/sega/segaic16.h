@@ -56,7 +56,7 @@ class segaic16_video_device :   public device_t,
 								public device_video_interface
 {
 public:
-	/* tilemap systems */
+	// tilemap systems
 	static constexpr unsigned MAX_TILEMAPS       = 1;
 
 	static constexpr unsigned TILEMAP_HANGON     = 0;
