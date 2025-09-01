@@ -43402,11 +43402,6 @@ aws220
 @source:skeleton/ax20.cpp
 ax20
 
-@source:skeleton/eurotec.cpp
-gloriasl
-harlekin
-sunfun
-
 @source:skeleton/banpresto_bpsc68000.cpp
 lnumbers
 
@@ -43693,6 +43688,16 @@ eurit30
 eurocom2
 microtrol
 waveterm
+
+@source:skeleton/eurotec.cpp
+gloriasl
+harlekin
+sunfun
+
+@source:skeleton/evolution_handheld.cpp
+buttdtct
+evolhh
+smkatsum
 
 @source:skeleton/extrema_m27sv.cpp
 multgmxl
