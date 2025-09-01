@@ -32,5 +32,5 @@ jobs:
               | reviewdog -efm="%f:%l: %m" \
                 -name="cpp-style" \
                 -reporter=github-pr-review \
-                -filter-mode=diff_context \
+                -filter-mode=nofilter \
                 -fail-on-error=false
