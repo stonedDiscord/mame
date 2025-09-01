@@ -7,6 +7,14 @@ import re
 import sys
 from pathlib import Path
 
+hex_pattern = re.compile(r"0x[A-F]+")
+comment_pattern = re.compile(r"/\*.*\*/")
+macro_pattern = re.compile(r"^\s*#define\s+([A-Za-z0-9_]+)")
+const_pattern = re.compile(r"\bconst\b[^;=()]*\b([A-Za-z_][A-Za-z0-9_]*)\b\s*(?:=|;)")
+function_pattern = re.compile(r"\b([a-z][a-z0-9_]*)\s*\(")
+class_pattern = re.compile(r"\bclass\s+([A-Za-z0-9_]+)")
+enum_pattern = re.compile(r"\benum\s+(class\s+)?([A-Za-z0-9_]+)")
+
 def is_screaming_snake(name: str):
     return re.fullmatch(r"[A-Z][A-Z0-9_]*", name) is not None
 
@@ -26,35 +34,28 @@ def check_cpp_file(path: Path):
         errors.append((len(lines) or 1, "File should end with a newline"))
 
     for i, line in enumerate(lines, 1):
-        hex_pattern = re.compile(r"0x[A-F]+")
         if hex_pattern.search(line):
             errors.append((i, "Hex literals should be lowercase (0x1a not 0x1A)"))
-
-        comment_pattern = re.compile(r"/\*.*\*/")
+        
         if comment_pattern.search(line.strip()):
             errors.append((i, "/* Single-line block comments */ should use // instead"))
-
-        macro_pattern = re.compile(r"^\s*#define\s+([A-Za-z0-9_]+)")
+        
         m = macro_pattern.match(line)
         if m and not is_screaming_snake(m.group(1)):
             errors.append((i, f"Macro '{m.group(1)}' should use SCREAMING_SNAKE_CASE"))
-
-        const_pattern = re.compile(r"\bconst\b[^;=()]*\b([A-Za-z_][A-Za-z0-9_]*)\b\s*(?:=|;)")
+        
         c = const_pattern.search(line)
         if c and not is_screaming_snake(c.group(1)):
             errors.append((i, f"Constant '{c.group(1)}' should use SCREAMING_SNAKE_CASE"))
-
-        function_pattern = re.compile(r"\b([a-z][a-z0-9_]*)\s*\(")
+        
         f = function_pattern.search(line)
         if f and not is_snake_case(f.group(1)):
             errors.append((i, f"Function '{f.group(1)}' should use snake_case"))
-
-        class_pattern = re.compile(r"\bclass\s+([A-Za-z0-9_]+)")
+        
         cl = class_pattern.search(line)
         if cl and not is_snake_case(cl.group(1)):
             errors.append((i, f"Class '{cl.group(1)}' should use snake_case"))
-
-        enum_pattern = re.compile(r"\benum\s+(class\s+)?([A-Za-z0-9_]+)")
+        
         en = enum_pattern.search(line)
         if en and not is_snake_case(en.group(2)):
             errors.append((i, f"Enum '{en.group(2)}' should use snake_case"))
