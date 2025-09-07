@@ -106,8 +106,8 @@ void ballyw_state::b4(machine_config &config)
 
 ROM_START( gbsky )
 	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "101-S6.0_even_sky.ic10", 0x00001, 0x80000, CRC(8bf3fd6d) SHA1(c95a3651e025e9d2c99c708e643fe3a2982a39ad) )
-	ROM_LOAD16_BYTE( "101-S6.0_odd_sky.ic15", 0x00000, 0x80000, CRC(0ce4f9d7) SHA1(d4cea08466cf86de7c27ffdfead456f796e4a0af) )
+	ROM_LOAD16_BYTE( "101-s6.0_even_sky.ic10", 0x00001, 0x80000, CRC(8bf3fd6d) SHA1(c95a3651e025e9d2c99c708e643fe3a2982a39ad) )
+	ROM_LOAD16_BYTE( "101-s6.0_odd_sky.ic15", 0x00000, 0x80000, CRC(0ce4f9d7) SHA1(d4cea08466cf86de7c27ffdfead456f796e4a0af) )
 ROM_END
 
 ROM_START( gloriasl )
