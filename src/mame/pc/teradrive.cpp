@@ -523,7 +523,7 @@ void teradrive_state::md_68k_map(address_map &map)
 
 //  map(0x800000, 0x9fffff) unmapped or 32X
 	map(0xa00000, 0xa07fff).view(m_md_68k_sound_view);
-	m_md_68k_sound_view[0](0xa00000, 0xa07fff).m(*this, FUNC(teradrive_state::md_68k_z80_map));
+	m_md_68k_sound_view[0](0xa00000, 0xa07fff).before_delay(NAME([](offs_t) { return 1; })).m(*this, FUNC(teradrive_state::md_68k_z80_map));
 //  map(0xa07f00, 0xa07fff) Z80 VDP space (freezes machine if accessed from 68k)
 //  map(0xa08000, 0xa0ffff) Z80 68k window (assume no DTACK), or just mirror of above according to TD HW notes?
 //  map(0xa10000, 0xa100ff) I/O
@@ -640,7 +640,6 @@ void teradrive_state::md_cpu_space_map(address_map &map)
 	// TODO: IPL0 (external irq tied to VDP IE2)
 	map(0xfffff5, 0xfffff5).before_time(m_md68kcpu, FUNC(m68000_device::vpa_sync)).after_delay(m_md68kcpu, FUNC(m68000_device::vpa_after)).lr8(NAME([] () -> u8 { return 26; }));
 	map(0xfffff7, 0xfffff7).before_time(m_md68kcpu, FUNC(m68000_device::vpa_sync)).after_delay(m_md68kcpu, FUNC(m68000_device::vpa_after)).lr8(NAME([] () -> u8 { return 27; }));
-	// TODO: IPL1
 	map(0xfffff9, 0xfffff9).before_time(m_md68kcpu, FUNC(m68000_device::vpa_sync)).after_delay(m_md68kcpu, FUNC(m68000_device::vpa_after)).lr8(NAME([this] () -> u8 {
 		m_md_vdp->irq_ack();
 		return 28;
@@ -658,6 +657,8 @@ void teradrive_state::flush_z80_state()
 {
 	m_mdz80cpu->set_input_line(INPUT_LINE_RESET, m_z80_reset ? ASSERT_LINE : CLEAR_LINE);
 	m_mdz80cpu->set_input_line(Z80_INPUT_LINE_BUSRQ, m_z80_busrq ? CLEAR_LINE : ASSERT_LINE);
+	if (m_z80_reset)
+		m_opn->reset();
 	if (m_z80_reset || !m_z80_busrq)
 		m_md_68k_sound_view.select(0);
 	else
@@ -937,7 +938,7 @@ void teradrive_state::teradrive(machine_config &config)
 	m_md68kcpu->set_addrmap(AS_PROGRAM, &teradrive_state::md_68k_map);
 	m_md68kcpu->set_addrmap(m68000_base_device::AS_CPU_SPACE, &teradrive_state::md_cpu_space_map);
 
-	Z80(config, m_mdz80cpu, md_master_xtal / 7 / 2);
+	Z80(config, m_mdz80cpu, md_master_xtal / 15);
 	m_mdz80cpu->set_addrmap(AS_PROGRAM, &teradrive_state::md_z80_map);
 	m_mdz80cpu->set_addrmap(AS_IO, &teradrive_state::md_z80_io);
 
@@ -947,6 +948,7 @@ void teradrive_state::teradrive(machine_config &config)
 	m_mdscreen->set_screen_update(FUNC(teradrive_state::md_screen_update));
 
 	YM7101(config, m_md_vdp, md_master_xtal / 4);
+	m_md_vdp->set_mclk(md_master_xtal);
 	m_md_vdp->set_screen(m_mdscreen);
 	// TODO: actual DTACK
 	// TODO: accessing 68k bus from x86, defers access?
