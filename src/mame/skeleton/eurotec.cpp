@@ -91,6 +91,12 @@ void ballyw_state::ballyw(machine_config &config)
 	config.set_default_layout(layout_proconn);
 }
 
+ROM_START( gbsky )
+	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_LOAD16_BYTE( "sky_even_gloria_sl.ic10", 0x00001, 0x80000, CRC(8bf3fd6d) SHA1(c95a3651e025e9d2c99c708e643fe3a2982a39ad) )
+	ROM_LOAD16_BYTE( "sky_odd_gloria_sl.ic15", 0x00000, 0x80000, CRC(0ce4f9d7) SHA1(d4cea08466cf86de7c27ffdfead456f796e4a0af) )
+ROM_END
+
 ROM_START( gloriasl )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD16_BYTE( "123-s4.0_even_gloria_sl.ic10", 0x00001, 0x80000, CRC(1be58a11) SHA1(1a1b1f51c9c3f4bd16832a689ee90a5f8faac453) )
@@ -123,5 +129,6 @@ ROM_END
 } // anonymous namespace
 
 GAMEL(1999, harlekin, 0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Harlekin",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(2002, gbsky,    0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sky",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, gloriasl, 0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, sunfun,   0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
