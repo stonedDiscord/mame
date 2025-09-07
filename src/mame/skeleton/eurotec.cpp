@@ -20,6 +20,11 @@ YYWW
 
 which seems to be an Ultimate Logic Conversion from an FPGA
 
+older boards are labelled
+002.600.002       002.600.11B2
+
+newer with OKI sound
+0B01.0600.1100B4
 */
 
 
@@ -46,7 +51,8 @@ public:
 		m_vfd(*this, "vfd")
 	{ }
 
-	void ballyw(machine_config &config);
+	void b2(machine_config &config);
+	void b4(machine_config &config);
 
 private:
 	void mem_map(address_map &map) ATTR_COLD;
@@ -76,7 +82,7 @@ static INPUT_PORTS_START( ballyw )
 INPUT_PORTS_END
 
 
-void ballyw_state::ballyw(machine_config &config)
+void ballyw_state::b2(machine_config &config)
 {
 	M68000(config, m_maincpu, 16_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &ballyw_state::mem_map);
@@ -86,15 +92,22 @@ void ballyw_state::ballyw(machine_config &config)
 	MSC1937(config, m_vfd);
 
 	SPEAKER(config, "mono").front_center();
-	OKIM6376(config, "snd", 4_MHz_XTAL).add_route(ALL_OUTPUTS, "mono", 1.0);
+	
 
 	config.set_default_layout(layout_proconn);
 }
 
+void ballyw_state::b4(machine_config &config)
+{
+	b2(config);
+
+	OKIM6376(config, "snd", 4_MHz_XTAL).add_route(ALL_OUTPUTS, "mono", 1.0);
+}
+
 ROM_START( gbsky )
 	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "sky_even_gloria_sl.ic10", 0x00001, 0x80000, CRC(8bf3fd6d) SHA1(c95a3651e025e9d2c99c708e643fe3a2982a39ad) )
-	ROM_LOAD16_BYTE( "sky_odd_gloria_sl.ic15", 0x00000, 0x80000, CRC(0ce4f9d7) SHA1(d4cea08466cf86de7c27ffdfead456f796e4a0af) )
+	ROM_LOAD16_BYTE( "101-S6.0_even_sky.ic10", 0x00001, 0x80000, CRC(8bf3fd6d) SHA1(c95a3651e025e9d2c99c708e643fe3a2982a39ad) )
+	ROM_LOAD16_BYTE( "101-S6.0_odd_sky.ic15", 0x00000, 0x80000, CRC(0ce4f9d7) SHA1(d4cea08466cf86de7c27ffdfead456f796e4a0af) )
 ROM_END
 
 ROM_START( gloriasl )
@@ -128,7 +141,7 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL(1999, harlekin, 0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Harlekin",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
-GAMEL(2002, gbsky,    0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sky",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
-GAMEL(2003, gloriasl, 0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
-GAMEL(2003, sunfun,   0, ballyw, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(1999, harlekin, 0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Harlekin",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(2002, gbsky,    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sky",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(2003, gloriasl, 0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(2003, sunfun,   0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
