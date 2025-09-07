@@ -43,13 +43,17 @@ Status: Just a closet skeleton
 ***************************************************************************/
 
 #include "emu.h"
+#include "screen.h"
+
 #include "cpu/z80/z80.h"
 #include "imagedev/floppy.h"
+#include "machine/i8251.h"
 #include "machine/z80ctc.h"
 #include "machine/z80dma.h"
 #include "machine/z80sio.h"
 #include "machine/z80pio.h"
 #include "machine/wd_fdc.h"
+#include "video/mc6845.h"
 
 namespace {
 
@@ -63,6 +67,9 @@ public:
 		, m_dma(*this, "dma")
 		, m_pio(*this, "pio")
 		, m_uart(*this, "uart")
+		, m_usart(*this, "usart")
+		, m_crtc(*this, "crtc")
+		, m_screen(*this, "screen")
 		, m_fdc(*this, "fdc")
 		, m_floppy0(*this, "fdc:0")
 		, m_floppy1(*this, "fdc:1")
@@ -80,12 +87,17 @@ private:
 	void mem_map(address_map &map) ATTR_COLD;
 	void io_map(address_map &map) ATTR_COLD;
 
+	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+
 	floppy_image_device *m_floppy = nullptr;
 	required_device<cpu_device> m_maincpu;
 	required_device<z80ctc_device> m_ctc;
 	required_device<z80dma_device> m_dma;
 	required_device<z80pio_device> m_pio;
 	required_device<z80sio_device> m_uart;
+	required_device<i8251_device> m_usart;
+	required_device<mc6845_device> m_crtc;
+	required_device<screen_device> m_screen;
 	required_device<fd1793_device> m_fdc;
 	required_device<floppy_connector> m_floppy0;
 	required_device<floppy_connector> m_floppy1;
@@ -95,12 +107,21 @@ private:
 
 void elzet80_state::mem_map(address_map &map)
 {
+	map(0x0000, 0x0fff).rom();
+	map(0xe000, 0xe7ff).ram(); // 2K RAM
+	map(0xe800, 0xefff).ram().share("videoram");
+	map(0xf000, 0xffff).ram();
 }
 
 void elzet80_state::io_map(address_map &map)
 {
-	map.global_mask(0xff);
-	map.unmap_value_high();
+	map(0x00, 0x00).rw(m_pio, FUNC(z80pio_device::data_a_read), FUNC(z80pio_device::data_a_write));
+	map(0x01, 0x01).rw(m_pio, FUNC(z80pio_device::data_b_read), FUNC(z80pio_device::data_b_write));
+	map(0x02, 0x02).w(m_pio, FUNC(z80pio_device::control_a_write));
+	map(0x03, 0x03).w(m_pio, FUNC(z80pio_device::control_b_write));
+	map(0x04, 0x04).rw(m_usart, FUNC(i8251_device::data_r), FUNC(i8251_device::data_w));
+	map(0x06, 0x06).rw(m_usart, FUNC(i8251_device::status_r), FUNC(i8251_device::control_w));
+	map(0x08, 0x09).rw(m_uart, FUNC(z80sio_device::cd_ba_r), FUNC(z80sio_device::cd_ba_w));
 }
 
 static INPUT_PORTS_START( elzet80 )
@@ -138,6 +159,15 @@ void elzet80_state::elzet80(machine_config &config)
 	Z80SIO(config, m_uart, 0);
 	Z80CTC(config, m_ctc, 0);
 	Z80DMA(config, m_dma, 0);
+
+	I8251(config, m_usart, 4_MHz_XTAL);
+
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_refresh_hz(60);
+	m_screen->set_screen_update("crtc", FUNC(mc6845_device::screen_update));
+
+	MC6845(config, m_crtc, 4_MHz_XTAL);
+	m_crtc->set_screen("screen");
 }
 
 
