@@ -43,6 +43,7 @@ Status: Just a closet skeleton
 ***************************************************************************/
 
 #include "emu.h"
+#include "emupal.h"
 #include "screen.h"
 
 #include "cpu/z80/z80.h"
@@ -69,10 +70,11 @@ public:
 		, m_uart(*this, "uart")
 		, m_usart(*this, "usart")
 		, m_crtc(*this, "crtc")
-		, m_gfx(*this, "gfx1")
+		, m_chargen(*this, "chargen")
 		, m_attram(*this, "attrram")
 		, m_charram(*this, "charram")
 		, m_screen(*this, "screen")
+		, m_palette(*this, "palette")
 		, m_fdc(*this, "fdc")
 		, m_floppy0(*this, "fdc:0")
 		, m_floppy1(*this, "fdc:1")
@@ -101,10 +103,11 @@ private:
 	required_device<z80sio_device> m_uart;
 	required_device<i8251_device> m_usart;
 	required_device<mc6845_device> m_crtc;
-	required_region_ptr<u8> m_gfx;
+	required_region_ptr<u8> m_chargen;
 	required_shared_ptr<u8> m_attram;
 	required_shared_ptr<u8> m_charram;
 	required_device<screen_device> m_screen;
+	required_device<palette_device> m_palette;
 	required_device<fd1793_device> m_fdc;
 	required_device<floppy_connector> m_floppy0;
 	required_device<floppy_connector> m_floppy1;
@@ -113,41 +116,10 @@ private:
 	
 };
 
-
-MC6845_UPDATE_ROW(elzet80_state::update_row)
+MC6845_UPDATE_ROW( elzet80_state::update_row )
 {
-	u16 x = 0;
-	u8 const *const data = m_gfx;
 
-	for (u8 cx = 0; cx < x_count; cx++)
-	{
-		const u32 base_addr = (ma + cx) & 0x1fff;
-		int const attr = m_attram[base_addr];
-		// TODO: bit 0 comes from an unknown bit in attr (bit 0?), bit 1-2 used with "TOD CLOCK ERROR" / "COIN JAM" messages
-		u32 tile_addr = (m_charram[base_addr] << 1) | ((attr & 0x60) << 4);
-		tile_addr <<= 3;
-		tile_addr += (ra & 7);
-
-		for (int i = 7; i >= 0; i--)
-		{
-			// TODO: may be banked, need RAMDAC colors to tell
-			int col = 0;
-
-			// TODO: looks 6bpp from GFX decoding (cfr. 0x*000 - 0x*800 tiles)
-			col |= (BIT(data[0x00000 | tile_addr], i) << 2);
-			col |= (BIT(data[0x10000 | tile_addr], i) << 1);
-			col |= (BIT(data[0x20000 | tile_addr], i) << 0);
-
-			// TODO: ramdac has no palette set (?) so cheating for now
-			const u32 pen = (BIT(col, 2) ? 0xff : 0) | (BIT(col, 1) ? 0xff00 : 0) | (BIT(col, 0) ? 0xff0000 : 0);
-
-			bitmap.pix(y, x) = pen;
-
-			x++;
-		}
-	}
 }
-
 
 void elzet80_state::mem_map(address_map &map)
 {
@@ -215,6 +187,8 @@ void elzet80_state::elzet80(machine_config &config)
 	MC6845(config, m_crtc, 4_MHz_XTAL);
 	m_crtc->set_screen("screen");
 	m_crtc->set_update_row_callback(FUNC(elzet80_state::update_row));
+
+	PALETTE(config, m_palette, palette_device::MONOCHROME);
 }
 
 
