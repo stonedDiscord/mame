@@ -68,6 +68,7 @@ void ballyw_state::mem_map(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
 	map(0x100000, 0x17ffff).ram(); //ram?
+	map(0x110f9c, 0x110f9c).w(FUNC(rocvfd_device::write_char));
 	map(0x800000, 0x8000ff).ram(); //rtc?
 	map(0x900000, 0x9002ff).ram(); //ulc?
 }
