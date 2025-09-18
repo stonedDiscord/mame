@@ -57,19 +57,33 @@ public:
 private:
 	void mem_map(address_map &map) ATTR_COLD;
 
+	void vfd_w(uint8_t data);
+
 	// devices
 	required_device<cpu_device> m_maincpu;
     required_device<rtc72421_device> m_rtc;
 	optional_device<rocvfd_device> m_vfd;
 };
 
+void ballyw_state::vfd_w(uint8_t data)
+{
+// probably wrong
+	m_vfd->por(data & 0x20);//inverted?
+	m_vfd->sclk(data & 0x80);
+	m_vfd->data(!(data & 0x40));
+}
 
 void ballyw_state::mem_map(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
-	map(0x100000, 0x17ffff).ram(); //ram?
-	map(0x110f9c, 0x110f9c).w(FUNC(rocvfd_device::write_char));
-	map(0x800000, 0x8000ff).ram(); //rtc?
+	map(0x100000, 0x107fff).ram(); //ram?
+	map(0x108000, 0x117fff).ram(); //ram?
+	//NOmap(0x108400, 0x108400).w(FUNC(ballyw_state::vfd_w));
+	//map(0x110f00, 0x110fff).w(FUNC(ballyw_state::vfd_w));
+	map(0x1147fe, 0x1147fe).w(FUNC(ballyw_state::vfd_w));
+	map(0x115900, 0x115aff).w(FUNC(ballyw_state::vfd_w));
+	map(0x800000, 0x800020).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
+	//map(0x800000, 0x8007ff).rom().region("eeprom",0);
 	map(0x900000, 0x9002ff).ram(); //ulc?
 }
 
