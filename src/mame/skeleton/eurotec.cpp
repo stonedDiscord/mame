@@ -25,6 +25,10 @@ older boards are labelled
 
 newer with OKI sound
 0B01.0600.1100B4
+
+TODO:
+there's a watchdog on the main board
+
 */
 
 
@@ -76,12 +80,9 @@ void ballyw_state::mem_map(address_map &map)
 	map(0x000000, 0x0fffff).rom();
 	map(0x100000, 0x107fff).ram(); //ram?
 	map(0x108000, 0x117fff).ram(); //ram?
-	//NOmap(0x108400, 0x108400).w(FUNC(ballyw_state::vfd_w));
 	map(0x1147fe, 0x1147fe).w(FUNC(ballyw_state::vfd_w));
-	map(0x115900, 0x115aff).w(FUNC(ballyw_state::vfd_w));
-	map(0x110fa7, 0x110fb4).w(FUNC(ballyw_state::vfd_w));
 	map(0x800000, 0x800020).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
-	//map(0x800000, 0x8007ff).rom().region("eeprom",0);
+	map(0x800000, 0x8007ff).rom().region("eeprom",0); //?
 	map(0x900000, 0x9002ff).ram(); //ulc?
 }
 
