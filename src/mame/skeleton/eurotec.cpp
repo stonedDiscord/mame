@@ -51,7 +51,7 @@ public:
 	ballyw_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
-        m_rtc(*this, "rtc"),
+		m_rtc(*this, "rtc"),
 		m_vfd(*this, "vfd")
 	{ }
 
@@ -65,7 +65,7 @@ private:
 
 	// devices
 	required_device<cpu_device> m_maincpu;
-    required_device<rtc72421_device> m_rtc;
+	required_device<rtc72421_device> m_rtc;
 	optional_device<rocvfd_device> m_vfd;
 };
 
@@ -82,7 +82,7 @@ void ballyw_state::mem_map(address_map &map)
 	map(0x108000, 0x117fff).ram(); //ram?
 	map(0x1147fe, 0x1147fe).w(FUNC(ballyw_state::vfd_w));
 	map(0x800000, 0x800020).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
-	map(0x800000, 0x8007ff).rom().region("eeprom",0); //?
+	//map(0x800000, 0x8007ff).rom().region("ident",0); //?
 	map(0x900000, 0x9002ff).ram(); //ulc?
 }
 
@@ -101,12 +101,11 @@ void ballyw_state::b2(machine_config &config)
 	M68000(config, m_maincpu, 16_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &ballyw_state::mem_map);
 
-    RTC72421(config, "rtc", XTAL(32'768)); // internal oscillator
+	RTC72421(config, "rtc", XTAL(32'768)); // internal oscillator
 
 	MSC1937(config, m_vfd);
 
 	SPEAKER(config, "mono").front_center();
-	
 
 	config.set_default_layout(layout_proconn);
 }
@@ -132,7 +131,7 @@ ROM_START( gloriasl )
 	ROM_REGION( 0x100000, "snd", 0 )
 	ROM_LOAD( "123-sound_1.4_gloria_sl.ic13", 0x00000, 0x100000, CRC(71cfbd7e) SHA1(efe2e92cfb7de4b6145aa3462fda010282b31090) )
 
-	ROM_REGION( 0x800, "eeprom", 0 )
+	ROM_REGION( 0x800, "ident", 0 )
 	ROM_LOAD( "127401373.p15", 0x000, 0x800, CRC(215275b6) SHA1(297dd49d42122e2f5f131d610d6a00b42beee677) )
 ROM_END
 
