@@ -30015,6 +30015,9 @@ clowndwn
 @source:misc/clpoker.cpp
 clpoker
 
+@source:misc/cocacola.cpp
+cocacola
+
 @source:misc/cocoloco.cpp
 cocoloco
 cocolocoa
