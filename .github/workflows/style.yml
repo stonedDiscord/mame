@@ -32,14 +32,15 @@ jobs:
         env:
           REVIEWS: ${{ steps.style-check.outputs.reviews }}
         with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const reviews = JSON.parse(process.env.REVIEWS || "[]");
 
             const comments = reviews.map(r => ({
-              body: r.body,
               path: r.path,
               line: r.line,
               side: "RIGHT",
+              body: r.body
             }));
 
             if (comments.length > 0) {
