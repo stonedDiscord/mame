@@ -124,6 +124,37 @@ def check_includes(path: Path, lines):
 
     return errors
 
+def check_rom_regions(lines):
+    errors = []
+    rom_start_pattern = re.compile(r'^\s*ROM_START\s*\(')
+    rom_end_pattern = re.compile(r'^\s*ROM_END\s*$')
+    rom_region_pattern = re.compile(r'^\s*ROM_REGION')
+
+    inside_rom = False
+    first_region = True
+
+    for i, line in enumerate(lines, 1):
+        if rom_start_pattern.match(line):
+            inside_rom = True
+            first_region = True
+        elif rom_end_pattern.match(line):
+            inside_rom = False
+            # Check if next line is blank (unless end of file)
+            if i < len(lines) and lines[i].strip() != '':
+                errors.append((i + 1, "ROM_END should be followed by a blank line"))
+        elif inside_rom and rom_region_pattern.match(line):
+            if first_region:
+                # First ROM_REGION should not have a blank line before it
+                if i > 0 and lines[i - 1].strip() == '':
+                    errors.append((i, "First ROM_REGION should not have a blank line before it"))
+                first_region = False
+            else:
+                # Subsequent ROM_REGION should have a blank line before it
+                if i <= 1 or lines[i - 2].strip() != '':
+                    errors.append((i, "ROM_REGION should have a blank line before it"))
+
+    return errors
+
 def check_cpp_file(path: Path, fix: bool = False):
     errors = check_file(path, fix)
 
@@ -170,32 +201,7 @@ def check_cpp_file(path: Path, fix: bool = False):
             errors.append((i, f"Enum '{en.group(2)}' should use snake_case"))
 
     # ROM region whitespace checks
-    rom_start_pattern = re.compile(r'^\s*ROM_START\s*\(')
-    rom_end_pattern = re.compile(r'^\s*ROM_END\s*$')
-    rom_region_pattern = re.compile(r'^\s*ROM_REGION')
-
-    inside_rom = False
-    first_region = True
-
-    for i, line in enumerate(lines, 1):
-        if rom_start_pattern.match(line):
-            inside_rom = True
-            first_region = True
-        elif rom_end_pattern.match(line):
-            inside_rom = False
-            # Check if next line is blank (unless end of file)
-            if i < len(lines) and lines[i].strip() != '':
-                errors.append((i + 1, "ROM_END should be followed by a blank line"))
-        elif inside_rom and rom_region_pattern.match(line):
-            if first_region:
-                # First ROM_REGION should not have a blank line before it
-                if i > 0 and lines[i - 1].strip() == '':
-                    errors.append((i, "First ROM_REGION should not have a blank line before it"))
-                first_region = False
-            else:
-                # Subsequent ROM_REGION should have a blank line before it
-                if i == 0 or lines[i - 1].strip() != '':
-                    errors.append((i, "ROM_REGION should have a blank line before it"))
+    errors.extend(check_rom_regions(lines))
 
     return errors
 
