@@ -3,9 +3,7 @@
 ## license:BSD-3-Clause
 ## copyright-holders:stonedDiscord
 
-import json
-import re
-import sys
+import json, re, sys
 from pathlib import Path
 
 def is_screaming_snake(name: str):
@@ -44,8 +42,32 @@ def check_file(path: Path, fix: bool = False):
 
     return errors
 
+LICENSE_RE = re.compile(r'^//\s*license:')
+COPYRIGHT_RE = re.compile(r'^//\s*copyright-holders:')
+
+def check_spdx_header(lines):
+    errors = []
+    i = 0
+
+    # skip blank lines
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+
+    if i >= len(lines) or not LICENSE_RE.match(lines[i]):
+        errors.append((i + 1, "Missing or incorrect // license: header"))
+
+    i += 1
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+
+    if i >= len(lines) or not COPYRIGHT_RE.match(lines[i]):
+        errors.append((i + 1, "Missing or incorrect // copyright-holders: header"))
+
+    return errors
+
 def check_cpp_file(path: Path, fix: bool = False):
     errors = check_file(path, fix)
+
     try:
         text = path.read_text()
     except Exception:
@@ -53,37 +75,35 @@ def check_cpp_file(path: Path, fix: bool = False):
 
     lines = text.splitlines()
 
+    # SPDX header
+    errors.extend(check_spdx_header(lines))
+
+    # normal style checks
     for i, line in enumerate(lines, 1):
-        hex_pattern = re.compile(r"0x[A-F]+")
-        if hex_pattern.search(line):
+
+        if re.search(r"0x[A-F]+", line):
             errors.append((i, "Hex literals should be lowercase (0x1a not 0x1A)"))
 
-        comment_pattern = re.compile(r"/\*.*\*/")
-        if comment_pattern.search(line.strip()):
+        if re.search(r"/\*.*\*/", line.strip()):
             errors.append((i, "/* Single-line block comments */ should use // instead"))
 
-        macro_pattern = re.compile(r"^\s*#define\s+([A-Za-z0-9_]+)")
-        m = macro_pattern.match(line)
+        m = re.match(r"^\s*#define\s+([A-Za-z0-9_]+)", line)
         if m and not is_screaming_snake(m.group(1)):
             errors.append((i, f"Macro '{m.group(1)}' should use SCREAMING_SNAKE_CASE"))
 
-        const_pattern = re.compile(r"\bconst\b[^;=()]*\b([A-Za-z_][A-Za-z0-9_]*)\b\s*(?:=|;)")
-        c = const_pattern.search(line)
+        c = re.search(r"\bconst\b[^;=()]*\b([A-Za-z_][A-Za-z0-9_]*)\b\s*(?:=|;)", line)
         if c and not is_screaming_snake(c.group(1)):
             errors.append((i, f"Constant '{c.group(1)}' should use SCREAMING_SNAKE_CASE"))
 
-        function_pattern = re.compile(r"\b([a-z][a-z0-9_]*)\s*\(")
-        f = function_pattern.search(line)
+        f = re.search(r"\b([a-z][a-z0-9_]*)\s*\(", line)
         if f and not is_snake_case(f.group(1)):
             errors.append((i, f"Function '{f.group(1)}' should use snake_case"))
 
-        class_pattern = re.compile(r"\bclass\s+([A-Za-z0-9_]+)")
-        cl = class_pattern.search(line)
+        cl = re.search(r"\bclass\s+([A-Za-z0-9_]+)", line)
         if cl and not is_snake_case(cl.group(1)):
             errors.append((i, f"Class '{cl.group(1)}' should use snake_case"))
 
-        enum_pattern = re.compile(r"\benum\s+(class\s+)?([A-Za-z0-9_]+)")
-        en = enum_pattern.search(line)
+        en = re.search(r"\benum\s+(class\s+)?([A-Za-z0-9_]+)", line)
         if en and not is_snake_case(en.group(2)):
             errors.append((i, f"Enum '{en.group(2)}' should use snake_case"))
 
@@ -105,6 +125,7 @@ def check_lst_block(block, changed_cpp_files, start_line, src_file):
 def check_mame_lst(changed_cpp_files: set[str]):
     path = Path("src/mame/mame.lst")
     errors = check_file(path, False)
+
     try:
         lines = path.read_text().splitlines()
     except Exception:
@@ -119,7 +140,6 @@ def check_mame_lst(changed_cpp_files: set[str]):
             if current_block:
                 errors.extend(check_lst_block(current_block, changed_cpp_files, block_start_line, current_source))
             current_source = "src/mame/" + line[len("@source:"):].strip()
-            
             current_block = []
             block_start_line = i + 1
         elif line.strip():
@@ -138,34 +158,27 @@ def main():
     fix = "-f" in sys.argv
     args = [f for f in sys.argv[1:] if f != "-f"]
 
-    cpp_files = {f for f in args if f.endswith(".c") or f.endswith(".cpp")}
-    h_files = {f for f in args if f.endswith(".h") or f.endswith(".hpp") or f.endswith(".hxx") or f.endswith(".ipp")}
-    other_files = {f for f in args if f.endswith(".py") or f.endswith(".lua") or f.endswith(".mm") or f.endswith(".lay") or f.endswith(".lst")}
+    cpp_files = {f for f in args if f.endswith((".c", ".cpp"))}
+    h_files = {f for f in args if f.endswith((".h", ".hpp", ".hxx", ".ipp"))}
+    other_files = {f for f in args if f.endswith((".py", ".lua", ".mm", ".lay", ".lst"))}
 
     for file in cpp_files:
         path = Path(file)
-        errors = check_cpp_file(path, fix=fix)
-
-        for lineno, msg in errors:
-            print_review(path,lineno,msg)
+        for lineno, msg in check_cpp_file(path, fix):
+            print_review(path, lineno, msg)
 
     for file in h_files:
         path = Path(file)
-        errors = check_cpp_file(path, fix=fix)
-
-        for lineno, msg in errors:
-            print_review(path,lineno,msg)
+        for lineno, msg in check_cpp_file(path, fix):
+            print_review(path, lineno, msg)
 
     for file in other_files:
         path = Path(file)
-        errors = check_file(path, fix=fix)
+        for lineno, msg in check_file(path, fix):
+            print_review(path, lineno, msg)
 
-        for lineno, msg in errors:
-            print_review(path,lineno,msg)
-
-    errors = check_mame_lst(cpp_files)
-    for lineno, msg in errors:
-            print_review("src/mame/mame.lst",lineno,msg)
+    for lineno, msg in check_mame_lst(cpp_files):
+        print_review("src/mame/mame.lst", lineno, msg)
 
     sys.exit(0)
 
