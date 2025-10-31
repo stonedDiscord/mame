@@ -65,6 +65,65 @@ def check_spdx_header(lines):
 
     return errors
 
+def check_includes(path: Path, lines):
+    errors = []
+    includes = []
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('#include'):
+            includes.append((i + 1, stripped))
+
+    if not includes:
+        return errors
+
+    def get_group(include_line):
+        m = re.match(r'#include\s+["<]([^">]+)[">]', include_line)
+        if not m:
+            return None
+        inc_path = m.group(1)
+        if inc_path == 'emu.h':
+            return 0
+        if include_line.endswith('>'):
+            return 4
+        else:
+            # " includes
+            if '/' in inc_path:
+                return 1
+            else:
+                if inc_path.endswith('.lh'):
+                    return 3
+                else:
+                    return 2
+
+    include_data = []
+    for line_no, inc_line in includes:
+        group = get_group(inc_line)
+        if group is None:
+            continue
+        m = re.match(r'#include\s+["<]([^">]+)[">]', inc_line)
+        inc_path = m.group(1)
+        include_data.append((group, inc_path, line_no))
+
+    expected = sorted(include_data, key=lambda x: (x[0], x[1].lower()))
+    for (exp_group, exp_path, _), (act_group, act_path, act_line) in zip(expected, include_data):
+        if exp_group != act_group or exp_path != act_path:
+            errors.append((act_line, f"Include '{act_path}' is out of order, expected '{exp_path}'"))
+            break
+
+    # check for blank lines between groups
+    for i in range(len(includes) - 1):
+        line_no1, inc_line1 = includes[i]
+        line_no2, inc_line2 = includes[i + 1]
+        group1 = get_group(inc_line1)
+        group2 = get_group(inc_line2)
+        if group1 != group2:
+            # check if there is at least one blank line between line_no1 and line_no2
+            has_blank = any(lines[j].strip() == '' for j in range(line_no1, line_no2))
+            if not has_blank:
+                errors.append((line_no2, "Missing blank line between include groups"))
+
+    return errors
+
 def check_cpp_file(path: Path, fix: bool = False):
     errors = check_file(path, fix)
 
@@ -77,6 +136,9 @@ def check_cpp_file(path: Path, fix: bool = False):
 
     # SPDX header
     errors.extend(check_spdx_header(lines))
+
+    # include order
+    errors.extend(check_includes(path, lines))
 
     # normal style checks
     for i, line in enumerate(lines, 1):
