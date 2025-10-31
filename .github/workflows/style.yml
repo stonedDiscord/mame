@@ -10,7 +10,8 @@ on:
 jobs:
   stylecheck:
     runs-on: ubuntu-latest
-
+    permissions:
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +27,7 @@ jobs:
         run: echo "reviews=$(python3 scripts/build/style.py ${{ steps.changed-files.outputs.changed_files }} | jq -s -c .)" >> $GITHUB_OUTPUT
 
       - name: Post review comments
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         id: post-comments
         env:
           REVIEWS: ${{ steps.style-check.outputs.reviews }}
