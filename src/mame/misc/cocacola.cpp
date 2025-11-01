@@ -1,6 +1,11 @@
 // license:BSD-3-Clause
 // copyright-holders:stonedDiscord
 /*
+ * Höfer CC-KAZ
+ *
+ * A bottle vending machine built by Höfer for Coca-Cola
+ *
+ *
  *
  *********************************************/
 
