@@ -36,7 +36,44 @@ jobs:
           script: |
             const reviews = JSON.parse(process.env.REVIEWS || "[]");
 
-            const comments = reviews.map(r => ({
+            const prFiles = await github.paginate(
+              github.rest.pulls.listFiles, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                per_page: 100
+              }
+            );
+
+            // Build a map: { "path/to/file": Set([changed line numbers]) }
+            const changedLinesByFile = {};
+            for (const file of prFiles) {
+              const patch = file.patch;
+              if (!patch) continue;
+              const changedLines = new Set();
+              let currentLine = 0;
+              patch.split('\n').forEach(line => {
+                // Parse unified diff hunks
+                const match = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
+                if (match) {
+                  currentLine = parseInt(match[1], 10);
+                  return;
+                }
+                if (line.startsWith('+') && !line.startsWith('+++')) {
+                  changedLines.add(currentLine);
+                  currentLine++;
+                } else if (!line.startsWith('-')) {
+                  currentLine++;
+                }
+              });
+              changedLinesByFile[file.filename] = changedLines;
+            }
+
+            // Filter reviews to only changed lines
+            const comments = reviews.filter(r => {
+              const changed = changedLinesByFile[r.path];
+              return changed && changed.has(r.line);
+            }).map(r => ({
               path: r.path,
               line: r.line,
               side: "RIGHT",
@@ -44,7 +81,7 @@ jobs:
             }));
 
             if (comments.length > 0) {
-              console.debug("Reviews: ", reviews);
+              console.debug("Filtered Reviews: ", comments);
               await github.rest.pulls.createReview({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -52,6 +89,4 @@ jobs:
                 event: "COMMENT",
                 comments,
               });
-            } else {
-              console.info("Review list empty.");
             }
