@@ -431,4 +431,4 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL(2001, showdownec1,             0, showdownec1, showdownec1, showdownec1_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(1998, showdownec1,             0, showdownec1, showdownec1, showdownec1_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
