@@ -83,6 +83,8 @@ def check_includes(path: Path, lines):
         inc_path = m.group(1)
         if inc_path == 'emu.h':
             return 0
+        if inc_path == 'logmacro.h':
+            return 5
         if include_line.endswith('>'):
             return 4
         else:
