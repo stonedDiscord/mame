@@ -405,6 +405,8 @@ void showdownec1_state::showdownec1(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &showdownec1_state::mem_map);
 	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &showdownec1_state::fc7_map);
 
+	RTC4543(config, m_rtc, 32.768_kHz_XTAL);
+
 	MC68681(config, m_duart, 3686400);
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_2); // ?
 	m_duart->outport_cb().set(FUNC(showdownec1_state::duart_output_w));
@@ -431,6 +433,30 @@ ROM_START( showdownec1 )
 	ROM_LOAD( "showdown_ec1_decrypted.bin", 0x00000, 0x50c04, CRC(39f72304) SHA1(a4c383f83a8c455c59fd16af3608119b1fab4f5b) )
 ROM_END
 
+ROM_START( brisant )
+	ROM_REGION16_BE( 0x2000, "loader", 0 )
+	ROM_LOAD( "loader_rote.bin", 0x000, 0xbc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
+
+    ROM_REGION16_BE( 0x100, "eeprom", 0 )
+    ROM_LOAD( "eeprom_1mb_at90s1200.bin", 0x00, 0x40, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
+
+    ROM_REGION16_BE( 0x80000, "xc_decrypted", 0 )
+	ROM_LOAD( "brisant_ec1.xc.dec.bin",     0x000000, 0x052404, CRC(83b81f46) SHA1(5c83bf81f285cac8a918dc5fdcb270a57588a1b9) )
+ROM_END
+
+ROM_START( siriusje )
+	ROM_REGION16_BE( 0x2000, "loader", 0 )
+	ROM_LOAD( "loader_rote.bin", 0x000, 0xbc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
+
+    ROM_REGION16_BE( 0x100, "eeprom", 0 )
+    ROM_LOAD( "eeprom_512kb_at90s1200.bin", 0x00, 0x40, CRC(61fb0642) SHA1(19ea69dbc5a0c348f0d8b88b3fa591749a4226cc) )
+
+    ROM_REGION16_BE( 0x80000, "xc_decrypted", 0 )
+	ROM_LOAD( "sirius_jackpot_ext_c2.xc.dec.bin",   0x000000, 0x018804, CRC(010a61e5) SHA1(1117ad3d97f0a08c4111ac52e9bf4edea0b0bac5) )
+ROM_END
+
 } // anonymous namespace
 
 GAMEL(1998, showdownec1,             0, showdownec1, showdownec1, showdownec1_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(1999, brisant,             0, showdownec1, showdownec1, showdownec1_state, empty_init, ROT0, "Mega",   "Brisant",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(2006, siriusje,             0, showdownec1, showdownec1, showdownec1_state, empty_init, ROT0, "Mega",   "Sirius Jackpot Nug",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
