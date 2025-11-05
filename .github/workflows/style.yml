@@ -26,10 +26,6 @@ jobs:
         id: style-check
         run: echo "reviews=$(python3 scripts/build/style.py ${{ steps.changed-files.outputs.changed_files }} | jq -s -c .)" >> $GITHUB_OUTPUT
 
-      - name: Get latest commit SHA
-        id: get-sha
-        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-
       - name: Delete previous bot review comments
         uses: actions/github-script@v8
         with:
