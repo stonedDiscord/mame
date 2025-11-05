@@ -3,7 +3,7 @@
 ## license:BSD-3-Clause
 ## copyright-holders:stonedDiscord
 
-import json, re, sys
+import json, re, sys, subprocess
 from pathlib import Path
 
 def is_screaming_snake(name: str):
@@ -255,31 +255,79 @@ def print_review(path, lineno, msg):
     review = {"body": str(msg), "path": str(path), "line": int(lineno)}
     print(json.dumps(review))
 
+def get_changed_lines(base_sha, file_path):
+    if not base_sha:
+        return None
+    try:
+        result = subprocess.run(['git', 'diff', '--unified=0', base_sha, 'HEAD', '--', file_path], capture_output=True, text=True)
+        if result.returncode != 0:
+            return None
+        changed_lines = set()
+        lines = result.stdout.splitlines()
+        for line in lines:
+            if line.startswith('@@'):
+                m = re.match(r'@@ -\d+,\d+ \+(\d+),(\d+) @@', line)
+                if m:
+                    new_start = int(m.group(1))
+                    new_count = int(m.group(2))
+                    for i in range(new_count):
+                        changed_lines.add(new_start + i)
+        return changed_lines
+    except Exception:
+        return None
+
+def get_changed_files(base_sha):
+    if not base_sha:
+        return set()
+    try:
+        result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', base_sha, 'HEAD'], capture_output=True, text=True)
+        if result.returncode != 0:
+            return set()
+        files = set(result.stdout.strip().split('\n'))
+        return files
+    except Exception:
+        return set()
+
 def main():
     fix = "-f" in sys.argv
-    args = [f for f in sys.argv[1:] if f != "-f"]
+    args = sys.argv[1:]
+    if fix:
+        args.remove("-f")
 
-    cpp_files = {f for f in args if f.endswith((".c", ".cpp"))}
-    h_files = {f for f in args if f.endswith((".h", ".hpp", ".hxx", ".ipp"))}
-    other_files = {f for f in args if f.endswith((".py", ".lua", ".mm", ".lay", ".lst"))}
+    base_sha = None
+    if args and args[0] == '--base-sha':
+        base_sha = args[1]
+        args = args[2:]
 
-    for file in cpp_files:
+    if base_sha and not args:
+        # Find changed files
+        changed_files = get_changed_files(base_sha)
+        cpp_files = {f for f in changed_files if f.endswith((".c", ".cpp"))}
+        h_files = {f for f in changed_files if f.endswith((".h", ".hpp", ".hxx", ".ipp"))}
+        other_files = {f for f in changed_files if f.endswith((".py", ".lua", ".mm", ".lay", ".lst"))}
+    else:
+        # Use provided files
+        cpp_files = {f for f in args if f.endswith((".c", ".cpp"))}
+        h_files = {f for f in args if f.endswith((".h", ".hpp", ".hxx", ".ipp"))}
+        other_files = {f for f in args if f.endswith((".py", ".lua", ".mm", ".lay", ".lst"))}
+
+    all_files = cpp_files | h_files | other_files
+
+    for file in all_files:
+        changed_lines = get_changed_lines(base_sha, file)
         path = Path(file)
-        for lineno, msg in check_cpp_file(path, fix):
-            print_review(path, lineno, msg)
+        if file in cpp_files | h_files:
+            errors = check_cpp_file(path, fix)
+        else:
+            errors = check_file(path, fix)
+        for lineno, msg in errors:
+            if changed_lines is None or lineno in changed_lines:
+                print_review(path, lineno, msg)
 
-    for file in h_files:
-        path = Path(file)
-        for lineno, msg in check_cpp_file(path, fix):
-            print_review(path, lineno, msg)
-
-    for file in other_files:
-        path = Path(file)
-        for lineno, msg in check_file(path, fix):
-            print_review(path, lineno, msg)
-
+    changed_lines_lst = get_changed_lines(base_sha, "src/mame/mame.lst")
     for lineno, msg in check_mame_lst(cpp_files):
-        print_review("src/mame/mame.lst", lineno, msg)
+        if changed_lines_lst is None or lineno in changed_lines_lst:
+            print_review("src/mame/mame.lst", lineno, msg)
 
     sys.exit(0)
 

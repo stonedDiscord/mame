@@ -3,9 +3,9 @@ name: Style Check
 on:
   pull_request:
     paths:
-    - '.github/workflows/**'
-    - 'src/**.cpp'
-    - 'src/**.h'
+      - ".github/workflows/**"
+      - "src/**.cpp"
+      - "src/**.h"
 
 jobs:
   stylecheck:
@@ -18,13 +18,9 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Get changed files
-        id: changed-files
-        run: echo "changed_files=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }}...HEAD | xargs)" >> $GITHUB_OUTPUT
-
       - name: Run style check
         id: style-check
-        run: echo "reviews=$(python3 scripts/build/style.py ${{ steps.changed-files.outputs.changed_files }} | jq -s -c .)" >> $GITHUB_OUTPUT
+        run: echo "reviews=$(python3 scripts/build/style.py --base-sha ${{ github.event.pull_request.base.sha }} | jq -s -c .)" >> $GITHUB_OUTPUT
 
       - name: Post review comments
         uses: actions/github-script@v8
@@ -35,23 +31,23 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const reviews = JSON.parse(process.env.REVIEWS || "[]");
-      
+
             if (reviews.length === 0) {
               console.info("Review list empty.");
               return;
             }
-      
+
             console.debug("Reviews: ", reviews);
-      
+
             for (const r of reviews) {
-              await github.rest.pulls.createReviewComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                body: r.body,
-                commit_id: "${{ github.event.pull_request.head.sha }}",
-                path: r.path,
-                side: "RIGHT",
-                line: r.line,                
-              });
+                await github.rest.pulls.createReviewComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  body: r.body,
+                  commit_id: context.sha,
+                  path: r.path,
+                  side: "RIGHT",
+                  line: r.line,
+                });
             }
