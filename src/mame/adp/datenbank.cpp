@@ -101,12 +101,14 @@ Patent: DE10142537A1
 
 
 #include "emu.h"
+
 #include "cpu/m68000/m68000.h"
 #include "machine/68340.h"
 #include "machine/nvram.h"
 #include "machine/rtc4543.h"
 #include "sound/ay8910.h"
 #include "sound/dac.h"
+
 #include "speaker.h"
 
 //#define VERBOSE 1
