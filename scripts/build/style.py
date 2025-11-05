@@ -86,14 +86,14 @@ def check_includes(path: Path, lines):
         if inc_path == 'logmacro.h':
             return 5
         if include_line.endswith('>'):
-            return 4
+            return 3
         else:
             # " includes
             if '/' in inc_path:
                 return 1
             else:
                 if inc_path.endswith('.lh'):
-                    return 3
+                    return 4
                 else:
                     return 2
 
