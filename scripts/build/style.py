@@ -205,13 +205,15 @@ def check_cpp_file(path: Path, fix: bool = False):
 
     return errors
 
-def strip_trailing_numbers(s):
-    return re.sub(r'\d+$', '', s)
+def natural_sort(l): 
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)]
+    return sorted(l, key=alphanum_key)
 
 def check_lst_block(block, changed_cpp_files, start_line, src_file):
     if not src_file or src_file not in changed_cpp_files:
         return []
-    sorted_block = sorted(block, key=lambda s: (strip_trailing_numbers(s).lower(), s.lower()))
+    sorted_block = natural_sort(block)
     errors_local = []
     for offset, (expected, actual) in enumerate(zip(sorted_block, block)):
         if expected != actual:
