@@ -426,7 +426,7 @@ ROM_START( showdownec1 )
     ROM_LOAD( "eeprom_1mb_at90s1200.bin", 0x00, 0x40, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
 
     ROM_REGION16_BE( 0x80000, "xc_decrypted", 0 )
-	ROM_LOAD( "showdownec1_ec1_decrypted.bin", 0x00000, 0x50c04, CRC(39f72304) SHA1(a4c383f83a8c455c59fd16af3608119b1fab4f5b) )
+	ROM_LOAD( "showdown_ec1_decrypted.bin", 0x00000, 0x50c04, CRC(39f72304) SHA1(a4c383f83a8c455c59fd16af3608119b1fab4f5b) )
 ROM_END
 
 } // anonymous namespace
