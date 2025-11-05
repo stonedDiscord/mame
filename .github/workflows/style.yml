@@ -35,88 +35,20 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
             const reviews = JSON.parse(process.env.REVIEWS || "[]");
+            const pr = context.payload.pull_request;
 
-            // Helper to get all changed lines in a file from the PR's diff patch
-            function getChangedLinesFromPatch(patch) {
-              const changedLines = new Set();
-              let currentLine = 0;
-              if (!patch) return changedLines;
-              const lines = patch.split('\n');
-              for (const line of lines) {
-                // Match hunk header, e.g., @@ -3,7 +3,12 @@
-                const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
-                if (hunk) {
-                  currentLine = parseInt(hunk[1]);
-                  continue;
-                }
-                if (line.startsWith('+') && !line.startsWith('+++')) {
-                  changedLines.add(currentLine);
-                  currentLine++;
-                } else if (!line.startsWith('-')) {
-                  currentLine++;
-                }
-              }
-              return changedLines;
-            }
-
-            // Get files changed in the PR
-            const prFiles = await github.paginate(
-              github.rest.pulls.listFiles, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                per_page: 100
-              }
-            );
-
-            // Build a map of changed lines by file { filename: Set([lines]) }
-            const changedLinesByFile = {};
-            for (const file of prFiles) {
-              changedLinesByFile[file.filename] = getChangedLinesFromPatch(file.patch);
-            }
-
-            // Filter reviews to only lines actually changed in the PR
-            const comments = reviews.filter(r => {
-              const changed = changedLinesByFile[r.path];
-              return changed && changed.has(r.line);
-            }).map(r => ({
-              path: r.path,
-              line: r.line,
-              side: "RIGHT",
-              body: r.body
-            }));
-
-            // Remove (dismiss) any prior reviews by GitHub Actions bot on this PR
-            // Get all reviews to find existing COMMENT reviews by this GitHub Actions bot
-            const allReviews = await github.rest.pulls.listReviews({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number
-            });
-            for (const review of allReviews.data) {
-              // Dismiss previous COMMENT reviews by this user/bot
-              if (
-                review.user &&
-                review.user.login === context.actor &&
-                review.state === "COMMENTED" // "COMMENTED" means it was just a comment review
-              ) {
-                // Dismiss this review
-                await github.rest.pulls.dismissReview({
+            for (const review of reviews) {
+              try {
+                await github.rest.pulls.createReviewComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  pull_number: context.payload.pull_request.number,
-                  review_id: review.id,
-                  message: "Superseded by a newer automated style review"
+                  pull_number: pr.number,
+                  body: review.body,
+                  path: review.path,
+                  line: review.line,
+                  side: "RIGHT"
                 });
+              } catch (err) {
+                console.error(`Failed to comment on ${review.path}:${review.line}:`, err);
               }
-            }
-
-            if (comments.length > 0) {
-              await github.rest.pulls.createReview({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                event: "COMMENT",
-                comments,
-              });
             }
