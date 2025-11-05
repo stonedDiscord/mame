@@ -36,8 +36,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const pr = context.payload.pull_request;
-            // Only delete comments left by GitHub Actions bot
-            const botUser = (await github.rest.users.getAuthenticated()).data.login;
             const comments = await github.paginate(
               github.rest.pulls.listReviewComments,
               {
@@ -48,7 +46,8 @@ jobs:
               }
             );
             for (const comment of comments) {
-              if (comment.user && comment.user.login === botUser) {
+              // direct match to the GH Actions bot
+              if (comment.user && comment.user.login === "github-actions[bot]") {
                 try {
                   await github.rest.pulls.deleteReviewComment({
                     owner: context.repo.owner,
