@@ -48,15 +48,11 @@ jobs:
             for (const comment of comments) {
               // direct match to the GH Actions bot
               if (comment.user && comment.user.login === "github-actions[bot]") {
-                try {
                   await github.rest.pulls.deleteReviewComment({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     comment_id: comment.id
                   });
-                } catch (err) {
-                  console.error(`Failed to delete comment ${comment.id}:`, err);
-                }
               }
             }
 
@@ -70,10 +66,9 @@ jobs:
           script: |
             const reviews = JSON.parse(process.env.REVIEWS || "[]");
             const pr = context.payload.pull_request;
-            const commit_id = "${{ steps.get-sha.outputs.sha }}";
+            const commit_id = "${{ github.event.pull_request.head.sha }}";
 
             for (const review of reviews) {
-              try {
                 await github.rest.pulls.createReviewComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -84,7 +79,4 @@ jobs:
                   side: "RIGHT",
                   commit_id: commit_id
                 });
-              } catch (err) {
-                console.error(`Failed to comment on ${review.path}:${review.line}:`, err);
-              }
             }
