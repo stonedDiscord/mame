@@ -26,6 +26,41 @@ jobs:
         id: style-check
         run: echo "reviews=$(python3 scripts/build/style.py ${{ steps.changed-files.outputs.changed_files }} | jq -s -c .)" >> $GITHUB_OUTPUT
 
+      - name: Get latest commit SHA
+        id: get-sha
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Delete previous bot review comments
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            // Only delete comments left by GitHub Actions bot
+            const botUser = (await github.rest.users.getAuthenticated()).data.login;
+            const comments = await github.paginate(
+              github.rest.pulls.listReviewComments,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                per_page: 100,
+              }
+            );
+            for (const comment of comments) {
+              if (comment.user && comment.user.login === botUser) {
+                try {
+                  await github.rest.pulls.deleteReviewComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: comment.id
+                  });
+                } catch (err) {
+                  console.error(`Failed to delete comment ${comment.id}:`, err);
+                }
+              }
+            }
+
       - name: Post review comments
         uses: actions/github-script@v8
         id: post-comments
@@ -36,6 +71,7 @@ jobs:
           script: |
             const reviews = JSON.parse(process.env.REVIEWS || "[]");
             const pr = context.payload.pull_request;
+            const commit_id = "${{ steps.get-sha.outputs.sha }}";
 
             for (const review of reviews) {
               try {
@@ -46,7 +82,8 @@ jobs:
                   body: review.body,
                   path: review.path,
                   line: review.line,
-                  side: "RIGHT"
+                  side: "RIGHT",
+                  commit_id: commit_id
                 });
               } catch (err) {
                 console.error(`Failed to comment on ${review.path}:${review.line}:`, err);
