@@ -111,10 +111,10 @@ Patent: DE10142537A1
 
 #include "speaker.h"
 
+#include "stellafr.lh"
+
 //#define VERBOSE 1
 #include "logmacro.h"
-
-#include "stellafr.lh"
 
 namespace {
 
