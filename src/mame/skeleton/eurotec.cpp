@@ -33,12 +33,14 @@ there's a watchdog on the main board
 
 
 #include "emu.h"
+
 #include "cpu/m68000/m68000.h"
 #include "machine/nvram.h"
 //#include "machine/ds2430a.h" //DS1985 die under an epoxy blob
 #include "machine/msm6242.h"
-#include "machine/roc10937.h"
+#include "video/roc10937.h"
 #include "sound/okim6376.h"
+
 #include "speaker.h"
 
 #include "proconn.lh"
