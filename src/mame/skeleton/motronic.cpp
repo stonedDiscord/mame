@@ -25,6 +25,7 @@
 **************************************************************************/
 
 #include "emu.h"
+
 #include "cpu/mcs51/sab80c535.h"
 
 #include "bmw.lh"
@@ -101,7 +102,7 @@ void motronic_state::prog_map(address_map &map)
 {
     //map(0x0000, 0x1fff).ram(); // 8192 bytes
 	map(0x0000, 0x7fff).rom().region("program", 0);
-    
+
 }
 
 /************************
