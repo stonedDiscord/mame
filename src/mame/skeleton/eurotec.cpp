@@ -61,10 +61,15 @@ public:
 	void b4(machine_config &config);
 
 private:
+	virtual void machine_start() override;
 	void mem_map(address_map &map) ATTR_COLD;
 
 	void vfd_w(uint8_t data);
-
+	INTERRUPT_GEN_MEMBER(watchdog_interrupt);
+	
+	void watchdog_clear(int);
+	emu_timer *m_watchdog_clear_timer = nullptr;
+	
 	// devices
 	required_device<cpu_device> m_maincpu;
 	required_device<rtc72421_device> m_rtc;
@@ -73,19 +78,24 @@ private:
 
 void ballyw_state::vfd_w(uint8_t data)
 {
-	popmessage("%s",data);
 	m_vfd->write_char(data);
 }
 
 void ballyw_state::mem_map(address_map &map)
 {
-	map(0x000000, 0x0fffff).rom();
-	map(0x100000, 0x107fff).ram(); //ram?
-	map(0x108000, 0x117fff).ram(); //ram?
+	map(0x000000, 0x07ffff).rom();
+	map(0x080000, 0x0fffff).ram();
+	map(0x100000, 0x1fffff).ram();
 	map(0x1147fe, 0x1147fe).w(FUNC(ballyw_state::vfd_w));
-	map(0x800000, 0x800020).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
+	map(0x800000, 0x8007ff).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
 	//map(0x800000, 0x8007ff).rom().region("ident",0); //?
 	map(0x900000, 0x9002ff).ram(); //ulc?
+	map(0x90f000, 0x90ffff).ram();
+}
+
+void ballyw_state::machine_start()
+{
+	m_watchdog_clear_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(ballyw_state::watchdog_clear), this));
 }
 
 static INPUT_PORTS_START( ballyw )
@@ -110,6 +120,22 @@ void ballyw_state::b2(machine_config &config)
 	SPEAKER(config, "mono").front_center();
 
 	config.set_default_layout(layout_proconn);
+	
+	// Set up watchdog timer to generate periodic interrupts
+	// This prevents the firmware from getting stuck in busy-wait loops
+	m_maincpu->set_periodic_int(FUNC(ballyw_state::watchdog_interrupt), attotime::from_hz(100));
+}
+
+INTERRUPT_GEN_MEMBER(ballyw_state::watchdog_interrupt)
+{
+	device.execute().set_input_line(M68K_IRQ_1, ASSERT_LINE);
+	
+	m_watchdog_clear_timer->adjust(attotime::from_usec(10));
+}
+
+void ballyw_state::watchdog_clear(int)
+{
+	m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
 }
 
 void ballyw_state::b4(machine_config &config)
