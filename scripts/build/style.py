@@ -270,10 +270,13 @@ def print_review(path, lineno, msg, out=None):
 
 def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
     try:
+        # Try master...HEAD syntax first to show changes from merge base
         result = subprocess.run(['git', 'diff', '--unified=0', f'{base_branch}...{head_branch}', '--', file_path], capture_output=True, text=True)
         if result.returncode != 0:
-            print(result)
-            sys.exit(1)
+            # Fall back to standard diff if no merge base
+            result = subprocess.run(['git', 'diff', '--unified=0', base_branch, head_branch, '--', file_path], capture_output=True, text=True)
+            if result.returncode != 0:
+                return None
 
         changed_lines = set()
 
@@ -292,15 +295,19 @@ def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
 
 def get_changed_files(base_branch="master", head_branch="HEAD"):
     try:
+        # Try master...HEAD syntax first to show changes from merge base
         result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', f'{base_branch}...{head_branch}'], capture_output=True, text=True)
         if result.returncode != 0:
-            print(result)
-            sys.exit(1)
+            # Fall back to standard diff if no merge base
+            result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', base_branch, head_branch], capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"Error getting changed files: {result.stderr}")
+                return set()
         files = set(result.stdout.strip().split('\n'))
         return files
     except Exception as e:
-        print(result)
-        sys.exit(1)
+        print(f"Exception getting changed files: {e}")
+        return set()
 
 def main():
     fix = "-f" in sys.argv
@@ -342,10 +349,8 @@ def main():
             ciout=open(os.environ['GITHUB_OUTPUT'], 'a')
             ciout.write("comments<<EOF\n")
         except KeyError:
-            # Fallback for local testing
-            ciout=open("test_output.txt", 'w')
-            ciout.write("comments=")
-
+            # Fallback for local testing - print to console instead of file
+            ciout=None
 
     errors = []
 
@@ -365,19 +370,14 @@ def main():
                 review = {"body": str(msg), "path": str(path), "line": int(lineno)}
                 comments.append(review)
                 if ciout:
-                    if ciout.name == "test_output.txt":
-                        # For local testing, write as JSON array
-                        pass
-                    else:
-                        ciout.write(json.dumps(review)+'\n')
+                    ciout.write(json.dumps(review)+'\n')
 
     if ciout:
-        if ciout.name == "test_output.txt":
-            # Write comments as JSON array for local testing
-            ciout.write(json.dumps(comments))
-        else:
-            ciout.write("EOF\n")
+        ciout.write("EOF\n")
         ciout.close()
+    else:
+        # Local testing - print comments to console as JSON array
+        print(json.dumps(comments))
 
     sys.exit(0)
 
