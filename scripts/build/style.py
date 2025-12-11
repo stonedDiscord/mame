@@ -265,25 +265,25 @@ def print_review(path, lineno, msg):
     print(json.dumps(review))
 
 def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
-    if not base_branch:
-        return None
     try:
         result = subprocess.run(['git', 'diff', '--unified=0', base_branch, head_branch, '--', file_path], capture_output=True, text=True)
         if result.returncode != 0:
             print(result)
             sys.exit(1)
+
         changed_lines = set()
-        lines = result.stdout.splitlines()
-        for line in lines:
+
+        for line in result.stdout.splitlines():
             if line.startswith('@@'):
-                m = re.match(r'@@ -\d+,\d+ \+(\d+),(\d+) @@', line)
+                m = re.match(r'@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@', line)
                 if m:
                     new_start = int(m.group(1))
-                    new_count = int(m.group(2))
-                    for i in range(new_count):
-                        changed_lines.add(new_start + i)
+                    new_count = int(m.group(2) or 1)   # default 1 when missing
+                    changed_lines.update(range(new_start, new_start + new_count))
+
         return changed_lines
-    except Exception:
+
+    except Exception as e:
         return None
 
 def get_changed_files(base_branch="master", head_branch="HEAD"):
