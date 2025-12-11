@@ -38,9 +38,9 @@ jobs:
               side: "RIGHT",
               body: r.body
             }));
-
+            console.info("Comments: "+comments.length);
             if (comments.length > 50) {
-              console.error("More than 50 comments");
+              console.error("More than 50");
             }
             else if (comments.length > 0) {
               // Get previous reviews from github-actions[bot]
