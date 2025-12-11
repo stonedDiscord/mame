@@ -150,7 +150,7 @@ void arcadia_amiga_state::arcadia_multibios_change_game(uint16_t data)
 
 void arcadia_amiga_state::arcadia_cia_0_portb_w(uint8_t data)
 {
-	/* writing a 0 in the low bit clears one of the coins */
+	// writing a 0 in the low bit clears one of the coins
 	if ((data & 1) == 0)
 	{
 		if (m_coin_counter[0] > 0)
@@ -171,7 +171,7 @@ void arcadia_amiga_state::arcadia_cia_0_portb_w(uint8_t data)
 template <int Coin>
 ioport_value arcadia_amiga_state::coin_counter_r()
 {
-	/* return coin counter values */
+	// return coin counter values
 	return m_coin_counter[Coin] & 3;
 }
 
@@ -180,7 +180,7 @@ INPUT_CHANGED_MEMBER(arcadia_amiga_state::coin_changed_callback)
 {
 	int coin = param;
 
-	/* check for a 0 -> 1 transition */
+	// check for a 0 -> 1 transition
 	if (!oldval && newval && m_coin_counter[coin] < 3)
 		m_coin_counter[coin] += 1;
 }
@@ -322,7 +322,7 @@ INPUT_PORTS_END
 
 void arcadia_amiga_state::arcadia(machine_config &config)
 {
-	/* basic machine hardware */
+	// basic machine hardware
 	M68000(config, m_maincpu, amiga_state::CLK_7M_NTSC);
 	m_maincpu->set_addrmap(AS_PROGRAM, &arcadia_amiga_state::arcadia_map);
 	m_maincpu->reset_cb().set(FUNC(amiga_state::m68k_reset));
@@ -337,14 +337,14 @@ void arcadia_amiga_state::arcadia(machine_config &config)
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
-	/* video hardware */
+	// video hardware
 	ntsc_video(config);
 
 	PALETTE(config, m_palette, FUNC(arcadia_amiga_state::amiga_palette), 4096);
 
 	MCFG_VIDEO_START_OVERRIDE(arcadia_amiga_state,amiga)
 
-	/* sound hardware */
+	// sound hardware
 	SPEAKER(config, "speaker", 2).front();
 
 	PAULA_8364(config, m_paula, amiga_state::CLK_C1_NTSC);
@@ -355,7 +355,7 @@ void arcadia_amiga_state::arcadia(machine_config &config)
 	m_paula->mem_read_cb().set(FUNC(amiga_state::chip_ram_r));
 	m_paula->int_cb().set(FUNC(amiga_state::paula_int_w));
 
-	/* cia */
+	// cia
 	MOS8520(config, m_cia_0, amiga_state::CLK_E_NTSC);
 	m_cia_0->irq_wr_callback().set(FUNC(amiga_state::cia_0_irq));
 	m_cia_0->pa_rd_callback().set_ioport("CIA0PORTA");
@@ -366,7 +366,7 @@ void arcadia_amiga_state::arcadia(machine_config &config)
 	MOS8520(config, m_cia_1, amiga_state::CLK_E_NTSC);
 	m_cia_1->irq_wr_callback().set(FUNC(amiga_state::cia_1_irq));
 
-	/* fdc */
+	// fdc
 	PAULA_FDC(config, m_fdc, amiga_state::CLK_7M_NTSC);
 	m_fdc->index_callback().set("cia_1", FUNC(mos8520_device::flag_w));
 	m_fdc->read_dma_callback().set(FUNC(amiga_state::chip_ram_r));
@@ -379,7 +379,7 @@ void arcadia_amiga_state::argh(machine_config &config)
 {
 	arcadia(config);
 
-	/* basic machine hardware */
+	// basic machine hardware
 	m_maincpu->set_addrmap(AS_PROGRAM, &arcadia_amiga_state::argh_map);
 }
 
@@ -392,37 +392,37 @@ void arcadia_amiga_state::argh(machine_config &config)
 
 #define ROM_LOAD16_BYTE_BIOS(bios,name,offset,length,hash)     ROMX_LOAD(name, offset, length, hash, ROM_SKIP(1) | ROM_BIOS(bios))
 
-#define ARCADIA_BIOS \
-	ROM_REGION16_BE(0x80000, "kickstart", 0 ) \
-	ROM_LOAD16_WORD("315093-01.u2", 0x000000, 0x040000, CRC(a6ce1636) SHA1(11f9e62cf299f72184835b7b2a70a16333fc0d88)) \
-	ROM_COPY("kickstart", 0x000000, 0x040000, 0x040000) \
-	\
-	ROM_REGION16_BE( 0x80000, "user2", 0 ) \
-	ROM_SYSTEM_BIOS(0, "onep300", "OnePlay 3.00") \
-	ROM_LOAD16_BYTE_BIOS( 0, "scpa_01-hi_v3.0.u12", 0x000000, 0x10000, CRC(2d8e1a06) SHA1(be187f34624aeda110017c4a09242f7c00ef56a4) ) \
-	ROM_LOAD16_BYTE_BIOS( 0, "scpa_01-lo_v3.0.u16", 0x000001, 0x10000, CRC(e4f38fab) SHA1(01c2eb5965070893be6734eb1372576727716476) ) \
-	ROM_SYSTEM_BIOS(1, "onep220", "OnePlay 2.20" ) \
-	ROM_LOAD16_BYTE_BIOS( 1, "scpa_01-hi_v2.20.u12", 0x000000, 0x10000, CRC(79450b4b) SHA1(a1e508a89fc62e1c4994064f2786f491b1dc8bc6) ) \
-	ROM_LOAD16_BYTE_BIOS( 1, "scpa_01-lo_v2.20.u16", 0x000001, 0x10000, CRC(d2825511) SHA1(747a37c6073224472bf261ae376ac9abfbe07554) ) \
-	ROM_SYSTEM_BIOS(2, "onep211", "OnePlay 2.11" ) \
-	ROM_LOAD16_BYTE_BIOS( 2, "scpa_01-hi_v2.11.u12", 0x000000, 0x10000, CRC(be9dbdc5) SHA1(1554da09f051ec53937d65d4e451de51bc0c69e5) ) \
-	ROM_LOAD16_BYTE_BIOS( 2, "scpa_01-lo_v2.11.u16", 0x000001, 0x10000, CRC(95b84504) SHA1(99999fc40909001b37aa1b543918118becc81800) ) \
-	ROM_SYSTEM_BIOS(3, "tenp211", "TenPlay 2.11" ) \
-	ROM_LOAD16_BYTE_BIOS( 3, "gcp-1-hi", 0x000000, 0x10000, CRC(67d44523) SHA1(f3e3699132cdf741518accb890c04d17374c4049) ) \
-	ROM_LOAD16_BYTE_BIOS( 3, "gcp-1-lo", 0x000001, 0x10000, CRC(65d9b9cf) SHA1(5c60a0dd4a0a7d9b938ce6b0446a6ad2ecaf07ec) ) \
-	ROM_LOAD16_BYTE_BIOS( 3, "gcp-2-hi", 0x020000, 0x10000, CRC(1d7594ae) SHA1(6173bbfecf18d7d9ee6bc2b6753ca9d42fabd781) ) \
-	ROM_LOAD16_BYTE_BIOS( 3, "gcp-2-lo", 0x020001, 0x10000, CRC(e776198d) SHA1(694ca4cc99ed84a95d18201c94a3332f8599654f) ) \
-	ROM_LOAD16_BYTE_BIOS( 3, "gcp-3-hi", 0x040000, 0x10000, CRC(3e7364be) SHA1(26e10d0ddc031a891138db36ce4f1732722e6847) ) \
-	ROM_LOAD16_BYTE_BIOS( 3, "gcp-3-lo", 0x040001, 0x10000, CRC(87229e0d) SHA1(0b18544801e529f954b9e03226bd2e5475f36351) ) \
-	ROM_SYSTEM_BIOS(4, "tenp311", "TenPlay 3.11" ) /* Rom labels are printed as 3.11, but it runs as 3.10 */ \
-	ROM_LOAD16_BYTE_BIOS( 4, "gcp_v311_1-hi.u16", 0x000000, 0x10000, CRC(0b486a85) SHA1(b406f1db5abf28d9072b7940989ffd176aeee5cb) ) \
-	ROM_LOAD16_BYTE_BIOS( 4, "gcp_v311_1-lo.u11", 0x000001, 0x10000, CRC(80e8e863) SHA1(ab04dfcda7544f4ed9b67771cd8aefe0300c6d4b) ) \
-	ROM_LOAD16_BYTE_BIOS( 4, "gcp_v311_2-hi.u17", 0x020000, 0x10000, CRC(d20a4d7f) SHA1(1dc0a79efa946333149f68ddac046fd44b5f2abe) ) \
-	ROM_LOAD16_BYTE_BIOS( 4, "gcp_v311_2-lo.u12", 0x020001, 0x10000, CRC(5bf4c74c) SHA1(1f7b17170accdf9e448c1a5d8bc430aa2d1d931b) ) \
-	ROM_SYSTEM_BIOS(5, "tenp400", "TenPlay 4.00" ) /* needs printer switch hooked up so it can be turned off */ \
-	ROM_LOAD16_BYTE_BIOS( 5, "gcp_v400_1-hi.u16", 0x000000, 0x10000, CRC(69295167) SHA1(855f53abbb9dc15e5518e16c5c2dfe4134d07306) ) \
-	ROM_LOAD16_BYTE_BIOS( 5, "gcp_v400_1-lo.u11", 0x000001, 0x10000, CRC(504c2171) SHA1(a93367f520afb86c97c0a191714b72823c95cdd2) ) \
-	ROM_LOAD16_BYTE_BIOS( 5, "gcp_v400_2-hi.u17", 0x020000, 0x10000, CRC(13fb4e2d) SHA1(3eef07aecc3a201ae0b20634c7fd0c87c89fd7f1) ) \
+#define ARCADIA_BIOS
+	ROM_REGION16_BE(0x80000, "kickstart", 0 )
+	ROM_LOAD16_WORD("315093-01.u2", 0x000000, 0x040000, CRC(a6ce1636) SHA1(11f9e62cf299f72184835b7b2a70a16333fc0d88))
+	ROM_COPY("kickstart", 0x000000, 0x040000, 0x040000)
+
+	ROM_REGION16_BE( 0x80000, "user2", 0 )
+	ROM_SYSTEM_BIOS(0, "onep300", "OnePlay 3.00")
+	ROM_LOAD16_BYTE_BIOS( 0, "scpa_01-hi_v3.0.u12", 0x000000, 0x10000, CRC(2d8e1a06) SHA1(be187f34624aeda110017c4a09242f7c00ef56a4) )
+	ROM_LOAD16_BYTE_BIOS( 0, "scpa_01-lo_v3.0.u16", 0x000001, 0x10000, CRC(e4f38fab) SHA1(01c2eb5965070893be6734eb1372576727716476) )
+	ROM_SYSTEM_BIOS(1, "onep220", "OnePlay 2.20" )
+	ROM_LOAD16_BYTE_BIOS( 1, "scpa_01-hi_v2.20.u12", 0x000000, 0x10000, CRC(79450b4b) SHA1(a1e508a89fc62e1c4994064f2786f491b1dc8bc6) )
+	ROM_LOAD16_BYTE_BIOS( 1, "scpa_01-lo_v2.20.u16", 0x000001, 0x10000, CRC(d2825511) SHA1(747a37c6073224472bf261ae376ac9abfbe07554) )
+	ROM_SYSTEM_BIOS(2, "onep211", "OnePlay 2.11" )
+	ROM_LOAD16_BYTE_BIOS( 2, "scpa_01-hi_v2.11.u12", 0x000000, 0x10000, CRC(be9dbdc5) SHA1(1554da09f051ec53937d65d4e451de51bc0c69e5) )
+	ROM_LOAD16_BYTE_BIOS( 2, "scpa_01-lo_v2.11.u16", 0x000001, 0x10000, CRC(95b84504) SHA1(99999fc40909001b37aa1b543918118becc81800) )
+	ROM_SYSTEM_BIOS(3, "tenp211", "TenPlay 2.11" )
+	ROM_LOAD16_BYTE_BIOS( 3, "gcp-1-hi", 0x000000, 0x10000, CRC(67d44523) SHA1(f3e3699132cdf741518accb890c04d17374c4049) )
+	ROM_LOAD16_BYTE_BIOS( 3, "gcp-1-lo", 0x000001, 0x10000, CRC(65d9b9cf) SHA1(5c60a0dd4a0a7d9b938ce6b0446a6ad2ecaf07ec) )
+	ROM_LOAD16_BYTE_BIOS( 3, "gcp-2-hi", 0x020000, 0x10000, CRC(1d7594ae) SHA1(6173bbfecf18d7d9ee6bc2b6753ca9d42fabd781) )
+	ROM_LOAD16_BYTE_BIOS( 3, "gcp-2-lo", 0x020001, 0x10000, CRC(e776198d) SHA1(694ca4cc99ed84a95d18201c94a3332f8599654f) )
+	ROM_LOAD16_BYTE_BIOS( 3, "gcp-3-hi", 0x040000, 0x10000, CRC(3e7364be) SHA1(26e10d0ddc031a891138db36ce4f1732722e6847) )
+	ROM_LOAD16_BYTE_BIOS( 3, "gcp-3-lo", 0x040001, 0x10000, CRC(87229e0d) SHA1(0b18544801e529f954b9e03226bd2e5475f36351) )
+	ROM_SYSTEM_BIOS(4, "tenp311", "TenPlay 3.11" ) // Rom labels are printed as 3.11, but it runs as 3.10
+	ROM_LOAD16_BYTE_BIOS( 4, "gcp_v311_1-hi.u16", 0x000000, 0x10000, CRC(0b486a85) SHA1(b406f1db5abf28d9072b7940989ffd176aeee5cb) )
+	ROM_LOAD16_BYTE_BIOS( 4, "gcp_v311_1-lo.u11", 0x000001, 0x10000, CRC(80e8e863) SHA1(ab04dfcda7544f4ed9b67771cd8aefe0300c6d4b) )
+	ROM_LOAD16_BYTE_BIOS( 4, "gcp_v311_2-hi.u17", 0x020000, 0x10000, CRC(d20a4d7f) SHA1(1dc0a79efa946333149f68ddac046fd44b5f2abe) )
+	ROM_LOAD16_BYTE_BIOS( 4, "gcp_v311_2-lo.u12", 0x020001, 0x10000, CRC(5bf4c74c) SHA1(1f7b17170accdf9e448c1a5d8bc430aa2d1d931b) )
+	ROM_SYSTEM_BIOS(5, "tenp400", "TenPlay 4.00" ) // needs printer switch hooked up so it can be turned off
+	ROM_LOAD16_BYTE_BIOS( 5, "gcp_v400_1-hi.u16", 0x000000, 0x10000, CRC(69295167) SHA1(855f53abbb9dc15e5518e16c5c2dfe4134d07306) )
+	ROM_LOAD16_BYTE_BIOS( 5, "gcp_v400_1-lo.u11", 0x000001, 0x10000, CRC(504c2171) SHA1(a93367f520afb86c97c0a191714b72823c95cdd2) )
+	ROM_LOAD16_BYTE_BIOS( 5, "gcp_v400_2-hi.u17", 0x020000, 0x10000, CRC(13fb4e2d) SHA1(3eef07aecc3a201ae0b20634c7fd0c87c89fd7f1) )
 	ROM_LOAD16_BYTE_BIOS( 5, "gcp_v400_2-lo.u12", 0x020001, 0x10000, CRC(a5cc4515) SHA1(80070521476e92323a6baa6e55928ca5b751a332) )
 
 ROM_START( ar_bios )
@@ -438,7 +438,7 @@ ROM_END
  *
  *************************************/
 
-/* AIRH */
+// AIRH
 ROM_START( ar_airh )
 	ARCADIA_BIOS
 
@@ -459,7 +459,7 @@ ROM_START( ar_airh2 )
 ROM_END
 
 
-/* BOWL V 2.1 */
+// BOWL V 2.1
 ROM_START( ar_bowl )
 	ARCADIA_BIOS
 
@@ -473,7 +473,7 @@ ROM_START( ar_bowl )
 ROM_END
 
 
-/* DART V 2.1 */
+// DART V 2.1
 ROM_START( ar_dart )
 	ARCADIA_BIOS
 
@@ -558,25 +558,25 @@ ROM_START( ar_fast )
 	ROM_LOAD16_BYTE( "fast-v28_8-lo.u32", 0x0e0001, 0x10000, CRC(82603f68) SHA1(8affe73e97b966b8e63bff2c7914fb5ead7b60ff) )
 
 	ROM_REGION( 0x0200, "plds", 0 )
-	ROM_LOAD( "pal16l8-sec-scpa.u8", 0x0000, 0x0104, CRC(3a4df3aa) SHA1(d0e64af4e1602347af60cd97c6b5b1a9d65cb270) ) /* PAL is read protected */
+	ROM_LOAD( "pal16l8-sec-scpa.u8", 0x0000, 0x0104, CRC(3a4df3aa) SHA1(d0e64af4e1602347af60cd97c6b5b1a9d65cb270) ) // PAL is read protected
 ROM_END
 
 
-/* Arcadia Magic Johnson's Fast Break V 2.7 on PIGGYBACK 1.5 MBYTE ROM BOARD REV A  */
+// Arcadia Magic Johnson's Fast Break V 2.7 on PIGGYBACK 1.5 MBYTE ROM BOARD REV A
 ROM_START( ar_fasta )
 	ARCADIA_BIOS
 
 	ROM_REGION16_BE( 0x180000, "user3", ROMREGION_ERASEFF )
 	ROM_LOAD16_BYTE( "fast-v27_1-hi.u11", 0x000000, 0x10000, CRC(58ce7e02) SHA1(73fa33858dceb924e86b95130f8d6a0d3ae5cc6f) )
 	ROM_LOAD16_BYTE( "fast-v27_1-lo.u15", 0x000001, 0x10000, CRC(6bf75490) SHA1(3df610dd488e0711a190a9ec47adfd047313a597) )
-	ROM_LOAD16_BYTE( "fast-v27_2-hi.u10", 0x020000, 0x10000, CRC(3a3dd931) SHA1(7be3316e2acf6b14b29ef2e36d8f76999d5d4e94) ) /* matches v2.8 */
-	ROM_LOAD16_BYTE( "fast-v27_2-lo.u14", 0x020001, 0x10000, CRC(4838d7e5) SHA1(d2ae5b8f25df51936937ddf62001347fccdf830a) ) /* matches v2.8 */
-	ROM_LOAD16_BYTE( "fast-v27_3-hi.u9",  0x040000, 0x10000, CRC(db94fa62) SHA1(4fe79a4226161b15ecdda9d85c1ad84cf31b6a30) ) /* matches v2.8 */
-	ROM_LOAD16_BYTE( "fast-v27_3-lo.u13", 0x040001, 0x10000, CRC(a400367d) SHA1(a4362beeb35fa0c9020883eab0a71194f3a90b9a) ) /* matches v2.8 */
-	ROM_LOAD16_BYTE( "fast-v27_4-hi.u20", 0x060000, 0x10000, CRC(c0a021dd) SHA1(c4c40c05050a2831b55683d85ee39b8870e0bf88) ) /* matches v2.8 */
-	ROM_LOAD16_BYTE( "fast-v27_4-lo.u24", 0x060001, 0x10000, CRC(870e60f1) SHA1(0f0566da96dfc898dbbc35dfaba489d1fc9ab435) ) /* matches v2.8 */
-	ROM_LOAD16_BYTE( "fast-v27_5-hi.u19", 0x080000, 0x10000, CRC(6daf4817) SHA1(ca0bf79e77a3e878da1f97ff9a64107e8c112aee) ) /* matches v2.8 */
-	ROM_LOAD16_BYTE( "fast-v27_5-lo.u23", 0x080001, 0x10000, CRC(f489da29) SHA1(5e70183acfd0d849ae9691b312ca98698b1a2252) ) /* matches v2.8 */
+	ROM_LOAD16_BYTE( "fast-v27_2-hi.u10", 0x020000, 0x10000, CRC(3a3dd931) SHA1(7be3316e2acf6b14b29ef2e36d8f76999d5d4e94) ) // matches v2.8
+	ROM_LOAD16_BYTE( "fast-v27_2-lo.u14", 0x020001, 0x10000, CRC(4838d7e5) SHA1(d2ae5b8f25df51936937ddf62001347fccdf830a) ) // matches v2.8
+	ROM_LOAD16_BYTE( "fast-v27_3-hi.u9",  0x040000, 0x10000, CRC(db94fa62) SHA1(4fe79a4226161b15ecdda9d85c1ad84cf31b6a30) ) // matches v2.8
+	ROM_LOAD16_BYTE( "fast-v27_3-lo.u13", 0x040001, 0x10000, CRC(a400367d) SHA1(a4362beeb35fa0c9020883eab0a71194f3a90b9a) ) // matches v2.8
+	ROM_LOAD16_BYTE( "fast-v27_4-hi.u20", 0x060000, 0x10000, CRC(c0a021dd) SHA1(c4c40c05050a2831b55683d85ee39b8870e0bf88) ) // matches v2.8
+	ROM_LOAD16_BYTE( "fast-v27_4-lo.u24", 0x060001, 0x10000, CRC(870e60f1) SHA1(0f0566da96dfc898dbbc35dfaba489d1fc9ab435) ) // matches v2.8
+	ROM_LOAD16_BYTE( "fast-v27_5-hi.u19", 0x080000, 0x10000, CRC(6daf4817) SHA1(ca0bf79e77a3e878da1f97ff9a64107e8c112aee) ) // matches v2.8
+	ROM_LOAD16_BYTE( "fast-v27_5-lo.u23", 0x080001, 0x10000, CRC(f489da29) SHA1(5e70183acfd0d849ae9691b312ca98698b1a2252) ) // matches v2.8
 	ROM_LOAD16_BYTE( "fast-v27_6-hi.u18", 0x0a0000, 0x10000, CRC(e36424a4) SHA1(e17375de39dccb7bec6aaaa06879a20b532d0199) )
 	ROM_LOAD16_BYTE( "fast-v27_6-lo.u22", 0x0a0001, 0x10000, CRC(23441bac) SHA1(25fd776cdafbb88b5f63201d30d42eeafde88733) )
 	ROM_LOAD16_BYTE( "fast-v27_7-hi.u17", 0x0c0000, 0x10000, CRC(2ac2f165) SHA1(5d7501de510efc4ca34765d99ed8c2c374309659) )
@@ -589,23 +589,23 @@ ROM_START( ar_fasta )
 ROM_END
 
 
-/* Arcadia LEADER BOARD V 2.5 on PIGGYBACK 1.5 MBYTE ROM BOARD REV A */
+// Arcadia LEADER BOARD V 2.5 on PIGGYBACK 1.5 MBYTE ROM BOARD REV A
 ROM_START( ar_ldrb )
 	ARCADIA_BIOS
 
 	ROM_REGION16_BE( 0x180000, "user3", ROMREGION_ERASEFF )
 	ROM_LOAD16_BYTE( "leader_board_01-hi_v2.5.u11", 0x00000, 0x10000, CRC(0236511c) SHA1(22b2ee076ed57ba38413c16a52510383d8488e25) )
 	ROM_LOAD16_BYTE( "leader_board_01-lo_v2.5.u15", 0x00001, 0x10000, CRC(786d34b9) SHA1(5fd6ef94f65c6fd503d3682154b576d6509a3aa9) )
-	ROM_LOAD16_BYTE( "leader_board_02-hi_v2.5.u10", 0x20000, 0x10000, CRC(64e5fbae) SHA1(0dde0d05b05f232aac9ad44398cedd8c7627f146) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_02-lo_v2.5.u14", 0x20001, 0x10000, CRC(bb115e1c) SHA1(768cf51661f630b1c0a4b83b9f6124c78a517d0a) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_03-hi_v2.5.u9",  0x40000, 0x10000, CRC(1d290e28) SHA1(0d589628fe59de9d7e2a57ddeabca991d1c79fdf) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_03-lo_v2.5.u13", 0x40001, 0x10000, CRC(b1352a77) SHA1(ac7337a3778442d444002f730e2880f61f32cf2a) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_04-hi_v2.5.u20", 0x60000, 0x10000, CRC(b621c688) SHA1(f2a50ebfc50725cdef77bb8a4864405dbb203784) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_04-lo_v2.5.u24", 0x60001, 0x10000, CRC(13f9c4b0) SHA1(08a1fab271307191c5caa108c4ae284f92c270e4) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_05-hi_v2.5.u19", 0x80000, 0x10000, CRC(71273172) SHA1(2b6204fdf03268e920b5948c999aa725fc66cac6) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_05-lo_v2.5.u23", 0x80001, 0x10000, CRC(d9028183) SHA1(009b496da31f67b11de54e50254a9897ea68cd92) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_06-hi_v2.5.u18", 0xa0000, 0x10000, CRC(a6ce61a4) SHA1(6cd64b7d589c91aeee06293f473fd1b3c56b19e0) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "leader_board_06-lo_v2.5.u22", 0xa0001, 0x10000, CRC(13c71422) SHA1(93e6dca2b28e1b5235b922f064be96eed0bedd8c) ) /* matches v2.4 */
+	ROM_LOAD16_BYTE( "leader_board_02-hi_v2.5.u10", 0x20000, 0x10000, CRC(64e5fbae) SHA1(0dde0d05b05f232aac9ad44398cedd8c7627f146) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_02-lo_v2.5.u14", 0x20001, 0x10000, CRC(bb115e1c) SHA1(768cf51661f630b1c0a4b83b9f6124c78a517d0a) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_03-hi_v2.5.u9",  0x40000, 0x10000, CRC(1d290e28) SHA1(0d589628fe59de9d7e2a57ddeabca991d1c79fdf) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_03-lo_v2.5.u13", 0x40001, 0x10000, CRC(b1352a77) SHA1(ac7337a3778442d444002f730e2880f61f32cf2a) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_04-hi_v2.5.u20", 0x60000, 0x10000, CRC(b621c688) SHA1(f2a50ebfc50725cdef77bb8a4864405dbb203784) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_04-lo_v2.5.u24", 0x60001, 0x10000, CRC(13f9c4b0) SHA1(08a1fab271307191c5caa108c4ae284f92c270e4) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_05-hi_v2.5.u19", 0x80000, 0x10000, CRC(71273172) SHA1(2b6204fdf03268e920b5948c999aa725fc66cac6) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_05-lo_v2.5.u23", 0x80001, 0x10000, CRC(d9028183) SHA1(009b496da31f67b11de54e50254a9897ea68cd92) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_06-hi_v2.5.u18", 0xa0000, 0x10000, CRC(a6ce61a4) SHA1(6cd64b7d589c91aeee06293f473fd1b3c56b19e0) ) // matches v2.4
+	ROM_LOAD16_BYTE( "leader_board_06-lo_v2.5.u22", 0xa0001, 0x10000, CRC(13c71422) SHA1(93e6dca2b28e1b5235b922f064be96eed0bedd8c) ) // matches v2.4
 	ROM_LOAD16_BYTE( "leader_board_07-hi_v2.5.u17", 0xc0000, 0x10000, CRC(4ebb8d12) SHA1(c328a26139ba0792cab1020b32eb4b8e39d51a22) )
 	ROM_LOAD16_BYTE( "leader_board_07-lo_v2.5.u21", 0xc0001, 0x10000, CRC(1afa9a4f) SHA1(3e5ca56e03d693a72424b9ad0717494ea8eb561e) )
 	ROM_LOAD16_BYTE( "leader_board_08-hi_v2.5.u28", 0xe0000, 0x10000, CRC(fbdca9af) SHA1(9612eb777a00ba4153f40eaefd162ca5b5efdb54) )
@@ -642,25 +642,25 @@ ROM_START( ar_ldrba )
 	ROM_LOAD( "pal16l8-sec-scpa.u8", 0x0000, 0x0104, CRC(3a4df3aa) SHA1(d0e64af4e1602347af60cd97c6b5b1a9d65cb270) )
 ROM_END
 
-/* Arcadia LEADER BOARD v 2.6?  on PIGGYBACK 1.5 MBYTE ROM BOARD REV ? */
-ROM_START( ar_ldrbb ) /* Later then v2.5?? as 7H & 7L match v2.5 and are newer then v2.4 */
+// Arcadia LEADER BOARD v 2.6?  on PIGGYBACK 1.5 MBYTE ROM BOARD REV ?
+ROM_START( ar_ldrbb ) // Later then v2.5?? as 7H & 7L match v2.5 and are newer then v2.4
 	ARCADIA_BIOS
 
 	ROM_REGION16_BE( 0x180000, "user3", ROMREGION_ERASEFF )
 	ROM_LOAD16_BYTE( "ldrb_1h.u11", 0x00000, 0x10000, CRC(97dcde78) SHA1(d324415b853de17646b5266581bea27e571fa08f) )
 	ROM_LOAD16_BYTE( "ldrb_1l_gcp_22.u15", 0x00001, 0x10000, CRC(b51d17f7) SHA1(56add2f69c35e5082926bd59be7f98a6a223c549) )
-	ROM_LOAD16_BYTE( "ldrb_2h.u10", 0x20000, 0x10000, CRC(64e5fbae) SHA1(0dde0d05b05f232aac9ad44398cedd8c7627f146) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_2l.u14", 0x20001, 0x10000, CRC(bb115e1c) SHA1(768cf51661f630b1c0a4b83b9f6124c78a517d0a) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_3h.u9",  0x40000, 0x10000, CRC(1d290e28) SHA1(0d589628fe59de9d7e2a57ddeabca991d1c79fdf) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_3l.u13", 0x40001, 0x10000, CRC(b1352a77) SHA1(ac7337a3778442d444002f730e2880f61f32cf2a) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_4h.u20", 0x60000, 0x10000, CRC(b621c688) SHA1(f2a50ebfc50725cdef77bb8a4864405dbb203784) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_4l.u24", 0x60001, 0x10000, CRC(13f9c4b0) SHA1(08a1fab271307191c5caa108c4ae284f92c270e4) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_5h.u19", 0x80000, 0x10000, CRC(71273172) SHA1(2b6204fdf03268e920b5948c999aa725fc66cac6) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_5l.u23", 0x80001, 0x10000, CRC(d9028183) SHA1(009b496da31f67b11de54e50254a9897ea68cd92) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_6h.u18", 0xa0000, 0x10000, CRC(a6ce61a4) SHA1(6cd64b7d589c91aeee06293f473fd1b3c56b19e0) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_6l.u22", 0xa0001, 0x10000, CRC(13c71422) SHA1(93e6dca2b28e1b5235b922f064be96eed0bedd8c) ) /* matches v2.4 */
-	ROM_LOAD16_BYTE( "ldrb_7h.u17", 0xc0000, 0x10000, CRC(4ebb8d12) SHA1(c328a26139ba0792cab1020b32eb4b8e39d51a22) ) /* matches v2.5 */
-	ROM_LOAD16_BYTE( "ldrb_7l.u21", 0xc0001, 0x10000, CRC(1afa9a4f) SHA1(3e5ca56e03d693a72424b9ad0717494ea8eb561e) ) /* matches v2.5 */
+	ROM_LOAD16_BYTE( "ldrb_2h.u10", 0x20000, 0x10000, CRC(64e5fbae) SHA1(0dde0d05b05f232aac9ad44398cedd8c7627f146) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_2l.u14", 0x20001, 0x10000, CRC(bb115e1c) SHA1(768cf51661f630b1c0a4b83b9f6124c78a517d0a) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_3h.u9",  0x40000, 0x10000, CRC(1d290e28) SHA1(0d589628fe59de9d7e2a57ddeabca991d1c79fdf) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_3l.u13", 0x40001, 0x10000, CRC(b1352a77) SHA1(ac7337a3778442d444002f730e2880f61f32cf2a) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_4h.u20", 0x60000, 0x10000, CRC(b621c688) SHA1(f2a50ebfc50725cdef77bb8a4864405dbb203784) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_4l.u24", 0x60001, 0x10000, CRC(13f9c4b0) SHA1(08a1fab271307191c5caa108c4ae284f92c270e4) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_5h.u19", 0x80000, 0x10000, CRC(71273172) SHA1(2b6204fdf03268e920b5948c999aa725fc66cac6) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_5l.u23", 0x80001, 0x10000, CRC(d9028183) SHA1(009b496da31f67b11de54e50254a9897ea68cd92) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_6h.u18", 0xa0000, 0x10000, CRC(a6ce61a4) SHA1(6cd64b7d589c91aeee06293f473fd1b3c56b19e0) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_6l.u22", 0xa0001, 0x10000, CRC(13c71422) SHA1(93e6dca2b28e1b5235b922f064be96eed0bedd8c) ) // matches v2.4
+	ROM_LOAD16_BYTE( "ldrb_7h.u17", 0xc0000, 0x10000, CRC(4ebb8d12) SHA1(c328a26139ba0792cab1020b32eb4b8e39d51a22) ) // matches v2.5
+	ROM_LOAD16_BYTE( "ldrb_7l.u21", 0xc0001, 0x10000, CRC(1afa9a4f) SHA1(3e5ca56e03d693a72424b9ad0717494ea8eb561e) ) // matches v2.5
 	ROM_LOAD16_BYTE( "ldrb_8h.u28", 0xe0000, 0x10000, CRC(701f50ba) SHA1(4ea6be00aa2d32d739fa6ec70ec8bce470b28f90) )
 	ROM_LOAD16_BYTE( "ldrb_8l.u32", 0xe0001, 0x10000, CRC(80642c1d) SHA1(fc2101b749db3ebb3499c8870026c05acf46fa4d) )
 
