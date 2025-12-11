@@ -323,6 +323,11 @@ def main():
         head_branch = args[1]
         args = args[2:]
 
+    # Set default branches if no files are passed and branch parameters are empty
+    if not args and not base_branch and not head_branch:
+        base_branch = "master"
+        head_branch = "HEAD"
+
     if base_branch and head_branch and not args:
         # Find changed files
         changed_files = get_changed_files(base_branch, head_branch)
@@ -351,7 +356,7 @@ def main():
 
     for file in all_files:
         try:
-            changed_lines = get_changed_lines(file, base_branch, head_branch)
+            changed_lines = get_changed_lines(file, base_branch, head_branch) if base_branch and head_branch else None
             path = Path(file)
             file_errors = []
 
