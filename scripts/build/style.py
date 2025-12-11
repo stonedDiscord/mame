@@ -401,11 +401,8 @@ def main():
     for file in file_comments:
         comments.extend(file_comments[file])
 
-    for comment in comments:
-        if ciout:
-            ciout.write(json.dumps(comment)+'\n')
-
     if ciout:
+        ciout.write(json.dumps(comments) + '\n')
         ciout.write("EOF\n")
         ciout.close()
     else:
