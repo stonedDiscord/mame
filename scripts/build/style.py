@@ -270,7 +270,7 @@ def print_review(path, lineno, msg, out=None):
 
 def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
     try:
-        result = subprocess.run(['git', 'diff', '--unified=0', base_branch, head_branch, '--', file_path], capture_output=True, text=True)
+        result = subprocess.run(['git', 'diff', '--unified=0', f'{base_branch}...{head_branch}', '--', file_path], capture_output=True, text=True)
         if result.returncode != 0:
             print(result)
             sys.exit(1)
@@ -292,13 +292,13 @@ def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
 
 def get_changed_files(base_branch="master", head_branch="HEAD"):
     try:
-        result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', '--merge-base', base_branch, head_branch], capture_output=True, text=True)
+        result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', f'{base_branch}...{head_branch}'], capture_output=True, text=True)
         if result.returncode != 0:
             print(result)
             sys.exit(1)
         files = set(result.stdout.strip().split('\n'))
         return files
-    except Exception:
+    except Exception as e:
         print(result)
         sys.exit(1)
 
