@@ -3,7 +3,7 @@
 ## license:BSD-3-Clause
 ## copyright-holders:stonedDiscord
 
-import json, re, sys, subprocess
+import json, os, re, sys, subprocess
 from pathlib import Path
 
 def is_screaming_snake(name: str):
@@ -260,9 +260,13 @@ def check_mame_lst(changed_cpp_files: set[str]):
 
     return errors
 
-def print_review(path, lineno, msg):
+def print_review(path, lineno, msg, out=None):
     review = {"body": str(msg), "path": str(path), "line": int(lineno)}
-    print(json.dumps(review))
+    if out:
+        out.write(json.dumps(review)+'\n')
+    else:
+        print(json.dumps(review))
+        
 
 def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
     try:
@@ -300,9 +304,13 @@ def get_changed_files(base_branch="master", head_branch="HEAD"):
 
 def main():
     fix = "-f" in sys.argv
+    ci = "-ci" in sys.argv
+
     args = sys.argv[1:]
     if fix:
         args.remove("-f")
+    if ci:
+        args.remove("-ci")
 
     base_branch = None
     if args and args[0] == '--base-branch':
@@ -328,21 +336,48 @@ def main():
 
     all_files = cpp_files | h_files | other_files
 
+    ciout=None
+    if ci:
+        try:
+            ciout=open(os.environ['GITHUB_OUTPUT'], 'a')
+            ciout.write("comments<<EOF\n")
+        except KeyError:
+            # Fallback for local testing
+            ciout=open("test_output.txt", 'w')
+            ciout.write("comments=")
+
+
+    errors = []
+
     for file in all_files:
         changed_lines = get_changed_lines(file, base_branch, head_branch)
         path = Path(file)
         if file in cpp_files | h_files:
-            errors = check_cpp_file(path, fix)
+            errors.extend(check_cpp_file(path, fix))
         else:
-            errors = check_file(path, fix)
-        for lineno, msg in errors:
-            if changed_lines is None or lineno in changed_lines:
-                print_review(path, lineno, msg)
+            errors.extend(check_file(path, fix))
 
-    changed_lines_lst = get_changed_lines("src/mame/mame.lst", base_branch, head_branch)
-    for lineno, msg in check_mame_lst(cpp_files):
-        if changed_lines_lst is None or lineno in changed_lines_lst:
-            print_review("src/mame/mame.lst", lineno, msg)
+    errors.extend(check_mame_lst(cpp_files))
+
+    comments = []
+    for lineno, msg in errors:
+            if changed_lines is None or lineno in changed_lines:
+                review = {"body": str(msg), "path": str(path), "line": int(lineno)}
+                comments.append(review)
+                if ciout:
+                    if ciout.name == "test_output.txt":
+                        # For local testing, write as JSON array
+                        pass
+                    else:
+                        ciout.write(json.dumps(review)+'\n')
+
+    if ciout:
+        if ciout.name == "test_output.txt":
+            # Write comments as JSON array for local testing
+            ciout.write(json.dumps(comments))
+        else:
+            ciout.write("EOF\n")
+        ciout.close()
 
     sys.exit(0)
 
