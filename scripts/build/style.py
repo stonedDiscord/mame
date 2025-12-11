@@ -270,7 +270,8 @@ def get_changed_lines(base_sha, file_path):
     try:
         result = subprocess.run(['git', 'diff', '--unified=0', base_sha, 'HEAD', '--', file_path], capture_output=True, text=True)
         if result.returncode != 0:
-            return None
+            print(result)
+            sys.exit(1)
         changed_lines = set()
         lines = result.stdout.splitlines()
         for line in lines:
