@@ -261,7 +261,6 @@ def print_review(path, lineno, msg, out=None):
         out.write(json.dumps(review)+'\n')
     else:
         print(json.dumps(review))
-        
 
 def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
     try:
@@ -304,6 +303,30 @@ def get_changed_files(base_branch="master", head_branch="HEAD"):
         raise RuntimeError(f"Exception getting changed files: {e}") from e
 
 def main():
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("Usage: style.py [OPTIONS] [FILES...]")
+        print("")
+        print("Options:")
+        print("  -f,                  Automatically fix style issues where possible")
+        print("  -ci                  Run in CI mode (outputs JSON for GitHub Actions)")
+        print("  --base-branch BRANCH Base branch for comparison (default: master)")
+        print("  --head-branch BRANCH Head branch for comparison (default: HEAD)")
+        print("  --help, -h           Show this help message")
+        print("")
+        print("Usage examples:")
+        print("  # Check specific files:")
+        print("  python3 style.py src/file1.cpp src/file2.h")
+        print("")
+        print("  # Compare branches:")
+        print("  python3 style.py --base-branch master --head-branch feature-branch")
+        print("")
+        print("  # Auto-fix issues:")
+        print("  python3 style.py -f src/file.cpp")
+        print("")
+        print("  # CI mode:")
+        print("  python3 style.py -ci --base-branch master --head-branch feature-branch")
+        sys.exit(0)
+
     fix = "-f" in sys.argv
     ci = "-ci" in sys.argv
 
