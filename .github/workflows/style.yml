@@ -31,16 +31,19 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const review_comments = JSON.parse(process.env.COMMENTS || "[]");
-
-            const comments = review_comments.map(r => ({
-              path: r.path,
-              line: r.line,
-              side: "RIGHT",
-              body: r.body
-            }));
+  
+            const comments = Array.isArray(review_comments)
+              ? review_comments.map(r => ({
+                  path: r.path,
+                  line: r.line,
+                  side: "RIGHT",
+                  body: r.body
+                }))
+              : [];
             console.info("Comments: "+comments.length);
             if (comments.length > 50) {
-              console.error("More than 50");
+              core.setFailed("Too many comments (more than 50)");
+              return;
             }
             else if (comments.length > 0) {
               // Get previous reviews from github-actions[bot]
