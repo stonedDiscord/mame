@@ -92,7 +92,6 @@ def check_includes(path: Path, lines):
         if include_line.endswith('>'):
             return 3
         else:
-            # " includes
             if '/' in inc_path:
                 return 1
             else:
@@ -171,13 +170,10 @@ def check_cpp_file(path: Path, fix: bool = False):
 
     lines = text.splitlines()
 
-    # SPDX header
     errors.extend(check_spdx_header(lines))
 
-    # include order
     errors.extend(check_includes(path, lines))
 
-    # normal style checks
     for i, line in enumerate(lines, 1):
 
         if re.search(r"0x[A-F]+", line):
@@ -209,7 +205,6 @@ def check_cpp_file(path: Path, fix: bool = False):
         if en and not is_snake_case(en.group(2)):
             errors.append((i, f"Enum '{en.group(2)}' should use snake_case"))
 
-    # ROM region whitespace checks
     errors.extend(check_rom_regions(lines))
 
     return errors
@@ -270,13 +265,11 @@ def print_review(path, lineno, msg, out=None):
 
 def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
     try:
-        # Try master...HEAD syntax first to show changes from merge base
-        result = subprocess.run(['git', 'diff', '--unified=0', f'{base_branch}...{head_branch}', '--', file_path], capture_output=True, text=True)
+        result = subprocess.run(['git', 'diff', '--unified=0', f'{base_branch}...{head_branch}', '--', file_path], capture_output=True, text=True, check=True)
         if result.returncode != 0:
-            # Fall back to standard diff if no merge base
-            result = subprocess.run(['git', 'diff', '--unified=0', base_branch, head_branch, '--', file_path], capture_output=True, text=True)
+            result = subprocess.run(['git', 'diff', '--unified=0', base_branch, head_branch, '--', file_path], capture_output=True, text=True, check=True)
             if result.returncode != 0:
-                return None
+                raise RuntimeError(f"Git diff failed for {file_path}: {result.stderr}")
 
         changed_lines = set()
 
@@ -290,24 +283,25 @@ def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
 
         return changed_lines
 
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Git command failed: {e.stderr}") from e
     except Exception as e:
-        return None
+        raise RuntimeError(f"Error getting changed lines: {e}") from e
 
 def get_changed_files(base_branch="master", head_branch="HEAD"):
     try:
-        # Try master...HEAD syntax first to show changes from merge base
-        result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', f'{base_branch}...{head_branch}'], capture_output=True, text=True)
+        result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', f'{base_branch}...{head_branch}'], capture_output=True, text=True, check=True)
         if result.returncode != 0:
-            # Fall back to standard diff if no merge base
-            result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', base_branch, head_branch], capture_output=True, text=True)
+            result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', base_branch, head_branch], capture_output=True, text=True, check=True)
             if result.returncode != 0:
-                print(f"Error getting changed files: {result.stderr}")
-                return set()
+                raise RuntimeError(f"Error getting changed files: {result.stderr}")
+
         files = set(result.stdout.strip().split('\n'))
         return files
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Git command failed: {e.stderr}") from e
     except Exception as e:
-        print(f"Exception getting changed files: {e}")
-        return set()
+        raise RuntimeError(f"Exception getting changed files: {e}") from e
 
 def main():
     fix = "-f" in sys.argv
@@ -353,30 +347,63 @@ def main():
             ciout=None
 
     errors = []
+    file_comments = {}  # Store comments per file
 
     for file in all_files:
-        changed_lines = get_changed_lines(file, base_branch, head_branch)
-        path = Path(file)
-        if file in cpp_files | h_files:
-            errors.extend(check_cpp_file(path, fix))
-        else:
-            errors.extend(check_file(path, fix))
+        try:
+            changed_lines = get_changed_lines(file, base_branch, head_branch)
+            path = Path(file)
+            file_errors = []
 
-    errors.extend(check_mame_lst(cpp_files))
+            if file in cpp_files | h_files:
+                file_errors.extend(check_cpp_file(path, fix))
+            else:
+                file_errors.extend(check_file(path, fix))
+
+            # Filter errors to only changed lines and store with correct path
+            file_comments[file] = []
+            for lineno, msg in file_errors:
+                if changed_lines is None or lineno in changed_lines:
+                    file_comments[file].append({
+                        "body": str(msg),
+                        "path": str(path),
+                        "line": int(lineno)
+                    })
+
+        except Exception as e:
+            print(f"Error processing file {file}: {e}")
+            if ciout:
+                ciout.write(f"Error processing file {file}: {e}\n")
+            sys.exit(1)
+
+    try:
+        mame_lst_errors = check_mame_lst(cpp_files)
+        mame_lst_comments = []
+        for lineno, msg in mame_lst_errors:
+            mame_lst_comments.append({
+                "body": str(msg),
+                "path": "src/mame/mame.lst",
+                "line": int(lineno)
+            })
+        file_comments["src/mame/mame.lst"] = mame_lst_comments
+    except Exception as e:
+        print(f"Error processing mame.lst: {e}")
+        if ciout:
+            ciout.write(f"Error processing mame.lst: {e}\n")
+        sys.exit(1)
 
     comments = []
-    for lineno, msg in errors:
-            if changed_lines is None or lineno in changed_lines:
-                review = {"body": str(msg), "path": str(path), "line": int(lineno)}
-                comments.append(review)
-                if ciout:
-                    ciout.write(json.dumps(review)+'\n')
+    for file in file_comments:
+        comments.extend(file_comments[file])
+
+    for comment in comments:
+        if ciout:
+            ciout.write(json.dumps(comment)+'\n')
 
     if ciout:
         ciout.write("EOF\n")
         ciout.close()
     else:
-        # Local testing - print comments to console as JSON array
         print(json.dumps(comments))
 
     sys.exit(0)
