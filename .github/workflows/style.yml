@@ -30,7 +30,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const review_comments = JSON.parse(process.env.COMMENTS);
+            const comments = JSON.parse(process.env.COMMENTS);
   
             console.info("Comments: "+comments.length);
             if (comments.length > 50) {
