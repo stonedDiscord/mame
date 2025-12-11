@@ -20,7 +20,7 @@ jobs:
 
       - name: Run style check
         id: style-check
-        run: echo "comments=$(python3 scripts/build/style.py --base-sha ${{ github.event.pull_request.base.sha }} | jq -s -c .)" >> $GITHUB_OUTPUT
+        run: echo "comments=$(python3 scripts/build/style.py --base-branch ${{ github.event.pull_request.base.sha }} --head-branch ${{ github.event.pull_request.head.sha }} | jq -s -c .)" >> $GITHUB_OUTPUT
 
       - name: Post review
         uses: actions/github-script@v8

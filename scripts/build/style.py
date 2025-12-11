@@ -264,11 +264,11 @@ def print_review(path, lineno, msg):
     review = {"body": str(msg), "path": str(path), "line": int(lineno)}
     print(json.dumps(review))
 
-def get_changed_lines(base_sha, file_path):
-    if not base_sha:
+def get_changed_lines(file_path, base_branch="master", head_branch="HEAD"):
+    if not base_branch:
         return None
     try:
-        result = subprocess.run(['git', 'diff', '--unified=0', base_sha, 'HEAD', '--', file_path], capture_output=True, text=True)
+        result = subprocess.run(['git', 'diff', '--unified=0', base_branch, head_branch, '--', file_path], capture_output=True, text=True)
         if result.returncode != 0:
             print(result)
             sys.exit(1)
@@ -286,17 +286,17 @@ def get_changed_lines(base_sha, file_path):
     except Exception:
         return None
 
-def get_changed_files(base_sha):
-    if not base_sha:
-        return set()
+def get_changed_files(base_branch="master", head_branch="HEAD"):
     try:
-        result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', base_sha, 'HEAD'], capture_output=True, text=True)
+        result = subprocess.run(['git', 'diff', '--name-only', '--diff-filter=ACMRT', base_branch, head_branch], capture_output=True, text=True)
         if result.returncode != 0:
-            return set()
+            print(result)
+            sys.exit(1)
         files = set(result.stdout.strip().split('\n'))
         return files
     except Exception:
-        return set()
+        print(result)
+        sys.exit(1)
 
 def main():
     fix = "-f" in sys.argv
@@ -304,14 +304,19 @@ def main():
     if fix:
         args.remove("-f")
 
-    base_sha = None
-    if args and args[0] == '--base-sha':
-        base_sha = args[1]
+    base_branch = None
+    if args and args[0] == '--base-branch':
+        base_branch = args[1]
         args = args[2:]
 
-    if base_sha and not args:
+    head_branch = None
+    if args and args[0] == '--head-branch':
+        head_branch = args[1]
+        args = args[2:]
+
+    if base_branch and head_branch and not args:
         # Find changed files
-        changed_files = get_changed_files(base_sha)
+        changed_files = get_changed_files(base_branch, head_branch)
         cpp_files = {f for f in changed_files if f.endswith((".c", ".cpp"))}
         h_files = {f for f in changed_files if f.endswith((".h", ".hpp", ".hxx", ".ipp"))}
         other_files = {f for f in changed_files if f.endswith((".py", ".lua", ".mm", ".lay", ".lst"))}
@@ -324,7 +329,7 @@ def main():
     all_files = cpp_files | h_files | other_files
 
     for file in all_files:
-        changed_lines = get_changed_lines(base_sha, file)
+        changed_lines = get_changed_lines(file, base_branch, head_branch)
         path = Path(file)
         if file in cpp_files | h_files:
             errors = check_cpp_file(path, fix)
@@ -334,7 +339,7 @@ def main():
             if changed_lines is None or lineno in changed_lines:
                 print_review(path, lineno, msg)
 
-    changed_lines_lst = get_changed_lines(base_sha, "src/mame/mame.lst")
+    changed_lines_lst = get_changed_lines("src/mame/mame.lst", base_branch, head_branch)
     for lineno, msg in check_mame_lst(cpp_files):
         if changed_lines_lst is None or lineno in changed_lines_lst:
             print_review("src/mame/mame.lst", lineno, msg)
