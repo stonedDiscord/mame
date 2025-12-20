@@ -3232,6 +3232,8 @@ if (BUSES["A2BUS"]~=null) then
 		MAME_DIR .. "src/devices/bus/a2bus/grafex.h",
 		MAME_DIR .. "src/devices/bus/a2bus/grappler.cpp",
 		MAME_DIR .. "src/devices/bus/a2bus/grappler.h",
+		MAME_DIR .. "src/devices/bus/a2bus/ibsap2.cpp",
+		MAME_DIR .. "src/devices/bus/a2bus/ibsap2.h",
 		MAME_DIR .. "src/devices/bus/a2bus/lancegs.cpp",
 		MAME_DIR .. "src/devices/bus/a2bus/lancegs.h",
 		MAME_DIR .. "src/devices/bus/a2bus/laser128.cpp",
@@ -5792,6 +5794,8 @@ if (BUSES["MULTIBUS"]~=null) then
 		MAME_DIR .. "src/devices/bus/multibus/robotron_k7070.h",
 		MAME_DIR .. "src/devices/bus/multibus/robotron_k7071.cpp",
 		MAME_DIR .. "src/devices/bus/multibus/robotron_k7071.h",
+		MAME_DIR .. "src/devices/bus/multibus/sun1.cpp",
+		MAME_DIR .. "src/devices/bus/multibus/sun1.h",
 	}
 end
 

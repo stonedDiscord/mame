@@ -1,25 +1,58 @@
 // license:BSD-3-Clause
 // copyright-holders:David Haywood
 
+// ELAN EU3A05 / EU3A13 / EP3A19A video implementations
+// There seem to be slight differences between which modes/features are available in each
+// chip, so using the correct hardware type is important.  As these are 'glob top' chips
+// they can't be fully identified without decapping.
+
 #include "emu.h"
+
 #include "elan_eu3a05vid.h"
 
+#include "elan_eu3a05_soc.h"
+
 DEFINE_DEVICE_TYPE(ELAN_EU3A05_VID, elan_eu3a05vid_device, "elan_eu3a05vid", "Elan EU3A05 Video")
+DEFINE_DEVICE_TYPE(ELAN_EU3A13_VID, elan_eu3a13vid_device, "elan_eu3a13vid", "Elan EU3A13 Video")
+DEFINE_DEVICE_TYPE(ELAN_EP3A19A_VID, elan_ep3a19avid_device, "elan_ep3a19avid", "Elan EP3A19A Video")
 
-// tilemaps start at 0x0600 in mainram, sprites at 0x3e00, unlike eu3a14 these could be fixed addresses
-
-elan_eu3a05vid_device::elan_eu3a05vid_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	elan_eu3a05commonvid_device(mconfig, ELAN_EU3A05_VID, tag, owner, clock),
+elan_eu3a05vid_device::elan_eu3a05vid_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock) :
+	elan_eu3a05commonvid_device(mconfig, type, tag, owner, clock),
 	device_memory_interface(mconfig, *this),
 	m_cpu(*this, finder_base::DUMMY_TAG),
-	m_bank(*this, finder_base::DUMMY_TAG),
-	m_space_config("regs", ENDIANNESS_NATIVE, 8, 5, 0, address_map_constructor(FUNC(elan_eu3a05vid_device::map), this)),
-	m_bytes_per_tile_entry(4),
-	m_vrambase(0x600),
-	m_spritebase(0x3e00),
-	m_use_spritepages(false),
-	m_force_basic_scroll(false)
+	m_space_config("regs", ENDIANNESS_NATIVE, 8, 5, 0, address_map_constructor(FUNC(elan_eu3a05vid_device::map), this))
 {
+	m_force_basic_scroll = false;
+}
+
+elan_eu3a05vid_device::elan_eu3a05vid_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	elan_eu3a05vid_device(mconfig, ELAN_EU3A05_VID, tag, owner, clock)
+{
+	// tilemaps start at 0x0600 in mainram, sprites at 0x3e00, unlike EU3A14 these could be fixed addresses
+	m_vrambase = 0x600;
+	m_spritebase = 0x3e00;
+	m_use_spritepages = false;
+}
+
+elan_eu3a13vid_device::elan_eu3a13vid_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock) :
+	elan_eu3a05vid_device(mconfig, type, tag, owner, clock)
+{
+	// these seem to be different to EU3A05 (but still hardcoded?) for EU3A13 based devices
+	m_vrambase = 0x200;
+	m_spritebase = 0x1000;
+	m_use_spritepages = true;
+}
+
+elan_eu3a13vid_device::elan_eu3a13vid_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	elan_eu3a13vid_device(mconfig, ELAN_EU3A13_VID, tag, owner, clock)
+{
+}
+
+elan_ep3a19avid_device::elan_ep3a19avid_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	elan_eu3a13vid_device(mconfig, ELAN_EP3A19A_VID, tag, owner, clock)
+{
+	// this could be a EP3A19A specific behavior
+	m_force_basic_scroll = true;
 }
 
 device_memory_interface::space_config_vector elan_eu3a05vid_device::memory_space_config() const
@@ -80,23 +113,9 @@ void elan_eu3a05vid_device::device_reset()
 
 }
 
-void elan_eu3a05vid_device::set_is_sudoku()
-{
-	m_bytes_per_tile_entry = 2;
-	m_vrambase = 0x200;
-	m_spritebase = 0x1000;
-}
-
-void elan_eu3a05vid_device::set_is_pvmilfin()
-{
-	m_bytes_per_tile_entry = 4;
-	m_vrambase = 0x200;
-	m_spritebase = 0x1000; // not verified
-}
-
 uint8_t elan_eu3a05vid_device::read_spriteram(int offset)
 {
-	address_space& cpuspace = m_cpu->space(AS_PROGRAM);
+	address_space &cpuspace = m_cpu->space(AS_PROGRAM);
 	int realoffset = offset+m_spritebase;
 	if (realoffset < 0x4000)
 	{
@@ -109,7 +128,7 @@ uint8_t elan_eu3a05vid_device::read_spriteram(int offset)
 
 uint8_t elan_eu3a05vid_device::read_vram(int offset)
 {
-	address_space& cpuspace = m_cpu->space(AS_PROGRAM);
+	address_space &cpuspace = m_cpu->space(AS_PROGRAM);
 	int realoffset = offset+m_vrambase;
 	if (realoffset < 0x4000)
 	{
@@ -127,9 +146,10 @@ uint8_t elan_eu3a05vid_device::read_vram(int offset)
    that space (Tetris seems to rely on mirroring? as it sets all addresses up for the lower 1MB instead)
 */
 
-void elan_eu3a05vid_device::draw_sprites(screen_device &screen, bitmap_ind16 &bitmap, bitmap_ind8 &priority_bitmap, const rectangle &cliprect)
+void elan_eu3a05vid_device::draw_sprites(screen_device &screen, bitmap_rgb32 &bitmap, bitmap_ind8 &priority_bitmap, const rectangle &cliprect)
 {
-	address_space& fullbankspace = m_bank->space(AS_PROGRAM);
+	address_space &extspace = m_cpu->space(elan_eu3a05_soc_device::AS_EXTERNAL);
+	const pen_t *pen = m_palette->pens();
 
 	/*
 	    Sprites
@@ -234,7 +254,7 @@ void elan_eu3a05vid_device::draw_sprites(screen_device &screen, bitmap_ind16 &bi
 
 		for (int yy = 0; yy < sizey; yy++)
 		{
-			uint16_t* row;
+			uint32_t* row;
 			uint8_t* rowpri;
 
 			if (flags & 0x08) // guess flipy
@@ -264,7 +284,7 @@ void elan_eu3a05vid_device::draw_sprites(screen_device &screen, bitmap_ind16 &bi
 				else
 					realaddr += ((tex_y + (yy>>1)) & 0xff) * 256;
 
-				uint8_t pix = fullbankspace.read_byte(realaddr);
+				uint8_t pix = extspace.read_byte(realaddr);
 
 				if (pix != m_transpen)
 				{
@@ -275,7 +295,7 @@ void elan_eu3a05vid_device::draw_sprites(screen_device &screen, bitmap_ind16 &bi
 						if (rowpri[xdrawpos] > priority)
 						{
 							rowpri[xdrawpos] = priority;
-							row[xdrawpos] = (pix + ((colour & 0x70) << 1)) & 0xff;
+							row[xdrawpos] = pen[(pix + ((colour & 0x70) << 1)) & 0xff];
 						}
 					}
 					else
@@ -285,7 +305,7 @@ void elan_eu3a05vid_device::draw_sprites(screen_device &screen, bitmap_ind16 &bi
 						if (rowpri[xdrawpos] > priority)
 						{
 							rowpri[xdrawpos] = priority;
-							row[xdrawpos] = (pix + ((colour & 0x70) << 1)) & 0xff;
+							row[xdrawpos] = pen[(pix + ((colour & 0x70) << 1)) & 0xff];
 						}
 					}
 				}
@@ -294,18 +314,35 @@ void elan_eu3a05vid_device::draw_sprites(screen_device &screen, bitmap_ind16 &bi
 	}
 }
 
+int elan_eu3a05vid_device::get_bytes_per_tile_entry()
+{
+	// always 4 on EU3A05?
+	return 4;
+}
+
+int elan_eu3a13vid_device::get_bytes_per_tile_entry()
+{
+	// can be selected on EU3A13?
+	// (some EU3A05 games flip this bit, either unused or has another purpose there?)
+	if (m_vidctrl & 0x80)
+		return 4;
+	else
+		return 2;
+}
 
 // a hacky mess for now
-bool elan_eu3a05vid_device::get_tile_data(int base, int drawpri, int& tile, int &attr, int &unk2)
+bool elan_eu3a05vid_device::get_tile_data(int base, int drawpri, int &tile, int &attr, int &unk2)
 {
-	tile = read_vram(base * m_bytes_per_tile_entry) + (read_vram((base * m_bytes_per_tile_entry) + 1) << 8);
+	int bytes_per_tile_entry = get_bytes_per_tile_entry();
+
+	tile = read_vram(base * bytes_per_tile_entry) + (read_vram((base * bytes_per_tile_entry) + 1) << 8);
 
 	// these seem to be the basically the same as attr/unk2 in the sprites, which also make
 	// very little sense.
-	if (m_bytes_per_tile_entry == 4)
+	if (bytes_per_tile_entry == 4)
 	{
-		attr = read_vram((base * m_bytes_per_tile_entry) + 2);
-		unk2 = read_vram((base * m_bytes_per_tile_entry) + 3);
+		attr = read_vram((base * bytes_per_tile_entry) + 2);
+		unk2 = read_vram((base * bytes_per_tile_entry) + 3);
 	}
 	else
 	{
@@ -329,9 +366,10 @@ bool elan_eu3a05vid_device::get_tile_data(int base, int drawpri, int& tile, int 
 }
 
 
-void elan_eu3a05vid_device::draw_tilemaps_tileline(int drawpri, int tile, int attr, int unk2, int tilexsize, int i, int xpos, uint16_t* row)
+void elan_eu3a05vid_device::draw_tilemaps_tileline(int drawpri, int tile, int attr, int unk2, int tilexsize, int i, int xpos, uint32_t *row)
 {
-	address_space& fullbankspace = m_bank->space(AS_PROGRAM);
+	address_space &extspace = m_cpu->space(elan_eu3a05_soc_device::AS_EXTERNAL);
+	const pen_t *pen = m_palette->pens();
 	int colour = attr & 0xf0;
 
 	/* 'tiles' are organized / extracted from 'texture' lines that form a 'page' the length of the rom
@@ -365,17 +403,17 @@ void elan_eu3a05vid_device::draw_tilemaps_tileline(int drawpri, int tile, int at
 		for (int xx = 0; xx < tilexsize; xx += 2)
 		{
 			int realaddr = ((tile + i * 16) << 3) + (xx >> 1);
-			uint8_t pix = fullbankspace.read_byte(realaddr);
+			uint8_t pix = extspace.read_byte(realaddr);
 
 			int drawxpos;
 
 			drawxpos = xpos + xx + 0;
 			if ((drawxpos >= 0) && (drawxpos < 256))
-				row[drawxpos] = ((pix & 0xf0) >> 4) + colour;
+				row[drawxpos] = pen[((pix & 0xf0) >> 4) + colour];
 
 			drawxpos = xpos + xx + 1;
 			if ((drawxpos >= 0) && (drawxpos < 256))
-				row[drawxpos] = ((pix & 0x0f) >> 0) + colour;
+				row[drawxpos] = pen[((pix & 0x0f) >> 0) + colour];
 		}
 	}
 	else // 8bpp
@@ -383,11 +421,11 @@ void elan_eu3a05vid_device::draw_tilemaps_tileline(int drawpri, int tile, int at
 		for (int xx = 0; xx < tilexsize; xx++)
 		{
 			int realaddr = ((tile + i * 32) << 3) + xx;
-			uint8_t pix = fullbankspace.read_byte(realaddr);
+			uint8_t pix = extspace.read_byte(realaddr);
 
 			int drawxpos = xpos + xx;
 			if ((drawxpos >= 0) && (drawxpos < 256))
-				row[drawxpos] = (pix + ((colour & 0x70) << 1)) & 0xff;
+				row[drawxpos] = pen[(pix + ((colour & 0x70) << 1)) & 0xff];
 		}
 	}
 }
@@ -505,7 +543,7 @@ uint16_t elan_eu3a05vid_device::get_tilemapindex_from_xy(uint16_t x, uint16_t y)
 	return index;
 }
 
-void elan_eu3a05vid_device::draw_tilemaps(screen_device& screen, bitmap_ind16& bitmap, const rectangle& cliprect, int drawpri)
+void elan_eu3a05vid_device::draw_tilemaps(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int drawpri)
 {
 	/*
 	    this doesn't handle 8x8 4bpp (not used by anything yet)
@@ -542,7 +580,7 @@ void elan_eu3a05vid_device::draw_tilemaps(screen_device& screen, bitmap_ind16& b
 		if (m_force_basic_scroll)
 			scrollx = get_scroll(0);
 
-		uint16_t* row = &bitmap.pix(screenline);
+		uint32_t* row = &bitmap.pix(screenline);
 
 		int xtiles;
 		int xtilesize;
@@ -594,9 +632,10 @@ void elan_eu3a05vid_device::draw_tilemaps(screen_device& screen, bitmap_ind16& b
 	}
 }
 
-uint32_t elan_eu3a05vid_device::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+uint32_t elan_eu3a05vid_device::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	bitmap.fill(0, cliprect);
+	bitmap.fill(m_palette->pens()[0], cliprect);
+
 	screen.priority().fill(0xff, cliprect);
 
 	draw_tilemaps(screen,bitmap,cliprect,0); // 'low priority'
@@ -724,9 +763,9 @@ void elan_eu3a05vid_device::elan_eu3a05_vidctrl_w(uint8_t data)
 	    03  8bpp 8x8           0000 0011  air blaster 2d bosses
 	    00                     0000 0000  air blaster 3d stages
 
-	    ?tb- --wh
+	    Btb- --wh
 
-	    ? = unknown
+	    B = unknown on EU3A05, bytes per tile on EU3A13?
 	    t = tile size (1 = 16x16, 0 = 8x8)
 	    b = bpp (0 = 8bpp, 1 = 4bpp)
 	    - = haven't seen used
