@@ -4,6 +4,8 @@
 Bally Wulff Eurotec
 German Fruit Machines / Gambling Machines
 
+The predecessor is the Technik 2000 system.
+
 The CPU board has the CPU, RTC, RAM and ROM
 
 CPU: Motorola MC68EC000
