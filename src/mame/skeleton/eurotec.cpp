@@ -88,7 +88,7 @@ void ballyw_state::mem_map(address_map &map)
 	map(0x000000, 0x07ffff).rom();
 	map(0x080000, 0x0fffff).ram();
 	map(0x100000, 0x1fffff).ram();
-	map(0x1147fe, 0x1147fe).w(FUNC(ballyw_state::vfd_w));
+	map(0x1006ac, 0x1006ac).w(FUNC(ballyw_state::vfd_w));
 	map(0x800000, 0x8007ff).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
 	//map(0x800000, 0x8007ff).rom().region("ident",0); //?
 	map(0x900000, 0x9002ff).ram(); //ulc?
