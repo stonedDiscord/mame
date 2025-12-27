@@ -66,7 +66,7 @@ private:
 	virtual void machine_start() override;
 	void mem_map(address_map &map) ATTR_COLD;
 
-	void vfd_w(uint8_t data);
+	void mux1_w(uint8_t data);
 	INTERRUPT_GEN_MEMBER(watchdog_interrupt);
 	
 	void watchdog_clear(int);
@@ -78,7 +78,7 @@ private:
 	optional_device<rocvfd_device> m_vfd;
 };
 
-void ballyw_state::vfd_w(uint8_t data)
+void ballyw_state::mux1_w(uint8_t data)
 {
 	m_vfd->write_char(data);
 }
@@ -88,7 +88,7 @@ void ballyw_state::mem_map(address_map &map)
 	map(0x000000, 0x07ffff).rom();
 	map(0x080000, 0x0fffff).ram();
 	map(0x100000, 0x1fffff).ram();
-	map(0x1006ac, 0x1006ac).w(FUNC(ballyw_state::vfd_w));
+	map(0x1006ac, 0x1006ac).w(FUNC(ballyw_state::mux1_w));
 	map(0x800000, 0x8007ff).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
 	//map(0x800000, 0x8007ff).rom().region("ident",0); //?
 	map(0x900000, 0x9002ff).ram(); //ulc?
@@ -150,13 +150,13 @@ void ballyw_state::b4(machine_config &config)
 ROM_START( gbsky )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD16_BYTE( "101-s6.0_even_sky.ic10", 0x00001, 0x80000, CRC(8bf3fd6d) SHA1(c95a3651e025e9d2c99c708e643fe3a2982a39ad) )
-	ROM_LOAD16_BYTE( "101-s6.0_odd_sky.ic15", 0x00000, 0x80000, CRC(0ce4f9d7) SHA1(d4cea08466cf86de7c27ffdfead456f796e4a0af) )
+	ROM_LOAD16_BYTE( "101-s6.0_odd_sky.ic15",  0x00000, 0x80000, CRC(0ce4f9d7) SHA1(d4cea08466cf86de7c27ffdfead456f796e4a0af) )
 ROM_END
 
 ROM_START( gloriasl )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD16_BYTE( "123-s4.0_even_gloria_sl.ic10", 0x00001, 0x80000, CRC(1be58a11) SHA1(1a1b1f51c9c3f4bd16832a689ee90a5f8faac453) )
-	ROM_LOAD16_BYTE( "123-s4.0_odd_gloria_sl.ic15", 0x00000, 0x80000, CRC(06d7ee41) SHA1(8bf4b1ce16d9f021381b7dae5069ba8383b150cd) )
+	ROM_LOAD16_BYTE( "123-s4.0_odd_gloria_sl.ic15",  0x00000, 0x80000, CRC(06d7ee41) SHA1(8bf4b1ce16d9f021381b7dae5069ba8383b150cd) )
 
 	ROM_REGION( 0x100000, "snd", 0 )
 	ROM_LOAD( "123-sound_1.4_gloria_sl.ic13", 0x00000, 0x100000, CRC(71cfbd7e) SHA1(efe2e92cfb7de4b6145aa3462fda010282b31090) )
@@ -176,7 +176,7 @@ ROM_END
 ROM_START( sunfun )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD16_BYTE( "sunfun_even.ic10", 0x00001, 0x80000, CRC(5b52038a) SHA1(9dc08b684e03b489953c1867902b2164cd2a4f8d) )
-	ROM_LOAD16_BYTE( "sunfun_odd.ic15", 0x00000, 0x80000, CRC(8dfdf298) SHA1(986b7e8d118f5edeaa1c930c3e7de77d3922a088) )
+	ROM_LOAD16_BYTE( "sunfun_odd.ic15",  0x00000, 0x80000, CRC(8dfdf298) SHA1(986b7e8d118f5edeaa1c930c3e7de77d3922a088) )
 
 	ROM_REGION( 0x100000, "snd", 0 )
 	ROM_LOAD( "sound_sunfun.ic13", 0x00000, 0x100000, NO_DUMP )
