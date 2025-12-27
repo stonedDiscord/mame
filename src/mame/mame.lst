@@ -865,6 +865,7 @@ am64
 apple2
 apple2jp
 apple2p
+apple2pe
 basis108
 craft2p
 dodo
@@ -879,7 +880,6 @@ prav8m
 space84
 uniap2en
 uniap2pt
-uniap2ti
 
 @source:apple/apple2e.cpp
 ace2200
@@ -20618,6 +20618,11 @@ specfrceo
 rhnation
 zoofari
 
+@source:igs/5clown.cpp
+5clown
+5clowna
+5clownsp
+
 @source:igs/cabaret.cpp
 cabaret
 double8l
@@ -22248,6 +22253,7 @@ greenber
 headoni
 ipminvad
 ipminvad1
+ipminvad2
 skychut
 spacbeam
 
@@ -29120,11 +29126,6 @@ unksig
 unksiga
 unksigb
 
-@source:misc/5clown.cpp
-5clown
-5clowna
-5clownsp
-
 @source:misc/a1supply.cpp
 tv21
 tv21_3
@@ -34435,6 +34436,7 @@ gamsharao
 gegemdb
 gjspace
 gunbalina
+ippo
 ippo2
 kd2001
 keroro
@@ -36520,6 +36522,9 @@ diamond2
 
 @source:novag/emerclp.cpp
 emerclp
+
+@source:novag/gomoku.cpp
+ngomoku
 
 @source:novag/mentor16.cpp
 mentor16
@@ -44392,6 +44397,9 @@ tvdear
 @source:skeleton/unistar.cpp
 unistar
 
+@source:skeleton/unkcrane8085.cpp
+unkcrane
+
 @source:skeleton/v6809.cpp
 v6809
 
@@ -46338,6 +46346,8 @@ ddragon2j
 ddragon2u
 ddragon6809
 ddragon6809a
+ddragon6809b
+ddragon6809c
 ddragona
 ddragonbl
 ddragonbl2
