@@ -229,6 +229,8 @@ private:
 	uint16_t m_out_mux1;
 	uint8_t m_out_anz2;
 	uint16_t m_out_mux2;
+	uint8_t m_out_aw1;
+	uint8_t m_out_aw2;
 
 	uint8_t m_in_li1;
 	uint8_t m_in_emp1;
@@ -241,7 +243,7 @@ private:
 
 	uint8_t mux_r();
 	void anz_w(bool second, uint8_t data);
-	void aw_w(bool second, uint16_t data);
+	void aw_w(bool second, bool data);
 	void mux_w(uint8_t data);
 	void mux2_w(uint8_t data);
 	void st_w(uint16_t data);
@@ -259,9 +261,12 @@ void stellafr_state::anz_w(bool second, uint8_t data)
 	LOG("ANZ %02x\n",data);
 }
 
-void stellafr_state::aw_w(bool second, uint16_t data)
+void stellafr_state::aw_w(bool second, bool data)
 {
-	LOG("AW %04x\n",data);
+	if (second)
+		m_out_aw2 = (m_out_aw2 << 1) | data;
+	else
+		m_out_aw1 = (m_out_aw1 << 1) | data;
 }
 
 void stellafr_state::lamp_w(bool second, uint8_t row, uint16_t data)
@@ -292,34 +297,46 @@ void stellafr_state::mux_w(uint8_t data)
 	bool enanz2 = BIT(data,U5_ENANZ2);
 	bool enmux2 = BIT(data,U5_ENMUX2);
 
-	if (enme1) // double
-		LOG("1MA  %16x\n",m_out_ma1);
 	if (enme1)
-		;//LOG("ME   %16x\n",m_out_me);
+	{
+		LOG("1MA  %04x\n",m_out_ma1);
+		LOG("ME   %04x\n",m_out_me);
+		m_in_emp1 = 0x00;
+		m_in_li1  = 0x00;
+		m_in_ma   = 0x00;
+	}
 
 	if (enme2)
-		;//LOG("2MA  %16x\n",m_ma2);
+	{
+		LOG("2MA  %04x\n",m_out_ma2);
+		m_in_emp2 = 0x00;
+		m_in_li2  = 0x00;
+	}
 
-	if (aw1)
-		aw_w(false, m_out_data3);
-	if (aw2)
-		aw_w(true, m_out_me);
+	aw_w(false, aw1);
+	aw_w(true, aw2);
 
-	if (enanz1) // double
-		anz_w(false, m_out_anz1);
 	if (enanz1)
+	{
+		anz_w(false, m_out_anz1);
 		st_w(m_out_ma1);
+		m_in_st = 0x00;
+	}
 
-	if (enmux1) // double
-		lamp_w(false, (m_out_mux1 >> 12) & 0x0f, m_out_mux1 & 0x0FFF);
 	if (enmux1)
-		; // MUXMA
+	{
+		lamp_w(false, (m_out_mux1 >> 12), m_out_mux1 & 0x0FFF);
+		m_in_t1 = 0x00;
+	}
 
 	if (enanz2)
 		anz_w(true, m_out_anz2);
-	if (enmux2)
-		lamp_w(true, (m_out_mux2 >> 12) & 0x0f, m_out_mux2 & 0x0FFF);
 
+	if (enmux2)
+	{
+		lamp_w(true, (m_out_mux2 >> 12), m_out_mux2 & 0x0FFF);
+		m_in_t2 = 0x00;
+	}
 }
 
 uint8_t stellafr_state::mux_r()
@@ -413,6 +430,24 @@ void stellafr_state::fc7_map(address_map &map)
 void stellafr_state::machine_start()
 {
 	save_item(NAME(m_mux1));
+	save_item(NAME(m_out_ma1));
+	save_item(NAME(m_out_ma2));
+	save_item(NAME(m_out_me));
+	save_item(NAME(m_out_data3));
+	save_item(NAME(m_out_anz1));
+	save_item(NAME(m_out_mux1));
+	save_item(NAME(m_out_anz2));
+	save_item(NAME(m_out_mux2));
+	save_item(NAME(m_out_aw1));
+	save_item(NAME(m_out_aw2));
+	save_item(NAME(m_in_li1));
+	save_item(NAME(m_in_emp1));
+	save_item(NAME(m_in_ma));
+	save_item(NAME(m_in_st));
+	save_item(NAME(m_in_t1));
+	save_item(NAME(m_in_t2));
+	save_item(NAME(m_in_emp2));
+	save_item(NAME(m_in_li2));
 }
 
 void stellafr_state::machine_reset()

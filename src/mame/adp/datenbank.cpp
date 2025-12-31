@@ -231,7 +231,7 @@ private:
     required_device<rtc4543_device> m_rtc;
 	required_device<ad7224_device> m_dac;
 	output_finder<8> m_digits;
-	output_finder<8,12> m_lamps;
+	output_finder<16,12> m_lamps;
 	output_finder<2> m_leds;
 	required_ioport m_in0;
 
@@ -243,6 +243,8 @@ private:
 	uint16_t m_out_mux1;
 	uint8_t m_out_anz2;
 	uint16_t m_out_mux2;
+	uint8_t m_out_aw1;
+	uint8_t m_out_aw2;
 
 	uint8_t m_in_li1;
 	uint8_t m_in_emp1;
@@ -255,7 +257,7 @@ private:
 
 	uint8_t mux_r();
 	void anz_w(bool second, uint8_t data);
-	void aw_w(bool second, uint16_t data);
+	void aw_w(bool second, bool data);
 	void mux_w(uint8_t data);
 	void mux2_w(uint8_t data);
 	void st_w(uint16_t data);
@@ -274,9 +276,12 @@ void datenbank_state::anz_w(bool second, uint8_t data)
 	LOG("ANZ %02x\n",data);
 }
 
-void datenbank_state::aw_w(bool second, uint16_t data)
+void datenbank_state::aw_w(bool second, bool data)
 {
-	LOG("AW %04x\n",data);
+	if (second)
+		m_out_aw2 = (m_out_aw2 << 1) | data;
+	else
+		m_out_aw1 = (m_out_aw1 << 1) | data;
 }
 
 void datenbank_state::lamp_w(bool second, uint8_t row, uint16_t data)
@@ -307,34 +312,45 @@ void datenbank_state::mux_w(uint8_t data)
 	bool enanz2 = BIT(data,U5_ENANZ2);
 	bool enmux2 = BIT(data,U5_ENMUX2);
 
-	if (enme1) // double
-		LOG("1MA  %16x\n",m_out_ma1);
 	if (enme1)
-		;//LOG("ME   %16x\n",m_out_me);
+	{
+		LOG("1MA  %04x\n",m_out_ma1);
+		LOG("ME   %04x\n",m_out_me);
+		m_in_emp1 = 0x00;
+		m_in_li1  = 0x00;
+	}
 
 	if (enme2)
-		;//LOG("2MA  %16x\n",m_ma2);
+	{
+		LOG("2MA  %04x\n",m_out_ma2);
+		m_in_emp2 = 0x00;
+		m_in_li2  = 0x00;
+	}
 
-	if (aw1)
-		aw_w(false, m_out_data3);
-	if (aw2)
-		aw_w(true, m_out_me);
+	aw_w(false, aw1);
+	aw_w(true, aw2);
 
-	if (enanz1) // double
+	if (enanz1) 
+	{
 		anz_w(false, m_out_anz1);
-	if (enanz1)
 		st_w(m_out_ma1);
+		m_in_st = 0x00;
+	}
 
-	if (enmux1) // double
-		lamp_w(false, (m_out_mux1 >> 12) & 0x0f, m_out_mux1 & 0x0FFF);
 	if (enmux1)
-		; // MUXMA
+	{
+		lamp_w(false, (m_out_mux1 >> 12), m_out_mux1 & 0x0FFF);
+		m_in_li1 = 0x00;
+	}
 
 	if (enanz2)
 		anz_w(true, m_out_anz2);
-	if (enmux2)
-		lamp_w(true, (m_out_mux2 >> 12) & 0x0f, m_out_mux2 & 0x0FFF);
 
+	if (enmux2)
+	{
+		lamp_w(true, (m_out_mux2 >> 12), m_out_mux2 & 0x0FFF);
+		m_in_li2 = 0x00;
+	}
 }
 
 uint8_t datenbank_state::mux_r()
