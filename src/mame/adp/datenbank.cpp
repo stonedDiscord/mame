@@ -173,18 +173,18 @@ enum
 	U1_D3OUT,
 	U1_ANZ1,
 	U1_MUX1,
-	U1_ANZ2,
+	U1_ANZ2, //shared with output to coin unit 2
 	U1_MUX2
 };
 
 enum
 {
-	U5_EN1MA, //shared with output to coin unit 1
-	U5_EN2MA,
+	U5_EN1ME, // shared machine1 and coin unit 1
+	U5_EN2ME,
 	U5_AW1,
 	U5_AW2,
 	U5_ENANZ1, //shared with output to service keyboard
-	U5_ENMUX1,
+	U5_ENMUX1, //share with muxma
 	U5_ENANZ2, //shared with output to coin unit 2
 	U5_ENMUX2
 };
@@ -192,20 +192,20 @@ enum
 // inputs
 enum
 {
-	U10_OUTLI,
-	U10_OUTEMP,
+	U10_OUTLI1,
+	U10_OUTEMP1,
 	U10_OUTMA,
 	U10_OUTST,
-	U10_OUTT,
+	U10_OUTT1,
 	U10_OUTT2,
-	U10_EMP2,
-	U10_LI2
+	U10_OUTEMP2,
+	U10_OUTLI2
 };
 
-class showdownec1_state : public driver_device
+class datenbank_state : public driver_device
 {
 public:
-	showdownec1_state(const machine_config &mconfig, device_type type, const char *tag) :
+	datenbank_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
@@ -213,7 +213,7 @@ public:
         m_rtc(*this, "rtc"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
-		m_lamps(*this, "lamp%u", 0U),
+		m_lamps(*this, "lamp%u%u", 0U),
 		m_leds(*this, "led%u", 0U),
 		m_in0(*this, "IN0")
 	{ }
@@ -231,25 +231,37 @@ private:
     required_device<rtc4543_device> m_rtc;
 	required_device<ad7224_device> m_dac;
 	output_finder<8> m_digits;
-	output_finder<128> m_lamps;
+	output_finder<8,12> m_lamps;
 	output_finder<2> m_leds;
 	required_ioport m_in0;
 
-	uint8_t m_ma1;
-	uint8_t m_ma2;
-	uint8_t m_me;
-	uint8_t m_data3;
-	uint8_t m_anz1;
-	uint16_t m_mux1;
-	uint8_t m_anz2;
-	uint8_t m_mux2;
+	uint16_t m_out_ma1;
+	uint16_t m_out_ma2;
+	uint16_t m_out_me;
+	uint16_t m_out_data3;
+	uint8_t m_out_anz1;
+	uint16_t m_out_mux1;
+	uint8_t m_out_anz2;
+	uint16_t m_out_mux2;
+
+	uint8_t m_in_li1;
+	uint8_t m_in_emp1;
+	uint8_t m_in_ma;
+	uint8_t m_in_st;
+	uint8_t m_in_t1;
+	uint8_t m_in_t2;
+	uint8_t m_in_emp2;
+	uint8_t m_in_li2;
 
 	uint8_t mux_r();
+	void anz_w(bool second, uint8_t data);
+	void aw_w(bool second, uint16_t data);
 	void mux_w(uint8_t data);
 	void mux2_w(uint8_t data);
+	void st_w(uint16_t data);
 	void duart_output_w(uint8_t data);
 	void ay8910_portb_w(uint8_t data);
-	void lamps_w(uint8_t row, uint16_t data);
+	void lamp_w(bool second, uint8_t row, uint16_t data);
 
 	void mem_map(address_map &map) ATTR_COLD;
 	void fc7_map(address_map &map) ATTR_COLD;
@@ -257,46 +269,37 @@ private:
 };
 
 
-uint8_t showdownec1_state::mux_r()
+void datenbank_state::anz_w(bool second, uint8_t data)
 {
-	bool li = false;
-	bool emp = false;
-	bool ma = false;
-	bool st = false;
-	bool t = false; // main buttons in
-	bool t2 = false;
-	bool emp2 = false;
-	bool li2 = false;
-
-	uint8_t data = 0x00;
-
-	if (li)   data |= (1 << U10_OUTLI);
-	if (emp)  data |= (1 << U10_OUTEMP);
-	if (ma)   data |= (1 << U10_OUTMA);
-	if (st)   data |= (1 << U10_OUTST);
-	if (t)    data |= (1 << U10_OUTT);
-	if (t2)   data |= (1 << U10_OUTT2);
-	if (emp2) data |= (1 << U10_EMP2);
-	if (li2)  data |= (1 << U10_LI2);
-
-	return data;
+	LOG("ANZ %02x\n",data);
 }
 
-void showdownec1_state::lamps_w(uint8_t row, uint16_t data)
+void datenbank_state::aw_w(bool second, uint16_t data)
 {
-	LOG("Row %d\n",row);
-	for (int i = 0; i < 8; i++)
+	LOG("AW %04x\n",data);
+}
+
+void datenbank_state::lamp_w(bool second, uint8_t row, uint16_t data)
+{
+	if (row > 7)
+		return; // inhibit flag set
+	uint8_t lrow = (row & 0x07) + (second ? 8 : 0);
+	for (int i = 0; i < 12; i++)
 	{
-		uint8_t lamp_index = (row * 10) + i;
 		bool lamp_value = BIT(data, i);
-		m_lamps[lamp_index] = lamp_value;
+		m_lamps[lrow][i] = lamp_value;
 	}
 }
 
-void showdownec1_state::mux_w(uint8_t data)
+void datenbank_state::st_w(uint16_t data)
 {
-	bool enma1  = BIT(data,U5_EN1MA);
-	bool enma2  = BIT(data,U5_EN2MA);
+	LOG("ST %04x\n",data);
+}
+
+void datenbank_state::mux_w(uint8_t data)
+{
+	bool enme1  = BIT(data,U5_EN1ME);
+	bool enme2  = BIT(data,U5_EN2ME);
 	bool aw1    = BIT(data,U5_AW1);
 	bool aw2    = BIT(data,U5_AW2);
 	bool enanz1 = BIT(data,U5_ENANZ1); //enable 7seg
@@ -304,53 +307,87 @@ void showdownec1_state::mux_w(uint8_t data)
 	bool enanz2 = BIT(data,U5_ENANZ2);
 	bool enmux2 = BIT(data,U5_ENMUX2);
 
-	if (enma1)
-		; // LOG("1MA %d\n",m_ma1);
-	if (enma1)
-		; // LOG("ME %d\n",m_me);
-	if (enma2)
-		; // LOG("2MA %d\n",m_ma2);
-	if (enanz1)
-		; // LOG("ANZ1 %d\n",m_anz1); //main 7seg led out
-	if (enanz1)
-		; // LOG("ST %d\n",m_ma1);
-	if (enmux1)
-		lamps_w((m_mux1 >> 12) & 0x07, m_mux1 & 0x0FFF); //main lamps out
-	if (enanz2)
-		; // LOG("ANZ2 %d\n",m_anz2);
-	if (enmux2)
-		; // LOG("MUX2 %d\n",m_mux2);
+	if (enme1) // double
+		LOG("1MA  %16x\n",m_out_ma1);
+	if (enme1)
+		;//LOG("ME   %16x\n",m_out_me);
+
+	if (enme2)
+		;//LOG("2MA  %16x\n",m_ma2);
+
 	if (aw1)
-		;
+		aw_w(false, m_out_data3);
 	if (aw2)
-		;
+		aw_w(true, m_out_me);
+
+	if (enanz1) // double
+		anz_w(false, m_out_anz1);
+	if (enanz1)
+		st_w(m_out_ma1);
+
+	if (enmux1) // double
+		lamp_w(false, (m_out_mux1 >> 12) & 0x0f, m_out_mux1 & 0x0FFF);
+	if (enmux1)
+		; // MUXMA
+
+	if (enanz2)
+		anz_w(true, m_out_anz2);
+	if (enmux2)
+		lamp_w(true, (m_out_mux2 >> 12) & 0x0f, m_out_mux2 & 0x0FFF);
+
 }
 
-void showdownec1_state::mux2_w(uint8_t data)
+uint8_t datenbank_state::mux_r()
+{
+	uint8_t data = 0x00;
+
+	if (BIT(m_in_li1, 0))   data |= (1 << U10_OUTLI1);
+	if (BIT(m_in_emp1, 0))  data |= (1 << U10_OUTEMP1);
+	if (BIT(m_in_ma, 0))    data |= (1 << U10_OUTMA);
+	if (BIT(m_in_st, 0))    data |= (1 << U10_OUTST);
+	if (BIT(m_in_t1, 0))    data |= (1 << U10_OUTT1);
+	if (BIT(m_in_t2, 0))    data |= (1 << U10_OUTT2);
+	if (BIT(m_in_emp2, 0))  data |= (1 << U10_OUTEMP2);
+	if (BIT(m_in_li2, 0))   data |= (1 << U10_OUTLI2);
+
+	m_in_li1 = m_in_li1 >> 1;
+	m_in_emp1 = m_in_emp1 >> 1;
+	m_in_ma = m_in_ma >> 1;
+	m_in_st = m_in_st >> 1;
+	m_in_t1 = m_in_t1 >> 1;
+	m_in_t2 = m_in_t2 >> 1;
+	m_in_emp2 = m_in_emp2 >> 1;
+	m_in_li2 = m_in_li2 >> 1;
+
+	return data;
+}
+
+void datenbank_state::mux2_w(uint8_t data)
 {
 	// anz goes into one 74hc4094
 	// mux has 2 chained for lamp cols 0 - 11, 3 bits for lz encoded and EnSDAp
-	m_ma1   = (m_ma1   << 1) | BIT(data,U1_1MA);
-	m_ma2   = (m_ma2   << 1) | BIT(data,U1_2MA);
-	m_me    = (m_me    << 1) | BIT(data,U1_ME);
-	m_data3 = (m_data3 << 1) | BIT(data,U1_D3OUT);
-	m_anz1  = (m_anz1  << 1) | BIT(data,U1_ANZ1);
-	m_mux1  = (m_mux1  << 1) | BIT(data,U1_MUX1);
-	m_anz2  = (m_anz2  << 1) | BIT(data,U1_ANZ2);
-	m_mux2  = (m_mux2  << 1) | BIT(data,U1_MUX2);
+
+	m_out_ma1   = (m_out_ma1   << 1) | BIT(data,U1_1MA); //double
+	m_out_ma2   = (m_out_ma2   << 1) | BIT(data,U1_2MA);
+	m_out_me    = (m_out_me    << 1) | BIT(data,U1_ME);
+	m_out_data3 = (m_out_data3 << 1) | BIT(data,U1_D3OUT);
+	m_out_anz1  = (m_out_anz1  << 1) | BIT(data,U1_ANZ1);
+	m_out_mux1  = (m_out_mux1  << 1) | BIT(data,U1_MUX1);
+	m_out_anz2  = (m_out_anz2  << 1) | BIT(data,U1_ANZ2); //double
+	m_out_mux2  = (m_out_mux2  << 1) | BIT(data,U1_MUX2);
 }
 
-void showdownec1_state::duart_output_w(uint8_t data)
+void datenbank_state::duart_output_w(uint8_t data)
 {
 	m_leds[0] = !BIT(data, PORT_O_LED0);
 	m_leds[1] = !BIT(data, PORT_O_SDA);
 }
 
-void showdownec1_state::ay8910_portb_w(uint8_t data)
+void datenbank_state::ay8910_portb_w(uint8_t data)
 {
 }
 
-void showdownec1_state::mem_map(address_map &map)
+void datenbank_state::mem_map(address_map &map)
 {
 	map(0x000000, 0x0003ff).rom().region("xc_decrypted", 0x100); //vector table
     map(0x000400, 0x000fbf).rom().region("loader", 0); // loader
@@ -362,8 +399,8 @@ void showdownec1_state::mem_map(address_map &map)
 	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)); // Y0
 	// Y1 device on cpu board
 	// Y2 device on cpu board
-	map(0x8000c1, 0x8000c1).w(FUNC(showdownec1_state::mux2_w)); // Y3 SP/ME II out
-	map(0x800100, 0x800101).rw(FUNC(showdownec1_state::mux_r), FUNC(showdownec1_state::mux_w)); // Y4 SP/ME I out / Inputs
+	map(0x8000c1, 0x8000c1).w(FUNC(datenbank_state::mux2_w)); // Y3 SP/ME II out
+	map(0x800100, 0x800101).rw(FUNC(datenbank_state::mux_r), FUNC(datenbank_state::mux_w)); // Y4 SP/ME I out / Inputs
 	map(0x800141, 0x800141).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_w)); // Y5
 	map(0x800143, 0x800143).w("aysnd", FUNC(ay8910_device::data_w)); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff); // Y6
@@ -371,22 +408,21 @@ void showdownec1_state::mem_map(address_map &map)
 	map(0xff0000, 0xffffff).ram().share("nvram");
 }
 
-void showdownec1_state::fc7_map(address_map &map)
+void datenbank_state::fc7_map(address_map &map)
 {
 	map(0xfffff5, 0xfffff5).r(m_duart, FUNC(mc68681_device::get_irq_vector));
 }
 
-void showdownec1_state::machine_start()
+void datenbank_state::machine_start()
 {
 	m_digits.resolve();
 	m_lamps.resolve();
 	m_leds.resolve();
-	save_item(NAME(m_mux1));
 }
 
-void showdownec1_state::machine_reset()
+void datenbank_state::machine_reset()
 {
-	m_mux1 = 0;
+	m_out_mux1 = 0;
 }
 
 static INPUT_PORTS_START( showdownec1 )
@@ -399,17 +435,17 @@ static INPUT_PORTS_START( showdownec1 )
 INPUT_PORTS_END
 
 
-void showdownec1_state::showdownec1(machine_config &config)
+void datenbank_state::showdownec1(machine_config &config)
 {
 	M68340(config, m_maincpu, 16000000); //MC68331
-	m_maincpu->set_addrmap(AS_PROGRAM, &showdownec1_state::mem_map);
-	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &showdownec1_state::fc7_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &datenbank_state::mem_map);
+	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &datenbank_state::fc7_map);
 
 	RTC4543(config, m_rtc, 32.768_kHz_XTAL);
 
 	MC68681(config, m_duart, 3686400);
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_2); // ?
-	m_duart->outport_cb().set(FUNC(showdownec1_state::duart_output_w));
+	m_duart->outport_cb().set(FUNC(datenbank_state::duart_output_w));
 
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
 
@@ -419,7 +455,7 @@ void showdownec1_state::showdownec1(machine_config &config)
 	ay8910_device &aysnd(AY8910(config, "aysnd", 1000000));
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.85);
 	aysnd.port_a_read_callback().set_ioport("IN0");
-	aysnd.port_b_write_callback().set(FUNC(showdownec1_state::ay8910_portb_w));
+	aysnd.port_b_write_callback().set(FUNC(datenbank_state::ay8910_portb_w));
 }
 
 ROM_START( showdownec1 )
@@ -457,6 +493,6 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL(1998, showdownec1,             0, showdownec1, showdownec1, showdownec1_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
-GAMEL(1999, brisant,             0, showdownec1, showdownec1, showdownec1_state, empty_init, ROT0, "Mega",   "Brisant",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
-GAMEL(2006, siriusje,             0, showdownec1, showdownec1, showdownec1_state, empty_init, ROT0, "Mega",   "Sirius Jackpot Nug",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(1998, showdownec1,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(1999, brisant,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Brisant",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(2006, siriusje,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Sirius Jackpot Nug",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
