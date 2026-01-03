@@ -531,6 +531,7 @@ ROM_END
 
 GAMEL(199?, thatscool,      0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "That's Cool",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(1999, harlekin,       0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Harlekin",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(200?, machmehr,       0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Mach Mehr",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2001, limbo,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Limbo",                  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2002, gbsky,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sky",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2002, quickrisc,      0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Quick Risc",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
@@ -547,7 +548,6 @@ GAMEL(2003, gloriasls4,     0, b4, ballyw, ballyw_state, empty_init, ROT0, "Ball
 GAMEL(2003, gloriasls5,     0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, kingcs2,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S2)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, kingcs3,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S3)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
-GAMEL(200?, machmehr,       0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Mach Mehr",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2004, b493,           0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "493",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2004, actiontotal,    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Action Total",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2004, arcon,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Arcon",                  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )

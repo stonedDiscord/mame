@@ -43695,18 +43695,17 @@ microtrol
 waveterm
 
 @source:skeleton/eurotec.cpp
-b493
-b18plus
 action4u
 actiontotal
 arcon
+b18plus
+b493
 batlantis
 babajagas17
-jumpinjacksl
-quickrisc
-texmex
-winplay
 belami
+bheroe
+bhotslote
+bphantome
 blockbuster
 boss
 bully
@@ -43725,9 +43724,8 @@ gloriasls5
 graffity
 hardrock
 harlekin
-bheroe
 hexentanz
-bhotslote
+jumpinjacksl
 kingcs2
 kingcs3
 limbo
@@ -43737,10 +43735,10 @@ machmehr
 neons12
 neons13
 oxigen
-bphantome
 piratengs4
 piratengs5
 play_time
+quickrisc
 rave
 rexe
 sky
@@ -43748,12 +43746,14 @@ speedruns3
 speedruns4
 sunfairxl
 sunfun
+texmex
 thatscool
 titanpro
 totalgenial
 tropical
 tropical
 victoria
+winplay
 xcross
 
 @source:skeleton/evolution_handheld.cpp
