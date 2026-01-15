@@ -936,6 +936,11 @@ ROM_START( vmulti )
 	ROM_LOAD("venus_multi_6_2732.bin", 0x7000, 0x1000, CRC(09dd81e7) SHA1(35e9a96d913678a75851a9bf7e7349f93e337805))
 ROM_END
 
+ROM_START( testromc )
+	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_LOAD( "a.rom", 0x0000, 0x1000, CRC(1d0eee7a) SHA1(cb0bc743089b811f641a60e2fa88947649fc11fb) )
+ROM_END
+
 } // anonymous namespace
 
 GAMEL( 1982, excellnt,          0, board4040, dicemstr, stella8085_state, empty_init, ROT0, "ADP",    "Excellent",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
@@ -979,3 +984,4 @@ GAMEL( 1992, karoas,            0, dicemstr,  dicemstr, stella8085_state, empty_
 GAMEL( 1992, mmax,              0, dicemstr,  dicemstr, stella8085_state, empty_init, ROT0, "MEGA",   "Max",               MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1992, mtrio,             0, dicemstr,  disc,     stella8085_state, empty_init, ROT0, "MEGA",   "Trio",              MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1993, dicemstr,          0, dicemstr,  dicemstr, stella8085_state, empty_init, ROT0, "Stella", "Dice Master",       MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
+GAMEL( 2025, testromc,          0, board4087, disc,     stella8085_state, empty_init, ROT0, "sD",     "Test ROM",          MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )

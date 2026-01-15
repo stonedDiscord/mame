@@ -511,6 +511,7 @@ treffasm
 v4assef1
 v4assef2
 vmulti
+testromc
 
 @source:adp/stellafr.cpp
 action
