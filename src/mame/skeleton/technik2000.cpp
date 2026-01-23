@@ -4,10 +4,9 @@
 Bally Wulff Technik 2000
 German Fruit Machines / Gambling Machines
 
-CPU: Motorola MC68008P10
-RAM:
-RTC:
-Audio: YM2149F
+CPU: Motorola MC68008P10 DIP-48
+RAM: Fujitsu MB84256A
+Audio: Yamaha YM2149F
 
 Zentraleinheit 200.600.00
 
@@ -71,12 +70,8 @@ void t2000_state::mux1_w(uint8_t data)
 
 void t2000_state::mem_map(address_map &map)
 {
-	map(0x000000, 0x03ffff).rom();
-	map(0x040000, 0x047fff).ram().share("nvram");
-	map(0x048000, 0x04ffff).ram();
-	map(0x050000, 0x07ffff).ram();
-	map(0x0d0008, 0x0d0008).w(FUNC(t2000_state::watchdog_interrupt_clear));
-	map(0x0d0009, 0x0d0009).w(FUNC(t2000_state::mux1_w));
+	map(0x00000, 0x3ffff).rom(); 
+	map(0x40000, 0x47fff).ram().share("nvram"); //84256A
 
 }
 
