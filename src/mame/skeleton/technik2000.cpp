@@ -6,6 +6,9 @@ German Fruit Machines / Gambling Machines
 
 CPU: Motorola MC68008P10 DIP-48
 RAM: Fujitsu MB84256A
+RTC: Epson RTC-72421A
+Timer: Motorola MC6840P
+Serial: ST EF6850P
 Audio: Yamaha YM2149F
 
 Zentraleinheit 200.600.00
@@ -18,6 +21,7 @@ Zentraleinheit 200.600.00
 #include "cpu/m68000/m68008.h"
 #include "machine/6840ptm.h"
 #include "machine/6850acia.h"
+#include "machine/msm6242.h"
 #include "machine/nvram.h"
 #include "sound/ay8910.h"
 #include "video/roc10937.h"
@@ -38,7 +42,8 @@ public:
 		m_vfd(*this, "vfd"),
 		m_aysnd(*this, "aysnd"),
 		m_ptm(*this, "ptm"),
-		m_acia(*this, "acia")
+		m_acia(*this, "acia"),
+		m_rtc(*this, "rtc")
 	{ }
 
 	void t2000(machine_config &config);
@@ -59,15 +64,16 @@ private:
 	required_device<ym2149_device> m_aysnd;
 	required_device<ptm6840_device> m_ptm;
 	required_device<acia6850_device> m_acia;
+	required_device<rtc72421_device> m_rtc;
 };
-
+/*
 void t2000_state::mux1_w(uint8_t data)
 {
 	m_vfd->por(data & 0x20);// wrong
 	m_vfd->sclk(data & 0x80);
 	m_vfd->data(data & 0x40);
 }
-
+*/
 void t2000_state::mem_map(address_map &map)
 {
 	map(0x00000, 0x3ffff).rom(); 
@@ -84,12 +90,12 @@ INTERRUPT_GEN_MEMBER(t2000_state::watchdog_interrupt)
 {
 	m_maincpu->set_input_line(M68K_IRQ_IPL0, ASSERT_LINE);
 }
-
+/*
 void t2000_state::watchdog_interrupt_clear(uint8_t data)
 {
 	m_maincpu->set_input_line(M68K_IRQ_IPL0, CLEAR_LINE);
 }
-
+*/
 static INPUT_PORTS_START( t2000 )
 	PORT_START("IN0")
 INPUT_PORTS_END
@@ -104,10 +110,16 @@ void t2000_state::t2000(machine_config &config)
 
 	MSC1937(config, m_vfd);
 
-	ym2149_device &aysnd(YM2149(config, m_aysnd, 16_MHz_XTAL));
-	aysnd.add_route(ALL_OUTPUTS, "mono", 0.70);
+	YM2149(config, m_aysnd, 16_MHz_XTAL);
+	m_aysnd->add_route(ALL_OUTPUTS, "mono", 1);
 
 	SPEAKER(config, "mono").front_center();
+
+	PTM6840(config, m_ptm, 0);
+
+	ACIA6850(config, m_acia);
+
+	RTC72421(config, m_rtc, XTAL(32'768));
 
 	config.set_default_layout(layout_proconn);
 
