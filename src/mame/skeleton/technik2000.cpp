@@ -54,6 +54,9 @@ private:
 
 	void mux1_w(uint8_t data);
 
+	// uint8_t vfd_r(offs_t offset);
+	// void vfd_w(offs_t offset, uint8_t data);
+
 	INTERRUPT_GEN_MEMBER(watchdog_interrupt);
 	void watchdog_interrupt_clear(uint8_t data);
 
@@ -76,10 +79,24 @@ void t2000_state::mux1_w(uint8_t data)
 */
 void t2000_state::mem_map(address_map &map)
 {
-	map(0x00000, 0x3ffff).rom(); 
+	map(0x00000, 0x3ffff).rom();
 	map(0x40000, 0x47fff).ram().share("nvram"); //84256A
-
+	map(0xc0000, 0xc0001).rw(m_acia, FUNC(acia6850_device::read), FUNC(acia6850_device::write));
+	map(0xc0002, 0xc0011).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
+	//map(0xc0012, 0xc0013).rw(FUNC(ym2149_device::data_r), FUNC(ym2149_device::data_w));
+	map(0xd0000, 0xd0009).rw(m_ptm, FUNC(ptm6840_device::read), FUNC(ptm6840_device::write));
+	//map(0xd000a, 0xd000f).rw(FUNC(t2000_state::vfd_r), FUNC(t2000_state::vfd_w)); // TODO: implement VFD memory mapping
 }
+
+// uint8_t t2000_state::vfd_r(offs_t offset)
+// {
+// 	return 0;
+// }
+
+// void t2000_state::vfd_w(offs_t offset, uint8_t data)
+// {
+// 	// TODO: implement VFD memory-mapped access
+// }
 
 void t2000_state::machine_start()
 {
