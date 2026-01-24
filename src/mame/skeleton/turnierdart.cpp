@@ -71,8 +71,20 @@ public:
 
 private:
 	required_device<cpu_device> m_maincpu;
+
+    void data_map(address_map &map) ATTR_COLD;
+    void prg_map(address_map &map) ATTR_COLD;
 };
 
+void turnierdart_state::data_map(address_map &map)
+{
+	map(0x0000, 0x1fff).ram(); //LH5168
+}
+
+void turnierdart_state::prg_map(address_map &map)
+{
+	map(0x0000, 0xffff).rom();
+}
 
 INPUT_PORTS_START(turnierdart)
 INPUT_PORTS_END
@@ -80,6 +92,8 @@ INPUT_PORTS_END
 void turnierdart_state::turnierdart(machine_config &config)
 {
 	I80C31(config, m_maincpu, 12_MHz_XTAL); // Dallas DS80C310
+    m_maincpu->set_addrmap(AS_DATA, &turnierdart_state::data_map);
+    m_maincpu->set_addrmap(AS_PROGRAM, &turnierdart_state::prg_map);
 
 	//NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // DS1210
 
