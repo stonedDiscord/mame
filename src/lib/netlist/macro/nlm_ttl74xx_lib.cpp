@@ -824,10 +824,10 @@ static NETLIST_START(TTL_7442_DIP)
 
 	DIPPINS(         //       +--------------+
 		A.Q0, A.VCC, //     0 |1     ++    16| VCC
-		A.Q1, A.A,   //     1 |2           15| A
-		A.Q2, A.B,   //     2 |3           14| B
-		A.Q3, A.C,   //     3 |4           13| C
-		A.Q4, A.D,   //     4 |5    7442   12| D
+		A.Q1, A.A0,  //     1 |2           15| A0
+		A.Q2, A.A1,  //     2 |3           14| A1
+		A.Q3, A.A2,  //     3 |4           13| A2
+		A.Q4, A.A3,  //     4 |5    7442   12| A3
 		A.Q5, A.Q9,  //     5 |6           11| 9
 		A.Q6, A.Q8,  //     6 |7           10| 8
 		A.GND, A.Q7  //   GND |8            9| 7
@@ -3353,7 +3353,7 @@ static TRUTH_TABLE(TTL_7438_NAND, 2, 1, "+A,+B")
 
 static TRUTH_TABLE(TTL_7442, 4, 10, "")
 {
-	TT_HEAD("D,C,B,A|Q0,Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9")
+	TT_HEAD("A3,A2,A1,A0|Q0,Q1,Q2,Q3,Q4,Q5,Q6,Q7,Q8,Q9")
 	TT_LINE("0,0,0,0|0,1,1,1,1,1,1,1,1,1|30")
 	TT_LINE("0,0,0,1|1,0,1,1,1,1,1,1,1,1|30")
 	TT_LINE("0,0,1,0|1,1,0,1,1,1,1,1,1,1|30")

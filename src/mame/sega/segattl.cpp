@@ -133,10 +133,17 @@ void segattl_state::segattl(machine_config &config)
 
 void segattl_state::sbase(machine_config &config)
 {
-    segattl(config);
-    NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_secretbase);
+	// basic machine hardware
+	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_secretbase);
+	// video hardware
+	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	FIXFREQ(config, m_video).set_screen("screen");
+	m_video->set_monitor_clock(MASTER_CLOCK);
+	m_video->set_horz_params(H_TOTAL-67,H_TOTAL-40,H_TOTAL-8,H_TOTAL);
+	m_video->set_vert_params(V_TOTAL-22,V_TOTAL-19,V_TOTAL-12,V_TOTAL);
+	m_video->set_fieldcount(1);
+	m_video->set_threshold(0.30);
 }
-
 
 /***************************************************************************
 
