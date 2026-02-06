@@ -41864,6 +41864,7 @@ westdrmg
 @source:sega/segattl.cpp
 bmark
 fonz
+sbase
 
 @source:sega/segaufo.cpp
 newufo

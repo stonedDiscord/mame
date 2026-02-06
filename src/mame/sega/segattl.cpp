@@ -93,6 +93,7 @@ public:
 	}
 
 	void segattl(machine_config &config) ATTR_COLD;
+    void sbase(machine_config &config) ATTR_COLD;
 
 private:
 	// devices
@@ -130,6 +131,12 @@ void segattl_state::segattl(machine_config &config)
 	m_video->set_threshold(0.30);
 }
 
+void segattl_state::sbase(machine_config &config)
+{
+    segattl(config);
+    NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_secretbase);
+}
+
 
 /***************************************************************************
 
@@ -145,6 +152,12 @@ PR-09.49    TI 74S287
 PR-08.50    TI 74S287
 */
 
+ROM_START( bmark )
+	ROM_REGION( 0x200, "proms", 0 )
+	ROM_LOAD( "pro-1.106", 0x000, 0x100, CRC(395fbea5) SHA1(975478fed331594f21aa72e047f2da69991f7795) )
+	ROM_LOAD( "pro-3.144", 0x100, 0x100, CRC(5815894e) SHA1(aa879764c4f1775f0ac3b2e75124a483637487ed) )
+ROM_END
+
 ROM_START( fonz )
 	ROM_REGION( 0x0600, "proms", 0 )
 	ROM_LOAD( "ic86.86",  0x000, 0x200, CRC(627a7795) SHA1(88304451ffbd7231d397ada632c7bf6f8cbe7598) )
@@ -153,14 +166,15 @@ ROM_START( fonz )
 	ROM_LOAD( "pr-08.50", 0x500, 0x100, CRC(6c763af7) SHA1(fdfa310f54b88610c1f59345f5fc72b3b90641ad) )
 ROM_END
 
-ROM_START( bmark )
+ROM_START( sbase )
 	ROM_REGION( 0x200, "proms", 0 )
-	ROM_LOAD( "pro-1.106", 0x000, 0x100, CRC(395fbea5) SHA1(975478fed331594f21aa72e047f2da69991f7795) )
-	ROM_LOAD( "pro-3.144", 0x100, 0x100, CRC(5815894e) SHA1(aa879764c4f1775f0ac3b2e75124a483637487ed) )
+	ROM_LOAD( "1", 0x000, 0x100, NO_DUMP )
+	ROM_LOAD( "2", 0x100, 0x100, NO_DUMP )
 ROM_END
 
 } // anonymous namespace
 
 
-GAME( 1976, fonz,  0, segattl, 0, segattl_state, empty_init, ROT0, "Sega", "Fonz",        MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
 GAME( 1975, bmark, 0, segattl, 0, segattl_state, empty_init, ROT0, "Sega", "Bullet Mark", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 1976, fonz,  0, segattl, 0, segattl_state, empty_init, ROT0, "Sega", "Fonz",        MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 1978, sbase, 0, sbase, 0, segattl_state, empty_init, ROT0, "Sega", "Secret Base", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
