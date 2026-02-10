@@ -132,7 +132,7 @@ void t2000_state::t2000(machine_config &config)
 
 	SPEAKER(config, "mono").front_center();
 
-	PTM6840(config, m_ptm, 16_MHz_XTAL / 4)
+	PTM6840(config, m_ptm, 16_MHz_XTAL / 4);
 
 	ACIA6850(config, m_acia);
 
@@ -144,12 +144,26 @@ void t2000_state::t2000(machine_config &config)
 
 }
 
+ROM_START( glorias )
+    ROM_REGION( 0x100000, "maincpu", 0 )
+    ROM_LOAD( "gloria_super_dm_pr1.bin", 0x00000, 0x20000, CRC(4f5615a7) SHA1(9264d4dc1bb651ad8c4f84873e6e14ebbe9cd477) )
+    ROM_LOAD( "gloria_super_dm_pr2.bin", 0x20000, 0x20000, CRC(34964967) SHA1(4dd4a918fcd00a35aca443cbbce1ee0cf0c25c3b) )
+ROM_END
+
 ROM_START( graffiti )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD( "graffiti_281_0_e6.0.bin", 0x00000, 0x20000, CRC(90333f4c) SHA1(a81de22627f86c4889cbd65ff7a45a3d38966cc8) )
 	ROM_LOAD( "graffiti_281_2_e6.0.bin", 0x20000, 0x20000, CRC(0d94cab0) SHA1(a6a27208f0bc1c529d60c0574f00305f64fb7ade) )
 ROM_END
 
+ROM_START( roxyc )
+    ROM_REGION( 0x100000, "maincpu", 0 )
+    ROM_LOAD( "roxy_classic_dm_pr1.bin", 0x00000, 0x20000, CRC(23d7169c) SHA1(e154e57e8ca03dce190178a0221a059f9b00085e) )
+    ROM_LOAD( "roxy_classic_dm_pr2.bin", 0x20000, 0x20000, CRC(f7e86f09) SHA1(8144378332b21bfe0a91c9124d37afcc9946d367) )
+ROM_END
+
 } // anonymous namespace
 
-GAMEL(1995, graffiti, 0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Graffiti", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(1995, graffiti, 0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Graffiti",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(1997, glorias,  0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Gloria Super", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(1997, roxyc, 	  0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Roxy Classic", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
