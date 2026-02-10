@@ -57,11 +57,10 @@ private:
 	// uint8_t vfd_r(offs_t offset);
 	// void vfd_w(offs_t offset, uint8_t data);
 
-	INTERRUPT_GEN_MEMBER(watchdog_interrupt);
 	void watchdog_interrupt_clear(uint8_t data);
 
 	// devices
-	required_device<cpu_device> m_maincpu;
+	required_device<m68008_device> m_maincpu;
 	required_device<nvram_device> m_nvram;
 	optional_device<rocvfd_device> m_vfd;
 	required_device<ym2149_device> m_aysnd;
@@ -81,11 +80,12 @@ void t2000_state::mem_map(address_map &map)
 {
 	map(0x00000, 0x3ffff).rom();
 	map(0x40000, 0x47fff).ram().share("nvram"); //84256A
+	map(0x80000, 0x8000f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
 	map(0xc0000, 0xc0007).rw(m_ptm, FUNC(ptm6840_device::read), FUNC(ptm6840_device::write));
 	map(0xc0010, 0xc0013).rw(m_acia, FUNC(acia6850_device::read), FUNC(acia6850_device::write));
+	map(0xc0020, 0xc0020).w(m_aysnd, FUNC(ym2149_device::address_w));
+	map(0xc0021, 0xc0021).rw(m_aysnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::data_w));
 	map(0xd0000, 0xd000f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
-	//map(0xc0012, 0xc0013).rw(FUNC(ym2149_device::data_r), FUNC(ym2149_device::data_w));
-	//map(0xd000a, 0xd000f).rw(FUNC(t2000_state::vfd_r), FUNC(t2000_state::vfd_w)); // TODO: implement VFD memory mapping
 }
 
 // uint8_t t2000_state::vfd_r(offs_t offset)
@@ -103,16 +103,6 @@ void t2000_state::machine_start()
 	;
 }
 
-INTERRUPT_GEN_MEMBER(t2000_state::watchdog_interrupt)
-{
-	m_maincpu->set_input_line(M68K_IRQ_IPL0, ASSERT_LINE);
-}
-/*
-void t2000_state::watchdog_interrupt_clear(uint8_t data)
-{
-	m_maincpu->set_input_line(M68K_IRQ_IPL0, CLEAR_LINE);
-}
-*/
 static INPUT_PORTS_START( t2000 )
 	PORT_START("IN0")
 INPUT_PORTS_END
@@ -133,14 +123,13 @@ void t2000_state::t2000(machine_config &config)
 	SPEAKER(config, "mono").front_center();
 
 	PTM6840(config, m_ptm, 16_MHz_XTAL / 4);
+	m_ptm->irq_callback().set_inputline("maincpu", M68K_IRQ_1);
 
 	ACIA6850(config, m_acia);
 
 	RTC72421(config, m_rtc, XTAL(32'768));
 
 	config.set_default_layout(layout_proconn);
-
-	m_maincpu->set_periodic_int(FUNC(t2000_state::watchdog_interrupt), attotime::from_hz(25000));
 
 }
 
