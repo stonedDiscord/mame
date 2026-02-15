@@ -43563,6 +43563,9 @@ zoids
 @source:skeleton/basf7100.cpp
 basf7120
 
+@source:skeleton/bergmann2.cpp
+corsar
+
 @source:skeleton/bert.cpp
 bert
 
