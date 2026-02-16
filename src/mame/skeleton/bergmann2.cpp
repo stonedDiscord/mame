@@ -34,11 +34,14 @@ public:
         , m_pio2(*this, "pio2")
         , m_ctc1(*this, "ctc1")
         , m_ctc2(*this, "ctc2")
-        , m_led(*this, "led")
+        , m_led(*this, "led_error")
     {
     }
 
     void bergmann2(machine_config &config);
+
+protected:
+	virtual void machine_start() override ATTR_COLD;
 
 private:
     required_device<z80_device> m_maincpu;
@@ -65,13 +68,20 @@ private:
     void ctc1_zc1_w(int state);
     void ctc1_zc2_w(int state);
     void ctc2_zc0_w(int state);
+    void watchdog_w(uint8_t data);
 };
+
+void bergmann2_state::machine_start()
+{
+	m_led.resolve();
+}
 
 void bergmann2_state::mem_map(address_map &map)
 {
     map.global_mask(0x7fff);
     map(0x0000, 0x3fff).rom().region("maincpu", 0);
     map(0x4000, 0x47ff).ram();
+    map(0x6000, 0x6000).w(FUNC(bergmann2_state::watchdog_w));
 }
 
 void bergmann2_state::io_map(address_map &map)
@@ -79,13 +89,11 @@ void bergmann2_state::io_map(address_map &map)
     map.global_mask(0x1f);
     map(0x00, 0x03).rw(m_ctc2, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
     map(0x04, 0x07).rw(m_ctc1, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
-    map(0x08, 0x0b).rw(m_pio2, FUNC(z80pio_device::read_alt), FUNC(z80pio_device::write_alt));
+    map(0x08, 0x0b).rw(m_pio2, FUNC(z80pio_device::read), FUNC(z80pio_device::write));
     map(0x0c, 0x0f).rw(m_pio1, FUNC(z80pio_device::read_alt), FUNC(z80pio_device::write_alt));
-
-    // Steckerleiste 13
-    //map(0x10, 0x13).noprw(); //74C373/3
-    //map(0x14, 0x17).noprw(); //74C373/3
-    //map(0x18, 0x1b).noprw(); //74C373/3
+    map(0x10, 0x13).noprw(); //74C373/3
+    map(0x14, 0x17).noprw(); //74C373/2
+    map(0x18, 0x1b).noprw(); //74C373/1
 
 }
 
@@ -162,6 +170,11 @@ void bergmann2_state::ctc2_zc0_w(int state)
     m_ctc2->trg1(state);
     m_ctc2->trg2(state);
     m_ctc2->trg3(state);
+}
+
+void bergmann2_state::watchdog_w(uint8_t data)
+{
+    ;
 }
 
 static INPUT_PORTS_START( bergmann2 )
