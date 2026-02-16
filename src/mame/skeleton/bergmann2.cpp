@@ -17,6 +17,11 @@ CTC 2x Z0843004PSC
 #include "machine/z80pio.h"
 #include "machine/z80ctc.h"
 
+#include "crown.lh"
+
+#define VERBOSE 1
+#include "logmacro.h"
+
 namespace {
 
 class bergmann2_state : public driver_device
@@ -56,7 +61,10 @@ private:
     void pio2_pb_w(uint8_t data);
     uint8_t pio2_pa_r();
     void pio2_pa_w(uint8_t data);
-
+    void ctc1_zc0_w(int state);
+    void ctc1_zc1_w(int state);
+    void ctc1_zc2_w(int state);
+    void ctc2_zc0_w(int state);
 };
 
 void bergmann2_state::mem_map(address_map &map)
@@ -122,15 +130,39 @@ void bergmann2_state::pio2_pb_w(uint8_t data)
 uint8_t bergmann2_state::pio2_pa_r()
 {
     // Steckerleiste 17
+
+    //Bit 6+7 battery
     return 0xff;
 }
 
 void bergmann2_state::pio2_pa_w(uint8_t data)
 {
     // Steckerleiste 17
+    LOG("PIO2 PA: %02x", data);
     m_led = BIT(data, 0);
 }
 
+void bergmann2_state::ctc1_zc0_w(int state)
+{
+    LOG("CTC1 ZC0: %d\n", state);
+}
+
+void bergmann2_state::ctc1_zc1_w(int state)
+{
+    LOG("CTC1 ZC1: %d\n", state);
+}
+
+void bergmann2_state::ctc1_zc2_w(int state)
+{
+    LOG("CTC1 ZC2: %d\n", state);
+}
+
+void bergmann2_state::ctc2_zc0_w(int state)
+{
+    m_ctc2->trg1(state);
+    m_ctc2->trg2(state);
+    m_ctc2->trg3(state);
+}
 
 static INPUT_PORTS_START( bergmann2 )
 INPUT_PORTS_END
@@ -146,7 +178,7 @@ static const z80_daisy_config daisy_chain[] =
 
 void bergmann2_state::bergmann2(machine_config &config)
 {
-    Z80(config, m_maincpu, 4_MHz_XTAL); // Z0840004PSC, divider not verified
+    Z80(config, m_maincpu, 4_MHz_XTAL/2);
     m_maincpu->set_addrmap(AS_PROGRAM, &bergmann2_state::mem_map);
     m_maincpu->set_addrmap(AS_IO, &bergmann2_state::io_map);
     m_maincpu->set_daisy_config(daisy_chain);
@@ -164,18 +196,30 @@ void bergmann2_state::bergmann2(machine_config &config)
     m_pio2->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
     Z80CTC(config, m_ctc1, 4_MHz_XTAL/2);
     m_ctc1->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+    m_ctc1->zc_callback<0>().set(FUNC(bergmann2_state::ctc1_zc0_w));
+    m_ctc1->zc_callback<1>().set(FUNC(bergmann2_state::ctc1_zc1_w));
+    m_ctc1->zc_callback<2>().set(FUNC(bergmann2_state::ctc1_zc2_w));
     Z80CTC(config, m_ctc2, 4_MHz_XTAL/2);
+    m_ctc2->zc_callback<0>().set(FUNC(bergmann2_state::ctc2_zc0_w));
     m_ctc2->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+
+    config.set_default_layout(layout_crown);
 
 }
 
 ROM_START( corsar )
-    ROM_REGION(0x10000, "maincpu", 0)
+    ROM_REGION(0x4000, "maincpu", ROMREGION_ERASEFF)
     ROM_LOAD( "crown_corsar_a.bin", 0x0000, 0x2000, CRC(cf907cab) SHA1(66e22b8e1f8e3645dd4b5f1504517b7e734b20f2) )
     ROM_LOAD( "crown_corsar_b.bin", 0x2000, 0x2000, CRC(c1a69ccd) SHA1(97561620110ed991dcd2b17fbd0de5d0bbc282fe) )
 ROM_END
 
+ROM_START( jubilees )
+    ROM_REGION(0x4000, "maincpu", ROMREGION_ERASEFF)
+    ROM_LOAD( "jubilee_super_a.bin", 0x0000, 0x2000, CRC(32b8ad57) SHA1(8b95f23b5cb22261f7db62e3879b475722cfe0f2) )
+    ROM_LOAD( "jubilee_super_b.bin", 0x2000, 0x1000, CRC(60b7a6d3) SHA1(a98375c970176927ad4f0ca6b62b1a22cc07df69) )
+ROM_END
 
 } // anonymous namespace
 
-GAME( 198?, corsar, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW )
+GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW, layout_crown )
+GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW, layout_crown )
