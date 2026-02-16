@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+license:CC0-1.0
+-->
+<mamelayout version="2">
+	<element name="red_led" defstate="0">
+		<disk state="0"><color red="0.20" green="0.20" blue="0.20" /></disk>
+		<disk state="1"><color red="1.00" green="0.00" blue="0.00" /></disk>
+	</element>
+
+	<view name="Internal Layout">
+		<bounds left="0" top="0" right="16" bottom="16" />
+		<element name="led_error" ref="red_led">
+			<bounds x="2" y="2" width="12" height="12" />
+		</element>
+	</view>
+</mamelayout>
