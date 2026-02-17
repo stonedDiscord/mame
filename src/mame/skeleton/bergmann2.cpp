@@ -106,23 +106,26 @@ void bergmann2_state::io_map(address_map &map)
 uint8_t bergmann2_state::pio1_pa_r()
 {
     // Steckerleiste 15
-    return 0xff;
+    return ioport("COIN")->read();
 }
 
 uint8_t bergmann2_state::pio1_pb_r()
 {
     // Steckerleiste 15
-    return 0xff;
+    uint8_t data = 0xbf;
+
+    data |= ioport("RETURN")->read();
+    return data;
 }
 
 void bergmann2_state::pio1_pb_w(uint8_t data)
 {
     // Steckerleiste 15
     //coins out
-	machine().bookkeeping().coin_counter_w(0,BIT(data,0)); // coin eject
-	machine().bookkeeping().coin_counter_w(1,BIT(data,1));
-	machine().bookkeeping().coin_counter_w(2,BIT(data,2));
-	machine().bookkeeping().coin_counter_w(3,BIT(data,3));
+	machine().bookkeeping().coin_counter_w(3,BIT(data,0)); // 0.10DM
+	machine().bookkeeping().coin_counter_w(2,BIT(data,1)); // 1DM
+	machine().bookkeeping().coin_counter_w(1,BIT(data,2)); // 2DM
+	machine().bookkeeping().coin_counter_w(0,BIT(data,3)); // 5DM
 
     machine().bookkeeping().coin_lockout_global_w(BIT(data,4)); // coin magnet
 }
@@ -153,8 +156,14 @@ void bergmann2_state::pio2_pa_w(uint8_t data)
 {
     // Steckerleiste 17
     LOG("PIO2 PA: %02x\n", data);
-    m_battery = BIT(data, 6);
     m_led = BIT(data, 0);
+    // 1 NC
+    // alarm_l = BIT(data, 2);
+    // alarm_r = BIT(data, 3);
+    // sound_r = BIT(data, 4);
+    // sound_l = BIT(data, 5);
+    m_battery = BIT(data, 6);
+    
 }
 
 void bergmann2_state::ctc1_zc0_w(int state)
@@ -180,6 +189,16 @@ void bergmann2_state::ctc2_zc0_w(int state)
 }
 
 static INPUT_PORTS_START( bergmann2 )
+    PORT_START("RETURN")
+    PORT_BIT( 0x4f, IP_ACTIVE_HIGH, IPT_UNUSED )
+    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_PAYOUT ) PORT_NAME("Return")
+
+    PORT_START("COIN")
+    PORT_BIT( 0x0f, IP_ACTIVE_HIGH, IPT_UNUSED )
+    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_COIN1 ) // 5DM
+    PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_COIN2 ) // 2DM
+    PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_COIN3 ) // 1DM
+    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_COIN4 ) // 0.10 DM
 INPUT_PORTS_END
 
 static const z80_daisy_config daisy_chain[] =
@@ -238,5 +257,5 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW, layout_crown )
-GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW, layout_crown )
+GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND, layout_crown )
+GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING | MACHINE_NO_SOUND, layout_crown )
