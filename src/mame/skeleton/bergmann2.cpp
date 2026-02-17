@@ -155,10 +155,10 @@ uint8_t bergmann2_state::daten_r()
     switch (m_adresse & 0x07)
     {
         case 0x06: //pin 1 of the DIP switch is skipped
-            data = (ioport("TASTEN")->read() | (ioport("DSW")->read() >> 5));
+            data = (ioport("TASTEN")->read() | ((!ioport("DSW")->read()) >> 5));
             break;
         case 0x07:
-            data = (ioport("DSW")->read() & 0x1f << 3) | (ioport("SERVICE")->read() & 0x0f);
+            data = ((!ioport("DSW")->read()) & 0x1f << 3) | ((!ioport("SERVICE")->read()) & 0x0f);
             break;
     }
 
@@ -203,6 +203,7 @@ uint8_t bergmann2_state::pio2_pb_r()
 
 void bergmann2_state::pio2_pb_w(uint8_t data)
 {
+    LOG("PIO2 PB w: %02x\n", data);
     // Steckerleiste 16
 }
 
@@ -274,32 +275,32 @@ static INPUT_PORTS_START( bergmann2 )
 
     PORT_START("DSW") // active low
     PORT_DIPNAME( 0x01, 0x00, "DSW1" ) PORT_DIPLOCATION("SW1:1")
-    PORT_DIPSETTING(    0x01, "Normalfall" )
-    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x01, DEF_STR( On ) )
     PORT_DIPNAME( 0x06, 0x00, "Spielsimulation" ) PORT_DIPLOCATION("SW1:2,3")
-    PORT_DIPSETTING(    0x06, "Normalfall" )
-    PORT_DIPSETTING(    0x00, "Spielsimulation" )
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x06, "Spielsimulation" )
     PORT_DIPNAME( 0x08, 0x00, "Kredit" ) PORT_DIPLOCATION("SW1:4")
-    PORT_DIPSETTING(    0x08, "Normalfall" )
-    PORT_DIPSETTING(    0x00, "Am Münzaggregat ist der Taster aktiv" )
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x08, "Am Münzaggregat ist der Taster aktiv" )
     PORT_DIPNAME( 0x20, 0x00, "Programmstart" ) PORT_DIPLOCATION("SW1:6")
-    PORT_DIPSETTING(    0x10, "Normalfall" )
-    PORT_DIPSETTING(    0x00, "60 Sekunden nach Einschalten, bzw. Reset." )
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x10, "60 Sekunden nach Einschalten, bzw. Reset." )
     PORT_DIPNAME( 0x40, 0x00, "Fadenlichtschranke" ) PORT_DIPLOCATION("SW1:7")
-    PORT_DIPSETTING(    0x40, "Normalfall" )
-    PORT_DIPSETTING(    0x00, "außer Betrieb" )
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x40, "außer Betrieb" )
     PORT_DIPNAME( 0x80, 0x00, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:8")
-    PORT_DIPSETTING(    0x80, "Normalfall" )
-    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x80, DEF_STR( On ) )
 
     PORT_START("SERVICE") // active low
     PORT_DIPNAME( 0x0f, 0x00, "Serviceschalter" )
-    PORT_DIPSETTING(    0x0f, "Normalstellung" ) // 0
-    PORT_DIPSETTING(    0x0e, "Manko-Zähler anzeigen" ) // 1
-    PORT_DIPSETTING(    0x0c, "Vorlage- und Serienzähler löschen" ) // 3
-    PORT_DIPSETTING(    0x08, "Fehlerzähler anzeigen" ) // 7
-    PORT_DIPSETTING(    0x04, "Ein- und Ausgänge testen" ) // 8
-    PORT_DIPSETTING(    0x00, "Münzeinheit testen" ) // 9
+    PORT_DIPSETTING(    0x00, "Normalstellung" ) // 0
+    PORT_DIPSETTING(    0x01, "Manko-Zähler anzeigen" ) // 1
+    PORT_DIPSETTING(    0x03, "Vorlage- und Serienzähler löschen" ) // 3
+    PORT_DIPSETTING(    0x07, "Fehlerzähler anzeigen" ) // 7
+    PORT_DIPSETTING(    0x08, "Ein- und Ausgänge testen" ) // 8
+    PORT_DIPSETTING(    0x09, "Münzeinheit testen" ) // 9
 INPUT_PORTS_END
 
 static const z80_daisy_config daisy_chain[] =
