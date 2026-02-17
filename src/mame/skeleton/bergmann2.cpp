@@ -150,7 +150,19 @@ void bergmann2_state::daten_w(uint8_t data)
 uint8_t bergmann2_state::daten_r()
 {
     LOG("Read from address %02x\n", m_adresse);
-    return 0;
+    uint8_t data = 0;
+
+    switch (m_adresse & 0x07)
+    {
+        case 0x06:
+            data = (ioport("TASTEN")->read() | (ioport("DSW")->read() >> 5));
+            break;
+        case 0x07:
+            data = (ioport("DSW")->read() & 0x0f << 4) | (ioport("SERVICE")->read() & 0x0f);
+            break;
+    }
+
+    return data;
 }
 
 //PIO1
@@ -243,6 +255,14 @@ static INPUT_PORTS_START( bergmann2 )
     PORT_START("RETURN")
     PORT_BIT( 0x4f, IP_ACTIVE_HIGH, IPT_UNUSED )
     PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_PAYOUT ) PORT_NAME("Return")
+
+    PORT_START("TASTEN")
+    PORT_BIT( 0x07, IP_ACTIVE_HIGH, IPT_UNUSED )
+    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
+    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start")
+    PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
+    PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
+    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
 
     PORT_START("COIN")
     PORT_BIT( 0x0f, IP_ACTIVE_HIGH, IPT_UNUSED )
