@@ -37,6 +37,7 @@ public:
         , m_ctc2(*this, "ctc2")
         , m_watchdog(*this, "watchdog")
         , m_led(*this, "led_error")
+        , m_digits(*this, "digit%u", 0U)
     {
     }
 
@@ -57,11 +58,17 @@ private:
     required_device<watchdog_timer_device> m_watchdog;
 
     output_finder<> m_led;
+    output_finder<7> m_digits;
 
+    uint8_t m_adresse = 0;
     bool m_battery = false;
 
     void mem_map(address_map &map);
     void io_map(address_map &map);
+
+    void adresse_w(uint8_t data);
+    void daten_w(uint8_t data);
+    uint8_t daten_r();
 
     uint8_t pio1_pa_r();
     uint8_t pio1_pb_r();
@@ -79,6 +86,7 @@ private:
 void bergmann2_state::machine_start()
 {
 	m_led.resolve();
+    m_digits.resolve();
 }
 
 void bergmann2_state::mem_map(address_map &map)
@@ -96,10 +104,53 @@ void bergmann2_state::io_map(address_map &map)
     map(0x04, 0x07).rw(m_ctc1, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
     map(0x08, 0x0b).rw(m_pio2, FUNC(z80pio_device::read), FUNC(z80pio_device::write));
     map(0x0c, 0x0f).rw(m_pio1, FUNC(z80pio_device::read_alt), FUNC(z80pio_device::write_alt));
-    map(0x10, 0x13).noprw(); //74C373/3
-    map(0x14, 0x17).noprw(); //74C373/2
-    map(0x18, 0x1b).noprw(); //74C373/1
+    map(0x10, 0x13).w(FUNC(bergmann2_state::adresse_w)); //74C373/3
+    map(0x14, 0x17).w(FUNC(bergmann2_state::daten_w)); //74C373/2
+    map(0x18, 0x1b).r(FUNC(bergmann2_state::daten_r)); //74C373/1
+}
 
+void bergmann2_state::adresse_w(uint8_t data)
+{
+    m_adresse = data;
+}
+
+void bergmann2_state::daten_w(uint8_t data)
+{
+    LOG("Write %02x to address %02x\n", data, m_adresse);
+
+    switch (m_adresse & 0x07)
+    {
+        case 0x00:
+            // Münzspeicher Pfennig
+            m_digits[0] = data & 0x0f;
+            m_digits[1] = data >> 4;
+            break;
+        case 0x01:
+            // Münzspeicher DM
+            m_digits[2] = data & 0x0f;
+            m_digits[3] = data >> 4;
+            break;
+        case 0x02:
+            // Sonderspiele 10 and 1
+            m_digits[4] = data & 0x0f;
+            m_digits[5] = data >> 4;
+            break;
+        case 0x03:
+            // Sonderspiele 100
+            m_digits[6] = data & 0x0f;
+            break;
+        case 0x04:
+            //m_lamps = data;
+            break;
+        default:
+            break;
+    }
+}
+
+uint8_t bergmann2_state::daten_r()
+{
+    LOG("Read from address %02x\n", m_adresse);
+    return 0;
 }
 
 //PIO1
@@ -199,6 +250,35 @@ static INPUT_PORTS_START( bergmann2 )
     PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_COIN2 ) // 2DM
     PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_COIN3 ) // 1DM
     PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_COIN4 ) // 0.10 DM
+
+    PORT_START("DSW")
+    PORT_DIPNAME( 0x01, 0x00, "DSW1" ) PORT_DIPLOCATION("SW1:1")
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x01, DEF_STR( On ) )
+    PORT_DIPNAME( 0x06, 0x00, "Spielsimulation" ) PORT_DIPLOCATION("SW1:2,3")
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x06, "Spielsimulation" )
+    PORT_DIPNAME( 0x08, 0x00, "Kredit" ) PORT_DIPLOCATION("SW1:4")
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x08, "Am Münzaggregat ist der Taster aktiv" )
+    PORT_DIPNAME( 0x20, 0x00, "Programmstart" ) PORT_DIPLOCATION("SW1:6")
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x10, "60 Sekunden nach Einschalten, bzw. Reset." )
+    PORT_DIPNAME( 0x40, 0x00, "Fadenlichtschranke" ) PORT_DIPLOCATION("SW1:7")
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x20, "außer Betrieb" )
+    PORT_DIPNAME( 0x80, 0x00, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:8")
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x80, DEF_STR( On ) )
+
+    PORT_START("SERVICE")
+    PORT_DIPNAME( 0x0f, 0x00, "Serviceschalter" )
+    PORT_DIPSETTING(    0x00, "Normalstellung" )
+    PORT_DIPSETTING(    0x01, "Manko-Zähler anzeigen" )
+    PORT_DIPSETTING(    0x03, "Vorlage- und Serienzähler löschen" )
+    PORT_DIPSETTING(    0x07, "Fehlerzähler anzeigen" )
+    PORT_DIPSETTING(    0x08, "Ein- und Ausgänge testen" )
+    PORT_DIPSETTING(    0x09, "Münzeinheit testen" )
 INPUT_PORTS_END
 
 static const z80_daisy_config daisy_chain[] =
