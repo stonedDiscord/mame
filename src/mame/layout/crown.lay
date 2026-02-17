@@ -8,10 +8,41 @@ license:CC0-1.0
 		<disk state="1"><color red="1.00" green="0.00" blue="0.00" /></disk>
 	</element>
 
+	<element name="digit" defstate="0">
+		<led7seg>
+			<color red="1.0" green="0.3" blue="0.2" />
+		</led7seg>
+	</element>
+
 	<view name="Internal Layout">
-		<bounds left="0" top="0" right="16" bottom="16" />
+		<bounds left="0" top="0" right="110" bottom="40" />
 		<element name="led_error" ref="red_led">
-			<bounds x="2" y="2" width="12" height="12" />
+			<bounds x="0" y="0" width="5" height="5" />
+		</element>
+
+		<!-- Sonderspiele -->
+		<element name="digit6" ref="digit">
+			<bounds x="10" y="10" width="10" height="15" />
+		</element>
+		<element name="digit5" ref="digit">
+			<bounds x="20" y="10" width="10" height="15" />
+		</element>
+		<element name="digit4" ref="digit">
+			<bounds x="30" y="10" width="10" height="15" />
+		</element>
+
+		<!-- Münzspeicher -->
+		<element name="digit3" ref="digit">
+			<bounds x="60" y="10" width="10" height="15" />
+		</element>
+		<element name="digit2" ref="digit">
+			<bounds x="70" y="10" width="10" height="15" />
+		</element>
+		<element name="digit1" ref="digit">
+			<bounds x="80" y="10" width="10" height="10" />
+		</element>
+		<element name="digit0" ref="digit">
+			<bounds x="90" y="10" width="10" height="10" />
 		</element>
 	</view>
 </mamelayout>
