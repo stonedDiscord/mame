@@ -13,6 +13,7 @@ CTC 2x Z0843004PSC
 #include "emu.h"
 
 #include "cpu/z80/z80.h"
+#include "machine/watchdog.h"
 #include "machine/z80daisy.h"
 #include "machine/z80pio.h"
 #include "machine/z80ctc.h"
@@ -34,6 +35,7 @@ public:
         , m_pio2(*this, "pio2")
         , m_ctc1(*this, "ctc1")
         , m_ctc2(*this, "ctc2")
+        , m_watchdog(*this, "watchdog")
         , m_led(*this, "led_error")
     {
     }
@@ -52,7 +54,11 @@ private:
     required_device<z80ctc_device> m_ctc1;
     required_device<z80ctc_device> m_ctc2;
 
+    required_device<watchdog_timer_device> m_watchdog;
+
     output_finder<> m_led;
+
+    bool m_battery = false;
 
     void mem_map(address_map &map);
     void io_map(address_map &map);
@@ -68,7 +74,6 @@ private:
     void ctc1_zc1_w(int state);
     void ctc1_zc2_w(int state);
     void ctc2_zc0_w(int state);
-    void watchdog_w(uint8_t data);
 };
 
 void bergmann2_state::machine_start()
@@ -81,7 +86,7 @@ void bergmann2_state::mem_map(address_map &map)
     map.global_mask(0x7fff);
     map(0x0000, 0x3fff).rom().region("maincpu", 0);
     map(0x4000, 0x47ff).ram();
-    map(0x6000, 0x6000).w(FUNC(bergmann2_state::watchdog_w));
+    map(0x6000, 0x6000).w(m_watchdog, FUNC(watchdog_timer_device::reset_w));
 }
 
 void bergmann2_state::io_map(address_map &map)
@@ -138,15 +143,17 @@ void bergmann2_state::pio2_pb_w(uint8_t data)
 uint8_t bergmann2_state::pio2_pa_r()
 {
     // Steckerleiste 17
-
+    uint8_t data = 0xbf;
+    data |= m_battery << 7;
     //Bit 6+7 battery
-    return 0xff;
+    return data;
 }
 
 void bergmann2_state::pio2_pa_w(uint8_t data)
 {
     // Steckerleiste 17
-    LOG("PIO2 PA: %02x", data);
+    LOG("PIO2 PA: %02x\n", data);
+    m_battery = BIT(data, 6);
     m_led = BIT(data, 0);
 }
 
@@ -170,11 +177,6 @@ void bergmann2_state::ctc2_zc0_w(int state)
     m_ctc2->trg1(state);
     m_ctc2->trg2(state);
     m_ctc2->trg3(state);
-}
-
-void bergmann2_state::watchdog_w(uint8_t data)
-{
-    ;
 }
 
 static INPUT_PORTS_START( bergmann2 )
@@ -215,6 +217,8 @@ void bergmann2_state::bergmann2(machine_config &config)
     Z80CTC(config, m_ctc2, 4_MHz_XTAL/2);
     m_ctc2->zc_callback<0>().set(FUNC(bergmann2_state::ctc2_zc0_w));
     m_ctc2->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+
+    WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_usec(341)); // 47uF x 22k x 0,33
 
     config.set_default_layout(layout_crown);
 
