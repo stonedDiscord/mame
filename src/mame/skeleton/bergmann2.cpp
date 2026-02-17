@@ -209,23 +209,24 @@ void bergmann2_state::pio2_pb_w(uint8_t data)
 uint8_t bergmann2_state::pio2_pa_r()
 {
     // Steckerleiste 17
-    uint8_t data = 0xbf;
-    data |= m_battery << 7;
-    //Bit 6+7 battery
+    uint8_t data = 0xff;
+    if (m_battery)
+        data = 0x7f;
+    LOG("PIO2 PA r: %02x\n", data);
     return data;
 }
 
 void bergmann2_state::pio2_pa_w(uint8_t data)
 {
     // Steckerleiste 17
-    LOG("PIO2 PA: %02x\n", data);
+    LOG("PIO2 PA w: %02x\n", data);
     m_led = BIT(data, 0);
     // 1 NC
     // alarm_l = BIT(data, 2);
     // alarm_r = BIT(data, 3);
     // sound_r = BIT(data, 4);
     // sound_l = BIT(data, 5);
-    m_battery = BIT(data, 6);
+    m_battery = !BIT(data, 6);
     
 }
 
@@ -337,7 +338,7 @@ void bergmann2_state::bergmann2(machine_config &config)
     m_ctc2->zc_callback<0>().set(FUNC(bergmann2_state::ctc2_zc0_w));
     m_ctc2->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 
-    WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_usec(341)); // 47uF x 22k x 0,33
+    WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_usec(3410000)); // 47uF x 22k x 0,33
 
     config.set_default_layout(layout_crown);
 
