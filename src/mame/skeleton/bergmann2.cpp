@@ -38,6 +38,7 @@ public:
         , m_watchdog(*this, "watchdog")
         , m_led(*this, "led_error")
         , m_digits(*this, "digit%u", 0U)
+        , m_lamps(*this, "lamp%u%u", 0U, 0U)
     {
     }
 
@@ -59,6 +60,7 @@ private:
 
     output_finder<> m_led;
     output_finder<7> m_digits;
+    output_finder<7, 8> m_lamps;
 
     uint8_t m_adresse = 0;
     bool m_battery = false;
@@ -87,6 +89,7 @@ void bergmann2_state::machine_start()
 {
 	m_led.resolve();
     m_digits.resolve();
+    m_lamps.resolve();
 }
 
 void bergmann2_state::mem_map(address_map &map)
@@ -155,10 +158,10 @@ uint8_t bergmann2_state::daten_r()
     switch (m_adresse & 0x07)
     {
         case 0x06: //pin 1 of the DIP switch is skipped
-            data = (ioport("TASTEN")->read() | ((!ioport("DSW")->read()) >> 5));
+            data = ioport("T6")->read();
             break;
         case 0x07:
-            data = ((!ioport("DSW")->read()) & 0x1f << 3) | ((!ioport("SERVICE")->read()) & 0x0f);
+            data = ioport("T7")->read();
             break;
     }
 
@@ -258,14 +261,6 @@ static INPUT_PORTS_START( bergmann2 )
     PORT_BIT( 0x4f, IP_ACTIVE_HIGH, IPT_UNUSED )
     PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_PAYOUT ) PORT_NAME("Return")
 
-    PORT_START("TASTEN")
-    PORT_BIT( 0x07, IP_ACTIVE_HIGH, IPT_UNUSED )
-    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
-    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start")
-    PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
-    PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
-    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
-
     PORT_START("COIN")
     PORT_BIT( 0x0f, IP_ACTIVE_HIGH, IPT_UNUSED )
     PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_COIN1 ) // 5DM
@@ -273,27 +268,23 @@ static INPUT_PORTS_START( bergmann2 )
     PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_COIN3 ) // 1DM
     PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_COIN4 ) // 0.10 DM
 
-    PORT_START("DSW") // active low
-    PORT_DIPNAME( 0x01, 0x00, "DSW1" ) PORT_DIPLOCATION("SW1:1")
+    PORT_START("T6") // active low
+    PORT_DIPNAME( 0x01, 0x00, "Programmstart" ) PORT_DIPLOCATION("SW1:3")
     PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x01, DEF_STR( On ) )
-    PORT_DIPNAME( 0x06, 0x00, "Spielsimulation" ) PORT_DIPLOCATION("SW1:2,3")
+    PORT_DIPSETTING(    0x01, "60 Sekunden nach Einschalten, bzw. Reset." )
+    PORT_DIPNAME( 0x02, 0x00, "Fadenlichtschranke" ) PORT_DIPLOCATION("SW1:2")
     PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x06, "Spielsimulation" )
-    PORT_DIPNAME( 0x08, 0x00, "Kredit" ) PORT_DIPLOCATION("SW1:4")
+    PORT_DIPSETTING(    0x02, "außer Betrieb" )
+    PORT_DIPNAME( 0x04, 0x00, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:1")
     PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x08, "Am Münzaggregat ist der Taster aktiv" )
-    PORT_DIPNAME( 0x20, 0x00, "Programmstart" ) PORT_DIPLOCATION("SW1:6")
-    PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x10, "60 Sekunden nach Einschalten, bzw. Reset." )
-    PORT_DIPNAME( 0x40, 0x00, "Fadenlichtschranke" ) PORT_DIPLOCATION("SW1:7")
-    PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x40, "außer Betrieb" )
-    PORT_DIPNAME( 0x80, 0x00, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:8")
-    PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x80, DEF_STR( On ) )
+    PORT_DIPSETTING(    0x04, DEF_STR( On ) )
+    PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
+    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start")
+    PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
+    PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
+    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
 
-    PORT_START("SERVICE") // active low
+    PORT_START("T7") // active low
     PORT_DIPNAME( 0x0f, 0x00, "Serviceschalter" )
     PORT_DIPSETTING(    0x00, "Normalstellung" ) // 0
     PORT_DIPSETTING(    0x01, "Manko-Zähler anzeigen" ) // 1
@@ -301,6 +292,20 @@ static INPUT_PORTS_START( bergmann2 )
     PORT_DIPSETTING(    0x07, "Fehlerzähler anzeigen" ) // 7
     PORT_DIPSETTING(    0x08, "Ein- und Ausgänge testen" ) // 8
     PORT_DIPSETTING(    0x09, "Münzeinheit testen" ) // 9
+    PORT_DIPNAME( 0x30, 0x00, "Spielsimulation" ) PORT_DIPLOCATION("SW1:7,6")
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x30, "Spielsimulation" )
+    PORT_DIPNAME( 0x40, 0x00, "Kredit" ) PORT_DIPLOCATION("SW1:5")
+    PORT_DIPSETTING(    0x00, "Normalfall" )
+    PORT_DIPSETTING(    0x40, "Am Münzaggregat ist der Taster aktiv" )
+    PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unused ) )   PORT_DIPLOCATION("SW1:4")
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
+
+    PORT_START("NC")
+    PORT_DIPNAME( 0x01, 0x00, DEF_STR( Unused ) )   PORT_DIPLOCATION("SW1:8")
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 INPUT_PORTS_END
 
 static const z80_daisy_config daisy_chain[] =
@@ -351,6 +356,12 @@ ROM_START( corsar )
     ROM_LOAD( "crown_corsar_b.bin", 0x2000, 0x2000, CRC(c1a69ccd) SHA1(97561620110ed991dcd2b17fbd0de5d0bbc282fe) )
 ROM_END
 
+ROM_START( cwinner )
+    ROM_REGION(0x4000, "maincpu", ROMREGION_ERASEFF)
+    ROM_LOAD( "winner_a.bin", 0x0000, 0x2000, CRC(1fa5ef3a) SHA1(4c645b60dba740cfb5da55a9c096ef0669573af3) )
+    ROM_LOAD( "winner_b.bin", 0x2000, 0x2000, CRC(0cb99872) SHA1(18e4085b9c407ec7e656a9a733eae39ff00403e8) )
+ROM_END
+
 ROM_START( jubilees )
     ROM_REGION(0x4000, "maincpu", ROMREGION_ERASEFF)
     ROM_LOAD( "jubilee_super_a.bin", 0x0000, 0x2000, CRC(32b8ad57) SHA1(8b95f23b5cb22261f7db62e3879b475722cfe0f2) )
@@ -361,3 +372,4 @@ ROM_END
 
 GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND, layout_crown )
 GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING | MACHINE_NO_SOUND, layout_crown )
+GAMEL( 1984, cwinner,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Winner",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND, layout_crown )
