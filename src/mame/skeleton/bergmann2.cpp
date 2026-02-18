@@ -77,6 +77,10 @@ private:
     uint8_t m_adresse = 0;
     bool m_battery = false;
 
+    uint8_t m_pio1_pb = 0xff;
+    uint8_t m_pio2_pa = 0xff;
+    uint8_t m_pio2_pb = 0xff;
+
     void mem_map(address_map &map);
     void io_map(address_map &map);
 
@@ -102,6 +106,13 @@ void bergmann2_state::machine_start()
 	m_led.resolve();
     m_digits.resolve();
     m_lamps.resolve();
+
+    save_item(NAME(m_adresse));
+    save_item(NAME(m_battery));
+    save_item(NAME(m_pio1_pb));
+    save_item(NAME(m_pio2_pa));
+    save_item(NAME(m_pio2_pb));
+
 }
 
 void bergmann2_state::mem_map(address_map &map)
@@ -233,7 +244,7 @@ uint8_t bergmann2_state::pio1_pa_r()
 uint8_t bergmann2_state::pio1_pb_r()
 {
     // Steckerleiste 15
-    uint8_t data = 0xbf;
+    uint8_t data = m_pio1_pb;
 
     data |= ioport("RETURN")->read();
     return data;
@@ -241,6 +252,7 @@ uint8_t bergmann2_state::pio1_pb_r()
 
 void bergmann2_state::pio1_pb_w(uint8_t data)
 {
+    m_pio1_pb = data;
     // Steckerleiste 15
     //coins out
 	machine().bookkeeping().coin_counter_w(3,BIT(data,0)); // 0.10DM
@@ -256,11 +268,12 @@ void bergmann2_state::pio1_pb_w(uint8_t data)
 uint8_t bergmann2_state::pio2_pb_r()
 {
     // Steckerleiste 16
-    return 0xff;
+    return m_pio2_pb;
 }
 
 void bergmann2_state::pio2_pb_w(uint8_t data)
 {
+    m_pio2_pb = data;
     LOG("MOTOR w: %02x\n", data);
     // Steckerleiste 16
 }
@@ -268,7 +281,7 @@ void bergmann2_state::pio2_pb_w(uint8_t data)
 uint8_t bergmann2_state::pio2_pa_r()
 {
     // Steckerleiste 17
-    uint8_t data = 0xff;
+    uint8_t data = m_pio2_pa;
     if (m_battery)
         data = 0x7f;
 
@@ -277,6 +290,7 @@ uint8_t bergmann2_state::pio2_pa_r()
 
 void bergmann2_state::pio2_pa_w(uint8_t data)
 {
+    m_pio2_pa = data;
     // Steckerleiste 17
     m_led = BIT(data, 0);
     // 1 NC
