@@ -71,8 +71,8 @@ private:
 	required_device<dac_bit_interface> m_dac_r;
 
     output_finder<> m_led;
-    output_finder<7> m_digits;
-    output_finder<7, 8> m_lamps;
+    output_finder<8> m_digits;
+    output_finder<8, 8> m_lamps;
 
     uint8_t m_adresse = 0;
     bool m_battery = false;
@@ -131,33 +131,77 @@ void bergmann2_state::adresse_w(uint8_t data)
 
 void bergmann2_state::daten_w(uint8_t data)
 {
-    LOG("Write %02x to address %02x\n", data, m_adresse);
+    enum : u8
+	{
+		_a = 1 << 0,
+		_b = 1 << 1,
+		_c = 1 << 2,
+		_d = 1 << 3,
+		_e = 1 << 4,
+		_f = 1 << 5,
+		_g = 1 << 6,
+		_h = 1 << 7
+	};
 
-    switch (m_adresse)
+    static constexpr u8 cd4511[16] = {
+	_a | _b | _c | _d | _e | _f,
+	_b | _c,
+	_a | _b | _d | _e | _g,
+	_a | _b | _c | _d | _g,
+	_b | _c | _f | _g,
+	_a | _c | _d | _f | _g,
+	_c | _d | _e | _f | _g,
+	_a | _b | _c,
+	_a | _b | _c | _d | _e | _f | _g,
+	_a | _b | _c | _f | _g,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0
+	};
+
+    switch (m_adresse & 0x7f)
     {
-        case 0x90:
+        case 0x00:
+        case 0x01:
+        case 0x02:
+        case 0x03:
+        case 0x04:
+        case 0x05:
+        case 0x06:
+        case 0x07:
+            for (int i = 0; i < 8; i++)
+		    {
+			    bool lamp_value = BIT(data, i);
+			    m_lamps[m_adresse & 0x07][i] = lamp_value;
+		    }
+            break;
+        case 0x10:
             // Münzspeicher Pfennig
-            m_digits[0] = data & 0x0f;
-            m_digits[1] = data >> 4;
+            m_digits[0] = cd4511[data & 0x0f];
+            m_digits[1] = cd4511[data >> 4];
             break;
-        case 0x91:
+        case 0x11:
             // Münzspeicher DM
-            m_digits[2] = data & 0x0f;
-            m_digits[3] = data >> 4;
+            m_digits[2] = cd4511[data & 0x0f];
+            m_digits[3] = cd4511[data >> 4];
             break;
-        case 0x92:
+        case 0x12:
             // Sonderspiele 10 and 1
-            m_digits[4] = data & 0x0f;
-            m_digits[5] = data >> 4;
+            m_digits[4] = cd4511[data & 0x0f];
+            m_digits[5] = cd4511[data >> 4];
             break;
-        case 0x93:
+        case 0x13:
             // Sonderspiele 100
-            m_digits[6] = data & 0x0f;
+            m_digits[6] = cd4511[data & 0x0f];
             break;
-        case 0x94:
+        case 0x14:
             //m_lamps = data;
             break;
         default:
+            LOG("Write %02x to address %02x\n", data, m_adresse);
             break;
     }
 }
@@ -169,10 +213,10 @@ uint8_t bergmann2_state::daten_r()
     switch (m_adresse & 0x07)
     {
         case 0x06:
-            data = !(ioport("T6")->read());
+            data = ioport("T6")->read();
             break;
         case 0x07:
-            data = !(ioport("T7")->read());
+            data = ioport("T7")->read();
             break;
     }
     LOG("Read from address %02x data %02x\n", m_adresse, data);
@@ -217,7 +261,7 @@ uint8_t bergmann2_state::pio2_pb_r()
 
 void bergmann2_state::pio2_pb_w(uint8_t data)
 {
-    LOG("PIO2 PB w: %02x\n", data);
+    LOG("MOTOR w: %02x\n", data);
     // Steckerleiste 16
 }
 
@@ -227,14 +271,13 @@ uint8_t bergmann2_state::pio2_pa_r()
     uint8_t data = 0xff;
     if (m_battery)
         data = 0x7f;
-    LOG("PIO2 PA r: %02x\n", data);
+
     return data;
 }
 
 void bergmann2_state::pio2_pa_w(uint8_t data)
 {
     // Steckerleiste 17
-    LOG("PIO2 PA w: %02x\n", data);
     m_led = BIT(data, 0);
     // 1 NC
     m_dac_alarm_l->write(BIT(data, 2));
@@ -268,54 +311,72 @@ void bergmann2_state::ctc2_zc0_w(int state)
 
 static INPUT_PORTS_START( bergmann2 )
     PORT_START("RETURN")
-    PORT_BIT( 0x4f, IP_ACTIVE_LOW, IPT_UNUSED )
+    PORT_BIT( 0x1f, IP_ACTIVE_LOW, IPT_UNUSED )
+    PORT_DIPNAME( 0x20, 0x20, "Pegelschalter 2,-" )
+	PORT_DIPSETTING(    0x20, DEF_STR( On ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPNAME( 0x40, 0x40, "Pegelschalter 5,-" )
+	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
     PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_PAYOUT ) PORT_NAME("Return")
 
     PORT_START("COIN")
-    PORT_BIT( 0x0f, IP_ACTIVE_LOW, IPT_UNUSED )
+    PORT_DIPNAME( 0x01, 0x01, "Pegelschalter -,10" )
+	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPNAME( 0x02, 0x02, "Pegelschalter 1,-" )
+	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPNAME( 0x04, 0x04, "Fadenfalle-Lichtschranke" )
+	PORT_DIPSETTING(    0x04, DEF_STR( On ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+    PORT_DIPNAME( 0x08, 0x08, "Sicherheits-Lichtschranke" )
+	PORT_DIPSETTING(    0x08, DEF_STR( On ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
     PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN1 ) // 5DM
     PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN2 ) // 2DM
     PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN3 ) // 1DM
     PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN4 ) // 0.10 DM
 
     PORT_START("T6") // active low
-    PORT_DIPNAME( 0x01, 0x00, "Programmstart" ) PORT_DIPLOCATION("SW1:3")
-    PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x01, "60 Sekunden nach Einschalten, bzw. Reset." )
-    PORT_DIPNAME( 0x02, 0x00, "Fadenlichtschranke" ) PORT_DIPLOCATION("SW1:2")
-    PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x02, "außer Betrieb" )
-    PORT_DIPNAME( 0x04, 0x00, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:1")
-    PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x04, DEF_STR( On ) )
-    PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
-    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start")
-    PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
-    PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
-    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
+    PORT_DIPNAME( 0x01, 0x01, "Programmstart" ) PORT_DIPLOCATION("SW1:6")
+    PORT_DIPSETTING(    0x01, "Normalfall" )
+    PORT_DIPSETTING(    0x00, "60 Sekunden nach Einschalten, bzw. Reset." )
+    PORT_DIPNAME( 0x02, 0x02, "Fadenlichtschranke" ) PORT_DIPLOCATION("SW1:7")
+    PORT_DIPSETTING(    0x02, "Normalfall" )
+    PORT_DIPSETTING(    0x00, "außer Betrieb" )
+    PORT_DIPNAME( 0x04, 0x04, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:8")
+    PORT_DIPSETTING(    0x04, "Normalfall" )
+    PORT_DIPSETTING(    0x00, DEF_STR( On ) )
+    PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
+    PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_START1 ) PORT_NAME("Start")
+    PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
+    PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
+    PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
 
     PORT_START("T7") // active low
-    PORT_DIPNAME( 0x0f, 0x00, "Serviceschalter" )
-    PORT_DIPSETTING(    0x00, "Normalstellung" ) // 0
-    PORT_DIPSETTING(    0x01, "Manko-Zähler anzeigen" ) // 1
-    PORT_DIPSETTING(    0x03, "Vorlage- und Serienzähler löschen" ) // 3
-    PORT_DIPSETTING(    0x07, "Fehlerzähler anzeigen" ) // 7
-    PORT_DIPSETTING(    0x08, "Ein- und Ausgänge testen" ) // 8
-    PORT_DIPSETTING(    0x09, "Münzeinheit testen" ) // 9
-    PORT_DIPNAME( 0x30, 0x00, "Spielsimulation" ) PORT_DIPLOCATION("SW1:7,6")
-    PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x30, "Spielsimulation" )
-    PORT_DIPNAME( 0x40, 0x00, "Kredit" ) PORT_DIPLOCATION("SW1:5")
-    PORT_DIPSETTING(    0x00, "Normalfall" )
-    PORT_DIPSETTING(    0x40, "Am Münzaggregat ist der Taster aktiv" )
-    PORT_DIPNAME( 0x80, 0x00, DEF_STR( Unused ) )   PORT_DIPLOCATION("SW1:4")
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x80, DEF_STR( On ) )
+    PORT_DIPNAME( 0x0f, 0x0f, "Serviceschalter" )
+    PORT_DIPSETTING(    0x0f, "Normalstellung" ) // 0
+    PORT_DIPSETTING(    0x0e, "Manko-Zähler anzeigen" ) // 1
+    PORT_DIPSETTING(    0x0c, "Vorlage- und Serienzähler löschen" ) // 3
+    PORT_DIPSETTING(    0x0a, "Spielsimulation" ) // 5
+    PORT_DIPSETTING(    0x08, "Fehlerzähler anzeigen" ) // 7
+    PORT_DIPSETTING(    0x07, "Ein- und Ausgänge testen" ) // 8
+    PORT_DIPSETTING(    0x06, "Münzeinheit testen" ) // 9
+    PORT_DIPNAME( 0x30, 0x30, "Spielsimulation" ) PORT_DIPLOCATION("SW1:2,3")
+    PORT_DIPSETTING(    0x30, "Normalfall" )
+    PORT_DIPSETTING(    0x00, "Spielsimulation" )
+    PORT_DIPNAME( 0x40, 0x40, "Kredit" ) PORT_DIPLOCATION("SW1:4")
+    PORT_DIPSETTING(    0x40, "Normalfall" )
+    PORT_DIPSETTING(    0x00, "Am Münzaggregat ist der Taster aktiv" )
+    PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unused ) )   PORT_DIPLOCATION("SW1:5")
+	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 
     PORT_START("NC")
-    PORT_DIPNAME( 0x01, 0x00, DEF_STR( Unused ) )   PORT_DIPLOCATION("SW1:8")
-	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
+    PORT_DIPNAME( 0x01, 0x01, DEF_STR( Unused ) )   PORT_DIPLOCATION("SW1:1")
+	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
 static const z80_daisy_config daisy_chain[] =
