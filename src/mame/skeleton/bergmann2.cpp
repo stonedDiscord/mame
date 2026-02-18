@@ -157,7 +157,7 @@ uint8_t bergmann2_state::daten_r()
 
     switch (m_adresse & 0x07)
     {
-        case 0x06: //pin 1 of the DIP switch is skipped
+        case 0x06:
             data = ioport("T6")->read();
             break;
         case 0x07:
@@ -258,15 +258,15 @@ void bergmann2_state::ctc2_zc0_w(int state)
 
 static INPUT_PORTS_START( bergmann2 )
     PORT_START("RETURN")
-    PORT_BIT( 0x4f, IP_ACTIVE_HIGH, IPT_UNUSED )
-    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_PAYOUT ) PORT_NAME("Return")
+    PORT_BIT( 0x4f, IP_ACTIVE_LOW, IPT_UNUSED )
+    PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_PAYOUT ) PORT_NAME("Return")
 
     PORT_START("COIN")
-    PORT_BIT( 0x0f, IP_ACTIVE_HIGH, IPT_UNUSED )
-    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_COIN1 ) // 5DM
-    PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_COIN2 ) // 2DM
-    PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_COIN3 ) // 1DM
-    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_COIN4 ) // 0.10 DM
+    PORT_BIT( 0x0f, IP_ACTIVE_LOW, IPT_UNUSED )
+    PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN1 ) // 5DM
+    PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_COIN2 ) // 2DM
+    PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN3 ) // 1DM
+    PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN4 ) // 0.10 DM
 
     PORT_START("T6") // active low
     PORT_DIPNAME( 0x01, 0x00, "Programmstart" ) PORT_DIPLOCATION("SW1:3")
@@ -278,11 +278,11 @@ static INPUT_PORTS_START( bergmann2 )
     PORT_DIPNAME( 0x04, 0x00, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:1")
     PORT_DIPSETTING(    0x00, "Normalfall" )
     PORT_DIPSETTING(    0x04, DEF_STR( On ) )
-    PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
-    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start")
-    PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
-    PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
-    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
+    PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
+    PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_START1 ) PORT_NAME("Start")
+    PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
+    PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
+    PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
 
     PORT_START("T7") // active low
     PORT_DIPNAME( 0x0f, 0x00, "Serviceschalter" )
@@ -354,6 +354,12 @@ ROM_START( corsar )
     ROM_REGION(0x4000, "maincpu", ROMREGION_ERASEFF)
     ROM_LOAD( "crown_corsar_a.bin", 0x0000, 0x2000, CRC(cf907cab) SHA1(66e22b8e1f8e3645dd4b5f1504517b7e734b20f2) )
     ROM_LOAD( "crown_corsar_b.bin", 0x2000, 0x2000, CRC(c1a69ccd) SHA1(97561620110ed991dcd2b17fbd0de5d0bbc282fe) )
+ROM_END
+
+ROM_START( croyal1 )
+    ROM_REGION(0x4000, "maincpu", ROMREGION_ERASEFF)
+    ROM_LOAD( "crown_corsar_a.bin", 0x0000, 0x2000, CRC(eccf354f) SHA1(de023a3403a82314609acac10072a3bef00b4969) )
+    ROM_LOAD( "crown_corsar_b.bin", 0x2000, 0x1000, CRC(c703a9cd) SHA1(015dd4c2454ff865bb9a88f63d7ad4d785ba5495) )
 ROM_END
 
 ROM_START( cwinner )
