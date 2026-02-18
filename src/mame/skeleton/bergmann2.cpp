@@ -133,28 +133,28 @@ void bergmann2_state::daten_w(uint8_t data)
 {
     LOG("Write %02x to address %02x\n", data, m_adresse);
 
-    switch (m_adresse & 0x07)
+    switch (m_adresse)
     {
-        case 0x00:
+        case 0x90:
             // Münzspeicher Pfennig
             m_digits[0] = data & 0x0f;
             m_digits[1] = data >> 4;
             break;
-        case 0x01:
+        case 0x91:
             // Münzspeicher DM
             m_digits[2] = data & 0x0f;
             m_digits[3] = data >> 4;
             break;
-        case 0x02:
+        case 0x92:
             // Sonderspiele 10 and 1
             m_digits[4] = data & 0x0f;
             m_digits[5] = data >> 4;
             break;
-        case 0x03:
+        case 0x93:
             // Sonderspiele 100
             m_digits[6] = data & 0x0f;
             break;
-        case 0x04:
+        case 0x94:
             //m_lamps = data;
             break;
         default:
