@@ -164,19 +164,18 @@ void bergmann2_state::daten_w(uint8_t data)
 
 uint8_t bergmann2_state::daten_r()
 {
-    LOG("Read from address %02x\n", m_adresse);
-    uint8_t data = 0;
+    uint8_t data = 0xff;
 
     switch (m_adresse & 0x07)
     {
         case 0x06:
-            data = ioport("T6")->read();
+            data = !(ioport("T6")->read());
             break;
         case 0x07:
-            data = ioport("T7")->read();
+            data = !(ioport("T7")->read());
             break;
     }
-
+    LOG("Read from address %02x data %02x\n", m_adresse, data);
     return data;
 }
 
@@ -289,11 +288,11 @@ static INPUT_PORTS_START( bergmann2 )
     PORT_DIPNAME( 0x04, 0x00, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:1")
     PORT_DIPSETTING(    0x00, "Normalfall" )
     PORT_DIPSETTING(    0x04, DEF_STR( On ) )
-    PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
-    PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_START1 ) PORT_NAME("Start")
-    PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
-    PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
-    PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
+    PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
+    PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_START1 ) PORT_NAME("Start")
+    PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
+    PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
+    PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
 
     PORT_START("T7") // active low
     PORT_DIPNAME( 0x0f, 0x00, "Serviceschalter" )
