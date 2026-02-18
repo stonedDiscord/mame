@@ -17,6 +17,9 @@ CTC 2x Z0843004PSC
 #include "machine/z80daisy.h"
 #include "machine/z80pio.h"
 #include "machine/z80ctc.h"
+#include "sound/dac.h"
+
+#include "speaker.h"
 
 #include "crown.lh"
 
@@ -36,6 +39,10 @@ public:
         , m_ctc1(*this, "ctc1")
         , m_ctc2(*this, "ctc2")
         , m_watchdog(*this, "watchdog")
+        , m_dac_alarm_l(*this, "dac_alarm_l")
+        , m_dac_alarm_r(*this, "dac_alarm_r")
+        , m_dac_l(*this, "dac_l")
+        , m_dac_r(*this, "dac_r")
         , m_led(*this, "led_error")
         , m_digits(*this, "digit%u", 0U)
         , m_lamps(*this, "lamp%u%u", 0U, 0U)
@@ -57,6 +64,11 @@ private:
     required_device<z80ctc_device> m_ctc2;
 
     required_device<watchdog_timer_device> m_watchdog;
+
+    required_device<dac_bit_interface> m_dac_alarm_l;
+    required_device<dac_bit_interface> m_dac_alarm_r;
+    required_device<dac_bit_interface> m_dac_l;
+	required_device<dac_bit_interface> m_dac_r;
 
     output_finder<> m_led;
     output_finder<7> m_digits;
@@ -226,12 +238,11 @@ void bergmann2_state::pio2_pa_w(uint8_t data)
     LOG("PIO2 PA w: %02x\n", data);
     m_led = BIT(data, 0);
     // 1 NC
-    // alarm_l = BIT(data, 2);
-    // alarm_r = BIT(data, 3);
-    // sound_r = BIT(data, 4);
-    // sound_l = BIT(data, 5);
+    m_dac_alarm_l->write(BIT(data, 2));
+    m_dac_alarm_r->write(BIT(data, 3));
+    m_dac_r->write(BIT(data, 4));
+    m_dac_l->write(BIT(data, 5));
     m_battery = !BIT(data, 6);
-    
 }
 
 void bergmann2_state::ctc1_zc0_w(int state)
@@ -348,6 +359,12 @@ void bergmann2_state::bergmann2(machine_config &config)
 
     config.set_default_layout(layout_crown);
 
+    SPEAKER(config, "speaker", 2).front();
+    DAC_1BIT(config, m_dac_alarm_l, 0).add_route(0, "speaker", 1.0, 0);
+	DAC_1BIT(config, m_dac_alarm_r, 0).add_route(0, "speaker", 1.0, 1);
+    DAC_1BIT(config, m_dac_l, 0).add_route(0, "speaker", 0.8, 0); //pot
+	DAC_1BIT(config, m_dac_r, 0).add_route(0, "speaker", 0.8, 1); //pot
+
 }
 
 ROM_START( corsar )
@@ -376,6 +393,7 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND, layout_crown )
-GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING | MACHINE_NO_SOUND, layout_crown )
-GAMEL( 1984, cwinner,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Winner",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND, layout_crown )
+GAMEL( 198?, croyal1,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Royal No.1",    MACHINE_NOT_WORKING, layout_crown )
+GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING, layout_crown )
+GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING, layout_crown )
+GAMEL( 1984, cwinner,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Winner",        MACHINE_NOT_WORKING, layout_crown )
