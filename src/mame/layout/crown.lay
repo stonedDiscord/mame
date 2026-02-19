@@ -176,22 +176,22 @@ license:CC0-1.0
 			<bounds x="50" y="200" width="30" height="20" />
 		</element>
 		<element name="lamp44" ref="lamp"> <!-- bei 5+7 -->
-			<bounds x="50" y="200" width="30" height="20" />
+			<bounds x="200" y="300" width="30" height="20" />
 		</element>
 		<element name="lamp43" ref="lamp"> <!-- bei 5+7 -->
-			<bounds x="50" y="200" width="30" height="20" />
+			<bounds x="250" y="300" width="30" height="20" />
 		</element>
 		<element name="lamp42" ref="lamp"> <!-- Keine weiteren -->
-			<bounds x="50" y="200" width="30" height="20" />
+			<bounds x="200" y="350" width="30" height="20" />
 		</element>
 		<element name="lamp41" ref="lamp"> <!-- Spiel ungültig -->
-			<bounds x="50" y="200" width="30" height="20" />
+			<bounds x="50" y="350" width="30" height="20" />
 		</element>
 		<element name="lamp40" ref="lamp"> <!-- Ausspielung wiederholen -->
-			<bounds x="50" y="200" width="30" height="20" />
+			<bounds x="50" y="350" width="30" height="20" />
 		</element>
 		<element name="lamp52" ref="lamp"> <!-- Ausspielung wiederholen -->
-			<bounds x="50" y="200" width="30" height="20" />
+			<bounds x="50" y="350" width="30" height="20" />
 		</element>
 
 		<!-- Buttons -->
