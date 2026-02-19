@@ -449,8 +449,8 @@ ROM_END
 
 ROM_START( croyal1 )
     ROM_REGION(0x4000, "maincpu", ROMREGION_ERASEFF)
-    ROM_LOAD( "crown_corsar_a.bin", 0x0000, 0x2000, CRC(eccf354f) SHA1(de023a3403a82314609acac10072a3bef00b4969) )
-    ROM_LOAD( "crown_corsar_b.bin", 0x2000, 0x1000, CRC(c703a9cd) SHA1(015dd4c2454ff865bb9a88f63d7ad4d785ba5495) )
+    ROM_LOAD( "crown_royal_no1_a.bin", 0x0000, 0x2000, CRC(eccf354f) SHA1(de023a3403a82314609acac10072a3bef00b4969) )
+    ROM_LOAD( "crown_royal_no1_b.bin", 0x2000, 0x1000, CRC(c703a9cd) SHA1(015dd4c2454ff865bb9a88f63d7ad4d785ba5495) )
 ROM_END
 
 ROM_START( cwinner )
