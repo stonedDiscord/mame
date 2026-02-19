@@ -26,6 +26,11 @@ license:CC0-1.0
 		<rect state="0"><bounds x="0.1" y="0.1" width="0.9" height="0.9" /><color red="0.7" green="0.0" blue="0.0" /></rect>
 	</element>
 
+	<element name="lamp" defstate="0">
+		<rect state="1"><bounds x="0.1" y="0.1" width="0.9" height="0.9" /><color red="1.0" green="1.0" blue="0.9" /></rect>
+		<rect state="0"><bounds x="0.1" y="0.1" width="0.9" height="0.9" /><color red="0.3" green="0.3" blue="0.3" /></rect>
+	</element>
+
 	<view name="Internal Layout">
 		<bounds left="0" top="0" right="500" bottom="700" />
 		<element name="led_error" ref="red_led">
@@ -57,20 +62,152 @@ license:CC0-1.0
 			<bounds x="440" y="100" width="20" height="25" />
 		</element>
 
+		<!-- Tableau -->
+		<element name="lamp07" ref="lamp"> <!-- 10 Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp06" ref="lamp"> <!-- 50 Sonderpsiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp05" ref="lamp"> <!-- 12 Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp04" ref="lamp"> <!-- 20 Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp03" ref="lamp"> <!-- 5 Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+
+		<element name="lamp27" ref="lamp"> <!-- 100 Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp26" ref="lamp"> <!-- 6 Sonderpsiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp25" ref="lamp"> <!-- 40 Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp24" ref="lamp"> <!-- 3 Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp23" ref="lamp"> <!-- 24 Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+
+		<!-- Risiko rechts -->
+		<element name="lamp02" ref="lamp"> <!-- 2 fach -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp01" ref="lamp"> <!-- 50 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp00" ref="lamp"> <!-- 24 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp17" ref="lamp"> <!-- 12 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp16" ref="lamp"> <!-- 6 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp15" ref="lamp"> <!-- 3 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp14" ref="lamp"> <!-- 2,40 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp13" ref="lamp"> <!-- 1,20 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp12" ref="lamp"> <!-- -,60 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp11" ref="lamp"> <!-- -,30 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp10" ref="lamp"> <!-- NICHTS -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+
+		<!-- Risiko links -->
+		<element name="lamp22" ref="lamp"> <!-- 2 fach -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp21" ref="lamp"> <!-- 100 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp20" ref="lamp"> <!-- 40 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp37" ref="lamp"> <!-- 20 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp36" ref="lamp"> <!-- 10 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp35" ref="lamp"> <!-- 5 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp34" ref="lamp"> <!-- 3,- -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp33" ref="lamp"> <!-- 1,60 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp32" ref="lamp"> <!-- -,80 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp31" ref="lamp"> <!-- -,40 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp30" ref="lamp"> <!-- NICHTS -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+
+		<!-- Info -->
+		<element name="lamp47" ref="lamp"> <!-- Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp46" ref="lamp"> <!-- Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp45" ref="lamp"> <!-- Sonderspiele -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp44" ref="lamp"> <!-- bei 5+7 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp43" ref="lamp"> <!-- bei 5+7 -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp42" ref="lamp"> <!-- Keine weiteren -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp41" ref="lamp"> <!-- Spiel ungültig -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp40" ref="lamp"> <!-- Ausspielung wiederholen -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+		<element name="lamp52" ref="lamp"> <!-- Ausspielung wiederholen -->
+			<bounds x="50" y="200" width="30" height="20" />
+		</element>
+
 		<!-- Buttons -->
-		<element name="lamp53" ref="button_yellow" inputtag="T6" inputmask="0x08">
+		<element name="lamp53" ref="button_yellow" inputtag="T6" inputmask="0x08"> <!-- Risiko links -->
 			<bounds x="50" y="560" width="30" height="30" />
 		</element>
-		<element name="lamp54" ref="button_red" inputtag="T6" inputmask="0x10">
+		<element name="lamp54" ref="button_red" inputtag="T6" inputmask="0x10"> <!-- Start -->
 			<bounds x="150" y="560" width="30" height="30" />
 		</element>
-		<element name="lamp55" ref="button_red" inputtag="T6" inputmask="0x20">
+		<element name="lamp55" ref="button_red" inputtag="T6" inputmask="0x20"> <!-- Ausspielung wiederholen -->
 			<bounds x="230" y="560" width="30" height="30" />
 		</element>	
-		<element name="lamp56" ref="button_red" inputtag="T6" inputmask="0x40">
+		<element name="lamp56" ref="button_red" inputtag="T6" inputmask="0x40"> <!-- Stop rechts+mitte	-->
 			<bounds x="310" y="560" width="30" height="30" />
 		</element>	
-		<element name="lamp57" ref="button_yellow" inputtag="T6" inputmask="0x80">
+		<element name="lamp57" ref="button_yellow" inputtag="T6" inputmask="0x80"> <!-- Risiko rechts -->
 			<bounds x="410" y="560" width="30" height="30" />
 		</element>
 	</view>
