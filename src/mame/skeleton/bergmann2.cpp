@@ -21,7 +21,7 @@ CTC 2x Z0843004PSC
 
 #include "speaker.h"
 
-#include "crown.lh"
+#include "croyal1.lh"
 
 #define VERBOSE 1
 #include "logmacro.h"
@@ -431,7 +431,7 @@ void bergmann2_state::bergmann2(machine_config &config)
 
     WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_usec(3410000)); // 47uF x 22k x 0,33
 
-    config.set_default_layout(layout_crown);
+    config.set_default_layout(layout_croyal1);
 
     SPEAKER(config, "speaker", 2).front();
     DAC_1BIT(config, m_dac_alarm_l, 0).add_route(0, "speaker", 1.0, 0);
@@ -467,7 +467,7 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL( 1983, croyal1,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown Royal", "No.1",    MACHINE_NOT_WORKING, layout_crown )
-GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING, layout_crown )
-GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING, layout_crown )
-GAMEL( 1984, cwinner,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Winner",        MACHINE_NOT_WORKING, layout_crown )
+GAMEL( 1983, croyal1,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown Royal", "No.1",    MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, cwinner,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Winner",        MACHINE_NOT_WORKING, layout_croyal1 )
