@@ -467,7 +467,7 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL( 1983, croyal1,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown Royal", "No.1",    MACHINE_NOT_WORKING, layout_croyal1 )
-GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Corsar",        MACHINE_NOT_WORKING, layout_croyal1 )
-GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Jubilee Super", MACHINE_NOT_WORKING, layout_croyal1 )
-GAMEL( 1984, cwinner,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Crown", "Winner",        MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1983, croyal1,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Bergmann Automaten", "Crown Royal No.1",    MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Bergmann Automaten", "Crown Corsar",        MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Bergmann Automaten", "Crown Jubilee Super", MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, cwinner,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Bergmann Automaten", "Crown Winner",        MACHINE_NOT_WORKING, layout_croyal1 )
