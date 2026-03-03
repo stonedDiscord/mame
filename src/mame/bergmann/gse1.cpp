@@ -28,10 +28,10 @@ CTC 2x Z0843004PSC
 
 namespace {
 
-class bergmann2_state : public driver_device
+class gse1_state : public driver_device
 {
 public:
-    bergmann2_state(const machine_config &mconfig, device_type type, const char *tag)
+    gse1_state(const machine_config &mconfig, device_type type, const char *tag)
         : driver_device(mconfig, type, tag)
         , m_maincpu(*this, "maincpu")
         , m_pio1(*this, "pio1")
@@ -49,7 +49,7 @@ public:
     {
     }
 
-    void bergmann2(machine_config &config);
+    void gse1(machine_config &config);
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
@@ -101,7 +101,7 @@ private:
     void ctc2_zc0_w(int state);
 };
 
-void bergmann2_state::machine_start()
+void gse1_state::machine_start()
 {
 	m_led.resolve();
     m_digits.resolve();
@@ -115,7 +115,7 @@ void bergmann2_state::machine_start()
 
 }
 
-void bergmann2_state::mem_map(address_map &map)
+void gse1_state::mem_map(address_map &map)
 {
     map.global_mask(0x7fff);
     map(0x0000, 0x3fff).rom().region("maincpu", 0);
@@ -123,24 +123,24 @@ void bergmann2_state::mem_map(address_map &map)
     map(0x6000, 0x6000).w(m_watchdog, FUNC(watchdog_timer_device::reset_w));
 }
 
-void bergmann2_state::io_map(address_map &map)
+void gse1_state::io_map(address_map &map)
 {
     map.global_mask(0x1f);
     map(0x00, 0x03).rw(m_ctc2, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
     map(0x04, 0x07).rw(m_ctc1, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
     map(0x08, 0x0b).rw(m_pio2, FUNC(z80pio_device::read), FUNC(z80pio_device::write));
     map(0x0c, 0x0f).rw(m_pio1, FUNC(z80pio_device::read_alt), FUNC(z80pio_device::write_alt));
-    map(0x10, 0x13).w(FUNC(bergmann2_state::adresse_w)); //74C373/3
-    map(0x14, 0x17).w(FUNC(bergmann2_state::daten_w)); //74C373/2
-    map(0x18, 0x1b).r(FUNC(bergmann2_state::daten_r)); //74C373/1
+    map(0x10, 0x13).w(FUNC(gse1_state::adresse_w)); //74C373/3
+    map(0x14, 0x17).w(FUNC(gse1_state::daten_w)); //74C373/2
+    map(0x18, 0x1b).r(FUNC(gse1_state::daten_r)); //74C373/1
 }
 
-void bergmann2_state::adresse_w(uint8_t data)
+void gse1_state::adresse_w(uint8_t data)
 {
     m_adresse = data;
 }
 
-void bergmann2_state::daten_w(uint8_t data)
+void gse1_state::daten_w(uint8_t data)
 {
     enum : u8
 	{
@@ -217,7 +217,7 @@ void bergmann2_state::daten_w(uint8_t data)
     }
 }
 
-uint8_t bergmann2_state::daten_r()
+uint8_t gse1_state::daten_r()
 {
     uint8_t data = 0xff;
 
@@ -235,13 +235,13 @@ uint8_t bergmann2_state::daten_r()
 }
 
 //PIO1
-uint8_t bergmann2_state::pio1_pa_r()
+uint8_t gse1_state::pio1_pa_r()
 {
     // Steckerleiste 15
     return ioport("COIN")->read();
 }
 
-uint8_t bergmann2_state::pio1_pb_r()
+uint8_t gse1_state::pio1_pb_r()
 {
     // Steckerleiste 15
     uint8_t data = m_pio1_pb;
@@ -250,7 +250,7 @@ uint8_t bergmann2_state::pio1_pb_r()
     return data;
 }
 
-void bergmann2_state::pio1_pb_w(uint8_t data)
+void gse1_state::pio1_pb_w(uint8_t data)
 {
     m_pio1_pb = data;
     // Steckerleiste 15
@@ -265,20 +265,20 @@ void bergmann2_state::pio1_pb_w(uint8_t data)
 
 
 //PIO2
-uint8_t bergmann2_state::pio2_pb_r()
+uint8_t gse1_state::pio2_pb_r()
 {
     // Steckerleiste 16
     return m_pio2_pb;
 }
 
-void bergmann2_state::pio2_pb_w(uint8_t data)
+void gse1_state::pio2_pb_w(uint8_t data)
 {
     m_pio2_pb = data;
     LOG("MOTOR w: %02x\n", data);
     // Steckerleiste 16
 }
 
-uint8_t bergmann2_state::pio2_pa_r()
+uint8_t gse1_state::pio2_pa_r()
 {
     // Steckerleiste 17
     uint8_t data = m_pio2_pa;
@@ -288,7 +288,7 @@ uint8_t bergmann2_state::pio2_pa_r()
     return data;
 }
 
-void bergmann2_state::pio2_pa_w(uint8_t data)
+void gse1_state::pio2_pa_w(uint8_t data)
 {
     m_pio2_pa = data;
     // Steckerleiste 17
@@ -301,29 +301,29 @@ void bergmann2_state::pio2_pa_w(uint8_t data)
     m_battery = !BIT(data, 6);
 }
 
-void bergmann2_state::ctc1_zc0_w(int state)
+void gse1_state::ctc1_zc0_w(int state)
 {
     LOG("CTC1 ZC0: %d\n", state);
 }
 
-void bergmann2_state::ctc1_zc1_w(int state)
+void gse1_state::ctc1_zc1_w(int state)
 {
     LOG("CTC1 ZC1: %d\n", state);
 }
 
-void bergmann2_state::ctc1_zc2_w(int state)
+void gse1_state::ctc1_zc2_w(int state)
 {
     LOG("CTC1 ZC2: %d\n", state);
 }
 
-void bergmann2_state::ctc2_zc0_w(int state)
+void gse1_state::ctc2_zc0_w(int state)
 {
     m_ctc2->trg1(state);
     m_ctc2->trg2(state);
     m_ctc2->trg3(state);
 }
 
-static INPUT_PORTS_START( bergmann2 )
+static INPUT_PORTS_START( gse1 )
     PORT_START("RETURN")
     PORT_BIT( 0x1f, IP_ACTIVE_LOW, IPT_UNUSED )
     PORT_DIPNAME( 0x20, 0x20, "Pegelschalter 2,-" )
@@ -402,31 +402,31 @@ static const z80_daisy_config daisy_chain[] =
 	{ nullptr }
 };
 
-void bergmann2_state::bergmann2(machine_config &config)
+void gse1_state::gse1(machine_config &config)
 {
     Z80(config, m_maincpu, 4_MHz_XTAL/2);
-    m_maincpu->set_addrmap(AS_PROGRAM, &bergmann2_state::mem_map);
-    m_maincpu->set_addrmap(AS_IO, &bergmann2_state::io_map);
+    m_maincpu->set_addrmap(AS_PROGRAM, &gse1_state::mem_map);
+    m_maincpu->set_addrmap(AS_IO, &gse1_state::io_map);
     m_maincpu->set_daisy_config(daisy_chain);
 
     Z80PIO(config, m_pio1, 4_MHz_XTAL/2);
-    m_pio1->in_pa_callback().set( FUNC(bergmann2_state::pio1_pa_r));
-    m_pio1->out_pb_callback().set(FUNC(bergmann2_state::pio1_pb_w));
-    m_pio1->in_pb_callback().set( FUNC(bergmann2_state::pio1_pb_r));
+    m_pio1->in_pa_callback().set( FUNC(gse1_state::pio1_pa_r));
+    m_pio1->out_pb_callback().set(FUNC(gse1_state::pio1_pb_w));
+    m_pio1->in_pb_callback().set( FUNC(gse1_state::pio1_pb_r));
     m_pio1->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
     Z80PIO(config, m_pio2, 4_MHz_XTAL/2);
-    m_pio2->out_pa_callback().set(FUNC(bergmann2_state::pio2_pa_w));
-    m_pio2->in_pa_callback().set( FUNC(bergmann2_state::pio2_pa_r));
-    m_pio2->out_pb_callback().set(FUNC(bergmann2_state::pio2_pb_w));
-    m_pio2->in_pb_callback().set( FUNC(bergmann2_state::pio2_pb_r));
+    m_pio2->out_pa_callback().set(FUNC(gse1_state::pio2_pa_w));
+    m_pio2->in_pa_callback().set( FUNC(gse1_state::pio2_pa_r));
+    m_pio2->out_pb_callback().set(FUNC(gse1_state::pio2_pb_w));
+    m_pio2->in_pb_callback().set( FUNC(gse1_state::pio2_pb_r));
     m_pio2->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
     Z80CTC(config, m_ctc1, 4_MHz_XTAL/2);
     m_ctc1->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-    m_ctc1->zc_callback<0>().set(FUNC(bergmann2_state::ctc1_zc0_w));
-    m_ctc1->zc_callback<1>().set(FUNC(bergmann2_state::ctc1_zc1_w));
-    m_ctc1->zc_callback<2>().set(FUNC(bergmann2_state::ctc1_zc2_w));
+    m_ctc1->zc_callback<0>().set(FUNC(gse1_state::ctc1_zc0_w));
+    m_ctc1->zc_callback<1>().set(FUNC(gse1_state::ctc1_zc1_w));
+    m_ctc1->zc_callback<2>().set(FUNC(gse1_state::ctc1_zc2_w));
     Z80CTC(config, m_ctc2, 4_MHz_XTAL/2);
-    m_ctc2->zc_callback<0>().set(FUNC(bergmann2_state::ctc2_zc0_w));
+    m_ctc2->zc_callback<0>().set(FUNC(gse1_state::ctc2_zc0_w));
     m_ctc2->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 
     WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_usec(3410000)); // 47uF x 22k x 0,33
@@ -467,7 +467,7 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL( 1983, croyal1,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Bergmann Automaten", "Crown Royal No.1",    MACHINE_NOT_WORKING, layout_croyal1 )
-GAMEL( 1984, corsar,   0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Bergmann Automaten", "Crown Corsar",        MACHINE_NOT_WORKING, layout_croyal1 )
-GAMEL( 1984, jubilees, 0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Bergmann Automaten", "Crown Jubilee Super", MACHINE_NOT_WORKING, layout_croyal1 )
-GAMEL( 1984, cwinner,  0, bergmann2, bergmann2, bergmann2_state, empty_init, ROT0, "Bergmann Automaten", "Crown Winner",        MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1983, croyal1,  0, gse1, gse1, gse1_state, empty_init, ROT0, "Bergmann Automaten", "Crown Royal No.1",    MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, corsar,   0, gse1, gse1, gse1_state, empty_init, ROT0, "Bergmann Automaten", "Crown Corsar",        MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, jubilees, 0, gse1, gse1, gse1_state, empty_init, ROT0, "Bergmann Automaten", "Crown Jubilee Super", MACHINE_NOT_WORKING, layout_croyal1 )
+GAMEL( 1984, cwinner,  0, gse1, gse1, gse1_state, empty_init, ROT0, "Bergmann Automaten", "Crown Winner",        MACHINE_NOT_WORKING, layout_croyal1 )
