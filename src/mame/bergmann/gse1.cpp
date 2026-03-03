@@ -6,9 +6,7 @@ CPU Z0840004PSC
 RAM MB8416-20L
 PIO 2x Z0842004PSC
 CTC 2x Z0843004PSC
-
 */
-
 
 #include "emu.h"
 
@@ -23,7 +21,7 @@ CTC 2x Z0843004PSC
 
 #include "croyal1.lh"
 
-#define VERBOSE 1
+//#define VERBOSE 1
 #include "logmacro.h"
 
 namespace {
@@ -438,7 +436,6 @@ void gse1_state::gse1(machine_config &config)
 	DAC_1BIT(config, m_dac_alarm_r, 0).add_route(0, "speaker", 1.0, 1);
     DAC_1BIT(config, m_dac_l, 0).add_route(0, "speaker", 0.8, 0); //pot
 	DAC_1BIT(config, m_dac_r, 0).add_route(0, "speaker", 0.8, 1); //pot
-
 }
 
 ROM_START( corsar )
