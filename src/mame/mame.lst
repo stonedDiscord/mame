@@ -10032,6 +10032,12 @@ chalgear
 @source:benesse/pockchal.cpp
 pockchal
 
+@source:bergmann/gse1.cpp
+corsar
+croyal1
+cwinner
+jubilees
+
 @source:bfm/bfcobra.cpp
 beeline
 brainbox2
@@ -43918,12 +43924,6 @@ zoids
 
 @source:skeleton/basf7100.cpp
 basf7120
-
-@source:skeleton/bergmann2.cpp
-corsar
-croyal1
-cwinner
-jubilees
 
 @source:skeleton/bert.cpp
 bert
