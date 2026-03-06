@@ -337,13 +337,16 @@ void adp_state::quickjac_mem(address_map &map)
 
 void adp_state::funland_mem(address_map &map)
 {
-	map(0x000000, 0x0fffff).rom();
+	map(0x000000, 0x06ffff).rom();
+	map(0x070000, 0x7fffff).ram();
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800089, 0x800089).w("ramdac", FUNC(ramdac_device::index_w));
 	map(0x80008b, 0x80008b).w("ramdac", FUNC(ramdac_device::pal_w));
 	map(0x80008d, 0x80008d).w("ramdac", FUNC(ramdac_device::mask_w));
+	map(0x8000c0, 0x8000c1).nopw();
 	map(0x800100, 0x800101).portr(m_in0);
+	map(0x800100, 0x800101).nopw();
 	map(0x800140, 0x800143).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_data_w)).umask16(0x00ff); //18b too
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
 	map(0xfc0000, 0xffffff).ram().share("nvram");
@@ -351,7 +354,8 @@ void adp_state::funland_mem(address_map &map)
 
 void adp_state::fstation_mem(address_map &map)
 {
-	map(0x000000, 0x0fffff).rom();
+	map(0x000000, 0x06ffff).rom();
+	map(0x070000, 0x7fffff).ram();
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800100, 0x800101).rw(FUNC(adp_state::input_r), FUNC(adp_state::input_w));
 	map(0x800140, 0x800143).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_data_w)).umask16(0x00ff); //18b too
@@ -699,6 +703,15 @@ ROM_START( fashiong2 )
 	ROM_LOAD16_BYTE( "m48z08posz.u8", 0x0001, 0x2000, CRC(7c5a4b78) SHA1(262d0d7f5b24e356ab54eb2450bbaa90e3fb5464) )
 ROM_END
 
+ROM_START( funcityp )
+	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_LOAD( "fun_city_test.bin", 0x00000, 0x68004, BAD_DUMP CRC(21ec67f2) SHA1(ed138f84996449c9fd595a5d13883d0f079112d8) )
+
+	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_LOAD16_BYTE( "fun_city_pro_video_f1_i.bin", 0x00000, 0x80000, CRC(5f633e2c) SHA1(3f21d5aa992d06c481ee33047e8a1c715e267935) )
+	ROM_LOAD16_BYTE( "fun_city_pro_video_f1_ii.bin", 0x00001, 0x80000, CRC(921d9ff1) SHA1(85bff2fc8997b90c70f1135f2881f58da39af2c7) )
+ROM_END
+
 ROM_START( funlddlx )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD16_BYTE( "fldl_f6_1.u2", 0x00001, 0x80000, CRC(85c74040) SHA1(24a7d3e6acbaf73ef9817379bef64c38a9ff7896) )
@@ -813,5 +826,6 @@ GAME( 1999, funlddlx,  funlddlx4,funland,  skattv,   adp_state, empty_init, ROT0
 GAME( 2000, fstation7, fstation, fstation, fstation, adp_state, empty_init, ROT0, "ADP",     "Fun Station Spielekoffer 7 Spiele", MACHINE_NOT_WORKING ) // suntris crashes when executing HD63484 paint commands
 GAME( 2000, fstation8, fstation, fstation, fstation, adp_state, empty_init, ROT0, "ADP",     "Fun Station Spielekoffer 8 Spiele", MACHINE_NOT_WORKING ) // suntris crashes when executing HD63484 paint commands
 GAME( 2000, fstation,  0,        fstation, fstation, adp_state, empty_init, ROT0, "ADP",     "Fun Station Spielekoffer 9 Spiele", MACHINE_NOT_WORKING ) // suntris crashes when executing HD63484 paint commands
+GAME( 2001, funcityp,  0,        funland,  skattv,   adp_state, empty_init, ROT0, "Stella",  "Fun City Pro",                      MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME( 2001, funlddlx2, funlddlx4,funland,  skattv,   adp_state, empty_init, ROT0, "Stella",  "Funny Land de Luxe (W2 set)",       MACHINE_NOT_WORKING )
 GAME( 2001, funlddlx4, 0,        funland,  skattv,   adp_state, empty_init, ROT0, "Stella",  "Funny Land de Luxe (W4 set)",       MACHINE_NOT_WORKING )
