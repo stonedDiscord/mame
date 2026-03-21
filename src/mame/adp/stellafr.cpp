@@ -90,6 +90,7 @@ Connectors:
 
 
 #include "emu.h"
+#include "bus/rs232/rs232.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/mc68681.h"
 #include "machine/nvram.h"
@@ -194,6 +195,7 @@ public:
 	stellafr_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
+		m_serial(*this, "serial%u", 0U),
 		m_duart(*this, "duart"),
 		m_nvram(*this, "nvram"),
 		m_dac(*this, "dac"),
@@ -211,6 +213,7 @@ protected:
 
 private:
 	required_device<cpu_device> m_maincpu;
+	required_device_array<rs232_port_device, 2> m_serial;
 	required_device<mc68681_device> m_duart;
 	required_device<nvram_device> m_nvram;
 	required_device<ad7224_device> m_dac;
@@ -384,9 +387,17 @@ void stellafr_state::stellafr(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &stellafr_state::mem_map);
 	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &stellafr_state::fc7_map);
 
+	RS232_PORT(config, m_serial[0], default_rs232_devices, "terminal");
+	RS232_PORT(config, m_serial[1], default_rs232_devices, "terminal");
+
 	MC68681(config, m_duart, 3'686'400);
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_2); // ?
 	m_duart->outport_cb().set(FUNC(stellafr_state::duart_output_w));
+
+	m_duart->a_tx_cb().set(m_serial[0], FUNC(rs232_port_device::write_txd));
+	m_duart->b_tx_cb().set(m_serial[1], FUNC(rs232_port_device::write_txd));
+	m_serial[0]->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_a_w));
+	m_serial[1]->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_b_w));
 
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
 
