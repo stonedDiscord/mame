@@ -61,9 +61,12 @@ public:
 		m_beep(*this, "beeper")
 	{ }
 
+	void board4109s(machine_config &config);
 	void dicemstr(machine_config &config);
 	void doppelpot(machine_config &config);
 	void excellent(machine_config &config);
+
+	void init_sonne();
 
 protected:
 	void machine_start() override ATTR_COLD;
@@ -87,6 +90,7 @@ private:
 	void large_program_map(address_map &map) ATTR_COLD;
 	void small_program_map(address_map &map) ATTR_COLD;
 	void io_map(address_map &map) ATTR_COLD;
+	void opcodes_4109_map(address_map &map) ATTR_COLD;
 
 	// I8256 ports
 	uint8_t lw_r(); //P1.0-P1.3
@@ -158,6 +162,12 @@ void stella8085_state::io_map(address_map &map)
 	map(0x73, 0x73).w(FUNC(stella8085_state::io73)); // probably extra lamps
 	// map(0x80, 0x8f) //Y8 ICC5 empty socket
 	map(0x90, 0x9f).rw(FUNC(stella8085_state::io9r),FUNC(stella8085_state::io9w)); //Y9 wired to rtc circuits but somehow memory mapped in hardware
+}
+
+void stella8085_state::opcodes_4109_map(address_map &map)
+{
+	map(0x0000, 0x7fff).rom().region("opcodes", 0); // ICE6
+	map(0xa000, 0xffff).rom().region("opcodes", 0xa000); // ICD6
 }
 
 /*********************************************
@@ -603,6 +613,12 @@ void stella8085_state::excellent(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::small_program_map);
 }
 
+void stella8085_state::board4109s(machine_config &config)
+{
+	dicemstr(config);
+	m_maincpu->set_addrmap(AS_OPCODES, &stella8085_state::opcodes_4109_map);
+}
+
 ROM_START( bahia )
 	ROM_REGION( 0x8000, "maincpu", 0 )
 	ROM_LOAD( "bahia_pr1", 0x0000, 0x1000, CRC(41e7f89c) SHA1(933334e2f78a91e24ec0132b8e7757da5a9d2e02) )
@@ -754,6 +770,7 @@ ROM_START( juwel )
 ROM_END
 
 ROM_START( karoas )
+	ROM_REGION( 0x10000, "opcodes", ROMREGION_ERASE00 ) // put decrypted code there
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "karoas.ice6", 0x0000, 0x8000, CRC(71c4c39d) SHA1(b188896838a788d5bfc7b18f1bb423a06fe5fcc6) )
 	ROM_LOAD( "karoas.icd6", 0x8000, 0x8000, CRC(e1b131bd) SHA1(dc2fbfaf86fa5b161d17a563eae2bc8fc4d19395) )
@@ -856,6 +873,13 @@ ROM_START( superpro )
 	ROM_LOAD( "super_pro_f2_2.icd6", 0x8000, 0x8000, CRC(82802b74) SHA1(8e6ebc429d4e1ccfc5ed6a3bb6fb1747a6a7187a) )
 ROM_END
 
+ROM_START( treffasm )
+	ROM_REGION( 0x10000, "opcodes", ROMREGION_ERASE00 ) // put decrypted code there
+	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASE00 )
+	ROM_LOAD( "treff_as_medaille_1.ice6", 0x0000, 0x8000, CRC(053831b7) SHA1(d534a9a37d1556c366af523c397d1d5cf97b2a12) )
+	ROM_LOAD( "treff_as_medaille_2.icd6", 0x8000, 0x8000, CRC(c2576b97) SHA1(d4f3ca7d7565500b66366b04ef6395c20037b380) )
+ROM_END
+
 ROM_START( v4assef1 )
 	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASE00 )
 	ROM_LOAD( "venus_4_asse_f1_i.ice6",  0x0000, 0x8000, CRC(29fd7f6a) SHA1(84a8f744e189f0645410c4b7ac36b65f30aa1cc9) )
@@ -877,6 +901,79 @@ ROM_START( vmulti )
 	ROM_LOAD( "venus_multi_5_2732.bin", 0x4000, 0x1000, CRC(c2905422) SHA1(5c8e3f0440671dc16df32b599239b0435f120778) )
 	ROM_LOAD( "venus_multi_6_2732.bin", 0x7000, 0x1000, CRC(09dd81e7) SHA1(35e9a96d913678a75851a9bf7e7349f93e337805) )
 ROM_END
+
+/*
+Potted CPU module with an 8085 and some other chip(s) inside.
+*/
+void stella8085_state::init_sonne()
+{
+    uint8_t *DATA = memregion("maincpu")->base();
+    uint8_t *OPS  = memregion("opcodes")->base();
+    static const std::unordered_map<uint8_t, uint8_t> decrypt_map = {
+		{0x00, 0x01},
+		{0x02, 0x11},
+		{0x0c, 0x0f},
+		{0x13, 0x11}, //lxi
+		{0x1a, 0x1b},
+		{0x1d, 0x0f},
+		{0x20, 0x21},
+		{0x25, 0x77},
+		{0x26, 0x77},
+		{0x28, 0x2b},
+		{0x2c, 0x7d},
+		{0x30, 0x21},
+		{0x32, 0x31},
+		{0x39, 0x3a},
+		{0x3b, 0x2b},
+		{0x41, 0x01},
+		{0x44, 0x17},
+		{0x56, 0x17},
+		{0x5b, 0x1b},
+		{0x5e, 0x1f},
+		{0x61, 0x21},
+		{0x6c, 0x7e},
+		{0x73, 0x32},
+		{0x79, 0x7a},
+		{0x7c, 0x2f},
+		{0x7d, 0x77},
+		{0x7f, 0x7e},
+		{0x81, 0xc2},
+		{0x82, 0xc2},
+		{0x93, 0xc2},
+		{0x94, 0xd5},
+		{0xad, 0xbe},
+		{0xb1, 0xb3},
+		{0xb2, 0xf3},
+		{0xb4, 0xf5},
+		{0xb7, 0xf5},
+		{0xc0, 0xd2},
+		{0xc1, 0xd2},
+		{0xc6, 0xd5},
+		{0xc9, 0xdb},
+		//ca stays the same
+		{0xcb, 0xdb},
+		//cd stays the same
+		{0xd2, 0xc3},
+		{0xd3, 0xc3},
+		{0xda, 0xdb},
+		{0xe0, 0xf3},
+		{0xe3, 0xf3},
+		{0xe6, 0xf5},
+		{0xee, 0xbe},
+		{0xf0, 0xf3},
+		{0xf5, 0xb7},
+		{0xf8, 0xfb},
+		{0xfc, 0xaf},
+    };
+    for (int i = 0; i < 0x10000; i++) {
+        auto it = decrypt_map.find(DATA[i]);
+        if (it != decrypt_map.end()) {
+            OPS[i] = it->second;
+        } else {
+            OPS[i] = DATA[i];
+        }
+    }
+}
 
 } // anonymous namespace
 
@@ -915,8 +1012,9 @@ GAMEL( 1991, macao,           0, dicemstr,  disc,     stella8085_state, empty_in
 GAMEL( 1991, mbistro,         0, dicemstr,  disc,     stella8085_state, empty_init, ROT0, "MEGA",   "Bistro",            MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1991, mclub,           0, dicemstr,  disc,     stella8085_state, empty_init, ROT0, "Merkur", "Club",              MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1991, superpro,        0, dicemstr,  servicem, stella8085_state, empty_init, ROT0, "Merkur", "Super Pro",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
+GAMEL( 1991, treffasm,        0, board4109s,servicem, stella8085_state, init_sonne, ROT0, "Merkur", "Treff As (Medaille)", MACHINE_UNEMULATED_PROTECTION | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1992, m21point,        0, dicemstr,  servicem, stella8085_state, empty_init, ROT0, "MEGA",   "21 Point",          MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
-GAMEL( 1992, karoas,          0, dicemstr,  servicem, stella8085_state, empty_init, ROT0, "ADP",    "Karo As",           MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
+GAMEL( 1992, karoas,          0, board4109s,servicem, stella8085_state, init_sonne, ROT0, "ADP",    "Karo As",           MACHINE_UNEMULATED_PROTECTION | MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1992, mmax,            0, dicemstr,  servicem, stella8085_state, empty_init, ROT0, "MEGA",   "Max",               MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1992, mtrio,           0, dicemstr,  disc,     stella8085_state, empty_init, ROT0, "MEGA",   "Trio",              MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 // 'STELLA DICE MASTER F2' and 'COPYRIGHT BY ADP LUEBBECKE GERMANY 1993' in ROM
