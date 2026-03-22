@@ -385,7 +385,7 @@ void stellafr_state::stellafr(machine_config &config)
 	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &stellafr_state::fc7_map);
 
 	MC68681(config, m_duart, 3'686'400);
-	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_2); // ?
+	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_IPL1);
 	m_duart->outport_cb().set(FUNC(stellafr_state::duart_output_w));
 
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
