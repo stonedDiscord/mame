@@ -94,6 +94,7 @@ Connectors:
 #include "cpu/m68000/m68000.h"
 #include "machine/mc68681.h"
 #include "machine/nvram.h"
+#include "machine/timekpr.h"
 #include "sound/ay8910.h"
 #include "sound/dac.h"
 #include "speaker.h"
@@ -340,6 +341,7 @@ void stellafr_state::ay8910_portb_w(uint8_t data)
 void stellafr_state::mem_map(address_map &map)
 {
 	map(0x000000, 0x01ffff).rom();
+	// map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
 	// controlled by U17 74HC138
 	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)); // Y0
 	// Y1 device on cpu board
@@ -350,7 +352,8 @@ void stellafr_state::mem_map(address_map &map)
 	map(0x800143, 0x800143).w("aysnd", FUNC(ay8910_device::data_w)); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff); // Y6
 	// Y7 NC
-	map(0xff0000, 0xffffff).ram().share("nvram");
+	map(0xffc000, 0xffdfff).rw("m48t18", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask16(0x00ff);
+	map(0xffc000, 0xffdfff).ram().share("nvram").umask16(0xff00);
 }
 
 void stellafr_state::fc7_map(address_map &map)
@@ -399,6 +402,7 @@ void stellafr_state::stellafr(machine_config &config)
 	m_serial[0]->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_a_w));
 	m_serial[1]->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_b_w));
 
+	M48T02(config, "m48t18", 0); /* t08 differs only in accepted voltage levels compared to t18 */
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
 
 	AD7224(config, m_dac, 0);
