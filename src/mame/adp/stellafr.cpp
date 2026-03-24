@@ -93,7 +93,6 @@ Connectors:
 #include "bus/rs232/rs232.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/mc68681.h"
-#include "machine/nvram.h"
 #include "machine/timekpr.h"
 #include "sound/ay8910.h"
 #include "sound/dac.h"
@@ -198,7 +197,6 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_serial(*this, "serial%u", 0U),
 		m_duart(*this, "duart"),
-		m_nvram(*this, "nvram"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
 		m_lamps(*this, "lamp%u", 0U),
@@ -216,7 +214,6 @@ private:
 	required_device<cpu_device> m_maincpu;
 	required_device_array<rs232_port_device, 2> m_serial;
 	required_device<mc68681_device> m_duart;
-	required_device<nvram_device> m_nvram;
 	required_device<ad7224_device> m_dac;
 	output_finder<8> m_digits;
 	output_finder<128> m_lamps;
@@ -352,8 +349,8 @@ void stellafr_state::mem_map(address_map &map)
 	map(0x800143, 0x800143).w("aysnd", FUNC(ay8910_device::data_w)); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff); // Y6
 	// Y7 NC
-	map(0xffc000, 0xffdfff).rw("m48t18", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask16(0x00ff);
-	map(0xffc000, 0xffdfff).ram().share("nvram").umask16(0xff00);
+	map(0xffc000, 0xffffff).rw("m48t08", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask16(0x00ff);
+	map(0xffc000, 0xffffff).rw("m48z08", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask16(0xff00);
 }
 
 void stellafr_state::fc7_map(address_map &map)
@@ -402,8 +399,8 @@ void stellafr_state::stellafr(machine_config &config)
 	m_serial[0]->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_a_w));
 	m_serial[1]->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_b_w));
 
-	M48T02(config, "m48t18", 0); /* t08 differs only in accepted voltage levels compared to t18 */
-	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
+	MK48T08(config, "m48t08", 0);
+	MK48T08(config, "m48z08", 0);
 
 	AD7224(config, m_dac, 0);
 
