@@ -159,6 +159,7 @@ Quick Jack administration/service mode:
 */
 
 #include "emu.h"
+#include "bus/rs232/rs232.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/mc68681.h"
 #include "machine/microtch.h"
@@ -181,6 +182,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_microtouch(*this, "microtouch"),
 		m_maincpu(*this, "maincpu"),
+		m_serial(*this, "serial%u", 0U),
 		m_duart(*this, "duart"),
 		m_acrtc(*this, "acrtc"),
 		m_palette(*this, "palette"),
@@ -202,6 +204,7 @@ protected:
 private:
 	required_device<microtouch_device> m_microtouch;
 	required_device<cpu_device> m_maincpu;
+	required_device_array<rs232_port_device, 2> m_serial;
 	required_device<mc68681_device> m_duart;
 	required_device<hd63484_device> m_acrtc;
 	required_device<palette_device> m_palette;
@@ -548,10 +551,17 @@ void adp_state::quickjac(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &adp_state::quickjac_mem);
 	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &adp_state::fc7_map);
 
+	RS232_PORT(config, m_serial[0], default_rs232_devices, nullptr);
+	RS232_PORT(config, m_serial[1], default_rs232_devices, nullptr);
+
 	MC68681(config, m_duart, XTAL(8'664'000) / 2);
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_4);
 	m_duart->a_tx_cb().set(m_microtouch, FUNC(microtouch_device::rx));
 	m_duart->inport_cb().set_ioport("DSW1");
+
+	m_duart->b_tx_cb().set(m_serial[1], FUNC(rs232_port_device::write_txd));
+	m_serial[0]->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_a_w));
+	m_serial[1]->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_b_w));
 
 	MICROTOUCH(config, m_microtouch, 9600).stx().set(m_duart, FUNC(mc68681_device::rx_a_w));
 
@@ -571,6 +581,7 @@ void adp_state::quickjac(machine_config &config)
 	PALETTE(config, m_palette, FUNC(adp_state::adp_palette), 0x10);
 
 	HD63484(config, m_acrtc, 0).set_addrmap(0, &adp_state::adp_hd63484_map);
+	m_acrtc->set_screen("screen");
 
 	SPEAKER(config, "mono").front_center();
 	ym2149_device &aysnd(YM2149(config, "aysnd", 3686400/2));
