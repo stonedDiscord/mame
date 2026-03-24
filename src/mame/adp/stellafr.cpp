@@ -391,7 +391,7 @@ void stellafr_state::stellafr(machine_config &config)
 	RS232_PORT(config, m_serial[1], default_rs232_devices, "terminal");
 
 	MC68681(config, m_duart, 3'686'400);
-	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_2); // ?
+	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_IPL1);
 	m_duart->outport_cb().set(FUNC(stellafr_state::duart_output_w));
 
 	m_duart->a_tx_cb().set(m_serial[0], FUNC(rs232_port_device::write_txd));
