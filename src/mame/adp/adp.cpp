@@ -556,7 +556,8 @@ void adp_state::quickjac(machine_config &config)
 
 	MC68681(config, m_duart, XTAL(8'664'000) / 2);
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_4);
-	m_duart->a_tx_cb().set(m_microtouch, FUNC(microtouch_device::rx));
+	//m_duart->a_tx_cb().set(m_microtouch, FUNC(microtouch_device::rx));
+	m_duart->a_tx_cb().set(m_serial[0], FUNC(rs232_port_device::write_txd));
 	m_duart->inport_cb().set_ioport("DSW1");
 
 	m_duart->b_tx_cb().set(m_serial[1], FUNC(rs232_port_device::write_txd));
