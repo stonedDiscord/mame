@@ -182,6 +182,7 @@ public:
 		m_microtouch(*this, "microtouch"),
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
+		m_ymsnd(*this, "ymsnd"),
 		m_acrtc(*this, "acrtc"),
 		m_palette(*this, "palette"),
 		m_nvram(*this, "nvram"),
@@ -203,6 +204,7 @@ private:
 	required_device<microtouch_device> m_microtouch;
 	required_device<cpu_device> m_maincpu;
 	required_device<mc68681_device> m_duart;
+	required_device<ym2149_device> m_ymsnd;
 	required_device<hd63484_device> m_acrtc;
 	required_device<palette_device> m_palette;
 	required_device<nvram_device> m_nvram;
@@ -307,8 +309,9 @@ void adp_state::skattv_mem(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
-	map(0x800100, 0x800101).rw(FUNC(adp_state::input_r), FUNC(adp_state::input_w));
-	map(0x800140, 0x800143).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_data_w)).umask16(0x00ff); //18b too
+	map(0x800100, 0x800101).rw(FUNC(adp_state::input_r), FUNC(adp_state::input_w)).umask16(0x00ff);
+	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
+	map(0x800143, 0x800143).w(m_ymsnd, FUNC(ym2149_device::data_w)).umask16(0x00ff); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
 	map(0xffc000, 0xffffff).ram().share("nvram");
 }
@@ -319,7 +322,8 @@ void adp_state::skattva_mem(address_map &map)
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800100, 0x800101).portr(m_in0);
-	map(0x800140, 0x800143).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_data_w)).umask16(0x00ff); //18b too
+	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
+	map(0x800143, 0x800143).w(m_ymsnd, FUNC(ym2149_device::data_w)).umask16(0x00ff); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
 	map(0xffc000, 0xffffff).ram().share("nvram");
 }
@@ -330,7 +334,8 @@ void adp_state::quickjac_mem(address_map &map)
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16)); // bad
 	map(0x800100, 0x800101).portr(m_in0);
-	map(0x800140, 0x800143).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_data_w)).umask16(0x00ff); //18b too
+	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
+	map(0x800143, 0x800143).w(m_ymsnd, FUNC(ym2149_device::data_w)).umask16(0x00ff); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
 	map(0xff0000, 0xffffff).ram().share("nvram");
 }
@@ -344,7 +349,8 @@ void adp_state::funland_mem(address_map &map)
 	map(0x80008b, 0x80008b).w("ramdac", FUNC(ramdac_device::pal_w));
 	map(0x80008d, 0x80008d).w("ramdac", FUNC(ramdac_device::mask_w));
 	map(0x800100, 0x800101).portr(m_in0);
-	map(0x800140, 0x800143).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_data_w)).umask16(0x00ff); //18b too
+	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
+	map(0x800143, 0x800143).w(m_ymsnd, FUNC(ym2149_device::data_w)).umask16(0x00ff); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
 	map(0xfc0000, 0xffffff).ram().share("nvram");
 }
@@ -354,7 +360,8 @@ void adp_state::fstation_mem(address_map &map)
 	map(0x000000, 0x0fffff).rom();
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800100, 0x800101).rw(FUNC(adp_state::input_r), FUNC(adp_state::input_w));
-	map(0x800140, 0x800143).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_data_w)).umask16(0x00ff); //18b too
+	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
+	map(0x800143, 0x800143).w(m_ymsnd, FUNC(ym2149_device::data_w)).umask16(0x00ff); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
 	map(0xfc0000, 0xffffff).ram().share("nvram");
 }
@@ -573,9 +580,9 @@ void adp_state::quickjac(machine_config &config)
 	HD63484(config, m_acrtc, 0).set_addrmap(0, &adp_state::adp_hd63484_map);
 
 	SPEAKER(config, "mono").front_center();
-	ym2149_device &aysnd(YM2149(config, "aysnd", 3686400/2));
-	aysnd.port_a_read_callback().set_ioport("PA");
-	aysnd.add_route(ALL_OUTPUTS, "mono", 0.10);
+	YM2149(config, m_ymsnd, 3'686'400/2);
+	m_ymsnd->add_route(ALL_OUTPUTS, "mono", 0.85);
+	m_ymsnd->port_a_read_callback().set_ioport("PA");
 }
 
 void adp_state::skattv(machine_config &config)

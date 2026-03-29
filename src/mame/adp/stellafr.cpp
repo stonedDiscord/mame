@@ -195,6 +195,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
+		m_ymsnd(*this, "ymsnd"),
 		m_nvram(*this, "nvram"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
@@ -212,6 +213,7 @@ protected:
 private:
 	required_device<cpu_device> m_maincpu;
 	required_device<mc68681_device> m_duart;
+	required_device<ym2149_device> m_ymsnd;
 	required_device<nvram_device> m_nvram;
 	required_device<ad7224_device> m_dac;
 	output_finder<8> m_digits;
@@ -232,7 +234,7 @@ private:
 	void mux_w(uint8_t data);
 	void mux2_w(uint8_t data);
 	void duart_output_w(uint8_t data);
-	void ay8910_portb_w(uint8_t data);
+	void ym2149_portb_w(uint8_t data);
 	void lamps_w(uint8_t row, uint16_t data);
 
 	void mem_map(address_map &map) ATTR_COLD;
@@ -330,7 +332,7 @@ void stellafr_state::duart_output_w(uint8_t data)
 	m_leds[1] = !BIT(data, PORT_O_SDA);
 }
 
-void stellafr_state::ay8910_portb_w(uint8_t data)
+void stellafr_state::ym2149_portb_w(uint8_t data)
 {
 }
 
@@ -338,13 +340,13 @@ void stellafr_state::mem_map(address_map &map)
 {
 	map(0x000000, 0x01ffff).rom();
 	// controlled by U17 74HC138
-	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)); // Y0
+	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)).umask16(0x00ff); // Y0
 	// Y1 device on cpu board
 	// Y2 device on cpu board
-	map(0x8000c1, 0x8000c1).w(FUNC(stellafr_state::mux2_w)); // Y3 SP/ME II out
-	map(0x800100, 0x800101).rw(FUNC(stellafr_state::mux_r), FUNC(stellafr_state::mux_w)); // Y4 SP/ME I out / Inputs
-	map(0x800141, 0x800141).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_w)); // Y5
-	map(0x800143, 0x800143).w("aysnd", FUNC(ay8910_device::data_w)); // Y5
+	map(0x8000c1, 0x8000c1).w(FUNC(stellafr_state::mux2_w)).umask16(0x00ff); // Y3 SP/ME II out
+	map(0x800100, 0x800101).rw(FUNC(stellafr_state::mux_r), FUNC(stellafr_state::mux_w)).umask16(0x00ff); // Y4 SP/ME I out / Inputs
+	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
+	map(0x800143, 0x800143).w(m_ymsnd, FUNC(ym2149_device::data_w)).umask16(0x00ff); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff); // Y6
 	// Y7 NC
 	map(0xff0000, 0xffffff).ram().share("nvram");
@@ -393,10 +395,10 @@ void stellafr_state::stellafr(machine_config &config)
 	AD7224(config, m_dac, 0);
 
 	SPEAKER(config, "mono").front_center();
-	ay8910_device &aysnd(AY8910(config, "aysnd", 1'000'000));
-	aysnd.add_route(ALL_OUTPUTS, "mono", 0.85);
-	aysnd.port_a_read_callback().set_ioport("IN0");
-	aysnd.port_b_write_callback().set(FUNC(stellafr_state::ay8910_portb_w));
+	YM2149(config, m_ymsnd, 3'686'400/2);
+	m_ymsnd->add_route(ALL_OUTPUTS, "mono", 0.85);
+	m_ymsnd->port_a_read_callback().set_ioport("IN0");
+	m_ymsnd->port_b_write_callback().set(FUNC(stellafr_state::ym2149_portb_w));
 }
 
 ROM_START( action )
