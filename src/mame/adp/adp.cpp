@@ -165,6 +165,7 @@ Quick Jack administration/service mode:
 #include "machine/msm6242.h"
 #include "machine/nvram.h"
 #include "sound/ay8910.h"
+#include "sound/dac.h"
 #include "video/hd63484.h"
 #include "video/ramdac.h"
 #include "emupal.h"
@@ -186,6 +187,7 @@ public:
 		m_acrtc(*this, "acrtc"),
 		m_palette(*this, "palette"),
 		m_nvram(*this, "nvram"),
+		m_dac(*this, "dac"),
 		m_in0(*this, "IN0")
 	{ }
 
@@ -208,6 +210,7 @@ private:
 	required_device<hd63484_device> m_acrtc;
 	required_device<palette_device> m_palette;
 	required_device<nvram_device> m_nvram;
+	required_device<ad7224_device> m_dac;
 	required_ioport m_in0;
 
 	/* misc */
@@ -308,6 +311,7 @@ void adp_state::input_w(uint16_t data)
 void adp_state::skattv_mem(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
+	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)).umask16(0x00ff); // Y0
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800100, 0x800101).rw(FUNC(adp_state::input_r), FUNC(adp_state::input_w)).umask16(0x00ff);
 	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
@@ -320,6 +324,7 @@ void adp_state::skattva_mem(address_map &map)
 {
 	map(0x000000, 0x03ffff).rom();
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
+	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)).umask16(0x00ff); // Y0
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800100, 0x800101).portr(m_in0);
 	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
@@ -332,6 +337,7 @@ void adp_state::quickjac_mem(address_map &map)
 {
 	map(0x000000, 0x01ffff).rom();
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
+	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)).umask16(0x00ff); // Y0
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16)); // bad
 	map(0x800100, 0x800101).portr(m_in0);
 	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
@@ -344,6 +350,7 @@ void adp_state::funland_mem(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
+	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)).umask16(0x00ff); // Y0
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800089, 0x800089).w("ramdac", FUNC(ramdac_device::index_w));
 	map(0x80008b, 0x80008b).w("ramdac", FUNC(ramdac_device::pal_w));
@@ -358,6 +365,7 @@ void adp_state::funland_mem(address_map &map)
 void adp_state::fstation_mem(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
+	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)).umask16(0x00ff); // Y0
 	map(0x800080, 0x800083).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800100, 0x800101).rw(FUNC(adp_state::input_r), FUNC(adp_state::input_w));
 	map(0x800141, 0x800141).rw(m_ymsnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::address_w)).umask16(0x00ff); // Y5
@@ -580,6 +588,10 @@ void adp_state::quickjac(machine_config &config)
 	HD63484(config, m_acrtc, 0).set_addrmap(0, &adp_state::adp_hd63484_map);
 
 	SPEAKER(config, "mono").front_center();
+
+	AD7224(config, m_dac, 0);
+	m_dac->add_route(ALL_OUTPUTS, "mono", 0.80);
+
 	YM2149(config, m_ymsnd, 3'686'400/2);
 	m_ymsnd->add_route(ALL_OUTPUTS, "mono", 0.85);
 	m_ymsnd->port_a_read_callback().set_ioport("PA");

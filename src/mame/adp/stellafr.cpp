@@ -392,9 +392,11 @@ void stellafr_state::stellafr(machine_config &config)
 
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
 
-	AD7224(config, m_dac, 0);
-
 	SPEAKER(config, "mono").front_center();
+
+	AD7224(config, m_dac, 0);
+	m_dac->add_route(ALL_OUTPUTS, "mono", 0.80);
+
 	YM2149(config, m_ymsnd, 3'686'400/2);
 	m_ymsnd->add_route(ALL_OUTPUTS, "mono", 0.85);
 	m_ymsnd->port_a_read_callback().set_ioport("IN0");
