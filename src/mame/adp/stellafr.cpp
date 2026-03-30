@@ -97,7 +97,7 @@ Connectors:
 #include "sound/dac.h"
 #include "speaker.h"
 
-//#define VERBOSE 1
+#define VERBOSE 1
 #include "logmacro.h"
 
 #include "stellafr.lh"
@@ -200,7 +200,7 @@ public:
 		m_digits(*this, "digit%u", 0U),
 		m_lamps(*this, "lamp%u", 0U),
 		m_leds(*this, "led%u", 0U),
-		m_in0(*this, "IN0")
+		m_tz(*this, "IN%u", 0U)
 	{ }
 
 	void stellafr(machine_config &config);
@@ -215,25 +215,40 @@ private:
 	required_device<nvram_device> m_nvram;
 	required_device<ad7224_device> m_dac;
 	output_finder<8> m_digits;
-	output_finder<128> m_lamps;
+	output_finder<16,12> m_lamps;
 	output_finder<2> m_leds;
-	required_ioport m_in0;
+	required_ioport_array<1> m_tz;
 
-	uint8_t m_ma1;
-	uint8_t m_ma2;
+	uint16_t m_ma1;
+	uint16_t m_ma2;
 	uint8_t m_me;
 	uint8_t m_data3;
 	uint8_t m_anz1;
 	uint16_t m_mux1;
+	uint8_t m_muxout1;
 	uint8_t m_anz2;
-	uint8_t m_mux2;
+	uint16_t m_mux2;
+
+	uint8_t m_lz; // Lampenzeile = lamp row
+
+	uint8_t  m_anz_serienplan; // Anzout0
+	uint16_t m_anz_serienspeicher; // Anzout3
+	uint8_t  m_anz_einwurf; // Anzout4
+	uint16_t m_anz_muenzspeicher; // Anzout5
+
+	uint16_t m_service;
+	
+	void anz_en(uint8_t data);
+	void muenzspeicher_en(uint16_t data, bool second);
+	void serienspeicher_en(uint16_t data, bool second);
+	void lamps_en(uint16_t data, bool second);
+	void service_en(uint16_t data);
 
 	uint8_t mux_r();
 	void mux_w(uint8_t data);
 	void mux2_w(uint8_t data);
 	void duart_output_w(uint8_t data);
 	void ay8910_portb_w(uint8_t data);
-	void lamps_w(uint8_t row, uint16_t data);
 
 	void mem_map(address_map &map) ATTR_COLD;
 	void fc7_map(address_map &map) ATTR_COLD;
@@ -247,7 +262,8 @@ uint8_t stellafr_state::mux_r()
 	bool emp = false;
 	bool ma = false;
 	bool st = false;
-	bool t = false; // main buttons in
+	bool t = m_muxout1 & 0x01;
+	m_muxout1 = m_muxout1 >> 1;
 	bool t2 = false;
 	bool emp2 = false;
 	bool li2 = false;
@@ -266,15 +282,75 @@ uint8_t stellafr_state::mux_r()
 	return data;
 }
 
-void stellafr_state::lamps_w(uint8_t row, uint16_t data)
+void stellafr_state::anz_en(uint8_t data)
 {
-	LOG("Row %d\n",row);
-	for (int i = 0; i < 8; i++)
+	// data from 74HC4094 on lamp driver board is split ->
+	// anzout1,2,6,7 are NC
+	LOG("%s: anz_en %02x\n", machine().describe_context(), data);
+	m_anz_serienplan     = (m_anz_serienplan << 1) | BIT(data, 0);
+	// 2x74HC4094 chained
+	m_anz_serienspeicher = (m_anz_serienspeicher << 1) | BIT(data, 3);
+	// 74HC4094
+	m_anz_einwurf        = (m_anz_einwurf << 1) | BIT(data, 4);
+	// 2x74HC4094 chained
+	m_anz_muenzspeicher  = (m_anz_muenzspeicher << 1) | BIT(data, 5);
+}
+
+void stellafr_state::muenzspeicher_en(uint16_t data, bool second)
+{
+	//LOG("%s: muenzspeicher_en %04x\n", second ? "2nd" : "1st", data);
+	// dp,g,f,e,d,c,b,a
+	if (second) //100er & 1er
 	{
-		uint8_t lamp_index = (row * 10) + i;
-		bool lamp_value = BIT(data, i);
-		m_lamps[lamp_index] = lamp_value;
+		m_digits[4] = bitswap(data, 8, 3, 4, 2, 1, 0, 6, 5);
+		m_digits[2] = bitswap(data, 8, 12, 9, 14, 13, 15, 11, 10);
 	}
+	else // 10er & 0,10
+	{
+		m_digits[3] = bitswap(data, 8, 12, 9, 14, 13, 15, 11, 10);
+		m_digits[1] = bitswap(data, 8, 3, 4, 2, 1, 0, 6, 5);
+	}
+}
+
+void stellafr_state::serienspeicher_en(uint16_t data, bool second)
+{
+	//LOG("%s: serienspeicher_en %04x\n", second ? "2nd" : "1st", data);
+	// dp,g,f,e,d,c,b,a
+	if (second) //100er & 1er
+	{
+		m_digits[7] = bitswap(data, 8, 3, 4, 2, 1, 0, 6, 5);
+		m_digits[5] = bitswap(data, 8, 12, 9, 14, 13, 15, 11, 10);
+	}
+	else // 10er
+	{
+		m_digits[6] = bitswap(data, 8, 12, 9, 14, 13, 15, 11, 10);
+		m_digits[0] = bitswap(data, 8, 3, 4, 2, 1, 0, 6, 5); // 0,01 muenz
+	}
+}
+
+void stellafr_state::service_en(uint16_t data)
+{
+	m_service = data;
+}
+
+void stellafr_state::lamps_en(uint16_t data, bool second)
+{
+	uint16_t col_data = data & 0x0fff;
+	m_lz = (data >> 12) & 0x07;
+	bool ensdap = BIT(data, 15);
+
+	for (int i = 0; i < 12; i++)
+	{
+		bool lamp_value = BIT(col_data, i);
+		m_lamps[second ? 8 + m_lz : m_lz][i] = lamp_value;
+	}
+
+	if (!ensdap) // U5 on Serienplan board inverts it
+	{
+		serienspeicher_en(m_anz_serienspeicher,BIT(m_anz_muenzspeicher, 8));
+		muenzspeicher_en(m_anz_muenzspeicher,BIT(m_anz_muenzspeicher, 8));
+	}
+	m_muxout1 = 0;//m_tz[m_lz]->read();
 }
 
 void stellafr_state::mux_w(uint8_t data)
@@ -283,7 +359,7 @@ void stellafr_state::mux_w(uint8_t data)
 	bool enma2  = BIT(data,U5_EN2MA);
 	bool aw1    = BIT(data,U5_AW1);
 	bool aw2    = BIT(data,U5_AW2);
-	bool enanz1 = BIT(data,U5_ENANZ1); //enable 7seg
+	bool enanz1 = BIT(data,U5_ENANZ1); //enable displays
 	bool enmux1 = BIT(data,U5_ENMUX1); //enable lamps/buttons
 	bool enanz2 = BIT(data,U5_ENANZ2);
 	bool enmux2 = BIT(data,U5_ENMUX2);
@@ -295,15 +371,15 @@ void stellafr_state::mux_w(uint8_t data)
 	if (enma2)
 		; // LOG("2MA %d\n",m_ma2);
 	if (enanz1)
-		; // LOG("ANZ1 %d\n",m_anz1); //main 7seg led out
+		anz_en(m_anz1); //main 7seg displays out
 	if (enanz1)
-		; // LOG("ST %d\n",m_ma1);
+		service_en(m_ma1); //service out
 	if (enmux1)
-		lamps_w((m_mux1 >> 12) & 0x07, m_mux1 & 0x0FFF); //main lamps out
+		lamps_en(m_mux1, false); //main lamps out
 	if (enanz2)
 		; // LOG("ANZ2 %d\n",m_anz2);
 	if (enmux2)
-		; // LOG("MUX2 %d\n",m_mux2);
+		lamps_en(m_mux2, true); //second lamps out
 	if (aw1)
 		;
 	if (aw2)
@@ -312,8 +388,6 @@ void stellafr_state::mux_w(uint8_t data)
 
 void stellafr_state::mux2_w(uint8_t data)
 {
-	// anz goes into one 74hc4094
-	// mux has 2 chained for lamp cols 0 - 11, 3 bits for lz encoded and EnSDAp
 	m_ma1   = (m_ma1   << 1) | BIT(data,U1_1MA);
 	m_ma2   = (m_ma2   << 1) | BIT(data,U1_2MA);
 	m_me    = (m_me    << 1) | BIT(data,U1_ME);
@@ -360,7 +434,15 @@ void stellafr_state::machine_start()
 	m_digits.resolve();
 	m_lamps.resolve();
 	m_leds.resolve();
+	save_item(NAME(m_anz1));
 	save_item(NAME(m_mux1));
+	save_item(NAME(m_anz2));
+	save_item(NAME(m_mux2));
+	save_item(NAME(m_anz_serienspeicher));
+	save_item(NAME(m_anz_einwurf));
+	save_item(NAME(m_anz_muenzspeicher));
+	save_item(NAME(m_service));
+	save_item(NAME(m_muxout1));
 }
 
 void stellafr_state::machine_reset()
