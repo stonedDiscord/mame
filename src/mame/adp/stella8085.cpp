@@ -19,6 +19,7 @@ At least 4 different boards exist:
 4087-000-101 (3 ROM slots, RTC HD146818) used in doppelpot
 4109-000-101 (2 ROM slots, RTC 62421A) used in kniffi
 4382-000-101 (2 ROM slots, RTC 62421A) used in dicemstr
+4428-000-101 (ROM module connector) used in caramba
 
 Dice Master reference: https://www.youtube.com/watch?v=NlB06dMxjME
 Merkur Disc reference: https://www.youtube.com/watch?v=1NjJPkzg9Mk
