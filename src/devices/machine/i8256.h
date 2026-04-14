@@ -35,7 +35,7 @@
 #pragma once
 
 
-class i8256_device : public device_t // removed device_serial_interface
+class i8256_device : public device_t
 {
 public:
 	i8256_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
@@ -45,8 +45,8 @@ public:
 	auto extint_callback()  { return m_in_extint_cb.bind(); }
 
 	auto txd_handler() { return m_txd_handler.bind(); }
-	auto rxc_handler() { return m_rxc_handler.bind(); } // new: RxC output pin
-	auto txc_handler() { return m_txc_handler.bind(); } // new: TxC output pin
+	auto rxc_handler() { return m_rxc_handler.bind(); }
+	auto txc_handler() { return m_txc_handler.bind(); }
 
 	auto in_p2_callback()   { return m_in_p2_cb.bind(); }
 	auto out_p2_callback()  { return m_out_p2_cb.bind(); }
@@ -73,22 +73,20 @@ protected:
 	virtual void device_reset() override ATTR_COLD;
 
 private:
-	// serial state machine states // new
-	enum serial_state // new
+	enum serial_state
 	{
-		STATE_IDLE, // new
-		STATE_START, // new
-		STATE_DATA, // new
-		STATE_PARITY, // new
-		STATE_STOP // new
+		STATE_IDLE,
+		STATE_START,
+		STATE_DATA,
+		STATE_PARITY,
+		STATE_STOP
 	};
 
-	// parity types // new
-	enum parity_type // new
+	enum parity_type
 	{
-		PARITY_NONE, // new
-		PARITY_ODD, // new
-		PARITY_EVEN // new
+		PARITY_NONE,
+		PARITY_ODD,
+		PARITY_EVEN
 	};
 
 	devcb_read_line m_in_inta_cb;
@@ -96,8 +94,8 @@ private:
 	devcb_read_line m_in_extint_cb;
 
 	devcb_write_line m_txd_handler;
-	devcb_write_line m_rxc_handler; // new
-	devcb_write_line m_txc_handler; // new
+	devcb_write_line m_rxc_handler;
+	devcb_write_line m_txc_handler;
 
 	devcb_read8 m_in_p2_cb;
 	devcb_write8 m_out_p2_cb;
@@ -110,50 +108,45 @@ private:
 	bool m_txc;
 
 	uint8_t m_command1, m_command2, m_command3;
-	uint8_t m_data_bits; // new: decoded character length (5-8)
-	uint8_t m_parity; // was int, now uses parity_type enum
-	uint8_t m_stop_bits_mode; // new: replaces m_stop_bits, holds I8256_STOP_* value
-	uint8_t m_baud_sel; // new: lower 4 bits of command2
+	uint8_t m_data_bits;
+	uint8_t m_parity;
+	uint8_t m_stop_bits_mode;
+	uint8_t m_baud_sel;
 
 	uint8_t m_mode;
 	uint8_t m_port1_control;
 	uint8_t m_interrupts, m_current_interrupt_level;
 	uint8_t m_tx_buffer, m_rx_buffer;
-	bool m_tx_buffer_full; // new: explicit buffer-full flag
+	bool m_tx_buffer_full;
 	uint8_t m_port1_int, m_port2_int;
 	uint8_t m_timers[5];
 	emu_timer *m_timer;
 
 	uint8_t m_status, m_modification;
 
-	uint8_t m_br_factor;
-	uint32_t m_timer_freq; // new: calculated timer frequency in Hz
-	uint32_t m_bit_accumulator;  // Fractional bit timing accumulator for TX
-	uint32_t m_rx_accumulator;   // Fractional bit timing accumulator for RX
+	uint32_t m_timer_freq;
+	uint32_t m_bit_accumulator;
+	uint32_t m_rx_accumulator;
 
-	// transmitter shift register state // new
-	uint8_t m_tx_shift; // new
-	int m_tx_state; // new
-	int m_tx_bits; // new
-	int m_tx_parity; // new
-	int m_tx_counter; // new
-	int m_txd; // new: current TxD output value
+	// transmitter shift register state
+	uint8_t m_tx_shift;
+	int m_tx_state;
+	int m_tx_bits;
+	int m_tx_parity;
+	int m_txd;
 
-	// receiver shift register state // new
-	uint8_t m_rx_shift; // new
-	int m_rx_state; // new
-	int m_rx_bits; // new
-	int m_rx_parity; // new
-	int m_rx_counter; // new
-
-	int m_internal_txc; // new: subdivider counter for internal baud generator
+	// receiver shift register state
+	uint8_t m_rx_shift;
+	int m_rx_state;
+	int m_rx_bits;
+	int m_rx_parity;
 
 	TIMER_CALLBACK_MEMBER(timer_check);
 
 	void reset_timer();
-	void output_txd(int state); // new
-	void receive_clock(); // new: replaces rcv_complete
-	void transmit_clock(); // new: replaces tra_callback/tra_complete
+	void output_txd(int state);
+	void receive_clock();
+	void transmit_clock();
 };
 
 DECLARE_DEVICE_TYPE(I8256, i8256_device)
