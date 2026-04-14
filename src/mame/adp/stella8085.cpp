@@ -28,6 +28,7 @@ Nova Kniffi reference: https://www.youtube.com/watch?v=YBq2Z1irXek
 
 #include "emu.h"
 
+#include "bus/rs232/rs232.h"
 #include "cpu/i8085/i8085.h"
 #include "machine/i8256.h"
 #include "machine/i8279.h"
@@ -580,6 +581,10 @@ void stella8085_state::doppelpot(machine_config &config)
 	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
 	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
 	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
+	m_uart->txd_handler().set("rs232", FUNC(rs232_port_device::write_txd));
+
+	rs232_port_device &rs232(RS232_PORT(config, "rs232", default_rs232_devices, "terminal"));
+	rs232.rxd_handler().set(m_uart, FUNC(i8256_device::write_rxd));
 
 	I8279(config, m_kdc, 6.144_MHz_XTAL / 2);
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
