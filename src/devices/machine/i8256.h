@@ -131,6 +131,7 @@ private:
 	uint8_t m_status, m_modification;
 
 	uint8_t m_br_factor;
+	uint32_t m_timer_freq; // new: calculated timer frequency in Hz
 	uint32_t m_bit_accumulator;  // Fractional bit timing accumulator for TX
 	uint32_t m_rx_accumulator;   // Fractional bit timing accumulator for RX
 

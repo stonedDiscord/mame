@@ -198,7 +198,9 @@ void i8256_device::device_start()
 	save_item(NAME(m_br_factor));
 	save_item(NAME(m_baud_sel));
 	save_item(NAME(m_data_bits));
+	save_item(NAME(m_timer_freq));
 	save_item(NAME(m_bit_accumulator));
+	save_item(NAME(m_rx_accumulator));
 
 	save_item(NAME(m_tx_shift));
 	save_item(NAME(m_tx_state));
@@ -250,7 +252,6 @@ void i8256_device::device_reset()
 	m_tx_parity = 0;
 	m_tx_counter = 0;
 	m_internal_txc = 0;
-	output_txd(1);
 
 	m_rx_shift = 0;
 	m_rx_state = STATE_IDLE;
@@ -263,6 +264,7 @@ void i8256_device::device_reset()
 	m_data_bits = 8;
 	m_stop_bits_mode = I8256_STOP_1;
 	m_parity = PARITY_NONE;
+	m_timer_freq = 16000;
 	m_bit_accumulator = 0;
 	m_rx_accumulator = 0;
 
@@ -303,8 +305,9 @@ void i8256_device::reset_timer()
 	// For internal baud rate generator (serial), always use 16kHz regardless of FRQ
 	// FRQ bit only affects timer countdown operations, not serial baud rate
 	
-	const attotime TIME = attotime::from_hz((clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) / divider);
-	LOG("i8256 Timer frequency: %d Hz (clock=%d, divider=%d)\n", (clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) / divider, clock(), divider);
+	m_timer_freq = (clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) / divider;
+	const attotime TIME = attotime::from_hz(m_timer_freq);
+	LOG("i8256 Timer frequency: %d Hz (clock=%d, divider=%d)\n", m_timer_freq, clock(), divider);
 	m_timer->adjust(TIME, 0, TIME);
 }
 
@@ -366,18 +369,16 @@ TIMER_CALLBACK_MEMBER(i8256_device::timer_check)
 	// internal baud rate generator tick when baud_sel >= 3
 	if (m_baud_sel >= 3 && BAUD_RATES[m_baud_sel] > 0)
 	{
-		// Timer runs at 16 kHz for serial operations
-		
 		// TX: Use fractional bit timing accumulator for precise output
-		m_bit_accumulator += 16000;  // Add timer frequency
-		while (m_bit_accumulator >= BAUD_RATES[m_baud_sel])
+		m_bit_accumulator += BAUD_RATES[m_baud_sel];
+		while (m_bit_accumulator >= m_timer_freq)
 		{
-			m_bit_accumulator -= BAUD_RATES[m_baud_sel];
+			m_bit_accumulator -= m_timer_freq;
 			transmit_clock();
 		}
 		
-		// RX: Call at 16 kHz and let counter divide down to sample rate
-		// This keeps sampling synchronized with the 16 kHz timer, not clustering
+		// RX: Use fractional bit timing accumulator for precise sampling
+		m_rx_accumulator += BAUD_RATES[m_baud_sel];
 		receive_clock();
 		
 		// Always pulse the clock outputs for external devices
@@ -388,20 +389,14 @@ TIMER_CALLBACK_MEMBER(i8256_device::timer_check)
 
 void i8256_device::output_txd(int state)
 {
-		LOG("i8256 TxD output: %d (handler=%p)\n", state, (void*)&m_txd_handler);
 		m_txd = state;
-		LOG("i8256 About to call TxD handler with %d\n", m_txd);
 		m_txd_handler(m_txd);
-		LOG("i8256 TxD handler returned\n");
 }
 
 void i8256_device::receive_clock()
 {
 	if (!BIT(m_command3, I8256_CMD3_RxE))
 		return;
-
-	// Use accumulator for precise baud rate timing, called at 16 kHz
-	m_rx_accumulator += 16000;
 
 	switch (m_rx_state)
 	{
@@ -410,16 +405,16 @@ void i8256_device::receive_clock()
 		{
 			LOG("i8256 RX: Start bit detected\n");
 			m_rx_state = STATE_START;
-			m_rx_accumulator = 16000;  // Start accumulating from first timer tick
+			m_rx_accumulator = 0;
 			m_rx_counter = 0;
 		}
 		break;
 
 	case STATE_START:
-		// Sample start bit at middle (after ~half bit period)
-		// Baud rate = 4800, half period = 4800/2 = 2400 per bit
-		if (m_rx_accumulator >= (BAUD_RATES[m_baud_sel] / 2))
+		// Sample start bit at middle (after half bit period)
+		if (m_rx_accumulator >= (m_timer_freq / 2))
 		{
+			m_rx_accumulator -= (m_timer_freq / 2);
 			if (m_rxd && !BIT(m_modification, I8256_MOD_DSC))
 			{
 				LOG("i8256 RX: False start bit detected, aborting\n");
@@ -429,20 +424,17 @@ void i8256_device::receive_clock()
 			}
 			LOG("i8256 RX: Confirmed start bit, begin data\n");
 			m_rx_state = STATE_DATA;
-			// Don't reset accumulator - continue counting to sample first data bit at correct time
-			// We'll sample each data bit centered within the bit period
 			m_rx_shift = 0;
 			m_rx_parity = 0;
 			m_rx_bits = 0;
-			m_rx_counter = 0;
 		}
 		break;
 
 	case STATE_DATA:
 		// Sample each data bit (every full bit period)
-		if (m_rx_accumulator >= BAUD_RATES[m_baud_sel])
+		if (m_rx_accumulator >= m_timer_freq)
 		{
-			m_rx_accumulator -= BAUD_RATES[m_baud_sel];  // Keep fractional part, don't reset to 0
+			m_rx_accumulator -= m_timer_freq;
 			m_rx_shift |= (m_rxd ? 1 : 0) << m_rx_bits;
 			m_rx_parity ^= m_rxd;
 			m_rx_bits++;
@@ -453,9 +445,9 @@ void i8256_device::receive_clock()
 		break;
 
 	case STATE_PARITY:
-		if (m_rx_accumulator >= BAUD_RATES[m_baud_sel])
+		if (m_rx_accumulator >= m_timer_freq)
 		{
-			m_rx_accumulator -= BAUD_RATES[m_baud_sel];
+			m_rx_accumulator -= m_timer_freq;
 			int expected = (m_parity == PARITY_ODD) ? !m_rx_parity : m_rx_parity;
 			if (m_rxd != expected)
 			{
@@ -473,9 +465,9 @@ void i8256_device::receive_clock()
 		break;
 
 	case STATE_STOP:
-		if (m_rx_accumulator >= BAUD_RATES[m_baud_sel])
+		if (m_rx_accumulator >= m_timer_freq)
 		{
-			m_rx_accumulator -= BAUD_RATES[m_baud_sel];
+			m_rx_accumulator -= m_timer_freq;
 			m_rx_bits++;
 			int stop_count = (m_stop_bits_mode == I8256_STOP_2) ? 2 : 1;
 			if (m_rx_bits >= stop_count)
@@ -527,8 +519,6 @@ void i8256_device::transmit_clock()
 		}
 		else
 		{
-			if (m_tx_buffer_full && m_cts)
-				LOG("i8256 TX: Blocked - CTS=%d, buffer_full=%d\n", m_cts, m_tx_buffer_full);
 			output_txd(1);
 		}
 		break;
@@ -560,6 +550,7 @@ void i8256_device::transmit_clock()
 		break;
 
 	case STATE_STOP:
+		output_txd(1); // ensure stop bit is high
 		m_tx_bits++;
 		const int stop_count = (m_stop_bits_mode == I8256_STOP_2) ? 2 : 1; // 1.5 and 0.75 treated as 1 here
 		if (m_tx_bits >= stop_count)
@@ -672,8 +663,8 @@ void i8256_device::write(offs_t offset, u8 data)
 		// br_factor = number of 16 kHz timer ticks per baud rate bit
 		if (m_baud_sel >= 3 && BAUD_RATES[m_baud_sel] > 0)
 		{
-			// Internal clock: br_factor = 16000 / baud_rate (rounded)
-			m_br_factor = (16000 + BAUD_RATES[m_baud_sel] / 2) / BAUD_RATES[m_baud_sel];
+			// Internal clock: br_factor = m_timer_freq / baud_rate (rounded)
+			m_br_factor = (m_timer_freq + BAUD_RATES[m_baud_sel] / 2) / BAUD_RATES[m_baud_sel];
 			LOG("I8256: Internal baud mode, br_factor=%d for %d bps\n", m_br_factor, BAUD_RATES[m_baud_sel]);
 		}
 		else if (m_baud_sel == 1)
