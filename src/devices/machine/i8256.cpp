@@ -652,9 +652,6 @@ void i8256_device::write(offs_t offset, u8 data)
 			else
 				m_command3 &= ~(data & 0x7f);
 
-				BIT(m_command3,I8256_CMD3_RxE), BIT(m_command3,I8256_CMD3_TBRK),
-				BIT(m_command3,I8256_CMD3_SBRK), BIT(m_command3,I8256_CMD3_IAE));
-
 			if (BIT(m_command3,I8256_CMD3_RST))
 			{
 				m_interrupts = 0;
