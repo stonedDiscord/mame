@@ -34,14 +34,10 @@
 
 #pragma once
 
-#include "diserial.h"
 
-
-class i8256_device : public device_t, public device_serial_interface
+class i8256_device : public device_t
 {
 public:
-	static constexpr flags_type emulation_flags() { return flags::SAVE_UNSUPPORTED; }
-
 	i8256_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
 	auto inta_callback()    { return m_in_inta_cb.bind(); }
@@ -49,6 +45,8 @@ public:
 	auto extint_callback()  { return m_in_extint_cb.bind(); }
 
 	auto txd_handler() { return m_txd_handler.bind(); }
+	auto rxc_handler() { return m_rxc_handler.bind(); }
+	auto txc_handler() { return m_txc_handler.bind(); }
 
 	auto in_p2_callback()   { return m_in_p2_cb.bind(); }
 	auto out_p2_callback()  { return m_out_p2_cb.bind(); }
@@ -62,6 +60,8 @@ public:
 
 	void write(offs_t offset, u8 data);
 	uint8_t read(offs_t offset);
+	uint8_t acknowledge();
+	void gen_interrupt(uint8_t level);
 
 	uint8_t p1_r();
 	void    p1_w(uint8_t data);
@@ -73,53 +73,80 @@ protected:
 	virtual void device_reset() override ATTR_COLD;
 
 private:
+	enum serial_state
+	{
+		STATE_IDLE,
+		STATE_START,
+		STATE_DATA,
+		STATE_PARITY,
+		STATE_STOP
+	};
+
+	enum parity_type
+	{
+		PARITY_NONE,
+		PARITY_ODD,
+		PARITY_EVEN
+	};
+
 	devcb_read_line m_in_inta_cb;
 	devcb_write_line m_out_int_cb;
 	devcb_read_line m_in_extint_cb;
 
 	devcb_write_line m_txd_handler;
+	devcb_write_line m_rxc_handler;
+	devcb_write_line m_txc_handler;
 
 	devcb_read8 m_in_p2_cb;
 	devcb_write8 m_out_p2_cb;
 	devcb_read8 m_in_p1_cb;
 	devcb_write8 m_out_p1_cb;
 
-	int32_t m_rxc;
-	int32_t m_rxd;
-	int32_t m_cts;
-	int32_t m_txc;
+	bool m_rxc;
+	bool m_rxd;
+	bool m_cts;
+	bool m_txc;
 
 	uint8_t m_command1, m_command2, m_command3;
-	uint8_t m_data_bits_count;
-	parity_t m_parity;
-	stop_bits_t m_stop_bits;
+	uint8_t m_data_bits;
+	uint8_t m_parity;
+	uint8_t m_stop_bits_mode;
+	uint8_t m_baud_sel;
 
 	uint8_t m_mode;
 	uint8_t m_port1_control;
 	uint8_t m_interrupts, m_current_interrupt_level;
 	uint8_t m_tx_buffer, m_rx_buffer;
+	bool m_tx_buffer_full;
 	uint8_t m_port1_int, m_port2_int;
 	uint8_t m_timers[5];
 	emu_timer *m_timer;
 
 	uint8_t m_status, m_modification;
 
-	uint8_t m_sync_byte_count, m_rxc_count, m_txc_count;
-	uint8_t m_br_factor;
-	uint8_t m_rxd_bits;
-	uint8_t m_rx_data, m_tx_data;
-	uint8_t m_sync1, m_sync2, m_sync8, m_sync16;
+	uint32_t m_timer_freq;
+	uint32_t m_bit_accumulator;
+	uint32_t m_rx_accumulator;
+
+	// transmitter shift register state
+	uint8_t m_tx_shift;
+	int m_tx_state;
+	int m_tx_bits;
+	int m_tx_parity;
+	int m_txd;
+
+	// receiver shift register state
+	uint8_t m_rx_shift;
+	int m_rx_state;
+	int m_rx_bits;
+	int m_rx_parity;
 
 	TIMER_CALLBACK_MEMBER(timer_check);
 
+	void reset_timer();
+	void output_txd(int state);
 	void receive_clock();
-	void sync1_rxc();
-	void sync2_rxc();
-	bool is_tx_enabled();
-	void check_for_tx_start();
-	void start_tx();
 	void transmit_clock();
-	void receive_character(uint8_t ch);
 };
 
 DECLARE_DEVICE_TYPE(I8256, i8256_device)

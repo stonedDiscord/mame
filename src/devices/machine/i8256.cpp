@@ -55,21 +55,7 @@ enum
 	I8256_STOP_075
 };
 
-constexpr device_serial_interface::stop_bits_t STOP_BITS[4] =
-{
-	device_serial_interface::STOP_BITS_1,
-	device_serial_interface::STOP_BITS_1_5,
-	device_serial_interface::STOP_BITS_2,
-	device_serial_interface::STOP_BITS_0
-};
-
-enum
-{
-	I8256_CHARLEN_8,
-	I8256_CHARLEN_7,
-	I8256_CHARLEN_6,
-	I8256_CHARLEN_5
-};
+constexpr int CHAR_LEN[4] = { 8, 7, 6, 5 };
 
 enum
 {
@@ -83,35 +69,7 @@ enum
 	I8256_CMD2_PARITY_ENABLE
 };
 
-enum
-{
-	I8256_BAUD_TXC,
-	I8256_BAUD_TXC64,
-	I8256_BAUD_TXC32,
-	I8256_BAUD_19200,
-	I8256_BAUD_9600,
-	I8256_BAUD_4800,
-	I8256_BAUD_2400,
-	I8256_BAUD_1200,
-	I8256_BAUD_600,
-	I8256_BAUD_300,
-	I8256_BAUD_200,
-	I8256_BAUD_150,
-	I8256_BAUD_110,
-	I8256_BAUD_100,
-	I8256_BAUD_75,
-	I8256_BAUD_50
-};
-
 constexpr int BAUD_RATES[16] = { 0, 0, 0, 19200, 9600, 4800, 2400, 1200, 600, 300, 200, 150, 110, 100, 75, 50 };
-
-enum
-{
-	I8256_SCLK_DIV5, // 5.12 MHz
-	I8256_SCLK_DIV3, // 3.072 MHz
-	I8256_SCLK_DIV2, // 2.048 MHz
-	I8256_SCLK_DIV1  // 1.024 MHz
-};
 
 constexpr int SYS_CLOCK_DIVIDER[4] = {5,3,2,1};
 
@@ -194,26 +152,28 @@ DEFINE_DEVICE_TYPE(I8256, i8256_device, "intel_8256", "Intel 8256AH Multifunctio
 
 i8256_device::i8256_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	device_t(mconfig, I8256, tag, owner, clock),
-	device_serial_interface(mconfig, *this),
 	m_in_inta_cb(*this, 0),
 	m_out_int_cb(*this),
 	m_in_extint_cb(*this, 0),
 	m_txd_handler(*this),
+	m_rxc_handler(*this),
+	m_txc_handler(*this),
 	m_in_p2_cb(*this, 0),
 	m_out_p2_cb(*this),
 	m_in_p1_cb(*this, 0),
 	m_out_p1_cb(*this),
 	m_rxc(0),
 	m_rxd(1),
-	m_cts(1),
+	m_cts(0),
 	m_txc(0),
-	m_timer(nullptr)
+	m_timer(nullptr),
+	m_txd(-1)  // first output_txd call triggers
 {
 }
 
 void i8256_device::device_start()
 {
-	// FIXME: not everything that needs to be is saved here
+	// internal register
 	save_item(NAME(m_command1));
 	save_item(NAME(m_command2));
 	save_item(NAME(m_command3));
@@ -223,12 +183,38 @@ void i8256_device::device_start()
 	save_item(NAME(m_current_interrupt_level));
 	save_item(NAME(m_rx_buffer));
 	save_item(NAME(m_tx_buffer));
+	save_item(NAME(m_tx_buffer_full));
 	save_item(NAME(m_port1_int));
 	save_item(NAME(m_port2_int));
 	save_item(NAME(m_timers));
 	save_item(NAME(m_status));
+	save_item(NAME(m_modification));
+
+	save_item(NAME(m_parity));
+	save_item(NAME(m_stop_bits_mode));
+	save_item(NAME(m_baud_sel));
+	save_item(NAME(m_data_bits));
+	save_item(NAME(m_timer_freq));
+	save_item(NAME(m_bit_accumulator));
+	save_item(NAME(m_rx_accumulator));
+
+	save_item(NAME(m_tx_shift));
+	save_item(NAME(m_tx_state));
+	save_item(NAME(m_tx_bits));
+	save_item(NAME(m_tx_parity));
+	save_item(NAME(m_txd));
+	save_item(NAME(m_cts));
+
+	save_item(NAME(m_rx_shift));
+	save_item(NAME(m_rx_state));
+	save_item(NAME(m_rx_bits));
+	save_item(NAME(m_rx_parity));
+	save_item(NAME(m_rxd));
+	save_item(NAME(m_rxc));
 
 	m_timer = timer_alloc(FUNC(i8256_device::timer_check), this);
+
+	memset(m_timers, 0, sizeof(m_timers));
 }
 
 void i8256_device::device_reset()
@@ -239,31 +225,311 @@ void i8256_device::device_reset()
 	m_mode = 0;
 	m_port1_control = 0;
 	m_interrupts = 0;
+	m_modification = 0;
 
 	m_tx_buffer = 0;
+	m_tx_buffer_full = false;
 	m_rx_buffer = 0;
 	m_port1_int = 0;
 	m_port2_int = 0;
-	memset(m_timers, 0, sizeof(m_timers));
+
+	m_current_interrupt_level = 0;
+	m_out_int_cb(CLEAR_LINE);
 
 	m_status = 0x30; // TRE and TBE
 
-	m_timer->adjust(attotime::from_hz(16000), 0, attotime::from_hz(16000));
+	m_tx_shift = 0;
+	m_tx_state = STATE_IDLE;
+	m_tx_bits = 0;
+	m_tx_parity = 0;
+
+	m_rx_shift = 0;
+	m_rx_state = STATE_IDLE;
+	m_rx_bits = 0;
+	m_rx_parity = 0;
+
+	m_baud_sel = 0;
+	m_data_bits = 8;
+	m_stop_bits_mode = I8256_STOP_1;
+	m_parity = PARITY_NONE;
+	m_timer_freq = 16000;
+	m_bit_accumulator = 0;
+	m_rx_accumulator = 0;
+
+	m_txd = -1;  // Force TxD update on next call
+	output_txd(1);  // TxD idle = high
+
+	reset_timer();
+}
+
+uint8_t i8256_device::acknowledge()
+{
+	if (BIT(m_command3,I8256_CMD3_IAE) == 0)
+		return 0x00;
+
+	const uint8_t vector = m_current_interrupt_level;
+
+	if (!machine().side_effects_disabled())
+	{
+		m_out_int_cb(CLEAR_LINE);
+		m_status &= ~(1 << I8256_STATUS_INT);
+		m_current_interrupt_level = 0;
+	}
+
+	if (BIT(m_command1,I8256_CMD1_8086)) // 8086 mode, TODO: only on second INTA
+		return 0x40 | vector;
+	else
+		return 0xc7 | (vector << 3); // 8085 mode c7 = rst 0, ff = rst 7
+}
+
+void i8256_device::reset_timer()
+{
+	int divider = 64; // Use 16kHz for serial (default)
+	// For internal baud rate generator (serial), always use 16kHz regardless of FRQ
+	// FRQ bit only affects timer countdown operations, not serial baud rate
+
+	m_timer_freq = (clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) / divider;
+	const attotime TIME = attotime::from_hz(m_timer_freq);
+	m_timer->adjust(TIME, 0, TIME);
+}
+
+void i8256_device::gen_interrupt(uint8_t level)
+{
+	if (BIT(m_interrupts, level))
+	{
+		m_current_interrupt_level = level;
+		m_out_int_cb(ASSERT_LINE);
+		m_status |= (1 << I8256_STATUS_INT);
+	}
 }
 
 TIMER_CALLBACK_MEMBER(i8256_device::timer_check)
 {
+	bool t24 = BIT(m_mode, I8256_MODE_T24);
+	bool t35 = BIT(m_mode, I8256_MODE_T35);
 	for (int i = 0; i < 5; ++i)
 	{
-		if (m_timers[i] > 0)
+		if ((i == 1 && t24) || (i == 2 && t35))
 		{
-			m_timers[i]--;
-			if (m_timers[i] == 0 && BIT(m_interrupts,timer_interrupt[i])) // If the interrupt is enabled
+			// cascaded low timer
+			int high_index = (i == 1) ? 3 : 4;
+			int int_level = (i == 1) ? I8256_INT_TIMER4 : I8256_INT_TIMER5;
+			if (m_timers[i] > 0)
 			{
-				m_current_interrupt_level = timer_interrupt[i];
-				m_out_int_cb(1); // it occurs when the counter changes from 1 to 0.
+				m_timers[i]--;
+				if (m_timers[i] == 0)
+				{
+					if (m_timers[high_index] > 0)
+					{
+						m_timers[high_index]--;
+						m_timers[i] = 255;
+					}
+					if (m_timers[high_index] == 0 )
+						gen_interrupt(int_level);
+				}
 			}
 		}
+		else if (!((i == 3 && t24) || (i == 4 && t35)))
+		{
+			// normal timer, not cascaded high
+			if (m_timers[i] > 0)
+			{
+				m_timers[i]--;
+				if (m_timers[i] == 0 && BIT(m_interrupts, timer_interrupt[i]))
+				{
+					// For Timer2, only trigger if BITI=0
+					if (i == I8256_INT_TIMER2 && BIT(m_command1, I8256_CMD1_BITI))
+						continue;
+
+					gen_interrupt(timer_interrupt[i]);
+				}
+			}
+		}
+	}
+
+	// internal baud rate generator tick when baud_sel >= 3
+	if (m_baud_sel >= 3 && BAUD_RATES[m_baud_sel] > 0)
+	{
+		// TX: Use fractional bit timing accumulator for precise output
+		m_bit_accumulator += BAUD_RATES[m_baud_sel];
+		while (m_bit_accumulator >= m_timer_freq)
+		{
+			m_bit_accumulator -= m_timer_freq;
+			transmit_clock();
+		}
+
+		// RX: Use fractional bit timing accumulator for precise sampling
+		m_rx_accumulator += BAUD_RATES[m_baud_sel];
+		receive_clock();
+
+		// Always pulse the clock outputs for external devices
+		m_rxc_handler(0); m_rxc_handler(1);
+		m_txc_handler(0); m_txc_handler(1);
+	}
+}
+
+void i8256_device::output_txd(int state)
+{
+		m_txd = state;
+		m_txd_handler(m_txd);
+}
+
+void i8256_device::receive_clock()
+{
+	if (!BIT(m_command3, I8256_CMD3_RxE))
+		return;
+
+	switch (m_rx_state)
+	{
+	case STATE_IDLE:
+		if (!m_rxd)
+		{
+			m_rx_state = STATE_START;
+			m_rx_accumulator = 0;
+		}
+		break;
+
+	case STATE_START:
+		// Sample start bit at middle (after half bit period)
+		if (m_rx_accumulator >= (m_timer_freq / 2))
+		{
+			m_rx_accumulator -= (m_timer_freq / 2);
+			if (m_rxd && !BIT(m_modification, I8256_MOD_DSC))
+			{
+				m_rx_state = STATE_IDLE;
+				m_rx_accumulator = 0;
+				break;
+			}
+			m_rx_state = STATE_DATA;
+			m_rx_shift = 0;
+			m_rx_parity = 0;
+			m_rx_bits = 0;
+		}
+		break;
+
+	case STATE_DATA:
+		// Sample each data bit (every full bit period)
+		if (m_rx_accumulator >= m_timer_freq)
+		{
+			m_rx_accumulator -= m_timer_freq;
+			m_rx_shift |= (m_rxd ? 1 : 0) << m_rx_bits;
+			m_rx_parity ^= m_rxd;
+			m_rx_bits++;
+			if (m_rx_bits == m_data_bits)
+				m_rx_state = (m_parity != PARITY_NONE) ? STATE_PARITY : STATE_STOP;
+		}
+		break;
+
+	case STATE_PARITY:
+		if (m_rx_accumulator >= m_timer_freq)
+		{
+			m_rx_accumulator -= m_timer_freq;
+			int expected = (m_parity == PARITY_ODD) ? !m_rx_parity : m_rx_parity;
+			if (m_rxd != expected)
+			{
+				m_status |= (1 << I8256_STATUS_PARITY_ERROR);
+			}
+			else
+			{
+				m_status &= ~(1 << I8256_STATUS_PARITY_ERROR);
+			}
+			m_rx_state = STATE_STOP;
+			m_rx_bits = 0;
+		}
+		break;
+
+	case STATE_STOP:
+		if (m_rx_accumulator >= m_timer_freq)
+		{
+			m_rx_accumulator -= m_timer_freq;
+			m_rx_bits++;
+			int stop_count = (m_stop_bits_mode == I8256_STOP_2) ? 2 : 1;
+			if (m_rx_bits >= stop_count)
+			{
+				if (!BIT(m_modification, I8256_MOD_TME))
+				{
+					if (!m_rxd)
+						m_status |= (1 << I8256_STATUS_FRAMING_ERROR);
+					else
+						m_status &= ~(1 << I8256_STATUS_FRAMING_ERROR);
+				}
+				if (m_status & (1 << I8256_STATUS_RB_FULL))
+				{
+					m_status |= (1 << I8256_STATUS_OVERRUN_ERROR);
+					logerror("i8256 RX: OVERRUN ERROR\n");
+				}
+				else
+				{
+					m_rx_buffer = m_rx_shift & ((1 << m_data_bits) - 1);
+					m_status |= (1 << I8256_STATUS_RB_FULL);
+					gen_interrupt(I8256_INT_RX);
+				}
+				m_rx_state = STATE_IDLE;
+				m_rx_accumulator = 0;
+			}
+		}
+		break;
+	}
+}
+
+void i8256_device::transmit_clock()
+{
+	switch (m_tx_state)
+	{
+	case STATE_IDLE:
+		if (m_tx_buffer_full && !m_cts)
+		{
+			m_tx_shift = m_tx_buffer;
+			m_tx_buffer_full = false;
+			m_status |= (1 << I8256_STATUS_TB_EMPTY);
+			m_status &= ~(1 << I8256_STATUS_TR_EMPTY);
+			gen_interrupt(I8256_INT_TX); // TBE interrupt
+			m_tx_bits = 0;
+			m_tx_parity = 0;
+			output_txd(0); // start bit
+			m_tx_state = STATE_DATA;
+		}
+		else
+		{
+			output_txd(1);
+		}
+		break;
+
+	case STATE_DATA:
+		if (m_tx_bits < m_data_bits)
+		{
+			int bit = (m_tx_shift >> m_tx_bits) & 1;
+			output_txd(bit);
+			m_tx_parity ^= bit;
+			m_tx_bits++;
+		}
+		else if (m_parity != PARITY_NONE)
+		{
+			int parity_bit = (m_parity == PARITY_ODD) ? !m_tx_parity : m_tx_parity;
+			output_txd(parity_bit);
+			m_tx_state = STATE_STOP;
+			m_tx_bits = 0;
+		}
+		else
+		{
+			output_txd(1);
+			m_tx_state = STATE_STOP;
+			m_tx_bits = 0;
+		}
+		break;
+
+	case STATE_STOP:
+		output_txd(1);
+		m_tx_bits++;
+		const int stop_count = (m_stop_bits_mode == I8256_STOP_2) ? 2 : 1; // 1.5 and 0.75 treated as 1 here
+		if (m_tx_bits >= stop_count)
+		{
+			m_status |= (1 << I8256_STATUS_TR_EMPTY);
+			gen_interrupt(I8256_INT_TX); // TRE interrupt
+			m_tx_state = STATE_IDLE;
+			m_tx_bits = 0;
+		}
+		break;
 	}
 }
 
@@ -291,9 +557,17 @@ uint8_t i8256_device::read(offs_t offset)
 		case I8256_REG_INTEN:
 			return m_interrupts;
 		case I8256_REG_INTAD:
-			m_out_int_cb(0);
+			if (!machine().side_effects_disabled())
+			{
+				m_out_int_cb(CLEAR_LINE);
+				m_status &= ~(1 << I8256_STATUS_INT);
+			}
 			return m_current_interrupt_level*4;
 		case I8256_REG_BUFFER:
+			if (!machine().side_effects_disabled())
+			{
+				m_status &= ~(1 << I8256_STATUS_RB_FULL);
+			}
 			return m_rx_buffer;
 		case I8256_REG_PORT1:
 			return m_port1_int;
@@ -308,7 +582,7 @@ uint8_t i8256_device::read(offs_t offset)
 		case I8256_REG_STATUS:
 			return m_status;
 		default:
-			LOG("I8256 Read unmapped register: %u\n", reg);
+			logerror("I8256 Read unmapped register: %u\n", reg);
 			return 0xff;
 	}
 }
@@ -335,18 +609,13 @@ void i8256_device::write(offs_t offset, u8 data)
 			{
 				m_command1 = data;
 
-				if (BIT(m_command1,I8256_CMD1_FRQ))
-					m_timer->adjust(attotime::from_hz(1000), 0, attotime::from_hz(1000));
-				else
-					m_timer->adjust(attotime::from_hz(16000), 0, attotime::from_hz(16000));
+				reset_timer();
 
 				if (BIT(m_command1,I8256_CMD1_8086))
 					LOG("I8256 Enabled 8086 mode\n");
 
-				m_data_bits_count = 8 - (BIT(m_command1, I8256_CMD1_L0) | (BIT(m_command1, I8256_CMD1_L1) << 1));
-				m_stop_bits = STOP_BITS[BIT(m_command1, I8256_CMD1_S0) | (BIT(m_command1, I8256_CMD1_S1) << 1)];
-
-				set_data_frame(1, m_data_bits_count, m_parity, m_stop_bits);
+				m_data_bits = CHAR_LEN[(m_command1 >> 6) & 0x03];
+				m_stop_bits_mode = (m_command1 >> 4) & 0x03;
 			}
 			break;
 		case I8256_REG_CMD2:
@@ -354,26 +623,50 @@ void i8256_device::write(offs_t offset, u8 data)
 			{
 				m_command2 = data;
 
-				set_rate(BAUD_RATES[m_command2 & 0x0f]);
+				m_baud_sel = m_command2 & 0x0f;
 
 				if (BIT(m_command2,I8256_CMD2_PARITY_ENABLE))
 					m_parity = BIT(m_command2,I8256_CMD2_EVEN_PARITY) ? PARITY_EVEN : PARITY_ODD;
 				else
 					m_parity = PARITY_NONE;
 
-				set_data_frame(1, m_data_bits_count, m_parity, m_stop_bits);
+				if ((clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) != 1024000)
+					logerror("I8256 Internal Clock should be 1024000, calculated: %u\n", (clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]));
 
-				LOG("I8256 Clock Scale: %u\n", SYS_CLOCK_DIVIDER[(m_command2 & 0x30 >> 4)]);
-				if ((clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30 >> 4)]) != 1024000)
-					logerror("I8256 Internal Clock should be 1024000, calculated: %u\n", (clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30 >> 4)]));
+				if (m_baud_sel >= 3)
+				{
+					m_rx_state = STATE_IDLE;
+					m_tx_state = STATE_IDLE;
+				}
+				else
+				{
+					LOG("I8256: Expecting external clock on TxC/RxC\n");
+				}
+
+				reset_timer();
 			}
 			break;
 		case I8256_REG_CMD3:
-			m_command3 = data;
+			if (BIT(data, I8256_CMD3_SET))
+				m_command3 |= (data & 0x7f);
+			else
+				m_command3 &= ~(data & 0x7f);
+
+				BIT(m_command3,I8256_CMD3_RxE), BIT(m_command3,I8256_CMD3_TBRK),
+				BIT(m_command3,I8256_CMD3_SBRK), BIT(m_command3,I8256_CMD3_IAE));
+
 			if (BIT(m_command3,I8256_CMD3_RST))
 			{
 				m_interrupts = 0;
 				m_status = 0x30;
+				m_current_interrupt_level = 0;
+				m_out_int_cb(CLEAR_LINE);
+				m_rx_state = STATE_IDLE;
+				m_rx_accumulator = 0;
+				m_tx_state = STATE_IDLE;
+				m_bit_accumulator = 0;
+				output_txd(1);
+				m_command3 &= ~(1 << I8256_CMD3_RST);
 			}
 			break;
 		case I8256_REG_MODE:
@@ -385,12 +678,13 @@ void i8256_device::write(offs_t offset, u8 data)
 		case I8256_REG_INTEN:
 			m_interrupts = m_interrupts | data;
 			break;
-		case I8256_REG_INTAD: // reset interrupt
+		case I8256_REG_INTAD:
 			m_interrupts = m_interrupts & ~data;
 			break;
 		case I8256_REG_BUFFER:
-			LOG("I8256 write serial: %u\n", data);
 			m_tx_buffer = data;
+			m_tx_buffer_full = true;
+			m_status &= ~ (1 << I8256_STATUS_TB_EMPTY);
 			break;
 		case I8256_REG_PORT1:
 			m_port1_int = data;
@@ -401,52 +695,89 @@ void i8256_device::write(offs_t offset, u8 data)
 		case I8256_REG_TIMER1:
 		case I8256_REG_TIMER2:
 		case I8256_REG_TIMER3:
+			m_timers[reg-10] = data;
+			break;
 		case I8256_REG_TIMER4:
+			if (BIT(m_mode, I8256_MODE_T24)) m_timers[1] = 255;
+			m_timers[reg-10] = data;
+			break;
 		case I8256_REG_TIMER5:
+			if (BIT(m_mode, I8256_MODE_T35)) m_timers[2] = 255;
 			m_timers[reg-10] = data;
 			break;
 		case I8256_REG_STATUS:
 			m_modification = data;
 			break;
 		default:
-			LOG("I8256 Unmapped write %02x to %02x\n", data, reg);
+			logerror("I8256 Unmapped write %02x to %02x\n", data, reg);
 			break;
 	}
 }
 
 uint8_t i8256_device::p1_r()
 {
-	// if control bit is 0 (input), read from callback else use output latch
 	uint8_t input = m_in_p1_cb(0);
-	uint8_t result = 0;
-	for (int i = 0; i < 8; i++)
-	{
-		if (BIT(m_port1_control, i)) // output
-			result |= (m_port1_int & (1 << i));
-		else // input
-			result |= (input & (1 << i));
-	}
-	return result;
+	// For output bits: use latched value, for input bits: use current input
+	return (m_port1_int & m_port1_control) | (input & ~m_port1_control);
 }
 
 void i8256_device::p1_w(uint8_t data)
 {
+	// Check for P17 interrupt if BITI=1
+	if (BIT(m_command1, I8256_CMD1_BITI) && !BIT(m_port1_int, 7) && BIT(data, 7))
+	{
+		gen_interrupt(I8256_INT_TIMER2);
+	}
+
 	m_port1_int = (m_port1_int & ~m_port1_control) | (data & m_port1_control);
 	m_out_p1_cb(0, m_port1_int & m_port1_control);
 }
 
 uint8_t i8256_device::p2_r()
 {
-	uint8_t p2c = m_mode & 0x03;
-	if (p2c == I8256_PORT2C_II || p2c == I8256_PORT2C_IO)
-		return m_in_p2_cb(0);
-	else
-		return m_port2_int;
+	uint8_t p2c = m_mode & 0x07;
+	uint8_t result = 0;
+
+	switch (p2c)
+	{
+		case I8256_PORT2C_IO:
+			result = m_in_p2_cb(0) & 0x0f;
+			result |= m_port2_int & 0xf0;
+			break;
+		case I8256_PORT2C_OI:
+			result = m_port2_int & 0x0f;
+			result |= m_in_p2_cb(0) & 0xf0;
+			break;
+		case I8256_PORT2C_OO:
+			result = m_port2_int;
+			break;
+		case I8256_PORT2C_HI:
+			// TODO Handshake
+			result = m_in_p2_cb(0);
+			break;
+		case I8256_PORT2C_HO:
+			// TODO Handshake
+			result = m_port2_int;
+			break;
+		case I8256_PORT2C_DNU:
+			// Do not use
+			result = 0;
+			break;
+		case I8256_PORT2C_TEST:
+			// TODO Test mode
+			result = 0;
+			break;
+		case I8256_PORT2C_II:
+		default:
+			result = m_in_p2_cb(0);
+			break;
+	}
+	return result;
 }
 
 void i8256_device::p2_w(uint8_t data)
 {
-	uint8_t p2c = m_mode & 0x03;
+	uint8_t p2c = m_mode & 0x07;
 	m_port2_int = data;
 	uint8_t port2_data = 0;
 	switch (p2c)
@@ -454,225 +785,44 @@ void i8256_device::p2_w(uint8_t data)
 		case I8256_PORT2C_IO: port2_data = m_port2_int & 0x0f; break;
 		case I8256_PORT2C_OI: port2_data = m_port2_int & 0xf0; break;
 		case I8256_PORT2C_OO: port2_data = m_port2_int; break;
+		case I8256_PORT2C_HI: port2_data = 0; break;
+		case I8256_PORT2C_HO: port2_data = m_port2_int; break;
+		case I8256_PORT2C_DNU: port2_data = 0; break;
+		case I8256_PORT2C_TEST: port2_data = 0; break;
 		default: port2_data = 0; break;
 	}
-	if (p2c == I8256_PORT2C_IO || p2c == I8256_PORT2C_OI || p2c == I8256_PORT2C_OO)
+	if (p2c == I8256_PORT2C_IO || p2c == I8256_PORT2C_OI || p2c == I8256_PORT2C_OO || p2c == I8256_PORT2C_HO)
 		m_out_p2_cb(0, port2_data);
 }
 
-
 /*-------------------------------------------------
-    receive_clock
+    serial interface
 -------------------------------------------------*/
-
-void i8256_device::receive_clock()
-{
-	// receive enable?
-	if (BIT(m_command3, I8256_CMD3_RxE))
-	{
-		const bool sync = is_receive_register_synchronized();
-		if (sync)
-		{
-			--m_rxc_count;
-			if (m_rxc_count)
-				return;
-		}
-
-		//logerror("i8256\n");
-		// get bit received from other side and update receive register
-		//LOGBITS("8256: Rx Sampled %d\n", m_rxd);
-		receive_register_update_bit(m_rxd);
-		if (is_receive_register_synchronized())
-			m_rxc_count = sync ? m_br_factor : (3 * m_br_factor / 2);
-
-		if (is_receive_register_full())
-		{
-			receive_register_extract();
-			if (is_receive_parity_error())
-				m_status |= I8256_STATUS_PARITY_ERROR;
-			if (is_receive_framing_error())
-				m_status |= I8256_STATUS_FRAMING_ERROR;
-			receive_character(get_received_char());
-		}
-	}
-}
-
-void i8256_device::sync1_rxc()
-{
-	// is rx enabled?
-	if (!BIT(m_command3, I8256_CMD3_RxE))
-		return;
-
-	u8 need_parity = BIT(m_command2, I8256_CMD2_PARITY_ENABLE);
-
-	// see about parity
-	if (need_parity && (m_rxd_bits == m_data_bits_count))
-	{
-		if ((population_count_32(m_sync1) & 1) != m_rxd)
-			m_status |= I8256_STATUS_PARITY_ERROR;
-		// and then continue on as if everything was ok
-	}
-	else
-	{
-		// add bit to byte
-		m_sync1 = (m_sync1 >> 1) | (m_rxd << (m_data_bits_count-1));
-	}
-
-	// is byte complete? if not, quit
-	m_rxd_bits++;
-	if (m_rxd_bits < (m_data_bits_count + need_parity))
-		return;
-
-	// now we have a synchronised byte, and parity has been dealt with
-
-	// copy byte to rx buffer
-	receive_character(m_sync1);
-
-	m_rxd_bits = 0;
-	m_sync1 = 0;
-}
-
-void i8256_device::sync2_rxc()
-{
-	// is rx enabled?
-	if (!BIT(m_command3, I8256_CMD3_RxE))
-		return;
-
-	u8 need_parity = BIT(m_command2, I8256_CMD2_PARITY_ENABLE);
-
-	// see about parity
-	if (need_parity && (m_rxd_bits == m_data_bits_count))
-	{
-		if ((population_count_32(m_sync1) & 1) != m_rxd)
-			m_status |= I8256_STATUS_PARITY_ERROR;
-		// and then continue on as if everything was ok
-	}
-	else
-	{
-		// add bit to byte
-		m_sync1 = (m_sync1 >> 1) | (m_rxd << (m_data_bits_count-1));
-		m_sync2 = (m_sync2 >> 1) | (m_rxd << (m_data_bits_count*2-1));
-	}
-
-	// is byte complete? if not, quit
-	m_rxd_bits++;
-	if (m_rxd_bits < (m_data_bits_count + need_parity))
-		return;
-
-	// now we have a synchronised byte, and parity has been dealt with
-
-	// copy byte to rx buffer
-	receive_character(m_sync1);
-
-	m_rxd_bits = 0;
-	m_sync1 = 0;
-	m_sync2 = 0;
-}
-
-
-/*-------------------------------------------------
-    check_for_tx_start
--------------------------------------------------*/
-
-void i8256_device::check_for_tx_start()
-{
-	if (!BIT(m_status,I8256_STATUS_TR_EMPTY))
-		start_tx();
-}
-
-
-/*-------------------------------------------------
-    start_tx
--------------------------------------------------*/
-
-void i8256_device::start_tx()
-{
-	LOG("start_tx %02x\n", m_tx_data);
-	transmit_register_setup(m_tx_data);
-	m_status &= ~I8256_STATUS_TR_EMPTY;
-}
-
-
-/*-------------------------------------------------
-    transmit_clock
--------------------------------------------------*/
-
-void i8256_device::transmit_clock()
-{
-	m_txc_count++;
-	if (m_txc_count != m_br_factor)
-		return;
-
-	m_txc_count = 0;
-
-	if (is_transmit_register_empty())
-		start_tx();
-
-	// if diserial has bits to send, make them so
-	if (!is_transmit_register_empty())
-	{
-		uint8_t data = transmit_register_get_data_bit();
-		LOG("I8256: Tx Present a %d\n", data);
-		m_txd_handler(data);
-	}
-}
-
-void i8256_device::receive_character(uint8_t ch)
-{
-	LOG("I8256: receive_character %02x\n", ch);
-
-	m_rx_data = ch;
-
-	LOG("status RX READY test %02x\n", m_status);
-	// char has not been read and another has arrived!
-	if (BIT(m_status, I8256_STATUS_RB_FULL))
-	{
-		m_status |= I8256_STATUS_OVERRUN_ERROR;
-		LOG("status overrun set\n");
-	}
-}
 
 void i8256_device::write_rxd(int state)
 {
-	m_rxd = state ? 1 : 0;
-	LOG("I8256: Presented a %d\n", m_rxd);
-	//device_serial_interface::rx_w(m_rxd);
-}
-
-void i8256_device::write_cts(int state)
-{
-	m_cts = state ? 1 : 0;
-
-	if (started())
-		check_for_tx_start();
-}
-
-void i8256_device::write_rxc(int state)
-{
-	state = state ? 1 : 0;
-
-	if (!m_rxc && state)
-	{
-		if (m_sync_byte_count == 1)
-			sync1_rxc();
-		else if (m_sync_byte_count == 2)
-			sync2_rxc();
-		else
-			receive_clock();
-	}
-
-	m_rxc = state;
+	m_rxd = state;
 }
 
 void i8256_device::write_txc(int state)
 {
-	state = state ? 1 : 0;
+	if (m_txc == state)
+		return;
+	m_txc = state;
+	if (m_baud_sel <= 2 && !state)
+		transmit_clock();
+}
 
-	if (m_txc != state)
-	{
-		m_txc = state;
+void i8256_device::write_rxc(int state)
+{
+	if (m_rxc == state)
+		return;
+	m_rxc = state;
+	if (m_baud_sel == 0 && state)
+		receive_clock();
+}
 
-		if (!m_txc)
-			transmit_clock();
-	}
+void i8256_device::write_cts(int state)
+{
+	m_cts = state;
 }
