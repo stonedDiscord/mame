@@ -157,8 +157,6 @@ i8256_device::i8256_device(const machine_config &mconfig, const char *tag, devic
 	m_out_int_cb(*this),
 	m_in_extint_cb(*this, 0),
 	m_txd_handler(*this),
-	m_rts_handler(*this),
-	m_dtr_handler(*this),
 	m_rxc_handler(*this),
 	m_txc_handler(*this),
 	m_in_p2_cb(*this, 0),
@@ -270,10 +268,6 @@ void i8256_device::device_reset()
 
 	m_txd = -1;  // Force TxD update on next call
 	output_txd(1);  // TxD idle = high
-
-	// Assert RTS and DTR to indicate device is ready for communication
-	m_rts_handler(1);
-	m_dtr_handler(1);
 
 	reset_timer();
 }
