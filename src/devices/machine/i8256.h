@@ -45,6 +45,8 @@ public:
 	auto extint_callback()  { return m_in_extint_cb.bind(); }
 
 	auto txd_handler() { return m_txd_handler.bind(); }
+	auto rts_handler() { return m_rts_handler.bind(); } // new: RTS output
+	auto dtr_handler() { return m_dtr_handler.bind(); } // new: DTR output
 	auto rxc_handler() { return m_rxc_handler.bind(); } // new: RxC output pin
 	auto txc_handler() { return m_txc_handler.bind(); } // new: TxC output pin
 
@@ -96,6 +98,8 @@ private:
 	devcb_read_line m_in_extint_cb;
 
 	devcb_write_line m_txd_handler;
+	devcb_write_line m_rts_handler; // new
+	devcb_write_line m_dtr_handler; // new
 	devcb_write_line m_rxc_handler; // new
 	devcb_write_line m_txc_handler; // new
 
@@ -127,6 +131,8 @@ private:
 	uint8_t m_status, m_modification;
 
 	uint8_t m_br_factor;
+	uint32_t m_bit_accumulator;  // Fractional bit timing accumulator for TX
+	uint32_t m_rx_accumulator;   // Fractional bit timing accumulator for RX
 
 	// transmitter shift register state // new
 	uint8_t m_tx_shift; // new

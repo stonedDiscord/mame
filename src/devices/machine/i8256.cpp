@@ -9,7 +9,7 @@
 #include "emu.h"
 #include "i8256.h"
 
-//#define VERBOSE 1
+#define VERBOSE 1
 #include "logmacro.h"
 
 
@@ -157,6 +157,8 @@ i8256_device::i8256_device(const machine_config &mconfig, const char *tag, devic
 	m_out_int_cb(*this),
 	m_in_extint_cb(*this, 0),
 	m_txd_handler(*this),
+	m_rts_handler(*this),
+	m_dtr_handler(*this),
 	m_rxc_handler(*this),
 	m_txc_handler(*this),
 	m_in_p2_cb(*this, 0),
@@ -165,9 +167,10 @@ i8256_device::i8256_device(const machine_config &mconfig, const char *tag, devic
 	m_out_p1_cb(*this),
 	m_rxc(0),
 	m_rxd(1),
-	m_cts(1),
+	m_cts(0),  // Initialize to 0 (ready to send) - CTS is active low
 	m_txc(0),
-	m_timer(nullptr)
+	m_timer(nullptr),
+	m_txd(-1)  // Initialize to impossible value so first output_txd call triggers
 {
 }
 
@@ -195,6 +198,7 @@ void i8256_device::device_start()
 	save_item(NAME(m_br_factor));
 	save_item(NAME(m_baud_sel));
 	save_item(NAME(m_data_bits));
+	save_item(NAME(m_bit_accumulator));
 
 	save_item(NAME(m_tx_shift));
 	save_item(NAME(m_tx_state));
@@ -259,6 +263,15 @@ void i8256_device::device_reset()
 	m_data_bits = 8;
 	m_stop_bits_mode = I8256_STOP_1;
 	m_parity = PARITY_NONE;
+	m_bit_accumulator = 0;
+	m_rx_accumulator = 0;
+
+	m_txd = -1;  // Force TxD update on next call
+	output_txd(1);  // TxD idle = high
+
+	// Assert RTS and DTR to indicate device is ready for communication
+	m_rts_handler(1);
+	m_dtr_handler(1);
 
 	reset_timer();
 }
@@ -286,12 +299,12 @@ uint8_t i8256_device::acknowledge()
 
 void i8256_device::reset_timer()
 {
-	int divider = 64; //default is 16kHz from the datasheet, it may later be changed to a slower one
-	if (BIT(m_command1, I8256_CMD1_FRQ))
-	{
-		divider = 1024;
-	}
+	int divider = 64; // Use 16kHz for serial (default)
+	// For internal baud rate generator (serial), always use 16kHz regardless of FRQ
+	// FRQ bit only affects timer countdown operations, not serial baud rate
+	
 	const attotime TIME = attotime::from_hz((clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) / divider);
+	LOG("i8256 Timer frequency: %d Hz (clock=%d, divider=%d)\n", (clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) / divider, clock(), divider);
 	m_timer->adjust(TIME, 0, TIME);
 }
 
@@ -353,27 +366,33 @@ TIMER_CALLBACK_MEMBER(i8256_device::timer_check)
 	// internal baud rate generator tick when baud_sel >= 3
 	if (m_baud_sel >= 3 && BAUD_RATES[m_baud_sel] > 0)
 	{
-		const int tick_freq = BIT(m_command1, I8256_CMD1_FRQ) ? 1000 : 16000;
-		const int baud_clk_freq = BAUD_RATES[m_baud_sel] * m_br_factor;
-		m_internal_txc++;
-		if (m_internal_txc >= (tick_freq / baud_clk_freq))
+		// Timer runs at 16 kHz for serial operations
+		
+		// TX: Use fractional bit timing accumulator for precise output
+		m_bit_accumulator += 16000;  // Add timer frequency
+		while (m_bit_accumulator >= BAUD_RATES[m_baud_sel])
 		{
-			m_internal_txc = 0;
+			m_bit_accumulator -= BAUD_RATES[m_baud_sel];
 			transmit_clock();
-			receive_clock();
-			m_rxc_handler(0); m_rxc_handler(1);
-			m_txc_handler(0); m_txc_handler(1);
 		}
+		
+		// RX: Call at 16 kHz and let counter divide down to sample rate
+		// This keeps sampling synchronized with the 16 kHz timer, not clustering
+		receive_clock();
+		
+		// Always pulse the clock outputs for external devices
+		m_rxc_handler(0); m_rxc_handler(1);
+		m_txc_handler(0); m_txc_handler(1);
 	}
 }
 
 void i8256_device::output_txd(int state)
 {
-	if (m_txd != state)
-	{
+		LOG("i8256 TxD output: %d (handler=%p)\n", state, (void*)&m_txd_handler);
 		m_txd = state;
+		LOG("i8256 About to call TxD handler with %d\n", m_txd);
 		m_txd_handler(m_txd);
-	}
+		LOG("i8256 TxD handler returned\n");
 }
 
 void i8256_device::receive_clock()
@@ -381,82 +400,108 @@ void i8256_device::receive_clock()
 	if (!BIT(m_command3, I8256_CMD3_RxE))
 		return;
 
-	m_rx_counter++;
+	// Use accumulator for precise baud rate timing, called at 16 kHz
+	m_rx_accumulator += 16000;
 
 	switch (m_rx_state)
 	{
 	case STATE_IDLE:
 		if (!m_rxd)
 		{
+			LOG("i8256 RX: Start bit detected\n");
 			m_rx_state = STATE_START;
-			m_rx_counter = 1;
+			m_rx_accumulator = 16000;  // Start accumulating from first timer tick
+			m_rx_counter = 0;
 		}
 		break;
 
 	case STATE_START:
-		if (m_rx_counter >= (m_br_factor / 2))
+		// Sample start bit at middle (after ~half bit period)
+		// Baud rate = 4800, half period = 4800/2 = 2400 per bit
+		if (m_rx_accumulator >= (BAUD_RATES[m_baud_sel] / 2))
 		{
 			if (m_rxd && !BIT(m_modification, I8256_MOD_DSC))
 			{
+				LOG("i8256 RX: False start bit detected, aborting\n");
 				m_rx_state = STATE_IDLE;
-				m_rx_counter = 0;
+				m_rx_accumulator = 0;
 				break;
 			}
+			LOG("i8256 RX: Confirmed start bit, begin data\n");
 			m_rx_state = STATE_DATA;
-			m_rx_counter = 0;
+			// Don't reset accumulator - continue counting to sample first data bit at correct time
+			// We'll sample each data bit centered within the bit period
 			m_rx_shift = 0;
 			m_rx_parity = 0;
 			m_rx_bits = 0;
+			m_rx_counter = 0;
 		}
 		break;
 
 	case STATE_DATA:
-		if (m_rx_counter == m_br_factor)
+		// Sample each data bit (every full bit period)
+		if (m_rx_accumulator >= BAUD_RATES[m_baud_sel])
 		{
-			m_rx_counter = 0;
+			m_rx_accumulator -= BAUD_RATES[m_baud_sel];  // Keep fractional part, don't reset to 0
 			m_rx_shift |= (m_rxd ? 1 : 0) << m_rx_bits;
 			m_rx_parity ^= m_rxd;
 			m_rx_bits++;
+			LOG("i8256 RX DATA: bit %d = %d (acc=%d)\n", m_rx_bits-1, m_rxd, m_rx_accumulator);
 			if (m_rx_bits == m_data_bits)
 				m_rx_state = (m_parity != PARITY_NONE) ? STATE_PARITY : STATE_STOP;
 		}
 		break;
 
 	case STATE_PARITY:
-		if (m_rx_counter == m_br_factor)
+		if (m_rx_accumulator >= BAUD_RATES[m_baud_sel])
 		{
-			m_rx_counter = 0;
+			m_rx_accumulator -= BAUD_RATES[m_baud_sel];
 			int expected = (m_parity == PARITY_ODD) ? !m_rx_parity : m_rx_parity;
 			if (m_rxd != expected)
+			{
 				m_status |= (1 << I8256_STATUS_PARITY_ERROR);
+				LOG("i8256 RX PARITY: ERROR (got %d, expected %d)\n", m_rxd, expected);
+			}
 			else
+			{
 				m_status &= ~(1 << I8256_STATUS_PARITY_ERROR);
+				LOG("i8256 RX PARITY: OK\n");
+			}
 			m_rx_state = STATE_STOP;
+			m_rx_bits = 0;
 		}
 		break;
 
 	case STATE_STOP:
-		if (m_rx_counter == m_br_factor)
+		if (m_rx_accumulator >= BAUD_RATES[m_baud_sel])
 		{
-			m_rx_counter = 0;
-			if (!BIT(m_modification, I8256_MOD_TME))
+			m_rx_accumulator -= BAUD_RATES[m_baud_sel];
+			m_rx_bits++;
+			int stop_count = (m_stop_bits_mode == I8256_STOP_2) ? 2 : 1;
+			if (m_rx_bits >= stop_count)
 			{
-				if (!m_rxd)
-					m_status |= (1 << I8256_STATUS_FRAMING_ERROR);
+				if (!BIT(m_modification, I8256_MOD_TME))
+				{
+					if (!m_rxd)
+						m_status |= (1 << I8256_STATUS_FRAMING_ERROR);
+					else
+						m_status &= ~(1 << I8256_STATUS_FRAMING_ERROR);
+				}
+				if (m_status & (1 << I8256_STATUS_RB_FULL))
+				{
+					m_status |= (1 << I8256_STATUS_OVERRUN_ERROR);
+					LOG("i8256 RX: OVERRUN ERROR\n");
+				}
 				else
-					m_status &= ~(1 << I8256_STATUS_FRAMING_ERROR);
+				{
+					m_rx_buffer = m_rx_shift & ((1 << m_data_bits) - 1);
+					m_status |= (1 << I8256_STATUS_RB_FULL);
+					LOG("i8256 RX: Received 0x%02x, generating RX interrupt\n", m_rx_buffer);
+					gen_interrupt(I8256_INT_RX);
+				}
+				m_rx_state = STATE_IDLE;
+				m_rx_accumulator = 0;
 			}
-			if (m_status & (1 << I8256_STATUS_RB_FULL))
-			{
-				m_status |= (1 << I8256_STATUS_OVERRUN_ERROR);
-			}
-			else
-			{
-				m_rx_buffer = m_rx_shift & ((1 << m_data_bits) - 1);
-				m_status |= (1 << I8256_STATUS_RB_FULL);
-				gen_interrupt(I8256_INT_RX);
-			}
-			m_rx_state = STATE_IDLE;
 		}
 		break;
 	}
@@ -464,13 +509,12 @@ void i8256_device::receive_clock()
 
 void i8256_device::transmit_clock()
 {
-	m_tx_counter++;
-
 	switch (m_tx_state)
 	{
 	case STATE_IDLE:
 		if (m_tx_buffer_full && !m_cts)
 		{
+			LOG("i8256 TX: Starting transmission of 0x%02x (CTS=%d)\n", m_tx_buffer, m_cts);
 			m_tx_shift = m_tx_buffer;
 			m_tx_buffer_full = false;
 			m_status |= (1 << I8256_STATUS_TB_EMPTY);
@@ -478,55 +522,53 @@ void i8256_device::transmit_clock()
 			gen_interrupt(I8256_INT_TX); // TBE interrupt
 			m_tx_bits = 0;
 			m_tx_parity = 0;
-			m_tx_counter = 0;
 			output_txd(0); // start bit
 			m_tx_state = STATE_DATA;
 		}
 		else
 		{
+			if (m_tx_buffer_full && m_cts)
+				LOG("i8256 TX: Blocked - CTS=%d, buffer_full=%d\n", m_cts, m_tx_buffer_full);
 			output_txd(1);
 		}
 		break;
 
 	case STATE_DATA:
-		if (m_tx_counter == m_br_factor)
+		if (m_tx_bits < m_data_bits)
 		{
-			m_tx_counter = 0;
-			if (m_tx_bits < m_data_bits)
-			{
-				int bit = (m_tx_shift >> m_tx_bits) & 1;
-				output_txd(bit);
-				m_tx_parity ^= bit;
-				m_tx_bits++;
-			}
-			else if (m_parity != PARITY_NONE)
-			{
-				output_txd((m_parity == PARITY_ODD) ? !m_tx_parity : m_tx_parity);
-				m_tx_state = STATE_STOP;
-				m_tx_bits = 0;
-			}
-			else
-			{
-				output_txd(1); // first stop bit
-				m_tx_state = STATE_STOP;
-				m_tx_bits = 0;
-			}
+			int bit = (m_tx_shift >> m_tx_bits) & 1;
+			output_txd(bit);
+			m_tx_parity ^= bit;
+			m_tx_bits++;
+			LOG("i8256 TX DATA: bit %d = %d\n", m_tx_bits-1, bit);
+		}
+		else if (m_parity != PARITY_NONE)
+		{
+			int parity_bit = (m_parity == PARITY_ODD) ? !m_tx_parity : m_tx_parity;
+			output_txd(parity_bit);
+			LOG("i8256 TX PARITY: %d\n", parity_bit);
+			m_tx_state = STATE_STOP;
+			m_tx_bits = 0;
+		}
+		else
+		{
+			output_txd(1); // first stop bit
+			LOG("i8256 TX STOP: 1\n");
+			m_tx_state = STATE_STOP;
+			m_tx_bits = 0;
 		}
 		break;
 
 	case STATE_STOP:
-		if (m_tx_counter == m_br_factor)
+		m_tx_bits++;
+		const int stop_count = (m_stop_bits_mode == I8256_STOP_2) ? 2 : 1; // 1.5 and 0.75 treated as 1 here
+		if (m_tx_bits >= stop_count)
 		{
-			m_tx_counter = 0;
-			m_tx_bits++;
-			const int stop_count = (m_stop_bits_mode == I8256_STOP_2) ? 2 : 1; // 1.5 and 0.75 treated as 1 here
-			if (m_tx_bits >= stop_count)
-			{
-				m_status |= (1 << I8256_STATUS_TR_EMPTY);
-				gen_interrupt(I8256_INT_TX); // TRE interrupt
-				m_tx_state = STATE_IDLE;
-				m_tx_bits = 0;
-			}
+			LOG("i8256 TX: Transmission complete\n");
+			m_status |= (1 << I8256_STATUS_TR_EMPTY);
+			gen_interrupt(I8256_INT_TX); // TRE interrupt
+			m_tx_state = STATE_IDLE;
+			m_tx_bits = 0;
 		}
 		break;
 	}
@@ -564,7 +606,10 @@ uint8_t i8256_device::read(offs_t offset)
 			return m_current_interrupt_level*4;
 		case I8256_REG_BUFFER:
 			if (!machine().side_effects_disabled())
+			{
+				LOG("I8256 RX BUFFER read: 0x%02x\n", m_rx_buffer);
 				m_status &= ~(1 << I8256_STATUS_RB_FULL);
+			}
 			return m_rx_buffer;
 		case I8256_REG_PORT1:
 			return m_port1_int;
@@ -613,6 +658,7 @@ void i8256_device::write(offs_t offset, u8 data)
 
 				m_data_bits = CHAR_LEN[(m_command1 >> 6) & 0x03];
 				m_stop_bits_mode = (m_command1 >> 4) & 0x03;
+				LOG("I8256 CMD1=0x%02x: data_bits=%d, stop_bits_mode=%d, 8086=%d, BITI=%d\n", data, m_data_bits, m_stop_bits_mode, BIT(m_command1,I8256_CMD1_8086), BIT(m_command1,I8256_CMD1_BITI));
 			}
 			break;
 		case I8256_REG_CMD2:
@@ -622,54 +668,71 @@ void i8256_device::write(offs_t offset, u8 data)
 
 				m_baud_sel = m_command2 & 0x0f;
 
-				if (m_baud_sel == 1)
-					m_br_factor = 32;
-				else if (m_baud_sel == 2)
-					m_br_factor = 64;
-				else if (m_baud_sel == 3)
-					m_br_factor = 32;
-				else if (m_baud_sel > 3)
-					m_br_factor = 64;
-				else
-					m_br_factor = 1;
-
+			// Calculate br_factor: timer is 16 kHz for serial operations
+		// br_factor = number of 16 kHz timer ticks per baud rate bit
+		if (m_baud_sel >= 3 && BAUD_RATES[m_baud_sel] > 0)
+		{
+			// Internal clock: br_factor = 16000 / baud_rate (rounded)
+			m_br_factor = (16000 + BAUD_RATES[m_baud_sel] / 2) / BAUD_RATES[m_baud_sel];
+			LOG("I8256: Internal baud mode, br_factor=%d for %d bps\n", m_br_factor, BAUD_RATES[m_baud_sel]);
+		}
+		else if (m_baud_sel == 1)
+			m_br_factor = 32;
+		else if (m_baud_sel == 2)
+			m_br_factor = 64;
+		else
+			m_br_factor = 1;
 				if (BIT(m_command2,I8256_CMD2_PARITY_ENABLE))
 					m_parity = BIT(m_command2,I8256_CMD2_EVEN_PARITY) ? PARITY_EVEN : PARITY_ODD;
 				else
 					m_parity = PARITY_NONE;
 
-				LOG("I8256 Clock Scale: %u\n", SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]);
-				if ((clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) != 1024000)
-					logerror("I8256 Internal Clock should be 1024000, calculated: %u\n", (clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]));
+LOG("I8256 CMD2=0x%02x: Baud sel=%d, br_factor=%d, parity=%d, baud_rate=%d\n", data, m_baud_sel, m_br_factor, m_parity, BAUD_RATES[m_baud_sel]);
+			LOG("I8256 Clock Scale: %u\n", SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]);
+			if ((clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]) != 1024000)
+				logerror("I8256 Internal Clock should be 1024000, calculated: %u\n", (clock() / SYS_CLOCK_DIVIDER[(m_command2 & 0x30) >> 4]));
 
-				if (m_baud_sel >= 3)
-				{
-					m_rx_state = STATE_IDLE;
-					m_rx_counter = 0;
-					m_tx_state = STATE_IDLE;
-					m_tx_counter = 0;
-					m_internal_txc = 0;
+			if (m_baud_sel >= 3)
+			{
+				LOG("I8256: Using internal baud rate generator\n");
+				m_rx_state = STATE_IDLE;
+				m_rx_counter = 0;
+				m_tx_state = STATE_IDLE;
+				m_tx_counter = 0;
+				m_internal_txc = 0;
+			}
+			else
+			{
+				LOG("I8256: Expecting external clock on TxC/RxC\n");
 				}
 
 				reset_timer();
 			}
 			break;
 		case I8256_REG_CMD3:
+			LOG("I8256 CMD3=0x%02x: Set=%d (cmd3 will be 0x%02x)\n", data, BIT(data, I8256_CMD3_SET), BIT(data, I8256_CMD3_SET) ? (m_command3 | data) : (m_command3 & ~data));
 			if (BIT(data, I8256_CMD3_SET))
 				m_command3 |= (data & 0x7f);
 			else
 				m_command3 &= ~(data & 0x7f);
 
+			LOG("I8256 CMD3 updated: RxE=%d, TBRK=%d, SBRK=%d, IAE=%d\n", 
+				BIT(m_command3,I8256_CMD3_RxE), BIT(m_command3,I8256_CMD3_TBRK), 
+				BIT(m_command3,I8256_CMD3_SBRK), BIT(m_command3,I8256_CMD3_IAE));
+
 			if (BIT(m_command3,I8256_CMD3_RST))
 			{
+				LOG("I8256 Software Reset\n");
 				m_interrupts = 0;
 				m_status = 0x30;
 				m_current_interrupt_level = 0;
 				m_out_int_cb(CLEAR_LINE);
 				m_rx_state = STATE_IDLE;
 				m_rx_counter = 0;
+				m_rx_accumulator = 0;
 				m_tx_state = STATE_IDLE;
 				m_tx_counter = 0;
+				m_bit_accumulator = 0;
 				output_txd(1);
 				m_command3 &= ~(1 << I8256_CMD3_RST);
 			}
@@ -681,12 +744,15 @@ void i8256_device::write(offs_t offset, u8 data)
 			m_port1_control = data;
 			break;
 		case I8256_REG_INTEN:
+			LOG("I8256 Interrupt enable: 0x%02x (was 0x%02x)\n", data, m_interrupts);
 			m_interrupts = m_interrupts | data;
 			break;
 		case I8256_REG_INTAD: // reset interrupt
+			LOG("I8256 Interrupt acknowledge: 0x%02x\n", data);
 			m_interrupts = m_interrupts & ~data;
 			break;
 		case I8256_REG_BUFFER:
+			LOG("I8256 TX BUFFER write: 0x%02x (will transmit when ready, current CTS=%d)\n", data, m_cts);
 			m_tx_buffer = data;
 			m_tx_buffer_full = true;
 			m_status &= ~ (1 << I8256_STATUS_TB_EMPTY);
@@ -806,6 +872,7 @@ void i8256_device::p2_w(uint8_t data)
 
 void i8256_device::write_rxd(int state)
 {
+	LOG("i8256_device::write_rxd %d\n", state);
 	m_rxd = state; // was: device_serial_interface::rx_w(state)
 }
 
@@ -814,6 +881,7 @@ void i8256_device::write_txc(int state)
 	if (m_txc == state)
 		return;
 	m_txc = state;
+	LOG("i8256_device::write_txc %d\n", state);
 	if (m_baud_sel <= 2 && !state)
 		transmit_clock();
 }
@@ -823,6 +891,13 @@ void i8256_device::write_rxc(int state)
 	if (m_rxc == state)
 		return;
 	m_rxc = state;
+	LOG("i8256_device::write_rxc %d\n", state);
 	if (m_baud_sel == 0 && state)
 		receive_clock();
+}
+
+void i8256_device::write_cts(int state)
+{
+	LOG("i8256_device::write_cts %d (was %d)\n", state, m_cts);
+	m_cts = state;
 }
