@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mamelayout version="2">
+
+    <!-- Element definitions -->
+    <element name="background">
+        <rect>
+            <bounds x="0" y="0" width="40" height="100" />
+            <color red="0.350" green="0.350" blue="0.350" alpha="1.000" />
+        </rect>
+    </element>
+
+    <element name="1">
+        <rect>
+            <bounds x="0" y="0" width="2" height="2" />
+            <color red="0.100" green="0.100" blue="0.200" alpha="1.000" />
+        </rect>
+    </element>
+
+    <view name="Handheld">
+        <element name="background" ref="background">
+            <bounds x="0" y="0" width="40" height="100" />
+        </element>
+        <screen index="0">
+            <bounds x="5" y="20" width="30" height="10" />
+        </screen>
+        <element name="1" ref="1" inputtag="IN2" inputmask="0x20">
+            <bounds x="15" y="50" width="2" height="2" />
+        </element>
+    </view>
+
+</mamelayout>

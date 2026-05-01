@@ -32227,6 +32227,9 @@ mil4000b
 mil4000c
 top21
 
+@source:misc/millennium.cpp
+millennium
+
 @source:misc/mindset.cpp
 mindset
 
