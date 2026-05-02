@@ -1015,6 +1015,18 @@ if VIDEOS["MSM6255"] then
 	}
 end
 
+ --------------------------------------------------
+ --
+ --@src/devices/video/noritake_vfd.h,VIDEOS["NORITAKE_VFD"] = true
+ --------------------------------------------------
+
+ if VIDEOS["NORITAKE_VFD"] then
+ 	files {
+ 		MAME_DIR .. "src/devices/video/noritake_vfd.cpp",
+ 		MAME_DIR .. "src/devices/video/noritake_vfd.h",
+ 	}
+ end
+
 --------------------------------------------------
 --
 --@src/devices/video/nt7534.h,VIDEOS["NT7534"] = true

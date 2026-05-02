@@ -8,6 +8,7 @@
   MEMORY: M5M5256BP-12LL
      OSC: 
   EEPROM: M27C2001 Program, M27C4001 Voiceware
+ DISPLAY: Noritake CU20026S
    SOUND: UPD7759
 
 
@@ -21,7 +22,7 @@
 #include "machine/nvram.h"
 #include "machine/timer.h"
 #include "sound/upd7759.h"
-#include "video/hd44780.h"
+#include "video/noritake_vfd.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -50,7 +51,7 @@ private:
 	required_device<z180_device> m_maincpu;
 	required_device<i8255_device> m_ppi;
 	required_device<upd7759_device> m_adpcm;
-	required_device<hd44780_device> m_vfd;
+	required_device<noritake_vfd_device> m_vfd;
 
 	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
@@ -94,6 +95,8 @@ void millennium_state::millennium_io(address_map &map)
 	map(0x00, 0x3f).noprw(); /* Z180 internal registers */
 	map(0x99, 0x99).rw(FUNC(millennium_state::io_r), FUNC(millennium_state::io_w));
 	map(0x40, 0x43).rw(m_ppi, FUNC(i8255_device::read), FUNC(i8255_device::write));
+	map(0x60, 0x60).w(m_vfd, FUNC(noritake_vfd_device::data_w));
+	map(0x80, 0x80).rw(m_vfd, FUNC(noritake_vfd_device::control_r), FUNC(noritake_vfd_device::control_w));
 	//map(0xcc, 0xcc).rw(m_vfd, FUNC(hd44780_device::read), FUNC(hd44780_device::write));
 }
 
@@ -136,24 +139,22 @@ void millennium_state::millennium(machine_config &config)
 	rs232.cts_handler().set(m_maincpu, FUNC(z180_device::cts0_w));
 	rs232.cts_handler().append_inputline(m_maincpu, Z180_INPUT_LINE_DREQ0).invert();
 
-	// LCD CU2004
+	// LCD CU20026 Noritake VFD
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
 	screen.set_color(rgb_t(6, 120, 245));
 	screen.set_physical_aspect(7*20, 10*4);
 	screen.set_refresh_hz(72);
 	screen.set_size(6*20, 9*4);
 	screen.set_visarea_full();
-	screen.set_screen_update(m_vfd, FUNC(hd44780_device::screen_update));
+	screen.set_screen_update(m_vfd, FUNC(noritake_vfd_device::screen_update));
 	screen.set_palette("palette");
 
-	PALETTE(config, "palette", palette_device::MONOCHROME);
+	PALETTE(config, "palette", palette_device::MONOCHROME_INVERTED);
 
-	HD44780(config, m_vfd, 270'000);
+	NORITAKE_VFD(config, m_vfd, 270'000);
 	m_vfd->set_lcd_size(4, 20); // 4 lines, 20 characters
 
 	SPEAKER(config, "mono").front_center();
-
-	config.set_default_layout(layout_millennium);
 }
 
 /* ROM definition */
