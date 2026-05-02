@@ -99,7 +99,6 @@ void millennium_state::millennium_io(address_map &map)
 	map(0x40, 0x43).rw(m_ppi, FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0x60, 0x60).rw(m_vfd, FUNC(noritake_vfd_device::data_r), FUNC(noritake_vfd_device::data_w));
 	map(0x80, 0x80).rw(m_vfd, FUNC(noritake_vfd_device::control_r), FUNC(noritake_vfd_device::control_w));
-	//map(0xcc, 0xcc).rw(m_vfd, FUNC(hd44780_device::read), FUNC(hd44780_device::write));
 }
 
 /* Input ports */
@@ -160,7 +159,7 @@ void millennium_state::millennium(machine_config &config)
 }
 
 /* ROM definition */
-ROM_START( millennium )
+ROM_START( mnba1f02 )
 	ROM_REGION( 0x40000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "nba1f02.u5", 0x00000, 0x40000, CRC(f6e04336) SHA1(4c9a7b47c048b81dd0f420ac82e403f776484aea))
 	ROM_REGION( 0x80000, "adpcm", ROMREGION_ERASEFF )
@@ -173,4 +172,4 @@ ROM_END
 /* Driver */
 
 /*    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY        FULLNAME          FLAGS */
-COMP( 1993, millennium, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium", MACHINE_NOT_WORKING | MACHINE_NO_SOUND)
+COMP( 1993, mnba1f02, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard E/F)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND)
