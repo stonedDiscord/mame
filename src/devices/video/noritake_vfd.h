@@ -80,9 +80,10 @@ private:
 	float m_busy_factor;
 
 	bool m_busy_flag;
-	u8 m_ddram[40];      // 2 lines x 20 chars
-	u8 m_cgram[32];      // 8 custom chars x 4 bytes (5x7 font, we use 4 bytes for 4x7 or similar)
-	u8 m_cgram_full[64]; // full custom char storage (8 chars x 8 bytes)
+	u8 m_ddram[80];      // 2 lines x 40 chars max (CU20026 is 20x2, CU40026 is 40x2)
+	u8 m_cgram[2][8];    // 2 custom chars x 8 bytes
+	int m_cgram_char[2]; // character codes assigned to the 2 slots
+	int m_next_slot;     // next slot to be used for definition
 	int m_ac;
 	u8 m_dr;
 	u8 m_ir;
@@ -111,10 +112,8 @@ private:
 	bool m_esc_mode;
 	u8 m_esc_step;
 	u8 m_esc_data[7];
-	u8 m_blink_pos;
+	u8 m_blink_pos[2];   // up to 2 positions can blink
 	u8 m_brightness;
-	int m_blink_char_0;
-	int m_blink_char_1;
 	bool m_esc_2byte_cmd;
 	bool m_2byte_cmd_pending;
 	u8 m_2byte_cmd;
