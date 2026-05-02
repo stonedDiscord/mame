@@ -29,7 +29,7 @@
 #include "screen.h"
 #include "speaker.h"
 
-#define VERBOSE 1
+#define VERBOSE 0
 #include "logmacro.h"
 
 namespace {
@@ -40,6 +40,7 @@ public:
 	millennium_state(const machine_config &mconfig, device_type type, const char *tag)
 		: driver_device(mconfig, type, tag)
 		, m_maincpu(*this, "maincpu")
+		, m_ppi(*this, "ppi")
 		, m_eeprom(*this, "eeprom")
 		, m_adpcm(*this, "adpcm")
 		, m_vfd(*this, "vfd")
@@ -50,6 +51,7 @@ public:
 
 private:
 	required_device<z180_device> m_maincpu;
+	required_device<i8255_device> m_ppi;
 	required_device<eeprom_serial_93c46_16bit_device> m_eeprom;
 	required_device<upd7759_device> m_adpcm;
 	required_device<noritake_vfd_device> m_vfd;
@@ -57,14 +59,14 @@ private:
 	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
 
-	void p40_w(u8 data);
-	void p41_w(u8 data);
-	void p42_w(u8 data);
+	void ppi_pa_w(u8 data);
+	u8 ppi_pa_r();
+	void ppi_pb_w(u8 data);
+	void ppi_pc_w(u8 data);
+
 	void p60_w(u8 data);
 	void pa0_w(u8 data);
 	void pc0_w(u8 data);
-	u8 p40_r();
-	u8 p41_r();
 	u8 p60_r();
 	u8 p80_r();
 	u8 pe0_r();
@@ -72,18 +74,16 @@ private:
 	void millennium_io(address_map &map) ATTR_COLD;
 	void millennium_mem(address_map &map) ATTR_COLD;
 
-	u8 m_p40;
-	u8 m_p41;
-	u8 m_p42;
+	u8 m_p41; // shadow for PPI Port B
 	u8 m_p60;
 	u8 m_pe0_flip;
 };
 
 
-u8 millennium_state::p40_r()
+u8 millennium_state::ppi_pa_r()
 {
-	u8 data = m_p40;
-	// When EEPROM is selected, Port 0x40 bit 0 mirrors MISO
+	u8 data = m_ppi->pa_r(); // Get current latch
+	// When EEPROM is selected, Port A bit 0 mirrors MISO
 	if (BIT(m_p60, 6))
 	{
 		if (m_eeprom->do_read())
@@ -94,19 +94,13 @@ u8 millennium_state::p40_r()
 	return data;
 }
 
-void millennium_state::p40_w(u8 data)
+void millennium_state::ppi_pa_w(u8 data)
 {
-	m_p40 = data;
 	m_eeprom->di_write(BIT(data, 0));
 	m_vfd->vfd_w(data);
 }
 
-u8 millennium_state::p41_r()
-{
-	return m_p41;
-}
-
-void millennium_state::p41_w(u8 data)
+void millennium_state::ppi_pb_w(u8 data)
 {
 	// EEPROM clock on falling edge of bit 0
 	if (BIT(m_p41, 0) && !BIT(data, 0))
@@ -118,9 +112,9 @@ void millennium_state::p41_w(u8 data)
 	m_p41 = data;
 }
 
-void millennium_state::p42_w(u8 data)
+void millennium_state::ppi_pc_w(u8 data)
 {
-	m_p42 = data;
+	// Card reader control etc.
 }
 
 u8 millennium_state::p60_r()
@@ -149,11 +143,14 @@ u8 millennium_state::p80_r()
 
 void millennium_state::pa0_w(u8 data)
 {
-	// Port 0x41 bit 5 selects VFD command vs data
-	if (BIT(m_p41, 5))
-		m_vfd->control_write(data);
-	else
+	// Port 0x41 bits 5-6 select target on secondary bus
+	u8 addr = m_p41 & 0x60;
+	if (addr == 0x00) // P41_VFD_DATA_ADDR
 		m_vfd->data_write(data);
+	else if (addr == 0x20) // P41_VFD_CMD_ADDR
+		m_vfd->control_write(data);
+	else if (addr == 0x40) // P41_SOUND_ADDR
+		m_adpcm->port_w(data);
 }
 
 void millennium_state::pc0_w(u8 data)
@@ -181,10 +178,7 @@ void millennium_state::millennium_io(address_map &map)
 	map.unmap_value_high();
 	map.global_mask(0xff);
 	map(0x00, 0x3f).noprw(); /* Z180 internal registers */
-	map(0x40, 0x40).rw(FUNC(millennium_state::p40_r), FUNC(millennium_state::p40_w));
-	map(0x41, 0x41).rw(FUNC(millennium_state::p41_r), FUNC(millennium_state::p41_w));
-	map(0x42, 0x42).w(FUNC(millennium_state::p42_w));
-	map(0x43, 0x43).nopw(); // i8255 control port stub
+	map(0x40, 0x43).rw(m_ppi, FUNC(i8255_device::read), FUNC(i8255_device::write));
 	map(0x60, 0x60).rw(FUNC(millennium_state::p60_r), FUNC(millennium_state::p60_w));
 	map(0x80, 0x80).r(FUNC(millennium_state::p80_r));
 	map(0xa0, 0xa0).w(FUNC(millennium_state::pa0_w));
@@ -201,9 +195,7 @@ INPUT_PORTS_END
 
 void millennium_state::machine_start()
 {
-	save_item(NAME(m_p40));
 	save_item(NAME(m_p41));
-	save_item(NAME(m_p42));
 	save_item(NAME(m_p60));
 	save_item(NAME(m_pe0_flip));
 }
@@ -211,9 +203,7 @@ void millennium_state::machine_start()
 
 void millennium_state::machine_reset()
 {
-	m_p40 = 0;
 	m_p41 = 0;
-	m_p42 = 0;
 	m_p60 = 0;
 	m_pe0_flip = 0;
 }
@@ -226,6 +216,12 @@ void millennium_state::millennium(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &millennium_state::millennium_io);
 	m_maincpu->txa0_wr_callback().set("serial", FUNC(rs232_port_device::write_txd));
 	m_maincpu->rts0_wr_callback().set("serial", FUNC(rs232_port_device::write_rts));
+
+	I8255(config, m_ppi);
+	m_ppi->in_pa_callback().set(FUNC(millennium_state::ppi_pa_r));
+	m_ppi->out_pa_callback().set(FUNC(millennium_state::ppi_pa_w));
+	m_ppi->out_pb_callback().set(FUNC(millennium_state::ppi_pb_w));
+	m_ppi->out_pc_callback().set(FUNC(millennium_state::ppi_pc_w));
 
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
@@ -243,7 +239,7 @@ void millennium_state::millennium(machine_config &config)
 	screen.set_refresh_hz(72);
 	screen.set_size(6*20, 9*2);
 	screen.set_visarea_full();
-	screen.set_screen_update("vfd", FUNC(noritake_vfd_device::screen_update));
+	screen.set_screen_update(m_vfd, FUNC(noritake_vfd_device::screen_update));
 	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
