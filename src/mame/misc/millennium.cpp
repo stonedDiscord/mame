@@ -149,7 +149,7 @@ void millennium_state::millennium(machine_config &config)
 	screen.set_screen_update(m_vfd, FUNC(noritake_vfd_device::screen_update));
 	screen.set_palette("palette");
 
-	PALETTE(config, "palette", palette_device::MONOCHROME_INVERTED);
+	PALETTE(config, "palette", palette_device::MONOCHROME);
 
 	NORITAKE_VFD(config, m_vfd, 270'000);
 	m_vfd->set_lcd_size(4, 20); // 4 lines, 20 characters

@@ -68,6 +68,7 @@ private:
 	void pixel_update(bitmap_ind16 &bitmap, u8 line, u8 pos, u8 y, u8 x, int state);
 	void render_char(int line, int pos, u8 *dest);
 	void process_esc_sequence();
+	bool is_blink_position(u8 pos) const;
 
 	// internal state
 	emu_timer *m_busy_timer;
@@ -112,6 +113,11 @@ private:
 	u8 m_esc_data[7];
 	u8 m_blink_pos;
 	u8 m_brightness;
+	int m_blink_char_0;
+	int m_blink_char_1;
+	bool m_esc_2byte_cmd;
+	bool m_2byte_cmd_pending;
+	u8 m_2byte_cmd;
 
 	u8 m_render_buf[80 * 16];
 };
