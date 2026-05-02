@@ -6,11 +6,11 @@
 
      CPU: Z8S18020
   MEMORY: M5M5256BP-12LL
-     OSC: 
-  EEPROM: M27C2001 Program, M27C4001 Voiceware
- DISPLAY: Noritake CU20026S
+     OSC: 28.636363 MHz
+   EPROM: M27C2001 Program, M27C4001 Voiceware
+  EEPROM: 93C46 (64x16 mode)
+ DISPLAY: Noritake CU20026S (2x20 VFD)
    SOUND: UPD7759
-
 
 ***************************************************************************/
 
@@ -18,6 +18,7 @@
 
 #include "bus/rs232/rs232.h"
 #include "cpu/z180/z180.h"
+#include "machine/eepromser.h"
 #include "machine/i8255.h"
 #include "machine/nvram.h"
 #include "machine/timer.h"
@@ -27,8 +28,6 @@
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
-
-#include "millennium.lh"
 
 #define VERBOSE 1
 #include "logmacro.h"
@@ -41,7 +40,7 @@ public:
 	millennium_state(const machine_config &mconfig, device_type type, const char *tag)
 		: driver_device(mconfig, type, tag)
 		, m_maincpu(*this, "maincpu")
-		, m_ppi(*this, "ppi")
+		, m_eeprom(*this, "eeprom")
 		, m_adpcm(*this, "adpcm")
 		, m_vfd(*this, "vfd")
 	{
@@ -51,36 +50,123 @@ public:
 
 private:
 	required_device<z180_device> m_maincpu;
-	required_device<i8255_device> m_ppi;
+	required_device<eeprom_serial_93c46_16bit_device> m_eeprom;
 	required_device<upd7759_device> m_adpcm;
 	required_device<noritake_vfd_device> m_vfd;
 
 	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
-	void io_w(offs_t offset, u8 data);
-	u8 io_r(offs_t offset);
-	void portb_w(u8 data);
+
+	void p40_w(u8 data);
+	void p41_w(u8 data);
+	void p42_w(u8 data);
+	void p60_w(u8 data);
+	void pa0_w(u8 data);
+	void pc0_w(u8 data);
+	u8 p40_r();
+	u8 p41_r();
+	u8 p60_r();
+	u8 p80_r();
+	u8 pe0_r();
 
 	void millennium_io(address_map &map) ATTR_COLD;
 	void millennium_mem(address_map &map) ATTR_COLD;
 
+	u8 m_p40;
+	u8 m_p41;
+	u8 m_p42;
+	u8 m_p60;
+	u8 m_pe0_flip;
 };
 
 
-u8 millennium_state::io_r(offs_t offset)
+u8 millennium_state::p40_r()
 {
-	return 0xff;
+	u8 data = m_p40;
+	// When EEPROM is selected, Port 0x40 bit 0 mirrors MISO
+	if (BIT(m_p60, 6))
+	{
+		if (m_eeprom->do_read())
+			data |= 0x01;
+		else
+			data &= ~0x01;
+	}
+	return data;
 }
 
-
-void millennium_state::io_w(offs_t offset, u8 data)
+void millennium_state::p40_w(u8 data)
 {
-	;
+	m_p40 = data;
+	m_eeprom->di_write(BIT(data, 0));
+	m_vfd->vfd_w(data);
 }
 
-void millennium_state::portb_w(u8 data)
+u8 millennium_state::p41_r()
 {
-	LOG("PortB write: %02X\n", data);
+	return m_p41;
+}
+
+void millennium_state::p41_w(u8 data)
+{
+	// EEPROM clock on falling edge of bit 0
+	if (BIT(m_p41, 0) && !BIT(data, 0))
+	{
+		m_eeprom->clk_write(0);
+		m_eeprom->clk_write(1);
+		m_eeprom->clk_write(0);
+	}
+	m_p41 = data;
+}
+
+void millennium_state::p42_w(u8 data)
+{
+	m_p42 = data;
+}
+
+u8 millennium_state::p60_r()
+{
+	return m_p60;
+}
+
+void millennium_state::p60_w(u8 data)
+{
+	m_eeprom->cs_write(BIT(data, 6));
+	
+	// Port 0x60 bit 7 is START line for UPD7759
+	m_adpcm->start_w(BIT(data, 7));
+
+	m_p60 = data;
+}
+
+u8 millennium_state::p80_r()
+{
+	u8 data = 0;
+	// Port 0x80 bit 4 is EEPROM MISO
+	if (m_eeprom->do_read())
+		data |= 0x10;
+	return data;
+}
+
+void millennium_state::pa0_w(u8 data)
+{
+	// Port 0x41 bit 5 selects VFD command vs data
+	if (BIT(m_p41, 5))
+		m_vfd->control_write(data);
+	else
+		m_vfd->data_write(data);
+}
+
+void millennium_state::pc0_w(u8 data)
+{
+	LOG("Coin control write: %02X\n", data);
+}
+
+u8 millennium_state::pe0_r()
+{
+	// Coin validator status. Bit 6 = Ready. 
+	// Bit 5 is used as a data strobe in some ROMs.
+	m_pe0_flip ^= 0x20;
+	return 0x40 | m_pe0_flip;
 }
 
 void millennium_state::millennium_mem(address_map &map)
@@ -95,30 +181,41 @@ void millennium_state::millennium_io(address_map &map)
 	map.unmap_value_high();
 	map.global_mask(0xff);
 	map(0x00, 0x3f).noprw(); /* Z180 internal registers */
-	map(0x99, 0x99).rw(FUNC(millennium_state::io_r), FUNC(millennium_state::io_w));
-	map(0x40, 0x43).rw(m_ppi, FUNC(i8255_device::read), FUNC(i8255_device::write));
-	map(0x60, 0x60).rw(m_vfd, FUNC(noritake_vfd_device::data_r), FUNC(noritake_vfd_device::data_w));
-	map(0x80, 0x80).rw(m_vfd, FUNC(noritake_vfd_device::control_r), FUNC(noritake_vfd_device::control_w));
+	map(0x40, 0x40).rw(FUNC(millennium_state::p40_r), FUNC(millennium_state::p40_w));
+	map(0x41, 0x41).rw(FUNC(millennium_state::p41_r), FUNC(millennium_state::p41_w));
+	map(0x42, 0x42).w(FUNC(millennium_state::p42_w));
+	map(0x43, 0x43).nopw(); // i8255 control port stub
+	map(0x60, 0x60).rw(FUNC(millennium_state::p60_r), FUNC(millennium_state::p60_w));
+	map(0x80, 0x80).r(FUNC(millennium_state::p80_r));
+	map(0xa0, 0xa0).w(FUNC(millennium_state::pa0_w));
+	map(0xc0, 0xc0).w(FUNC(millennium_state::pc0_w));
+	map(0xe0, 0xe0).r(FUNC(millennium_state::pe0_r));
 }
 
 /* Input ports */
 static INPUT_PORTS_START( millennium )
 	PORT_START("KEYPAD")
-	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_START1)
-
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYPAD) // Dummy
 INPUT_PORTS_END
 
 
 void millennium_state::machine_start()
 {
-	// state saving
-	;
+	save_item(NAME(m_p40));
+	save_item(NAME(m_p41));
+	save_item(NAME(m_p42));
+	save_item(NAME(m_p60));
+	save_item(NAME(m_pe0_flip));
 }
 
 
 void millennium_state::machine_reset()
 {
-	;
+	m_p40 = 0;
+	m_p41 = 0;
+	m_p42 = 0;
+	m_p60 = 0;
+	m_pe0_flip = 0;
 }
 
 void millennium_state::millennium(machine_config &config)
@@ -130,8 +227,7 @@ void millennium_state::millennium(machine_config &config)
 	m_maincpu->txa0_wr_callback().set("serial", FUNC(rs232_port_device::write_txd));
 	m_maincpu->rts0_wr_callback().set("serial", FUNC(rs232_port_device::write_rts));
 
-	I8255(config, m_ppi, 0);
-	m_ppi->out_pb_callback().set(FUNC(millennium_state::portb_w));
+	EEPROM_93C46_16BIT(config, m_eeprom);
 
 	UPD7759(config, m_adpcm, 640_kHz_XTAL).add_route(ALL_OUTPUTS, "mono", 0.30);
 
@@ -140,20 +236,20 @@ void millennium_state::millennium(machine_config &config)
 	rs232.cts_handler().set(m_maincpu, FUNC(z180_device::cts0_w));
 	rs232.cts_handler().append_inputline(m_maincpu, Z180_INPUT_LINE_DREQ0).invert();
 
-	// LCD CU20026 Noritake VFD
+	// Noritake VFD CU20026SCPB
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
 	screen.set_color(rgb_t(6, 120, 245));
-	screen.set_physical_aspect(7*20, 10*4);
+	screen.set_physical_aspect(20, 2);
 	screen.set_refresh_hz(72);
-	screen.set_size(6*20, 9*4);
+	screen.set_size(6*20, 9*2);
 	screen.set_visarea_full();
-	screen.set_screen_update(m_vfd, FUNC(noritake_vfd_device::screen_update));
+	screen.set_screen_update("vfd", FUNC(noritake_vfd_device::screen_update));
 	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
 
 	NORITAKE_VFD(config, m_vfd, 270'000);
-	m_vfd->set_lcd_size(4, 20); // 4 lines, 20 characters
+	m_vfd->set_lcd_size(2, 20);
 
 	SPEAKER(config, "mono").front_center();
 }
@@ -172,4 +268,4 @@ ROM_END
 /* Driver */
 
 /*    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY        FULLNAME          FLAGS */
-COMP( 1993, mnba1f02, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard E/F)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND)
+COMP( 1993, mnba1f02, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard E/F)", MACHINE_NOT_WORKING )
