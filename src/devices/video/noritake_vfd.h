@@ -6,7 +6,12 @@
 
 #pragma once
 
+//-------------------------------------------------
+//  @src/devices/video/noritake_vfd.h,VIDEOS["NORITAKE_VFD"] = true
+//-------------------------------------------------
+
 #include "emu.h"
+#include "screen.h"
 
 DECLARE_DEVICE_TYPE(NORITAKE_VFD, noritake_vfd_device)
 
@@ -29,6 +34,8 @@ public:
 	void rs_w(int state);
 	void rw_w(int state);
 	void e_w(int state);
+
+	void update_nibble(int rs, int rw);
 
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 

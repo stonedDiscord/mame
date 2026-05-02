@@ -1015,17 +1015,18 @@ if VIDEOS["MSM6255"] then
 	}
 end
 
- --------------------------------------------------
- --
- --@src/devices/video/noritake_vfd.h,VIDEOS["NORITAKE_VFD"] = true
- --------------------------------------------------
+--------------------------------------------------
+--
+--@src/devices/video/noritake_vfd.h,VIDEOS["NORITAKE_VFD"] = true
+--------------------------------------------------
 
- if VIDEOS["NORITAKE_VFD"] then
+VIDEOS["NORITAKE_VFD"] = true
+if VIDEOS["NORITAKE_VFD"] then
  	files {
  		MAME_DIR .. "src/devices/video/noritake_vfd.cpp",
  		MAME_DIR .. "src/devices/video/noritake_vfd.h",
  	}
- end
+end
 
 --------------------------------------------------
 --

@@ -73,10 +73,10 @@ DEFINE_DEVICE_TYPE(NORITAKE_VFD, noritake_vfd_device, "noritake_vfd", "Noritake 
 
 noritake_vfd_device::noritake_vfd_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
 	: device_t(mconfig, NORITAKE_VFD, tag, owner, clock)
-	, m_pixel_update_cb(*this)
-	, m_busy_factor(1.0)
 	, m_lines(2)
 	, m_chars(20)
+	, m_pixel_update_cb(*this)
+	, m_busy_factor(1.0)
 	, m_busy_flag(false)
 	, m_ac(0)
 	, m_dr(0)
@@ -191,7 +191,7 @@ void noritake_vfd_device::device_reset()
 
 	m_pixel_update_cb.resolve();
 
-	set_busy_flag(DELAY_RESET);
+	set_busy_flag(u16(DELAY_RESET));
 }
 
 //-------------------------------------------------
@@ -384,7 +384,7 @@ void noritake_vfd_device::control_write(u8 data)
 	if (data == CMD_SOFT_RESET)
 	{
 		device_reset();
-		set_busy_flag(DELAY_RESET);
+		set_busy_flag(u16(DELAY_RESET));
 		LOG("Noritake VFD: Software reset\n");
 		return;
 	}
@@ -627,6 +627,18 @@ void noritake_vfd_device::e_w(int state)
 	m_enabled = state;
 }
 
+void noritake_vfd_device::update_nibble(int rs, int rw)
+{
+	if (m_rs_state != rs || m_rw_state != rw)
+	{
+		m_rs_state = rs;
+		m_rw_state = rw;
+		m_nibble = false;
+	}
+
+	m_nibble = !m_nibble;
+}
+
 //**************************************************************************
 //  SCREEN UPDATE
 //**************************************************************************
@@ -637,8 +649,6 @@ uint32_t noritake_vfd_device::screen_update(screen_device &screen, bitmap_ind16 
 
 	if (!m_display_on)
 		return 0;
-
-	u8 line_height = m_char_size;
 
 	for (int line = 0; line < m_num_line; line++)
 	{
