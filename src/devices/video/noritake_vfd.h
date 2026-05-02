@@ -39,9 +39,15 @@ public:
 
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	void set_lcd_size(int lines, int chars) { m_lines = lines; m_chars = chars; }
+	void set_lcd_size(int lines, int chars) { m_lines = lines; m_num_line = lines; m_chars = chars; }
 	template <typename... T> void set_pixel_update_cb(T &&... args) { m_pixel_update_cb.set(std::forward<T>(args)...); }
 	void set_busy_factor(float f) { m_busy_factor = f; }
+
+	// command/data processing
+	void vfd_w(u8 data);
+	void vfd_bit_bang_w(int data, int clock, int cs, int latch, int addr);
+	void control_write(u8 data);
+	void data_write(u8 data);
 
 	typedef device_delegate<void (bitmap_ind16 &bitmap, u8 line, u8 pos, u8 y, u8 x, int state)> pixel_update_delegate;
 
@@ -56,9 +62,7 @@ private:
 	TIMER_CALLBACK_MEMBER(blink_tick);
 
 	// command/data processing
-	void control_write(u8 data);
 	u8 control_read();
-	void data_write(u8 data);
 	u8 data_read();
 
 	// internal helpers
@@ -112,11 +116,18 @@ private:
 	bool m_esc_mode;
 	u8 m_esc_step;
 	u8 m_esc_data[7];
+	u8 m_esc_type;
+	u8 m_esc_param;
 	u8 m_blink_pos[2];   // up to 2 positions can blink
 	u8 m_brightness;
 	bool m_esc_2byte_cmd;
 	bool m_2byte_cmd_pending;
 	u8 m_2byte_cmd;
+
+	// Bit-bang state
+	u8 m_p40_prev;
+	u8 m_vfd_data;
+	u8 m_vfd_bits;
 
 	u8 m_render_buf[80 * 16];
 };
