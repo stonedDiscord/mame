@@ -7,7 +7,8 @@
      CPU: Z8S18020
   MEMORY: M5M5256BP-12LL
      OSC: 
-  EEPROM: 
+  EEPROM: M27C2001 Program, M27C4001 Voiceware
+   SOUND: UPD7759
 
 
 ***************************************************************************/
@@ -55,19 +56,12 @@ private:
 	virtual void machine_reset() override ATTR_COLD;
 	void io_w(offs_t offset, u8 data);
 	u8 io_r(offs_t offset);
-
-	void tone_w(u8 data);
+	void portb_w(u8 data);
 
 	void millennium_io(address_map &map) ATTR_COLD;
 	void millennium_mem(address_map &map) ATTR_COLD;
 
 };
-
-
-void millennium_state::tone_w(u8 data)
-{
-	;
-}
 
 
 u8 millennium_state::io_r(offs_t offset)
@@ -78,9 +72,13 @@ u8 millennium_state::io_r(offs_t offset)
 
 void millennium_state::io_w(offs_t offset, u8 data)
 {
-	tone_w(data);
+	;
 }
 
+void millennium_state::portb_w(u8 data)
+{
+	popmessage("PortB write: %02X\n", data);
+}
 
 void millennium_state::millennium_mem(address_map &map)
 {
@@ -96,7 +94,7 @@ void millennium_state::millennium_io(address_map &map)
 	map(0x00, 0x3f).noprw(); /* Z180 internal registers */
 	map(0x99, 0x99).rw(FUNC(millennium_state::io_r), FUNC(millennium_state::io_w));
 	map(0x40, 0x43).rw(m_ppi, FUNC(i8255_device::read), FUNC(i8255_device::write));
-	map(0xcc, 0xcc).rw(m_vfd, FUNC(hd44780_device::read), FUNC(hd44780_device::write));
+	//map(0xcc, 0xcc).rw(m_vfd, FUNC(hd44780_device::read), FUNC(hd44780_device::write));
 }
 
 /* Input ports */
@@ -129,10 +127,11 @@ void millennium_state::millennium(machine_config &config)
 	m_maincpu->rts0_wr_callback().set("serial", FUNC(rs232_port_device::write_rts));
 
 	I8255(config, m_ppi, 0);
+	m_ppi->out_pb_callback().set(FUNC(millennium_state::portb_w));
 
 	UPD7759(config, m_adpcm, 640_kHz_XTAL).add_route(ALL_OUTPUTS, "mono", 0.30);
 
-	rs232_port_device &rs232(RS232_PORT(config, "serial", default_rs232_devices, "printer"));
+	rs232_port_device &rs232(RS232_PORT(config, "serial", default_rs232_devices, nullptr));
 	rs232.rxd_handler().set(m_maincpu, FUNC(z180_device::rxa0_w));
 	rs232.cts_handler().set(m_maincpu, FUNC(z180_device::cts0_w));
 	rs232.cts_handler().append_inputline(m_maincpu, Z180_INPUT_LINE_DREQ0).invert();
