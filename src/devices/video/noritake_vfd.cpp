@@ -12,7 +12,7 @@
 #include "emu.h"
 #include "noritake_vfd.h"
 
-//#define VERBOSE 1
+#define VERBOSE 1
 #include "logmacro.h"
 
 DEFINE_DEVICE_TYPE(NORITAKE_VFD, noritake_vfd_device, "noritake_vfd", "Noritake CU20026SCPB VFD")

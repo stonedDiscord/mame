@@ -30,6 +30,8 @@
 
 #include "millennium.lh"
 
+#define VERBOSE 1
+#include "logmacro.h"
 
 namespace {
 
@@ -67,7 +69,7 @@ private:
 
 u8 millennium_state::io_r(offs_t offset)
 {
-	return 0x00;
+	return 0xff;
 }
 
 
@@ -78,7 +80,7 @@ void millennium_state::io_w(offs_t offset, u8 data)
 
 void millennium_state::portb_w(u8 data)
 {
-	popmessage("PortB write: %02X\n", data);
+	LOG("PortB write: %02X\n", data);
 }
 
 void millennium_state::millennium_mem(address_map &map)
@@ -95,7 +97,7 @@ void millennium_state::millennium_io(address_map &map)
 	map(0x00, 0x3f).noprw(); /* Z180 internal registers */
 	map(0x99, 0x99).rw(FUNC(millennium_state::io_r), FUNC(millennium_state::io_w));
 	map(0x40, 0x43).rw(m_ppi, FUNC(i8255_device::read), FUNC(i8255_device::write));
-	map(0x60, 0x60).w(m_vfd, FUNC(noritake_vfd_device::data_w));
+	map(0x60, 0x60).rw(m_vfd, FUNC(noritake_vfd_device::data_r), FUNC(noritake_vfd_device::data_w));
 	map(0x80, 0x80).rw(m_vfd, FUNC(noritake_vfd_device::control_r), FUNC(noritake_vfd_device::control_w));
 	//map(0xcc, 0xcc).rw(m_vfd, FUNC(hd44780_device::read), FUNC(hd44780_device::write));
 }
