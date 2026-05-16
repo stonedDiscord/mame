@@ -160,6 +160,16 @@ private:
 	void mem_map(address_map &map) ATTR_COLD;
 	void cpu_space_map(address_map &map) ATTR_COLD;
 
+  uint8_t pit_pa_r();
+  void pit_pa_w(uint8_t data);
+  uint8_t pit_pb_r();
+  void pit_pb_w(uint8_t data);
+  uint8_t pit_pc_r();
+  void pit_pc_w(uint8_t data);
+
+  uint8_t duart_in_r();
+  void duart_out_w(uint8_t data);
+
 	required_device<cpu_device> m_maincpu;
 	required_device<mc68681_device> m_duart;
 	required_device<pit68230_device> m_pit;
@@ -193,6 +203,50 @@ void manohman_state::cpu_space_map(address_map &map)
 	map(0xfffff0, 0xffffff).m(m_maincpu, FUNC(m68000_base_device::autovectors_map));
 	map(0xfffff4, 0xfffff5).r(m_pit, FUNC(pit68230_device::irq_tiack));
 	map(0xfffff8, 0xfffff9).r(m_duart, FUNC(mc68681_device::get_irq_vector));
+}
+
+uint8_t manohman_state::pit_pa_r()
+{
+  //logerror("%06x: PIT PA read\n", m_maincpu->pc()); //buttons in?
+  return 0x00;
+}
+
+void manohman_state::pit_pa_w(uint8_t data)
+{
+  //logerror("%06x: PIT PA write %02x\n", m_maincpu->pc(), data); //lamps out?
+}
+
+uint8_t manohman_state::pit_pb_r()
+{
+  logerror("%06x: PIT PB read\n", m_maincpu->pc()); //reserved
+  return 0x00;
+}
+
+void manohman_state::pit_pb_w(uint8_t data)
+{
+  logerror("%06x: PIT PB write %02x\n", m_maincpu->pc(), data); //reserved
+}
+
+uint8_t manohman_state::pit_pc_r()
+{
+  logerror("%06x: PIT PC read\n", m_maincpu->pc()); //coins
+  return 0x00;
+}
+
+void manohman_state::pit_pc_w(uint8_t data)
+{
+  logerror("%06x: PIT PC write %02x\n", m_maincpu->pc(), data);
+}
+
+uint8_t manohman_state::duart_in_r()
+{
+  //logerror("%06x: DUART read\n", m_maincpu->pc()); // service?
+  return 0x00;
+}
+
+void manohman_state::duart_out_w(uint8_t data)
+{
+  //logerror("%06x: DUART write %02x\n", m_maincpu->pc(), data); // service?
 }
 
 /*
@@ -302,8 +356,19 @@ void manohman_state::manohman(machine_config &config)
 	PIT68230(config, m_pit, XTAL(8'000'000)); // MC68230P8
 	m_pit->timer_irq_callback().set_inputline("maincpu", M68K_IRQ_2);
 
+  m_pit->pa_in_callback().set(FUNC(manohman_state::pit_pa_r)); // buttons
+  m_pit->pa_out_callback().set(FUNC(manohman_state::pit_pa_w)); // lamps
+  
+  m_pit->pb_in_callback().set(FUNC(manohman_state::pit_pb_r)); // reserved
+  m_pit->pb_out_callback().set(FUNC(manohman_state::pit_pb_w)); // reserved
+
+  m_pit->pc_in_callback().set(FUNC(manohman_state::pit_pc_r)); // coins
+  m_pit->pc_out_callback().set(FUNC(manohman_state::pit_pc_w)); // coins
+
 	MC68681(config, m_duart, XTAL(3'686'400));
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_4);
+  m_duart->inport_cb().set(FUNC(manohman_state::duart_in_r)); // coins
+  m_duart->outport_cb().set(FUNC(manohman_state::duart_out_w)); // coins
 
 	MSM6242(config, "rtc", XTAL(32'768)); // M62X42B
 
