@@ -150,7 +150,9 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
-		m_pit(*this, "pit")
+		m_pit(*this, "pit"),
+    m_sw1(*this, "SW1"),
+    m_sw2(*this, "SW2")
 	{ }
 
 	void manohman(machine_config &config);
@@ -159,6 +161,14 @@ private:
 	virtual void machine_start() override ATTR_COLD;
 	void mem_map(address_map &map) ATTR_COLD;
 	void cpu_space_map(address_map &map) ATTR_COLD;
+
+	required_device<cpu_device> m_maincpu;
+	required_device<mc68681_device> m_duart;
+	required_device<pit68230_device> m_pit;
+  required_ioport m_sw1;
+  required_ioport m_sw2;
+
+  uint8_t m_latch;
 
   uint8_t pit_pa_r();
   void pit_pa_w(uint8_t data);
@@ -169,10 +179,6 @@ private:
 
   uint8_t duart_in_r();
   void duart_out_w(uint8_t data);
-
-	required_device<cpu_device> m_maincpu;
-	required_device<mc68681_device> m_duart;
-	required_device<pit68230_device> m_pit;
 };
 
 
@@ -218,7 +224,10 @@ void manohman_state::pit_pa_w(uint8_t data)
 
 uint8_t manohman_state::pit_pb_r()
 {
-  logerror("%06x: PIT PB read\n", m_maincpu->pc()); //reserved
+  if ((m_latch >> 4) == 4)
+    return m_sw1->read();
+  else if ((m_latch >> 4) == 5)
+    return m_sw2->read();
   return 0x00;
 }
 
