@@ -170,6 +170,16 @@ private:
 
   uint8_t m_latch;
 
+  uint16_t m_data[8] = {0,0,0,0,0,0,0,0};
+  uint8_t m_zeilen = 0; // 0-7
+  uint16_t m_spalten = 0; // 12 bits, 0-2 are & with en
+  //uint8_t m_st = 0;
+  //uint8_t m_din = 0;
+
+  void serienplan_w(uint8_t data);
+  void lamps_w(uint16_t data);
+  void enable_w(uint8_t data);
+
   uint8_t pit_pa_r();
   void pit_pa_w(uint8_t data);
   uint8_t pit_pb_r();
@@ -184,6 +194,9 @@ private:
 
 void manohman_state::machine_start()
 {
+  save_item(NAME(m_data));
+  save_item(NAME(m_zeilen));
+  save_item(NAME(m_spalten));
 }
 
 
@@ -199,9 +212,10 @@ void manohman_state::mem_map(address_map &map)
 	map(0x300000, 0x300003).w("saa", FUNC(saa1099_device::write)).umask16(0x00ff).nopr();
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
 	map(0x500000, 0x503fff).ram().share("nvram"); //work RAM
-	map(0x600002, 0x600003).nopw(); // output through shift register?
+	map(0x600002, 0x600003).w(FUNC(manohman_state::serienplan_w)); // output through shift register?
 	map(0x600004, 0x600005).nopr();
-	map(0x600006, 0x600007).noprw(); //(r) is discarded (watchdog?)
+  map(0x600006, 0x600007).nopr();
+	map(0x600006, 0x600007).w(FUNC(manohman_state::enable_w));
 }
 
 void manohman_state::cpu_space_map(address_map &map)
@@ -211,15 +225,40 @@ void manohman_state::cpu_space_map(address_map &map)
 	map(0xfffff8, 0xfffff9).r(m_duart, FUNC(mc68681_device::get_irq_vector));
 }
 
+void manohman_state::serienplan_w(uint8_t data)
+{
+  m_data[0] = (m_data[0] << 1) | BIT(data,0);
+  m_data[1] = (m_data[1] << 1) | BIT(data,1);
+  m_data[2] = (m_data[2] << 1) | BIT(data,2);
+  m_data[3] = (m_data[3] << 1) | BIT(data,3);
+  m_data[4] = (m_data[4] << 1) | BIT(data,4);
+  m_data[5] = (m_data[5] << 1) | BIT(data,5);
+  m_data[6] = (m_data[6] << 1) | BIT(data,6);
+  m_data[7] = (m_data[7] << 1) | BIT(data,7);
+}
+
+void manohman_state::enable_w(uint8_t data)
+{
+  lamps_w(m_data[0]);
+}
+
+void manohman_state::lamps_w(uint16_t data)
+{
+  m_zeilen = data & 7;
+  m_spalten = (data >> 3) & 0xfff;
+}
+
 uint8_t manohman_state::pit_pa_r()
 {
   //logerror("%06x: PIT PA read\n", m_maincpu->pc()); //buttons in?
+  // NC ?
   return 0x00;
 }
 
 void manohman_state::pit_pa_w(uint8_t data)
 {
   //logerror("%06x: PIT PA write %02x\n", m_maincpu->pc(), data); //lamps out?
+  // NC ?
 }
 
 uint8_t manohman_state::pit_pb_r()
@@ -257,6 +296,7 @@ void manohman_state::duart_out_w(uint8_t data)
 {
   //logerror("%06x: DUART write %02x\n", m_maincpu->pc(), data); // service?
 }
+
 
 /*
 
