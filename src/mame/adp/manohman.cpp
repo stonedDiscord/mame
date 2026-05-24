@@ -427,8 +427,10 @@ void manohman_state::manohman(machine_config &config)
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_4);
   m_duart->inport_cb().set(FUNC(manohman_state::duart_in_r)); // coins
   m_duart->outport_cb().set(FUNC(manohman_state::duart_out_w)); // coins
+  m_duart->a_tx_cb().set(m_rs232, FUNC(rs232_port_device::write_txd));
 
   RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
+  m_rs232->rxd_handler().set(m_duart, FUNC(mc68681_device::rx_a_w));
 
 	MSM6242(config, "rtc", XTAL(32'768)); // M62X42B
 
