@@ -141,6 +141,8 @@
 #include "machine/nvram.h"
 #include "machine/watchdog.h"
 #include "sound/saa1099.h"
+#include "emupal.h"
+#include "screen.h"
 #include "speaker.h"
 
 
@@ -156,6 +158,9 @@ public:
     m_rs232(*this, "rs232"),
 		m_pit(*this, "pit"),
     m_watchdog(*this, "watchdog"),
+    m_screen(*this, "screen"),
+    m_palette(*this, "palette"),
+    m_workram(*this, "nvram"),
     m_sw1(*this, "SW1"),
     m_sw2(*this, "SW2")
 	{ }
@@ -172,12 +177,14 @@ private:
 	required_device<rs232_port_device> m_rs232;
 	required_device<pit68230_device> m_pit;
   required_device<watchdog_timer_device> m_watchdog;
+  required_device<screen_device> m_screen;
+  required_device<palette_device> m_palette;
+  required_shared_ptr<uint16_t> m_workram;
   required_ioport m_sw1;
   required_ioport m_sw2;
 
-  uint8_t m_latch;
-
   uint16_t m_data[8] = {0,0,0,0,0,0,0,0};
+  uint8_t m_latch = 0;
   uint8_t m_zeilen = 0; // 0-7
   uint16_t m_spalten = 0; // 12 bits, 0-2 are & with en
   //uint8_t m_st = 0;
@@ -196,6 +203,7 @@ private:
 
   uint8_t duart_in_r();
   void duart_out_w(uint8_t data);
+  uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 };
 
 
@@ -306,6 +314,28 @@ void manohman_state::duart_out_w(uint8_t data)
   //logerror("%06x: DUART write %02x\n", m_maincpu->pc(), data); // service?
 }
 
+uint32_t manohman_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+{
+	bitmap.fill(0, cliprect);
+	const int display_width = 120;
+	const int display_height = 7;
+	const offs_t base = 0x111a;
+
+	for (int x = 0; x < display_width; x++)
+	{
+		offs_t addr = base + x;
+		offs_t index = addr >> 1;
+		uint16_t word = m_workram[index];
+		uint8_t column = (addr & 1) ? (word & 0xff) : (word >> 8);
+		for (int y = 0; y < display_height; y++)
+		{
+			if (column & (1 << y))
+				bitmap.pix(y, x) = 1;
+		}
+	}
+
+	return 0;
+}
 
 /*
 
@@ -396,7 +426,7 @@ static INPUT_PORTS_START( backgamn )
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( manohman )
-
+  PORT_INCLUDE(backgamn)
 INPUT_PORTS_END
 
 
@@ -434,10 +464,18 @@ void manohman_state::manohman(machine_config &config)
 
 	MSM6242(config, "rtc", XTAL(32'768)); // M62X42B
 
-  WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_msec(1600));   // MAX696
+  WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_msec(160000));   // MAX696
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_NONE); // KM6264BL-10 x2 + MAX696CFL + battery
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(50);
+	screen.set_size(120, 7);
+	screen.set_visarea_full();
+	screen.set_color(rgb_t::green());
+	screen.set_palette("palette");
+	screen.set_screen_update(FUNC(manohman_state::screen_update));
 
+	PALETTE(config, "palette", palette_device::MONOCHROME_INVERTED);
 	SPEAKER(config, "mono").front_center();
 	SAA1099(config, "saa", XTAL(8'000'000) / 2).add_route(ALL_OUTPUTS, "mono", 0.10); // clock not verified
 }
