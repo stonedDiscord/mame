@@ -449,8 +449,8 @@ void manohman_state::manohman(machine_config &config)
 
 ROM_START( manohman )
 	ROM_REGION( 0x20000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "mom_austria_vorserie_ii.bin", 0x00000, 0x10000, CRC(4b57409c) SHA1(0438f5d52f4de2ece8fb684cf2d82bdea0eacf0b) )
-	ROM_LOAD16_BYTE( "mom_austria_vorserie_i.bin",  0x00001, 0x10000, CRC(3c9507f9) SHA1(489a6aadfb7d61be0873bf48d428e9d915268f95) )
+  ROM_LOAD16_BYTE( "mom_austria_vorserie_i.bin",  0x00001, 0x10000, CRC(3c9507f9) SHA1(489a6aadfb7d61be0873bf48d428e9d915268f95) )
+	ROM_LOAD16_BYTE( "mom_austria_vorserie_ii.bin", 0x00000, 0x10000, CRC(4b57409c) SHA1(0438f5d52f4de2ece8fb684cf2d82bdea0eacf0b) )	
 ROM_END
 
 ROM_START( backgamn )
@@ -461,8 +461,8 @@ ROM_END
 
 ROM_START( backgamnw )
 	ROM_REGION( 0x20000, "maincpu", 0 )
-	ROM_LOAD16_BYTE( "backgammon_wand_f2_i.u19",  0x00000, 0x10000, CRC(45e280d2) SHA1(65dff9d4884af2d37138f79d71bddd223433b13c) )
-	ROM_LOAD16_BYTE( "backgammon_wand_f2_ii.u20", 0x00001, 0x10000, CRC(ccc536c3) SHA1(82d9243d6f6e05d4ce83d1080c6c038852d2398c) )
+	ROM_LOAD16_BYTE( "backgammon_wand_f2_i.u19",  0x00001, 0x10000, CRC(45e280d2) SHA1(65dff9d4884af2d37138f79d71bddd223433b13c) )
+	ROM_LOAD16_BYTE( "backgammon_wand_f2_ii.u20", 0x00000, 0x10000, CRC(ccc536c3) SHA1(82d9243d6f6e05d4ce83d1080c6c038852d2398c) )
 ROM_END
 
 } // anonymous namespace
