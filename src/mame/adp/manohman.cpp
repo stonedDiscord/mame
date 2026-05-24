@@ -132,11 +132,14 @@
 ***************************************************************************/
 
 #include "emu.h"
+
+#include "bus/rs232/rs232.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/68230pit.h"
 #include "machine/mc68681.h"
 #include "machine/msm6242.h"
 #include "machine/nvram.h"
+#include "machine/watchdog.h"
 #include "sound/saa1099.h"
 #include "speaker.h"
 
@@ -150,7 +153,9 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
+    m_rs232(*this, "rs232"),
 		m_pit(*this, "pit"),
+    m_watchdog(*this, "watchdog"),
     m_sw1(*this, "SW1"),
     m_sw2(*this, "SW2")
 	{ }
@@ -164,7 +169,9 @@ private:
 
 	required_device<cpu_device> m_maincpu;
 	required_device<mc68681_device> m_duart;
+	required_device<rs232_port_device> m_rs232;
 	required_device<pit68230_device> m_pit;
+  required_device<watchdog_timer_device> m_watchdog;
   required_ioport m_sw1;
   required_ioport m_sw2;
 
@@ -284,6 +291,8 @@ uint8_t manohman_state::pit_pc_r()
 void manohman_state::pit_pc_w(uint8_t data)
 {
   logerror("%06x: PIT PC write %02x\n", m_maincpu->pc(), data);
+  if (BIT(data,6))
+    m_watchdog->watchdog_reset();
 }
 
 uint8_t manohman_state::duart_in_r()
@@ -419,7 +428,11 @@ void manohman_state::manohman(machine_config &config)
   m_duart->inport_cb().set(FUNC(manohman_state::duart_in_r)); // coins
   m_duart->outport_cb().set(FUNC(manohman_state::duart_out_w)); // coins
 
+  RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
+
 	MSM6242(config, "rtc", XTAL(32'768)); // M62X42B
+
+  WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_msec(1600));   // MAX696
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_NONE); // KM6264BL-10 x2 + MAX696CFL + battery
 
