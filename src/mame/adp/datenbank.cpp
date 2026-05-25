@@ -470,6 +470,18 @@ void datenbank_state::showdownec1(machine_config &config)
 	aysnd.port_b_write_callback().set(FUNC(datenbank_state::ay8910_portb_w));
 }
 
+ROM_START(asiasun)
+    ROM_REGION16_BE( 0x100000, "nvram", 0 )
+	ROM_LOAD("loader_uhg.bin", 0x00400, 0x00bc0, CRC(5f65e60c) SHA1(a671f849e628c8950eacf51eba652583d47bbd4e))
+	ROM_LOAD("eeprom_1mb_at90s120.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315))
+    ROM_LOAD("asian_sun_d_c5_dec.bin", 0x01000, 0x8a404, CRC(cca31ee3) SHA1(279645ff76a85a9d3111e473dae9fbc42bd25144))
+
+	ROM_REGION16_BE( 0x40000, "gfx1", 0 )
+	ROM_LOAD("asian_sun_deutsch_video_f1_speicher_1_m27c4001.bin", 0x00000, 0x80000, CRC(048bb5f4) SHA1(f0d12c9bc3cc4dd26e16e8271ea96b609e5801e2))
+    ROM_LOAD("asian_sun_deutsch_video_f1_speicher_2_m27c4001.bin", 0x00000, 0x80000, CRC(f0bb1263) SHA1(2bc58bda6375b4291cfb04919f6b6bc21109096d))
+
+ROM_END
+
 ROM_START( brisant )
     ROM_REGION16_BE( 0x100000, "nvram", 0 )
 	ROM_LOAD( "loader_rote.bin", 0x00400, 0x00bc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
@@ -477,7 +489,7 @@ ROM_START( brisant )
 	ROM_LOAD( "brisant_ec1.xc.dec.bin",     0x001000, 0x052404, CRC(83b81f46) SHA1(5c83bf81f285cac8a918dc5fdcb270a57588a1b9) )
 ROM_END
 
-ROM_START( showdownec1 )
+ROM_START( showdec1 )
     ROM_REGION16_BE( 0x100000, "nvram", 0 )
 	ROM_LOAD( "loader_rote.bin", 0x00400, 0x00bc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
 	ROM_LOAD( "eeprom_512kb_at90s1200.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
@@ -493,6 +505,7 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL(1998, showdownec1,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(1998, showdec1,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
 GAMEL(1999, brisant,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Brisant",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(2006, asiasun,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Stella",   "Asian Sun",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
 GAMEL(2006, siriusje,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Sirius Jackpot Nug",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
