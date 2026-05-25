@@ -422,7 +422,7 @@ void datenbank_state::funland_mem(address_map &map)
 	map(0x800080, 0x800083).rw("acrtc", FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800089, 0x800089).w("ramdac", FUNC(ramdac_device::index_w));
 	map(0x80008b, 0x80008b).w("ramdac", FUNC(ramdac_device::pal_w));
-	map(0x80008d, 0x80008d).w("ramdac", FUNC(ramdac_device::mask_w));
+	map(0x80008c, 0x80008d).rw("ramdac", FUNC(ramdac_device::mask_r), FUNC(ramdac_device::mask_w));
 	map(0x8000c1, 0x8000c1).w(FUNC(datenbank_state::mux2_w)); // Y3 SP/ME II out
 	map(0x800100, 0x800101).rw(FUNC(datenbank_state::mux_r), FUNC(datenbank_state::mux_w)); // Y4 SP/ME I out / Inputs
 	map(0x800100, 0x800101).nopw();
@@ -460,6 +460,8 @@ void datenbank_state::machine_start()
 	m_digits.resolve();
 	m_lamps.resolve();
 	m_leds.resolve();
+
+	// write INIT to 0xfffd00
 }
 
 void datenbank_state::machine_reset()
@@ -539,7 +541,7 @@ ROM_START(asiasun)
 	ROM_LOAD("eeprom_1mb_at90s120.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315))
     ROM_LOAD("asian_sun_d_c5_dec.bin", 0x01000, 0x8a404, CRC(cca31ee3) SHA1(279645ff76a85a9d3111e473dae9fbc42bd25144))
 
-	ROM_REGION16_BE( 0x100000, "gfx1", ROMREGION_ERASE00 )
+	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
 	ROM_LOAD("asian_sun_deutsch_video_f1_speicher_1_m27c4001.bin", 0x00000, 0x80000, CRC(048bb5f4) SHA1(f0d12c9bc3cc4dd26e16e8271ea96b609e5801e2))
     ROM_LOAD("asian_sun_deutsch_video_f1_speicher_2_m27c4001.bin", 0x00000, 0x80000, CRC(f0bb1263) SHA1(2bc58bda6375b4291cfb04919f6b6bc21109096d))
 ROM_END
@@ -569,5 +571,5 @@ ROM_END
 
 GAMEL(1998, showdec1,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
 GAMEL(1999, brisant,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Brisant",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
-GAMEL(2006, asiasun,             0, funland, showdownec1, datenbank_state, empty_init, ROT0, "Stella",   "Asian Sun",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(2004, asiasun,             0, funland, showdownec1, datenbank_state, empty_init, ROT0, "Stella",   "Asian Sun",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
 GAMEL(2006, siriusje,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Sirius Jackpot Nug",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
