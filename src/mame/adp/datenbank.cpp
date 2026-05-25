@@ -102,12 +102,17 @@ Patent: DE10142537A1
 
 #include "emu.h"
 
+#include "cpu/m68000/m68020.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/68340.h"
 #include "machine/nvram.h"
 #include "machine/rtc4543.h"
 #include "sound/ay8910.h"
 #include "sound/dac.h"
+#include "video/hd63484.h"
+#include "video/ramdac.h"
+#include "emupal.h"
+#include "screen.h"
 
 #include "speaker.h"
 
@@ -219,6 +224,7 @@ public:
 	{ }
 
 	void showdownec1(machine_config &config);
+	void funland(machine_config &config);
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
@@ -264,6 +270,11 @@ private:
 	void duart_output_w(uint8_t data);
 	void ay8910_portb_w(uint8_t data);
 	void lamp_w(bool second, uint8_t row, uint16_t data);
+
+	void fstation_hd63484_map(address_map &map) ATTR_COLD;
+	void funland_mem(address_map &map) ATTR_COLD;
+
+	void ramdac_map(address_map &map) ATTR_COLD;
 
 	void mem_map(address_map &map) ATTR_COLD;
 	void fc7_map(address_map &map) ATTR_COLD;
@@ -403,6 +414,25 @@ void datenbank_state::ay8910_portb_w(uint8_t data)
 {
 }
 
+void datenbank_state::funland_mem(address_map &map)
+{
+	map(0x000000, 0x0fffff).ram().share("nvram");
+	map(0x000000, 0x0003ff).rom().region("nvram",0x1100);
+	// controlled by U17 74HC138
+	map(0x800080, 0x800083).rw("acrtc", FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
+	map(0x800089, 0x800089).w("ramdac", FUNC(ramdac_device::index_w));
+	map(0x80008b, 0x80008b).w("ramdac", FUNC(ramdac_device::pal_w));
+	map(0x80008d, 0x80008d).w("ramdac", FUNC(ramdac_device::mask_w));
+	map(0x8000c1, 0x8000c1).w(FUNC(datenbank_state::mux2_w)); // Y3 SP/ME II out
+	map(0x800100, 0x800101).rw(FUNC(datenbank_state::mux_r), FUNC(datenbank_state::mux_w)); // Y4 SP/ME I out / Inputs
+	map(0x800100, 0x800101).nopw();
+	map(0x800141, 0x800141).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_w)); // Y5
+	map(0x800143, 0x800143).w("aysnd", FUNC(ay8910_device::data_w)); // Y5
+	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
+	// Y7 NC
+	map(0xfff000, 0xffffff).ram();
+}
+
 void datenbank_state::mem_map(address_map &map)
 {
 	map(0x000000, 0x0fffff).ram().share("nvram");
@@ -446,10 +476,20 @@ static INPUT_PORTS_START( showdownec1 )
 	PORT_BIT( 0x0010, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) // Right
 INPUT_PORTS_END
 
+void datenbank_state::ramdac_map(address_map &map)
+{
+	map(0x000, 0x3ff).rw("ramdac", FUNC(ramdac_device::ramdac_pal_r), FUNC(ramdac_device::ramdac_rgb666_w));
+}
+
+void datenbank_state::fstation_hd63484_map(address_map &map)
+{
+	map(0x00000, 0x7ffff).rom().region("gfx1", 0);
+	map(0x80000, 0xfffff).ram();
+}
 
 void datenbank_state::showdownec1(machine_config &config)
 {
-	M68340(config, m_maincpu, 16000000); //MC68331
+	M68000(config, m_maincpu, 16000000); //MC68331
 	m_maincpu->set_addrmap(AS_PROGRAM, &datenbank_state::mem_map);
 	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &datenbank_state::fc7_map);
 
@@ -470,34 +510,56 @@ void datenbank_state::showdownec1(machine_config &config)
 	aysnd.port_b_write_callback().set(FUNC(datenbank_state::ay8910_portb_w));
 }
 
+void datenbank_state::funland(machine_config &config)
+{
+	showdownec1(config);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &datenbank_state::funland_mem);
+
+	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen.set_refresh_hz(60);
+	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
+	screen.set_size(384, 280);
+	screen.set_visarea_full();
+	screen.set_screen_update("acrtc", FUNC(hd63484_device::update_screen));
+	screen.set_palette("palette");
+
+	PALETTE(config, "palette", palette_device::BLACK, 0x100);
+	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, "palette"));
+	ramdac.set_addrmap(0, &datenbank_state::ramdac_map);
+
+	hd63484_device &acrtc(HD63484(config, "acrtc", 0));
+	acrtc.set_addrmap(0, &datenbank_state::fstation_hd63484_map);
+
+}
+
 ROM_START(asiasun)
-    ROM_REGION16_BE( 0x100000, "nvram", 0 )
+    ROM_REGION16_BE( 0x100000, "nvram", ROMREGION_ERASE00 )
 	ROM_LOAD("loader_uhg.bin", 0x00400, 0x00bc0, CRC(5f65e60c) SHA1(a671f849e628c8950eacf51eba652583d47bbd4e))
 	ROM_LOAD("eeprom_1mb_at90s120.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315))
     ROM_LOAD("asian_sun_d_c5_dec.bin", 0x01000, 0x8a404, CRC(cca31ee3) SHA1(279645ff76a85a9d3111e473dae9fbc42bd25144))
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx1", ROMREGION_ERASE00 )
 	ROM_LOAD("asian_sun_deutsch_video_f1_speicher_1_m27c4001.bin", 0x00000, 0x80000, CRC(048bb5f4) SHA1(f0d12c9bc3cc4dd26e16e8271ea96b609e5801e2))
     ROM_LOAD("asian_sun_deutsch_video_f1_speicher_2_m27c4001.bin", 0x00000, 0x80000, CRC(f0bb1263) SHA1(2bc58bda6375b4291cfb04919f6b6bc21109096d))
-
 ROM_END
 
 ROM_START( brisant )
-    ROM_REGION16_BE( 0x100000, "nvram", 0 )
+    ROM_REGION16_BE( 0x100000, "nvram", ROMREGION_ERASE00 )
 	ROM_LOAD( "loader_rote.bin", 0x00400, 0x00bc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
 	ROM_LOAD( "eeprom_512kb_at90s1200.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
 	ROM_LOAD( "brisant_ec1.xc.dec.bin",     0x001000, 0x052404, CRC(83b81f46) SHA1(5c83bf81f285cac8a918dc5fdcb270a57588a1b9) )
 ROM_END
 
 ROM_START( showdec1 )
-    ROM_REGION16_BE( 0x100000, "nvram", 0 )
+    ROM_REGION16_BE( 0x100000, "nvram", ROMREGION_ERASE00 )
 	ROM_LOAD( "loader_rote.bin", 0x00400, 0x00bc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
 	ROM_LOAD( "eeprom_512kb_at90s1200.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
 	ROM_LOAD( "showdown_ec1_decrypted.bin", 0x01000, 0x50c04, CRC(39f72304) SHA1(a4c383f83a8c455c59fd16af3608119b1fab4f5b) )
 ROM_END
 
 ROM_START( siriusje )
-    ROM_REGION16_BE( 0x100000, "nvram", 0 )
+    ROM_REGION16_BE( 0x100000, "nvram", ROMREGION_ERASE00 )
 	ROM_LOAD( "loader_rote.bin", 0x00400, 0x00bc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
 	ROM_LOAD( "eeprom_512kb_at90s1200.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
 	ROM_LOAD( "sirius_jackpot_ext_c2.xc.dec.bin",   0x001000, 0x018804, CRC(010a61e5) SHA1(1117ad3d97f0a08c4111ac52e9bf4edea0b0bac5) )
@@ -507,5 +569,5 @@ ROM_END
 
 GAMEL(1998, showdec1,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Showdown",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
 GAMEL(1999, brisant,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Brisant",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
-GAMEL(2006, asiasun,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Stella",   "Asian Sun",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
+GAMEL(2006, asiasun,             0, funland, showdownec1, datenbank_state, empty_init, ROT0, "Stella",   "Asian Sun",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
 GAMEL(2006, siriusje,             0, showdownec1, showdownec1, datenbank_state, empty_init, ROT0, "Mega",   "Sirius Jackpot Nug",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_stellafr )
