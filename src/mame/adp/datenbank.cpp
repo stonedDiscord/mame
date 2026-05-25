@@ -476,7 +476,7 @@ ROM_START(asiasun)
 	ROM_LOAD("eeprom_1mb_at90s120.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315))
     ROM_LOAD("asian_sun_d_c5_dec.bin", 0x01000, 0x8a404, CRC(cca31ee3) SHA1(279645ff76a85a9d3111e473dae9fbc42bd25144))
 
-	ROM_REGION16_BE( 0x40000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
 	ROM_LOAD("asian_sun_deutsch_video_f1_speicher_1_m27c4001.bin", 0x00000, 0x80000, CRC(048bb5f4) SHA1(f0d12c9bc3cc4dd26e16e8271ea96b609e5801e2))
     ROM_LOAD("asian_sun_deutsch_video_f1_speicher_2_m27c4001.bin", 0x00000, 0x80000, CRC(f0bb1263) SHA1(2bc58bda6375b4291cfb04919f6b6bc21109096d))
 
