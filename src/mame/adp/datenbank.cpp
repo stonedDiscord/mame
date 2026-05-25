@@ -470,18 +470,18 @@ void datenbank_state::showdownec1(machine_config &config)
 	aysnd.port_b_write_callback().set(FUNC(datenbank_state::ay8910_portb_w));
 }
 
-ROM_START( showdownec1 )
-    ROM_REGION16_BE( 0x100000, "nvram", 0 )
-	ROM_LOAD( "loader_rote.bin", 0x00400, 0x00bc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
-	ROM_LOAD( "eeprom_512kb_at90s1200.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
-	ROM_LOAD( "showdown_ec1_decrypted.bin", 0x01000, 0x50c04, CRC(39f72304) SHA1(a4c383f83a8c455c59fd16af3608119b1fab4f5b) )
-ROM_END
-
 ROM_START( brisant )
     ROM_REGION16_BE( 0x100000, "nvram", 0 )
 	ROM_LOAD( "loader_rote.bin", 0x00400, 0x00bc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
 	ROM_LOAD( "eeprom_512kb_at90s1200.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
 	ROM_LOAD( "brisant_ec1.xc.dec.bin",     0x001000, 0x052404, CRC(83b81f46) SHA1(5c83bf81f285cac8a918dc5fdcb270a57588a1b9) )
+ROM_END
+
+ROM_START( showdownec1 )
+    ROM_REGION16_BE( 0x100000, "nvram", 0 )
+	ROM_LOAD( "loader_rote.bin", 0x00400, 0x00bc0, CRC(6f6a4f49) SHA1(fd2ec05d52aeea588edcf6e22c7f6bc6dfb8d0d1) )
+	ROM_LOAD( "eeprom_512kb_at90s1200.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315) )
+	ROM_LOAD( "showdown_ec1_decrypted.bin", 0x01000, 0x50c04, CRC(39f72304) SHA1(a4c383f83a8c455c59fd16af3608119b1fab4f5b) )
 ROM_END
 
 ROM_START( siriusje )
