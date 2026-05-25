@@ -839,6 +839,16 @@ ROM_START( sjackpot )
 	ROM_LOAD( "super_jackpot_ii.icd6", 0x4000, 0x4000, CRC(984d4ca1) SHA1(1da5533f06fb7a1ab8f221c5a58c1afafdd5f862) )
 ROM_END
 
+ROM_START( skomet )
+	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASE00 )
+    ROM_LOAD("super_komet_v5_1", 0x0000, 0x1000, CRC(c2cff97a) SHA1(97bad246e897b58eea07cefb0712d06d4a79602d))
+    ROM_LOAD("super_komet_v5_2", 0x1000, 0x1000, CRC(77a6ea6f) SHA1(fc7daa8b6bfd5b7383ec768e309a502c7112a1ab))
+    ROM_LOAD("super_komet_v5_3", 0x2000, 0x1000, CRC(14a9ceda) SHA1(2c945eca393fa87174c414f3daba7a89a873035d))
+    ROM_LOAD("super_komet_v5_4", 0x3000, 0x1000, CRC(b5abcd6e) SHA1(2fc76350189e5db021870f6fa42f0cb36fcaba28))
+    ROM_LOAD("super_komet_v5_5", 0x4000, 0x1000, CRC(f8944c8d) SHA1(ebb3b845ab1f409690f7abf22b3a792e8f97bc45))
+    ROM_LOAD("super_komet_v5_6", 0x7000, 0x1000, CRC(a857b4b9) SHA1(c9253e72c05e1b8dbe8d067706face8d7571dd9c))
+ROM_END
+
 ROM_START( sprmlti )
 	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASE00 )
 	ROM_LOAD( "super_multi_1.ice6", 0x0000, 0x8000, CRC(fcf126ba) SHA1(89dfd10b6529a92b55d2585c0aa3d0c6b1751550) )
@@ -884,6 +894,7 @@ ROM_END
 GAMEL( 1982, excellnt,        0, excellent, servicem, stella8085_state, empty_init, ROT0, "ADP",    "Excellent",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1983, bahia,           0, excellent, servicem, stella8085_state, empty_init, ROT0, "ADP",    "Bahia",             MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1984, disc,            0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc",              MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
+GAMEL( 1984, skomet,          0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Super Komet",       MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1985, dpplstrt,        0, excellent, servicem, stella8085_state, empty_init, ROT0, "Nova",   "Doppelstart",       MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1986, discoly,         0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc Olympia",      MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_disc2000 )
 GAMEL( 1986, dpplpot,         0, doppelpot, servicem, stella8085_state, empty_init, ROT0, "Nova",   "Doppelpot",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
