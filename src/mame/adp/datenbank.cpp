@@ -461,7 +461,7 @@ void datenbank_state::machine_start()
 	m_lamps.resolve();
 	m_leds.resolve();
 
-	// write INIT to 0xfffd00
+	// write 0x494e4954 INIT to 0xfffd00
 }
 
 void datenbank_state::machine_reset()
