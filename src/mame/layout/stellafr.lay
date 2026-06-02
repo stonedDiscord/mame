@@ -32,56 +32,43 @@ license:CC0-1.0
 	</element>
 
 	<view name="Internal Layout">
-		<bounds left="0" right="110" top="0" bottom="50" />
+		<bounds left="0" right="116" top="0" bottom="60" />
 		<element ref="static_black">
-			<bounds left="0" right="110" top="0" bottom="50" />
+			<bounds left="0" right="116" top="0" bottom="60" />
 		</element>
 
-<!-- left panel -->
-		<!-- Sonderspiele -->
-		<element name="digit7" ref="digit">
-			<bounds x="10" y="10" width="10" height="15" />
-		</element>
-		<element name="digit6" ref="digit">
-			<bounds x="20" y="10" width="10" height="15" />
-		</element>
-		<element name="digit5" ref="digit">
-			<bounds x="30" y="10" width="10" height="15" />
-		</element>
+<!-- four display modules of eight 7-seg digits each.
+     The ROM renders into four module buffers; digit(f*8+d) is module f digit d.
+     Digits are scanned MSB-first, so digit 0 is the rightmost on each module. -->
+		<repeat count="4">
+			<param name="f" start="0" increment="1" />
+			<param name="row_y" start="2" increment="11" />
+			<param name="d0" start="0" increment="8" />
+			<repeat count="8">
+				<!-- place digit 0 at the right, digit 7 at the left -->
+				<param name="d" start="7" increment="-1" />
+				<param name="x" start="2" increment="13" />
+				<element name="digit~d0~~d~" ref="digit">
+					<bounds x="~x~" y="~row_y~" width="11" height="9" />
+				</element>
+			</repeat>
+		</repeat>
 
-<!-- right panel -->
-		<!-- Münzspeicher -->
-		<element name="digit4" ref="digit">
-			<bounds x="50" y="10" width="10" height="15" />
-		</element>
-		<element name="digit3" ref="digit">
-			<bounds x="60" y="10" width="10" height="15" />
-		</element>
-		<element name="digit2" ref="digit">
-			<bounds x="70" y="10" width="10" height="15" />
-		</element>
-		<element name="digit1" ref="digit">
-			<bounds x="80" y="10" width="10" height="10" />
-		</element>
-		<element name="digit0" ref="digit">
-			<bounds x="90" y="10" width="10" height="10" />
-		</element>
-
-		<!-- control unit-->
+		<!-- control unit error LEDs -->
 		<element name="led0" ref="led_red">
-			<bounds left="40" right="45" top="30" bottom="35" />
+			<bounds x="2" y="50" width="4" height="4" />
 		</element>
 		<element name="led1" ref="led_red">
-			<bounds left="50" right="55" top="30" bottom="35" />
+			<bounds x="8" y="50" width="4" height="4" />
 		</element>
 
-		<!-- debug-->
+		<!-- lamp matrix debug grid -->
 		<repeat count="12">
 			<param name="s" start="0" increment="1" />
-			<param name="x" start="0" increment="2" />
+			<param name="x" start="20" increment="2" />
 			<repeat count="8">
 			<param name="z" start="0" increment="1" />
-			<param name="y" start="30" increment="2" />
+			<param name="y" start="50" increment="1" />
 				<element name="lamp~z~~s~" ref="green_led">
 					<bounds x="~x~" y="~y~" width="1" height="1" />
 				</element>
