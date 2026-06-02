@@ -240,7 +240,7 @@ private:
 	void mux_w(uint8_t data);
 	void mux2_w(uint8_t data);
 	void anz_strobe();
-	static uint8_t seg_remap(uint8_t s);
+	static uint8_t seg_remap(int field, uint8_t s);
 	void duart_output_w(uint8_t data);
 	void ay8910_portb_w(uint8_t data);
 	void lamps_w(uint8_t row, uint16_t data);
@@ -305,19 +305,22 @@ void stellafr_state::mux_w(uint8_t data)
 	m_mux2  = (m_mux2  << 1) | BIT(data,U1_MUX2);
 }
 
-uint8_t stellafr_state::seg_remap(uint8_t s)
+uint8_t stellafr_state::seg_remap(int field, uint8_t s)
 {
-	// Convert the board's 7seg bit order (verified against the ROM font table at
-	// 0x18c16: bit0=c b1=d b2=e b3=g b4=f b5=a b6=b b7=dp) into the layout's
-	// led7seg order (bit0=a .. bit6=g, bit7=dp).
-	return (BIT(s, 5) << 0) | // a
-		   (BIT(s, 6) << 1) | // b
-		   (BIT(s, 0) << 2) | // c
-		   (BIT(s, 1) << 3) | // d
-		   (BIT(s, 2) << 4) | // e
-		   (BIT(s, 4) << 5) | // f
-		   (BIT(s, 3) << 6) | // g
-		   (BIT(s, 7) << 7);  // dp
+	// Each display module is wired with a different segment order; the ROM
+	// compensates with a per-module font table.  Convert the board's bit order
+	// back to the layout's led7seg order (bit0=a .. bit6=g).  The two orders were
+	// solved from the ROM font tables (0x18c16 for modules 0/2, 0x18cf6 for 1/3).
+	if (field & 1)
+		// modules 1 & 3 (fonts D/C): a=2 b=3 c=7 d=5 e=6 f=1 g=4
+		return (BIT(s, 2) << 0) | (BIT(s, 3) << 1) | (BIT(s, 7) << 2) |
+			   (BIT(s, 5) << 3) | (BIT(s, 6) << 4) | (BIT(s, 1) << 5) |
+			   (BIT(s, 4) << 6);
+	else
+		// modules 0 & 2 (fonts B/A): a=5 b=6 c=0 d=1 e=2 f=4 g=3
+		return (BIT(s, 5) << 0) | (BIT(s, 6) << 1) | (BIT(s, 0) << 2) |
+			   (BIT(s, 1) << 3) | (BIT(s, 2) << 4) | (BIT(s, 4) << 5) |
+			   (BIT(s, 3) << 6);
 }
 
 void stellafr_state::anz_strobe()
@@ -341,7 +344,7 @@ void stellafr_state::anz_strobe()
 		else
 			m_seg[field][d] &= ~(1 << seg);
 
-		m_digits[field * 8 + d] = seg_remap(m_seg[field][d]);
+		m_digits[field * 8 + d] = seg_remap(field, m_seg[field][d]);
 	}
 }
 
