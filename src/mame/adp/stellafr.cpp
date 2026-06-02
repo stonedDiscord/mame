@@ -311,16 +311,13 @@ uint8_t stellafr_state::seg_remap(int field, uint8_t s)
 	// compensates with a per-module font table.  Convert the board's bit order
 	// back to the layout's led7seg order (bit0=a .. bit6=g).  The two orders were
 	// solved from the ROM font tables (0x18c16 for modules 0/2, 0x18cf6 for 1/3).
+	//                          dp g f e d c b a
 	if (field & 1)
-		// modules 1 & 3 (fonts D/C): a=2 b=3 c=7 d=5 e=6 f=1 g=4
-		return (BIT(s, 2) << 0) | (BIT(s, 3) << 1) | (BIT(s, 7) << 2) |
-			   (BIT(s, 5) << 3) | (BIT(s, 6) << 4) | (BIT(s, 1) << 5) |
-			   (BIT(s, 4) << 6);
+		// modules 1 & 3 (fonts D/C)
+		return bitswap<8>(s, 0, 4, 1, 6, 5, 7, 3, 2);
 	else
-		// modules 0 & 2 (fonts B/A): a=5 b=6 c=0 d=1 e=2 f=4 g=3
-		return (BIT(s, 5) << 0) | (BIT(s, 6) << 1) | (BIT(s, 0) << 2) |
-			   (BIT(s, 1) << 3) | (BIT(s, 2) << 4) | (BIT(s, 4) << 5) |
-			   (BIT(s, 3) << 6);
+		// modules 0 & 2 (fonts B/A)
+		return bitswap<8>(s, 7, 3, 4, 2, 1, 0, 6, 5);
 }
 
 void stellafr_state::anz_strobe()
@@ -344,7 +341,9 @@ void stellafr_state::anz_strobe()
 		else
 			m_seg[field][d] &= ~(1 << seg);
 
-		m_digits[field * 8 + d] = seg_remap(field, m_seg[field][d]);
+		// mask off the decimal point: fonts B (module 0) and C (module 3) keep a
+		// marker bit permanently set that is not actually a segment
+		m_digits[field * 8 + d] = seg_remap(field, m_seg[field][d]) & 0x7f;
 	}
 }
 
