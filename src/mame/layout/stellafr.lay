@@ -39,20 +39,43 @@ license:CC0-1.0
 
 <!-- four display modules of eight 7-seg digits each.
      The ROM renders into four module buffers; digit(f*8+d) is module f digit d.
-     Digits are scanned MSB-first, so digit 0 is the rightmost on each module. -->
-		<repeat count="4">
-			<param name="f" start="0" increment="1" />
-			<param name="row_y" start="2" increment="11" />
-			<param name="d0" start="0" increment="8" />
-			<repeat count="8">
-				<!-- place digit 0 at the right, digit 7 at the left -->
-				<param name="d" start="7" increment="-1" />
-				<param name="x" start="2" increment="13" />
-				<element name="digit~d0~~d~" ref="digit">
-					<bounds x="~x~" y="~row_y~" width="11" height="9" />
-				</element>
-			</repeat>
-		</repeat>
+     Digits are scanned so digit 0 is the rightmost on each module. -->
+		<!-- display module 0: digit0..digit7 (digit0 = rightmost) -->
+		<element name="digit0" ref="digit"><bounds x="100" y="2" width="12" height="10" /></element>
+		<element name="digit1" ref="digit"><bounds x="86" y="2" width="12" height="10" /></element>
+		<element name="digit2" ref="digit"><bounds x="72" y="2" width="12" height="10" /></element>
+		<element name="digit3" ref="digit"><bounds x="58" y="2" width="12" height="10" /></element>
+		<element name="digit4" ref="digit"><bounds x="44" y="2" width="12" height="10" /></element>
+		<element name="digit5" ref="digit"><bounds x="30" y="2" width="12" height="10" /></element>
+		<element name="digit6" ref="digit"><bounds x="16" y="2" width="12" height="10" /></element>
+		<element name="digit7" ref="digit"><bounds x="2" y="2" width="12" height="10" /></element>
+		<!-- display module 1: digit8..digit15 (digit0 = rightmost) -->
+		<element name="digit8" ref="digit"><bounds x="100" y="14" width="12" height="10" /></element>
+		<element name="digit9" ref="digit"><bounds x="86" y="14" width="12" height="10" /></element>
+		<element name="digit10" ref="digit"><bounds x="72" y="14" width="12" height="10" /></element>
+		<element name="digit11" ref="digit"><bounds x="58" y="14" width="12" height="10" /></element>
+		<element name="digit12" ref="digit"><bounds x="44" y="14" width="12" height="10" /></element>
+		<element name="digit13" ref="digit"><bounds x="30" y="14" width="12" height="10" /></element>
+		<element name="digit14" ref="digit"><bounds x="16" y="14" width="12" height="10" /></element>
+		<element name="digit15" ref="digit"><bounds x="2" y="14" width="12" height="10" /></element>
+		<!-- display module 2: digit16..digit23 (digit0 = rightmost) -->
+		<element name="digit16" ref="digit"><bounds x="100" y="26" width="12" height="10" /></element>
+		<element name="digit17" ref="digit"><bounds x="86" y="26" width="12" height="10" /></element>
+		<element name="digit18" ref="digit"><bounds x="72" y="26" width="12" height="10" /></element>
+		<element name="digit19" ref="digit"><bounds x="58" y="26" width="12" height="10" /></element>
+		<element name="digit20" ref="digit"><bounds x="44" y="26" width="12" height="10" /></element>
+		<element name="digit21" ref="digit"><bounds x="30" y="26" width="12" height="10" /></element>
+		<element name="digit22" ref="digit"><bounds x="16" y="26" width="12" height="10" /></element>
+		<element name="digit23" ref="digit"><bounds x="2" y="26" width="12" height="10" /></element>
+		<!-- display module 3: digit24..digit31 (digit0 = rightmost) -->
+		<element name="digit24" ref="digit"><bounds x="100" y="38" width="12" height="10" /></element>
+		<element name="digit25" ref="digit"><bounds x="86" y="38" width="12" height="10" /></element>
+		<element name="digit26" ref="digit"><bounds x="72" y="38" width="12" height="10" /></element>
+		<element name="digit27" ref="digit"><bounds x="58" y="38" width="12" height="10" /></element>
+		<element name="digit28" ref="digit"><bounds x="44" y="38" width="12" height="10" /></element>
+		<element name="digit29" ref="digit"><bounds x="30" y="38" width="12" height="10" /></element>
+		<element name="digit30" ref="digit"><bounds x="16" y="38" width="12" height="10" /></element>
+		<element name="digit31" ref="digit"><bounds x="2" y="38" width="12" height="10" /></element>
 
 		<!-- control unit error LEDs -->
 		<element name="led0" ref="led_red">
