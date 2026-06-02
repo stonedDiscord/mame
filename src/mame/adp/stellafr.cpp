@@ -216,7 +216,7 @@ private:
 	required_device<mc68681_device> m_duart;
 	required_device<nvram_device> m_nvram;
 	required_device<ad7224_device> m_dac;
-	output_finder<8> m_digits;
+	output_finder<32> m_digits;
 	output_finder<128> m_lamps;
 	output_finder<2> m_leds;
 	required_ioport m_in0;
@@ -233,13 +233,14 @@ private:
 	uint8_t m_mux2;
 
 	uint8_t m_strobe;        // last value written to the strobe/control port (mux2_w)
-	uint8_t m_segsel;        // current segment line being latched (0..7)
-	uint8_t m_digit_seg[8];  // assembled segment data per digit (hw bit order)
+	uint8_t m_last_a5;       // last seen scan index, to detect the two banks
+	uint8_t m_seg[4][8];     // assembled segment data per field/digit (board bit order)
 
 	uint8_t mux_r();
 	void mux_w(uint8_t data);
 	void mux2_w(uint8_t data);
 	void anz_strobe();
+	static uint8_t seg_remap(uint8_t s);
 	void duart_output_w(uint8_t data);
 	void ay8910_portb_w(uint8_t data);
 	void lamps_w(uint8_t row, uint16_t data);
@@ -304,42 +305,43 @@ void stellafr_state::mux_w(uint8_t data)
 	m_mux2  = (m_mux2  << 1) | BIT(data,U1_MUX2);
 }
 
+uint8_t stellafr_state::seg_remap(uint8_t s)
+{
+	// Convert the board's 7seg bit order (verified against the ROM font table at
+	// 0x18c16: bit0=c b1=d b2=e b3=g b4=f b5=a b6=b b7=dp) into the layout's
+	// led7seg order (bit0=a .. bit6=g, bit7=dp).
+	return (BIT(s, 5) << 0) | // a
+		   (BIT(s, 6) << 1) | // b
+		   (BIT(s, 0) << 2) | // c
+		   (BIT(s, 1) << 3) | // d
+		   (BIT(s, 2) << 4) | // e
+		   (BIT(s, 4) << 5) | // f
+		   (BIT(s, 3) << 6) | // g
+		   (BIT(s, 7) << 7);  // dp
+}
+
 void stellafr_state::anz_strobe()
 {
-	// One bank of 8 data writes has been clocked in and the ANZ 74HC4094
-	// strobe has pulsed: m_anz1 now holds one segment line as a bitmask over
-	// the eight digit positions (the display buffer is stored transposed,
-	// buf[digit + 8*segment]).  Distribute that segment line across the digits.
+	// The ANZ 74HC4094 strobe (bit 4 of mux2_w) has pulsed after a bank of eight
+	// data writes: m_anz1 now holds one segment line as a bitmask over the eight
+	// digit positions of one display module (the buffer is stored transposed,
+	// buf[digit + 8*segment]).  The scan walks the four 64-byte module buffers in
+	// order; read the ROM's scan index to know which module/segment this is.
+	uint8_t const a5 = m_maincpu->space(AS_PROGRAM).read_byte(0xffd0a5);
+	bool const bank0 = (a5 != m_last_a5); // first of the two banks for this step
+	m_last_a5 = a5;
+
+	int const field = (a5 >> 6) & 0x03;
+	int const seg   = ((a5 & 0x30) >> 3) | (bank0 ? 0 : 1);
+
 	for (int d = 0; d < 8; d++)
 	{
 		if (BIT(m_anz1, 7 - d))
-			m_digit_seg[d] |= (1 << m_segsel);
+			m_seg[field][d] |= (1 << seg);
 		else
-			m_digit_seg[d] &= ~(1 << m_segsel);
-	}
+			m_seg[field][d] &= ~(1 << seg);
 
-	m_segsel = (m_segsel + 1) & 0x07;
-
-	if (m_segsel == 0)
-	{
-		// A full set of segment lines has been latched: push the assembled
-		// digits out, converting the board segment order (verified against the
-		// ROM font table at 0x18c16: bit0=c b1=d b2=e b3=g b4=f b5=a b6=b
-		// b7=dp) into the layout's led7seg order (a..g,dp).
-		for (int d = 0; d < 8; d++)
-		{
-			uint8_t const s = m_digit_seg[d];
-			uint8_t const v =
-				(BIT(s, 5) << 0) | // a
-				(BIT(s, 6) << 1) | // b
-				(BIT(s, 0) << 2) | // c
-				(BIT(s, 1) << 3) | // d
-				(BIT(s, 2) << 4) | // e
-				(BIT(s, 4) << 5) | // f
-				(BIT(s, 3) << 6) | // g
-				(BIT(s, 7) << 7);  // dp
-			m_digits[d] = v;
-		}
+		m_digits[field * 8 + d] = seg_remap(m_seg[field][d]);
 	}
 }
 
@@ -347,18 +349,12 @@ void stellafr_state::mux2_w(uint8_t data)
 {
 	// Strobe/control port (U17 Y3, 0x8000c1).  The ROM (FUN_00001068) clocks a
 	// bank of eight data bytes into mux_w and then pulses bit 4 to latch the
-	// 74HC4094 outputs; bit 5 frames the whole scan.  A rising edge on bit 4
-	// therefore latches one assembled segment line.
+	// ANZ 74HC4094; bit 5 frames the scan and latches the lamp column.
 	if (BIT(data, 4) && !BIT(m_strobe, 4))
 		anz_strobe();
 
 	if (BIT(data, 5) && !BIT(m_strobe, 5))
-	{
-		// start of a new scan frame: restart the segment counter and latch the
-		// current lamp column (mux select in the top 3 bits, 12 columns below)
-		m_segsel = 0;
 		lamps_w((m_mux1 >> 12) & 0x07, m_mux1 & 0x0FFF); //main lamps out
-	}
 
 	m_strobe = data;
 }
@@ -422,8 +418,8 @@ void stellafr_state::machine_start()
 	save_item(NAME(m_anz2));
 	save_item(NAME(m_mux2));
 	save_item(NAME(m_strobe));
-	save_item(NAME(m_segsel));
-	save_item(NAME(m_digit_seg));
+	save_item(NAME(m_last_a5));
+	save_item(NAME(m_seg));
 }
 
 void stellafr_state::machine_reset()
@@ -437,8 +433,8 @@ void stellafr_state::machine_reset()
 	m_anz2 = 0;
 	m_mux2 = 0;
 	m_strobe = 0;
-	m_segsel = 0;
-	std::fill(std::begin(m_digit_seg), std::end(m_digit_seg), 0);
+	m_last_a5 = 0;
+	std::memset(m_seg, 0, sizeof(m_seg));
 }
 
 static INPUT_PORTS_START( stellafr )
