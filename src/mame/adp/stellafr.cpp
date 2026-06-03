@@ -239,7 +239,9 @@ private:
 	uint8_t m_mux2;
 
 	uint8_t m_strobe;        // last value written to the strobe/control port (mux2_w)
-	uint8_t m_last_a5;       // last seen scan index, to detect the two banks
+	uint8_t m_anz_bank;      // which of the two ANZ banks per scan step (0/1)
+	uint8_t m_anz_cycle;     // field pair: 0 = modules 0/1, 1 = modules 2/3
+	uint8_t m_anz_prevpos;   // previous step's position-in-cycle (to detect wrap)
 	uint8_t m_seg[4][8];     // assembled segment data per field/digit (board bit order)
 
 	uint8_t mux_r();
@@ -330,15 +332,32 @@ void stellafr_state::anz_strobe()
 {
 	// The ANZ 74HC4094 strobe (bit 4 of mux2_w) has pulsed after a bank of eight
 	// data writes: m_anz1 now holds one segment line as a bitmask over the eight
-	// digit positions of one display module (the buffer is stored transposed,
-	// buf[digit + 8*segment]).  The scan walks the four 64-byte module buffers in
-	// order; read the ROM's scan index to know which module/segment this is.
-	uint8_t const a5 = m_maincpu->space(AS_PROGRAM).read_byte(0xffd0a5);
-	bool const bank0 = (a5 != m_last_a5); // first of the two banks for this step
-	m_last_a5 = a5;
+	// digit positions of one module (the buffer is transposed, buf[digit+8*seg]).
+	//
+	// Everything needed to place this segment line comes from the bus alone:
+	//  - The MUX1 shift chain carries a 3-bit "lz" position select in its top
+	//    bits (the same select that picks the lamp row).  After bank 0 it sits in
+	//    bits 4-7; after bank 1 it has shifted up to bits 12-15.
+	//  - (select & 7) runs 7,6,5,4,3,2,1,0 across the 8 steps of one scan cycle;
+	//    the high half (7..4) is the even module of the pair, the low half (3..0)
+	//    the odd module.  The scan does two cycles per frame (one per module
+	//    pair); the pair itself isn't encoded on the bus, so it is tracked by
+	//    counting select wraps (m_anz_cycle).  m_anz_bank is re-synced from the
+	//    ENMUX strobe in mux2_w.
+	int const sel = m_anz_bank ? ((m_mux1 >> 12) & 0x0f) : ((m_mux1 >> 4) & 0x0f);
+	int const pos = 7 - (sel & 0x07);          // 0..7 position within a scan cycle
+	int const field_parity = (pos >= 4) ? 1 : 0;
+	int const segpair = pos & 0x03;
 
-	int const field = (a5 >> 6) & 0x03;
-	int const seg   = ((a5 & 0x30) >> 3) | (bank0 ? 0 : 1);
+	if (m_anz_bank == 0)
+	{
+		if (pos == 0 && m_anz_prevpos == 7)    // true select wrap 7->0: next module pair
+			m_anz_cycle ^= 1;
+		m_anz_prevpos = pos;
+	}
+
+	int const field = (m_anz_cycle << 1) | field_parity;
+	int const seg   = segpair * 2 + m_anz_bank;
 
 	for (int d = 0; d < 8; d++)
 	{
@@ -387,13 +406,20 @@ void stellafr_state::anz_strobe()
 	m_anzled[4] = BIT(aux, 7); // Freispiele
 	m_magnet[0] = BIT(aux, 4); // Magnet L
 	m_magnet[1] = BIT(aux, 5); // Magnet R
+
+	m_anz_bank ^= 1; // the two banks alternate; re-synced by the ENMUX edge
 }
 
 void stellafr_state::mux2_w(uint8_t data)
 {
 	// Strobe/control port (U17 Y3, 0x8000c1).  The ROM (FUN_00001068) clocks a
 	// bank of eight data bytes into mux_w and then pulses bit 4 to latch the
-	// ANZ 74HC4094; bit 5 frames the scan and latches the lamp column.
+	// ANZ 74HC4094; bit 5 (ENMUX) frames the scan and latches the lamp column.
+	// The ENMUX line falls just before the first ANZ bank of each scan step, so
+	// its falling edge re-aligns the bank counter.
+	if (!BIT(data, 5) && BIT(m_strobe, 5))
+		m_anz_bank = 0;
+
 	if (BIT(data, 4) && !BIT(m_strobe, 4))
 		anz_strobe();
 
@@ -462,8 +488,15 @@ void stellafr_state::machine_start()
 	save_item(NAME(m_anz2));
 	save_item(NAME(m_mux2));
 	save_item(NAME(m_strobe));
-	save_item(NAME(m_last_a5));
+	save_item(NAME(m_anz_bank));
+	save_item(NAME(m_anz_cycle));
+	save_item(NAME(m_anz_prevpos));
 	save_item(NAME(m_seg));
+
+	// convince the firmware that its battery-backed RAM is already initialised
+	// (signature checked at boot in FUN_000084e8) so it skips the FOUL/F-IN
+	// uninitialised state
+	m_maincpu->space(AS_PROGRAM).write_dword(0xffc000, 0x31415926);
 }
 
 void stellafr_state::machine_reset()
@@ -477,7 +510,9 @@ void stellafr_state::machine_reset()
 	m_anz2 = 0;
 	m_mux2 = 0;
 	m_strobe = 0;
-	m_last_a5 = 0;
+	m_anz_bank = 0;
+	m_anz_cycle = 0;
+	m_anz_prevpos = 0;
 	std::memset(m_seg, 0, sizeof(m_seg));
 }
 
