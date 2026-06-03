@@ -497,6 +497,7 @@ void stellafr_state::machine_start()
 	// (signature checked at boot in FUN_000084e8) so it skips the FOUL/F-IN
 	// uninitialised state
 	m_maincpu->space(AS_PROGRAM).write_dword(0xffc000, 0x31415926);
+	m_maincpu->space(AS_PROGRAM).write_dword(0xffec02, 0x000000a5);
 }
 
 void stellafr_state::machine_reset()
