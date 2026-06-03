@@ -200,6 +200,9 @@ public:
 		m_aysnd(*this, "aysnd"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
+		m_dbg(*this, "dbg%u", 0U),
+		m_anzled(*this, "anzled%u", 0U),
+		m_magnet(*this, "magnet%u", 0U),
 		m_lamps(*this, "lamp%u", 0U),
 		m_leds(*this, "led%u", 0U),
 		m_in0(*this, "IN0")
@@ -217,7 +220,10 @@ private:
 	required_device<mc68681_device> m_duart;
 	required_device<ay8910_device> m_aysnd;
 	required_device<ad7224_device> m_dac;
-	output_finder<8> m_digits;
+	output_finder<8> m_digits;   // the 8 top digits (Sonderspiele + Münzspeicher)
+	output_finder<32> m_dbg;     // anz debug digits
+	output_finder<5> m_anzled;   // coin-accept LEDs (0,10/1/2/5 DM) + Freispiele
+	output_finder<2> m_magnet;   // magnets L/R
 	output_finder<128> m_lamps;
 	output_finder<2> m_leds;
 	required_ioport m_in0;
@@ -231,7 +237,11 @@ private:
 	uint8_t m_anz2;
 	uint8_t m_mux2;
 	uint8_t m_strobe;
-	uint16_t m_anz1_bank[8];
+
+	uint8_t m_seg[4][8];
+	uint8_t m_anz_bank;      // which of the two ANZ banks per scan step (0/1)
+	uint8_t m_anz_cycle;     // module pair: 0 = modules 0/1, 1 = modules 2/3
+	uint8_t m_anz_prevpos;   // previous step (to detect wrap)
 
 	uint8_t mux_r();
 	void enable_w(uint8_t data);
@@ -241,6 +251,7 @@ private:
 	void lamps_w(bool second);
 	void anzeigen_w();
 	void service_w();
+	static uint8_t digit_map(int field, uint8_t s);
 
 	void mem_map_steuereinheit(address_map &map) ATTR_COLD;
 	void mem_map_tk(address_map &map) ATTR_COLD;
@@ -288,13 +299,72 @@ void stellafr_state::lamps_w(bool second)
 	}
 }
 
+uint8_t stellafr_state::digit_map(int field, uint8_t s)
+{
+	// they switched up the segment wiring between the shift register and the display
+	if (field & 1)
+		return bitswap<8>(s, 0, 4, 1, 6, 5, 7, 3, 2); // digits 1 & 3
+	else
+		return bitswap<8>(s, 7, 3, 4, 2, 1, 0, 6, 5); // digits 0 & 2
+}
+
 void stellafr_state::anzeigen_w()
 {
-	for (uint8_t i = 0; i < 8; i++)
+	// XXX:
+	int const sel = m_anz_bank ? ((m_mux1 >> 12) & 0x0f) : ((m_mux1 >> 4) & 0x0f);
+	int const pos = 7 - (sel & 0x07);
+	int const field_parity = (pos >= 4) ? 1 : 0;
+	int const segpair = pos & 0x03;
+
+	if (m_anz_bank == 0)
 	{
-		m_anz1_bank[i] = (m_anz1_bank[i] << 1) | BIT(m_anz1, i);
+		if (pos == 0 && m_anz_prevpos == 7) // select wrap 7->0: next module pair
+			m_anz_cycle ^= 1;
+		m_anz_prevpos = pos;
 	}
-	
+
+	int const field = (m_anz_cycle << 1) | field_parity;
+	int const seg   = segpair * 2 + m_anz_bank;
+
+	for (int d = 0; d < 8; d++)
+	{
+		if (BIT(m_anz1, 7 - d))
+			m_seg[field][d] |= (1 << seg);
+		else
+			m_seg[field][d] &= ~(1 << seg);
+
+		// debug grid
+		m_dbg[field * 8 + d] = digit_map(field, m_seg[field][d]) & 0x7f;
+	}
+
+	// the 8 top digits
+	// Münzspeicher = 0..4, Sonderspiele = 5..7).
+	static constexpr struct { uint8_t field, pos; } panel[8] =
+	{
+		{ 2, 4 }, // digit0  Münzspeicher Anz0 (rightmost)
+		{ 1, 2 }, // digit1  Münzspeicher Anz1
+		{ 3, 2 }, // digit2  Münzspeicher Anz2
+		{ 0, 2 }, // digit3  Münzspeicher Anz3
+		{ 2, 2 }, // digit4  Münzspeicher Anz4 (leftmost)
+		{ 1, 4 }, // digit5  Sonderspiele Anz5
+		{ 3, 4 }, // digit6  Sonderspiele Anz6
+		{ 0, 4 }, // digit7  Sonderspiele Anz7
+	};
+	for (int i = 0; i < 8; i++)
+		m_digits[i] = digit_map(panel[i].field, m_seg[panel[i].field][panel[i].pos]) & 0x7f;
+
+	// Anzout4
+	uint8_t const aux = m_seg[3][3];
+	m_anzled[0] = BIT(aux, 0); // 0,10 DM
+	m_anzled[1] = BIT(aux, 1); // 1 DM
+	m_anzled[2] = BIT(aux, 2); // 2 DM
+	m_anzled[3] = BIT(aux, 3); // 5 DM
+	m_magnet[0] = BIT(aux, 4); // Magnet L
+	m_magnet[1] = BIT(aux, 5); // Magnet R
+	//nc
+	m_anzled[4] = BIT(aux, 7); // Freispiele
+
+	m_anz_bank ^= 1; // the two banks alternate, reset by ENMUX down
 }
 
 void stellafr_state::service_w()
@@ -304,6 +374,11 @@ void stellafr_state::service_w()
 
 void stellafr_state::enable_w(uint8_t data)
 {
+	// ENMUX falls just before the first ANZ bank of each scan step, so its
+	// falling edge re-aligns the ANZ bank counter
+	if (!BIT(data, U5_ENMUX1) && BIT(m_strobe, U5_ENMUX1))
+		m_anz_bank = 0;
+
 	if (BIT(data, U5_ENMUX1) && !BIT(m_strobe, U5_ENMUX1))
 		lamps_w(false); //main lamps out
 
@@ -397,13 +472,20 @@ void stellafr_state::machine_start()
 {
 	save_item(NAME(m_mux1));
 	save_item(NAME(m_strobe));
-	save_item(NAME(m_anz1_bank));
+	save_item(NAME(m_seg));
+	save_item(NAME(m_anz_bank));
+	save_item(NAME(m_anz_cycle));
+	save_item(NAME(m_anz_prevpos));
 }
 
 void stellafr_state::machine_reset()
 {
 	m_mux1 = 0;
 	m_strobe = 0;
+	m_anz_bank = 0;
+	m_anz_cycle = 0;
+	m_anz_prevpos = 0;
+	std::memset(m_seg, 0, sizeof(m_seg));
 }
 
 static INPUT_PORTS_START( stellafr )
