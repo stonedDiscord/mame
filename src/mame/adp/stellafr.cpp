@@ -240,7 +240,7 @@ private:
 
 	// the eight downstream 74HC4094s (Anzout 0..7 from U7) on the Anzeigenplatine;
 	// each clocks in its Anzout bit on every EnAnzp strobe
-	uint16_t m_anz_sr[8];
+	uint16_t m_anz1_out[8];
 	uint8_t m_anz_bank;      // which of the two ANZ banks per scan step (0/1)
 	uint8_t m_anz_cycle;     // module pair: 0 = modules 0/1, 1 = modules 2/3
 	uint8_t m_anz_prevpos;   // previous step (to detect wrap)
@@ -316,7 +316,7 @@ void stellafr_state::anzeigen_w()
 	// the eight segments arrive in order 0..7, so right-shifting lands segment s
 	// in bit s; register i carries Anzout(i), which is digit offset (7 - i).
 	for (int i = 0; i < 8; i++)
-		m_anz_sr[i] = (m_anz_sr[i] >> 1) | (BIT(m_anz1, i) << 15);
+		m_anz1_out[i] = (m_anz1_out[i] >> 1) | (BIT(m_anz1, i) << 15);
 
 	// which module/segment this strobe belongs to, derived from the MUX1 "lz"
 	// select alone: after bank 0 it sits in bits 4-7, after bank 1 in bits 12-15.
@@ -352,7 +352,7 @@ void stellafr_state::anzeigen_w()
 		};
 		for (int i = 0; i < 8; i++)
 		{
-			uint16_t const reg = m_anz_sr[7 - panel[i].pos];
+			uint16_t const reg = m_anz1_out[7 - panel[i].pos];
 			if (panel[i].field == even_field)
 				m_digits[i] = digit_map(even_field, reg & 0xff) & 0x7f;
 			else if (panel[i].field == odd_field)
@@ -362,7 +362,7 @@ void stellafr_state::anzeigen_w()
 		// debug grid: both modules of the pair
 		for (int d = 0; d < 8; d++)
 		{
-			uint16_t const reg = m_anz_sr[7 - d];
+			uint16_t const reg = m_anz1_out[7 - d];
 			m_dbg[even_field * 8 + d] = digit_map(even_field, reg & 0xff) & 0x7f;
 			m_dbg[odd_field  * 8 + d] = digit_map(odd_field, (reg >> 8) & 0xff) & 0x7f;
 		}
@@ -371,7 +371,7 @@ void stellafr_state::anzeigen_w()
 		// coin-accept LEDs + magnets
 		if (odd_field == 3)
 		{
-			uint8_t const aux = m_anz_sr[7 - 3] >> 8;
+			uint8_t const aux = m_anz1_out[4] >> 8;
 			m_anzled[0] = BIT(aux, 0); // 0,10 DM
 			m_anzled[1] = BIT(aux, 1); // 1 DM
 			m_anzled[2] = BIT(aux, 2); // 2 DM
