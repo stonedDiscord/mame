@@ -494,6 +494,10 @@ void stellafr_state::machine_start()
 	save_item(NAME(m_anz_bank));
 	save_item(NAME(m_anz_cycle));
 	save_item(NAME(m_anz_prevpos));
+	// init?
+	//m_maincpu->space(AS_PROGRAM).write_qword(0xffc000, 0x31415926);
+	//m_maincpu->space(AS_PROGRAM).write_word(0xffdc00, 0xa5);
+	//m_maincpu->space(AS_PROGRAM).write_word(0xffec02, 0xa5);
 }
 
 void stellafr_state::machine_reset()
