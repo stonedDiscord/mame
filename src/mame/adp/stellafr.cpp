@@ -238,7 +238,9 @@ private:
 	uint8_t m_mux2;
 	uint8_t m_strobe;
 
-	uint8_t m_seg[4][8];
+	// the eight downstream 74HC4094s (Anzout 0..7 from U7) on the Anzeigenplatine;
+	// each clocks in its Anzout bit on every EnAnzp strobe
+	uint8_t m_anz_sr[8];
 	uint8_t m_anz_bank;      // which of the two ANZ banks per scan step (0/1)
 	uint8_t m_anz_cycle;     // module pair: 0 = modules 0/1, 1 = modules 2/3
 	uint8_t m_anz_prevpos;   // previous step (to detect wrap)
@@ -310,7 +312,14 @@ uint8_t stellafr_state::digit_map(int field, uint8_t s)
 
 void stellafr_state::anzeigen_w()
 {
-	// XXX:
+	// clock one bit into each of the eight downstream 74HC4094s.  Within a module
+	// the eight segments arrive in order 0..7, so right-shifting lands segment s
+	// in bit s; register i carries Anzout(i), which is digit offset (7 - i).
+	for (int i = 0; i < 8; i++)
+		m_anz_sr[i] = (m_anz_sr[i] >> 1) | (BIT(m_anz1, i) << 7);
+
+	// which module/segment this strobe belongs to, derived from the MUX1 "lz"
+	// select alone: after bank 0 it sits in bits 4-7, after bank 1 in bits 12-15.
 	int const sel = m_anz_bank ? ((m_mux1 >> 12) & 0x0f) : ((m_mux1 >> 4) & 0x0f);
 	int const pos = 7 - (sel & 0x07);
 	int const field_parity = (pos >= 4) ? 1 : 0;
@@ -324,45 +333,46 @@ void stellafr_state::anzeigen_w()
 	}
 
 	int const field = (m_anz_cycle << 1) | field_parity;
-	int const seg   = segpair * 2 + m_anz_bank;
 
-	for (int d = 0; d < 8; d++)
+	// after the 8th segment (segpair 3, bank 1) the downstream registers hold the
+	// eight digit bytes of this module; latch them to the outputs.  Register i is
+	// digit offset (7 - i).
+	if (segpair == 3 && m_anz_bank == 1)
 	{
-		if (BIT(m_anz1, 7 - d))
-			m_seg[field][d] |= (1 << seg);
-		else
-			m_seg[field][d] &= ~(1 << seg);
+		// the 8 top digits (Münzspeicher = 0..4, Sonderspiele = 5..7)
+		static constexpr struct { uint8_t field, pos; } panel[8] =
+		{
+			{ 2, 4 }, // digit0  Münzspeicher Anz0 (rightmost)
+			{ 1, 2 }, // digit1  Münzspeicher Anz1
+			{ 3, 2 }, // digit2  Münzspeicher Anz2
+			{ 0, 2 }, // digit3  Münzspeicher Anz3
+			{ 2, 2 }, // digit4  Münzspeicher Anz4 (leftmost)
+			{ 1, 4 }, // digit5  Sonderspiele Anz5
+			{ 3, 4 }, // digit6  Sonderspiele Anz6
+			{ 0, 4 }, // digit7  Sonderspiele Anz7
+		};
+		for (int i = 0; i < 8; i++)
+			if (panel[i].field == field)
+				m_digits[i] = digit_map(field, m_anz_sr[7 - panel[i].pos]) & 0x7f;
 
-		// debug grid
-		m_dbg[field * 8 + d] = digit_map(field, m_seg[field][d]) & 0x7f;
+		// debug grid: this module's eight digits
+		for (int d = 0; d < 8; d++)
+			m_dbg[field * 8 + d] = digit_map(field, m_anz_sr[7 - d]) & 0x7f;
+
+		// Anzout4 register (module 3, digit offset 3): coin LEDs + magnets
+		if (field == 3)
+		{
+			uint8_t const aux = m_anz_sr[7 - 3];
+			m_anzled[0] = BIT(aux, 0); // 0,10 DM
+			m_anzled[1] = BIT(aux, 1); // 1 DM
+			m_anzled[2] = BIT(aux, 2); // 2 DM
+			m_anzled[3] = BIT(aux, 3); // 5 DM
+			m_magnet[0] = BIT(aux, 4); // Magnet L
+			m_magnet[1] = BIT(aux, 5); // Magnet R
+			//nc
+			m_anzled[4] = BIT(aux, 7); // Freispiele
+		}
 	}
-
-	// the 8 top digits
-	// Münzspeicher = 0..4, Sonderspiele = 5..7).
-	static constexpr struct { uint8_t field, pos; } panel[8] =
-	{
-		{ 2, 4 }, // digit0  Münzspeicher Anz0 (rightmost)
-		{ 1, 2 }, // digit1  Münzspeicher Anz1
-		{ 3, 2 }, // digit2  Münzspeicher Anz2
-		{ 0, 2 }, // digit3  Münzspeicher Anz3
-		{ 2, 2 }, // digit4  Münzspeicher Anz4 (leftmost)
-		{ 1, 4 }, // digit5  Sonderspiele Anz5
-		{ 3, 4 }, // digit6  Sonderspiele Anz6
-		{ 0, 4 }, // digit7  Sonderspiele Anz7
-	};
-	for (int i = 0; i < 8; i++)
-		m_digits[i] = digit_map(panel[i].field, m_seg[panel[i].field][panel[i].pos]) & 0x7f;
-
-	// Anzout4
-	uint8_t const aux = m_seg[3][3];
-	m_anzled[0] = BIT(aux, 0); // 0,10 DM
-	m_anzled[1] = BIT(aux, 1); // 1 DM
-	m_anzled[2] = BIT(aux, 2); // 2 DM
-	m_anzled[3] = BIT(aux, 3); // 5 DM
-	m_magnet[0] = BIT(aux, 4); // Magnet L
-	m_magnet[1] = BIT(aux, 5); // Magnet R
-	//nc
-	m_anzled[4] = BIT(aux, 7); // Freispiele
 
 	m_anz_bank ^= 1; // the two banks alternate, reset by ENMUX down
 }
@@ -472,7 +482,6 @@ void stellafr_state::machine_start()
 {
 	save_item(NAME(m_mux1));
 	save_item(NAME(m_strobe));
-	save_item(NAME(m_seg));
 	save_item(NAME(m_anz_bank));
 	save_item(NAME(m_anz_cycle));
 	save_item(NAME(m_anz_prevpos));
@@ -485,7 +494,6 @@ void stellafr_state::machine_reset()
 	m_anz_bank = 0;
 	m_anz_cycle = 0;
 	m_anz_prevpos = 0;
-	std::memset(m_seg, 0, sizeof(m_seg));
 }
 
 static INPUT_PORTS_START( stellafr )
