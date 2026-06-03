@@ -199,6 +199,9 @@ public:
 		m_nvram(*this, "nvram"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
+		m_dbg(*this, "dbg%u", 0U),
+		m_anzled(*this, "anzled%u", 0U),
+		m_magnet(*this, "magnet%u", 0U),
 		m_lamps(*this, "lamp%u", 0U),
 		m_leds(*this, "led%u", 0U),
 		m_in0(*this, "IN0")
@@ -216,7 +219,10 @@ private:
 	required_device<mc68681_device> m_duart;
 	required_device<nvram_device> m_nvram;
 	required_device<ad7224_device> m_dac;
-	output_finder<32> m_digits;
+	output_finder<8> m_digits;   // the 8 in-machine digits (Sonderspiele + Münzspeicher)
+	output_finder<32> m_dbg;     // raw reconstruction (4 fields x 8) for the debug grid
+	output_finder<5> m_anzled;   // coin-accept LEDs (0,10/1/2/5 DM) + Freispiele
+	output_finder<2> m_magnet;   // coin diverter magnets L/R
 	output_finder<128> m_lamps;
 	output_finder<2> m_leds;
 	required_ioport m_in0;
@@ -341,10 +347,46 @@ void stellafr_state::anz_strobe()
 		else
 			m_seg[field][d] &= ~(1 << seg);
 
-		// mask off the decimal point: fonts B (module 0) and C (module 3) keep a
-		// marker bit permanently set that is not actually a segment
-		m_digits[field * 8 + d] = seg_remap(field, m_seg[field][d]) & 0x7f;
+		// raw reconstruction for the debug grid (mask off the constant marker bit
+		// fonts B/C keep set, which is not actually a segment)
+		m_dbg[field * 8 + d] = seg_remap(field, m_seg[field][d]) & 0x7f;
 	}
+
+	// Drive the 8 in-machine digits (m_digits[n] = Anzeigestelle n of the
+	// Fehlertabelle: Münzspeicher = 0..4, Sonderspiele = 5..7).  The exact
+	// source of each is taken from the ROM position tables DAT_0001c724 (digit
+	// offset) / DAT_0001c725 (buffer-field selector 0/0x40/0x80/0xc0 ->
+	// field 0/1/2/3); text is stored right-aligned so the position index runs
+	// high->low across the characters.
+	static constexpr struct { uint8_t field, pos; } panel[8] =
+	{
+		// Münzspeicher field (logical field 0): "FOUL"/"F_AA" right-aligned
+		{ 2, 4 }, // digit0  Anz0 (rightmost, blank/units)
+		{ 1, 2 }, // digit1  Anz1  small  (L)
+		{ 3, 2 }, // digit2  Anz2  big    (U)
+		{ 0, 2 }, // digit3  Anz3  big    (O)
+		{ 2, 2 }, // digit4  Anz4  big    (F)
+		// Sonderspiele / Serien counter (logical field 1): offset 4 of f1/f3/f0
+		{ 1, 4 }, // digit5  Anz5 (right)
+		{ 3, 4 }, // digit6  Anz6
+		{ 0, 4 }, // digit7  Anz7 (left)
+	};
+	for (int i = 0; i < 8; i++)
+		m_digits[i] = seg_remap(panel[i].field, m_seg[panel[i].field][panel[i].pos]) & 0x7f;
+
+	// A further 74HC4094 sits in the same ANZ (bit 4) chain at buffer offset 3
+	// (not a digit - it never appears in the DAT_0001c724 position table).  Its
+	// eight outputs are, per the Anzeigenplatine (4522/030201):
+	//   bit0=0,10DM  bit1=1DM  bit2=2DM  bit3=5DM  (coin-accept LEDs)
+	//   bit4=Magnet L  bit5=Magnet R  bit6=NC  bit7=Freispiele LED
+	uint8_t const aux = m_seg[3][3];
+	m_anzled[0] = BIT(aux, 0); // 0,10 DM
+	m_anzled[1] = BIT(aux, 1); // 1 DM
+	m_anzled[2] = BIT(aux, 2); // 2 DM
+	m_anzled[3] = BIT(aux, 3); // 5 DM
+	m_anzled[4] = BIT(aux, 7); // Freispiele
+	m_magnet[0] = BIT(aux, 4); // Magnet L
+	m_magnet[1] = BIT(aux, 5); // Magnet R
 }
 
 void stellafr_state::mux2_w(uint8_t data)

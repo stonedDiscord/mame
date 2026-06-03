@@ -31,67 +31,93 @@ license:CC0-1.0
 		</led7seg>
 	</element>
 
+	<element name="coin_led" defstate="0">
+		<disk state="1"><color red="1.0" green="0.85" blue="0.2" /></disk>
+		<disk state="0"><color red="0.18" green="0.15" blue="0.03" /></disk>
+	</element>
+
+	<element name="magnet_ind" defstate="0">
+		<rect state="1"><color red="0.2" green="0.5" blue="1.0" /></rect>
+		<rect state="0"><color red="0.03" green="0.08" blue="0.18" /></rect>
+	</element>
+
 	<view name="Internal Layout">
-		<bounds left="0" right="116" top="0" bottom="60" />
+		<bounds left="0" right="132" top="0" bottom="60" />
 		<element ref="static_black">
-			<bounds left="0" right="116" top="0" bottom="60" />
+			<bounds left="0" right="132" top="0" bottom="60" />
 		</element>
 
-<!-- four display modules of eight 7-seg digits each.
-     The ROM renders into four module buffers; digit(f*8+d) is module f digit d.
-     Digits are scanned so digit 0 is the rightmost on each module. -->
-		<!-- display module 0: digit0..digit7 (digit0 = rightmost) -->
-		<element name="digit0" ref="digit"><bounds x="100" y="2" width="12" height="10" /></element>
-		<element name="digit1" ref="digit"><bounds x="86" y="2" width="12" height="10" /></element>
-		<element name="digit2" ref="digit"><bounds x="72" y="2" width="12" height="10" /></element>
-		<element name="digit3" ref="digit"><bounds x="58" y="2" width="12" height="10" /></element>
-		<element name="digit4" ref="digit"><bounds x="44" y="2" width="12" height="10" /></element>
-		<element name="digit5" ref="digit"><bounds x="30" y="2" width="12" height="10" /></element>
-		<element name="digit6" ref="digit"><bounds x="16" y="2" width="12" height="10" /></element>
-		<element name="digit7" ref="digit"><bounds x="2" y="2" width="12" height="10" /></element>
-		<!-- display module 1: digit8..digit15 (digit0 = rightmost) -->
-		<element name="digit8" ref="digit"><bounds x="100" y="14" width="12" height="10" /></element>
-		<element name="digit9" ref="digit"><bounds x="86" y="14" width="12" height="10" /></element>
-		<element name="digit10" ref="digit"><bounds x="72" y="14" width="12" height="10" /></element>
-		<element name="digit11" ref="digit"><bounds x="58" y="14" width="12" height="10" /></element>
-		<element name="digit12" ref="digit"><bounds x="44" y="14" width="12" height="10" /></element>
-		<element name="digit13" ref="digit"><bounds x="30" y="14" width="12" height="10" /></element>
-		<element name="digit14" ref="digit"><bounds x="16" y="14" width="12" height="10" /></element>
-		<element name="digit15" ref="digit"><bounds x="2" y="14" width="12" height="10" /></element>
-		<!-- display module 2: digit16..digit23 (digit0 = rightmost) -->
-		<element name="digit16" ref="digit"><bounds x="100" y="26" width="12" height="10" /></element>
-		<element name="digit17" ref="digit"><bounds x="86" y="26" width="12" height="10" /></element>
-		<element name="digit18" ref="digit"><bounds x="72" y="26" width="12" height="10" /></element>
-		<element name="digit19" ref="digit"><bounds x="58" y="26" width="12" height="10" /></element>
-		<element name="digit20" ref="digit"><bounds x="44" y="26" width="12" height="10" /></element>
-		<element name="digit21" ref="digit"><bounds x="30" y="26" width="12" height="10" /></element>
-		<element name="digit22" ref="digit"><bounds x="16" y="26" width="12" height="10" /></element>
-		<element name="digit23" ref="digit"><bounds x="2" y="26" width="12" height="10" /></element>
-		<!-- display module 3: digit24..digit31 (digit0 = rightmost) -->
-		<element name="digit24" ref="digit"><bounds x="100" y="38" width="12" height="10" /></element>
-		<element name="digit25" ref="digit"><bounds x="86" y="38" width="12" height="10" /></element>
-		<element name="digit26" ref="digit"><bounds x="72" y="38" width="12" height="10" /></element>
-		<element name="digit27" ref="digit"><bounds x="58" y="38" width="12" height="10" /></element>
-		<element name="digit28" ref="digit"><bounds x="44" y="38" width="12" height="10" /></element>
-		<element name="digit29" ref="digit"><bounds x="30" y="38" width="12" height="10" /></element>
-		<element name="digit30" ref="digit"><bounds x="16" y="38" width="12" height="10" /></element>
-		<element name="digit31" ref="digit"><bounds x="2" y="38" width="12" height="10" /></element>
+<!-- ===== in-machine panel (per Fehlertabelle + cabinet) =====
+     8 digits: Sonderspiele/Serien (digit5..7) + Münzspeicher (digit0..4).
+     The driver sources each from a (field,pos) table in anz_strobe() - adjust
+     there to match the real wiring; the dbg grid below shows the raw data. -->
+		<!-- Sonderspiele / Serien counter (3 digits) -->
+		<element name="digit7" ref="digit"><bounds x="2" y="2" width="11" height="16" /></element>
+		<element name="digit6" ref="digit"><bounds x="15" y="2" width="11" height="16" /></element>
+		<element name="digit5" ref="digit"><bounds x="28" y="2" width="11" height="16" /></element>
+		<!-- Münzspeicher: 3 big -->
+		<element name="digit4" ref="digit"><bounds x="48" y="2" width="13" height="18" /></element>
+		<element name="digit3" ref="digit"><bounds x="62" y="2" width="13" height="18" /></element>
+		<element name="digit2" ref="digit"><bounds x="76" y="2" width="13" height="18" /></element>
+		<!-- Münzspeicher: 2 small -->
+		<element name="digit1" ref="digit"><bounds x="94" y="4" width="9" height="13" /></element>
+		<element name="digit0" ref="digit"><bounds x="104" y="4" width="9" height="13" /></element>
+
+		<!-- coin-accept LEDs + Freispiele (the extra 74HC4094 on the ANZ chain) -->
+		<element name="anzled0" ref="coin_led"><bounds x="48" y="21" width="3" height="3" /></element><!-- 0,10 -->
+		<element name="anzled1" ref="coin_led"><bounds x="55" y="21" width="3" height="3" /></element><!-- 1 DM -->
+		<element name="anzled2" ref="coin_led"><bounds x="62" y="21" width="3" height="3" /></element><!-- 2 DM -->
+		<element name="anzled3" ref="coin_led"><bounds x="69" y="21" width="3" height="3" /></element><!-- 5 DM -->
+		<element name="anzled4" ref="coin_led"><bounds x="80" y="21" width="3" height="3" /></element><!-- Freispiele -->
+		<!-- coin diverter magnets L/R -->
+		<element name="magnet0" ref="magnet_ind"><bounds x="94" y="21" width="4" height="3" /></element><!-- L -->
+		<element name="magnet1" ref="magnet_ind"><bounds x="100" y="21" width="4" height="3" /></element><!-- R -->
+
+		<!-- ===== raw reconstruction debug grid: dbg(field*8+pos) ===== -->
+		<element name="dbg0" ref="digit"><bounds x="65" y="26" width="7" height="6" /></element>
+		<element name="dbg1" ref="digit"><bounds x="56" y="26" width="7" height="6" /></element>
+		<element name="dbg2" ref="digit"><bounds x="47" y="26" width="7" height="6" /></element>
+		<element name="dbg3" ref="digit"><bounds x="38" y="26" width="7" height="6" /></element>
+		<element name="dbg4" ref="digit"><bounds x="29" y="26" width="7" height="6" /></element>
+		<element name="dbg5" ref="digit"><bounds x="20" y="26" width="7" height="6" /></element>
+		<element name="dbg6" ref="digit"><bounds x="11" y="26" width="7" height="6" /></element>
+		<element name="dbg7" ref="digit"><bounds x="2" y="26" width="7" height="6" /></element>
+		<element name="dbg8" ref="digit"><bounds x="65" y="34" width="7" height="6" /></element>
+		<element name="dbg9" ref="digit"><bounds x="56" y="34" width="7" height="6" /></element>
+		<element name="dbg10" ref="digit"><bounds x="47" y="34" width="7" height="6" /></element>
+		<element name="dbg11" ref="digit"><bounds x="38" y="34" width="7" height="6" /></element>
+		<element name="dbg12" ref="digit"><bounds x="29" y="34" width="7" height="6" /></element>
+		<element name="dbg13" ref="digit"><bounds x="20" y="34" width="7" height="6" /></element>
+		<element name="dbg14" ref="digit"><bounds x="11" y="34" width="7" height="6" /></element>
+		<element name="dbg15" ref="digit"><bounds x="2" y="34" width="7" height="6" /></element>
+		<element name="dbg16" ref="digit"><bounds x="65" y="42" width="7" height="6" /></element>
+		<element name="dbg17" ref="digit"><bounds x="56" y="42" width="7" height="6" /></element>
+		<element name="dbg18" ref="digit"><bounds x="47" y="42" width="7" height="6" /></element>
+		<element name="dbg19" ref="digit"><bounds x="38" y="42" width="7" height="6" /></element>
+		<element name="dbg20" ref="digit"><bounds x="29" y="42" width="7" height="6" /></element>
+		<element name="dbg21" ref="digit"><bounds x="20" y="42" width="7" height="6" /></element>
+		<element name="dbg22" ref="digit"><bounds x="11" y="42" width="7" height="6" /></element>
+		<element name="dbg23" ref="digit"><bounds x="2" y="42" width="7" height="6" /></element>
+		<element name="dbg24" ref="digit"><bounds x="65" y="50" width="7" height="6" /></element>
+		<element name="dbg25" ref="digit"><bounds x="56" y="50" width="7" height="6" /></element>
+		<element name="dbg26" ref="digit"><bounds x="47" y="50" width="7" height="6" /></element>
+		<element name="dbg27" ref="digit"><bounds x="38" y="50" width="7" height="6" /></element>
+		<element name="dbg28" ref="digit"><bounds x="29" y="50" width="7" height="6" /></element>
+		<element name="dbg29" ref="digit"><bounds x="20" y="50" width="7" height="6" /></element>
+		<element name="dbg30" ref="digit"><bounds x="11" y="50" width="7" height="6" /></element>
+		<element name="dbg31" ref="digit"><bounds x="2" y="50" width="7" height="6" /></element>
 
 		<!-- control unit error LEDs -->
-		<element name="led0" ref="led_red">
-			<bounds x="2" y="50" width="4" height="4" />
-		</element>
-		<element name="led1" ref="led_red">
-			<bounds x="8" y="50" width="4" height="4" />
-		</element>
+		<element name="led0" ref="led_red"><bounds x="120" y="2" width="4" height="4" /></element>
+		<element name="led1" ref="led_red"><bounds x="126" y="2" width="4" height="4" /></element>
 
 		<!-- lamp matrix debug grid -->
 		<repeat count="12">
 			<param name="s" start="0" increment="1" />
-			<param name="x" start="20" increment="2" />
+			<param name="x" start="78" increment="2" />
 			<repeat count="8">
 			<param name="z" start="0" increment="1" />
-			<param name="y" start="50" increment="1" />
+			<param name="y" start="34" increment="2" />
 				<element name="lamp~z~~s~" ref="green_led">
 					<bounds x="~x~" y="~y~" width="1" height="1" />
 				</element>
