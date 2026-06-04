@@ -73,14 +73,14 @@ license:CC0-1.0
 		<element name="led0" ref="led_red"><bounds x="108" y="21" width="3" height="3" /></element>
 		<element name="led1" ref="led_red"><bounds x="112" y="21" width="3" height="3" /></element>
 
-		<!-- ===== raw reconstruction debug grid: dbg<anzout><field>, 8 columns x 4 digits ===== -->
+		<!-- ===== raw reconstruction debug grid: digit<anzout><field>, 8 columns x 4 digits ===== -->
 		<repeat count="8">
 			<param name="a" start="0" increment="1" />
 			<param name="x" start="2" increment="6" />
 			<repeat count="4">
 				<param name="f" start="0" increment="1" />
 				<param name="y" start="30" increment="5" />
-				<element name="dbg~a~~f~" ref="digit">
+				<element name="digit~a~~f~" ref="digit">
 					<bounds x="~x~" y="~y~" width="5" height="4" />
 				</element>
 			</repeat>
