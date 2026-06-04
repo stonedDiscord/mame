@@ -200,7 +200,7 @@ public:
 		m_aysnd(*this, "aysnd"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
-		m_dbg(*this, "dbg%u", 0U),
+		m_dbg(*this, "dbg%02u", 0U),
 		m_anzled(*this, "anzled%u", 0U),
 		m_magnet(*this, "magnet%u", 0U),
 		m_lamps(*this, "lamp%u", 0U),
@@ -220,8 +220,8 @@ private:
 	required_device<mc68681_device> m_duart;
 	required_device<ay8910_device> m_aysnd;
 	required_device<ad7224_device> m_dac;
-	output_finder<8> m_digits;   // the 8 top digits (Sonderspiele + Münzspeicher)
-	output_finder<32> m_dbg;     // anz debug digits
+	output_finder<54> m_digits;  // top digits, named digit<anzout><field> (Sonderspiele + Münzspeicher)
+	output_finder<74> m_dbg;     // anz debug digits, named dbg<anzout><field>
 	output_finder<5> m_anzled;   // coin-accept LEDs (0,10/1/2/5 DM) + Freispiele
 	output_finder<2> m_magnet;   // magnets L/R
 	output_finder<128> m_lamps;
@@ -252,6 +252,11 @@ private:
 	void ay8910_portb_w(uint8_t data);
 	void lamps_w(bool second);
 	void anzeigen_w();
+	void anzout3_w(int even_field);
+	void anzout4_w(int even_field);
+	void anzout5_w(int even_field);
+	void anz_dbg_w(int even_field);
+	void set_digit(int reg, int field, int even_field);
 	void service_w();
 	static uint8_t digit_map(int field, uint8_t s);
 
@@ -310,6 +315,66 @@ uint8_t stellafr_state::digit_map(int field, uint8_t s)
 		return bitswap<8>(s, 7, 3, 4, 2, 1, 0, 6, 5); // digits 0 & 2
 }
 
+// Pull one digit out of a downstream chain.  Each chain is two 74HC4094s, so
+// it holds two modules: the even field of the pair in the low 4094 (segment s in
+// bit s) and the odd field in the high 4094.  Only the field that matches the
+// pair just latched is updated; the other half belongs to the other pair.
+void stellafr_state::set_digit(int reg, int field, int even_field)
+{
+	// the layout names each digit digit<anzout><field>, so write straight there
+	uint16_t const v = m_anz1_out[reg];
+	if (field == even_field)
+		m_digits[reg * 10 + field] = digit_map(field, v & 0xff) & 0x7f;
+	else if (field == (even_field | 1))
+		m_digits[reg * 10 + field] = digit_map(field, v >> 8) & 0x7f;
+}
+
+// Anzout3 chain = the pos-4 digit of every module.
+void stellafr_state::anzout3_w(int even_field)
+{
+	set_digit(3, 2, even_field); // digit32 Münzspeicher Anz0
+	set_digit(3, 1, even_field); // digit31 Sonderspiele
+	set_digit(3, 3, even_field); // digit33 Sonderspiele
+	set_digit(3, 0, even_field); // digit30 Sonderspiele
+}
+
+// Anzout4 chain, high 4094 (module 3 / field 3): coin-accept LEDs + magnets.
+void stellafr_state::anzout4_w(int even_field)
+{
+	if (even_field != 2) // the aux register lives in field 3 (odd half of pair 2/3)
+		return;
+	uint8_t const aux = m_anz1_out[4] >> 8;
+	m_anzled[0] = BIT(aux, 0); // 0,10 DM
+	m_anzled[1] = BIT(aux, 1); // 1 DM
+	m_anzled[2] = BIT(aux, 2); // 2 DM
+	m_anzled[3] = BIT(aux, 3); // 5 DM
+	m_magnet[0] = BIT(aux, 4); // Magnet L
+	m_magnet[1] = BIT(aux, 5); // Magnet R
+	// bit 6 = NC
+	m_anzled[4] = BIT(aux, 7); // Freispiele
+}
+
+// Anzout5 chain = the pos-2 digit of every module = Münzspeicher Anz1..4.
+void stellafr_state::anzout5_w(int even_field)
+{
+	set_digit(5, 1, even_field); // digit51 Münzspeicher Anz1
+	set_digit(5, 3, even_field); // digit53 Münzspeicher Anz2
+	set_digit(5, 0, even_field); // digit50 Münzspeicher Anz3
+	set_digit(5, 2, even_field); // digit52 Münzspeicher Anz4
+}
+
+// raw reconstruction of every chain (both 4094s) for the debug grid.
+void stellafr_state::anz_dbg_w(int even_field)
+{
+	int const odd_field = even_field | 1;
+	for (int anzout = 0; anzout < 8; anzout++)
+	{
+		uint16_t const v = m_anz1_out[anzout];
+		m_dbg[anzout * 10 + even_field] = digit_map(even_field, v & 0xff) & 0x7f;
+		m_dbg[anzout * 10 + odd_field]  = digit_map(odd_field, v >> 8) & 0x7f;
+	}
+}
+
 void stellafr_state::anzeigen_w()
 {
 	// clock one bit into each of the eight downstream 74HC4094s.  Within a module
@@ -329,58 +394,15 @@ void stellafr_state::anzeigen_w()
 		m_anz_prevpos = pos;
 	}
 
-	// Each chain is two 74HC4094s in series.  A whole module pair (16 strobes,
-	// ending at pos 7 bank 1) leaves the even module of the pair (scanned first)
-	// in the low byte - segment s in bit s - and the odd module in the high byte.
-	// Latch both modules.  Register i carries Anzout(i) = digit offset (7 - i).
+	// a whole module pair (16 strobes, ending at pos 7 bank 1) has clocked
+	// through both 4094s of every chain - latch each downstream array.
 	if (pos == 7 && m_anz_bank == 1)
 	{
-		int const even_field = m_anz_cycle << 1; // low byte (scanned first)
-		int const odd_field  = even_field | 1;   // high byte
-
-		// the 8 top digits (Münzspeicher = 0..4, Sonderspiele = 5..7)
-		static constexpr struct { uint8_t field, pos; } panel[8] =
-		{
-			{ 2, 4 }, // digit0  Münzspeicher Anz0 (rightmost)
-			{ 1, 2 }, // digit1  Münzspeicher Anz1
-			{ 3, 2 }, // digit2  Münzspeicher Anz2
-			{ 0, 2 }, // digit3  Münzspeicher Anz3
-			{ 2, 2 }, // digit4  Münzspeicher Anz4 (leftmost)
-			{ 1, 4 }, // digit5  Sonderspiele Anz5
-			{ 3, 4 }, // digit6  Sonderspiele Anz6
-			{ 0, 4 }, // digit7  Sonderspiele Anz7
-		};
-		for (int i = 0; i < 8; i++)
-		{
-			uint16_t const reg = m_anz1_out[7 - panel[i].pos];
-			if (panel[i].field == even_field)
-				m_digits[i] = digit_map(even_field, reg & 0xff) & 0x7f;
-			else if (panel[i].field == odd_field)
-				m_digits[i] = digit_map(odd_field, (reg >> 8) & 0xff) & 0x7f;
-		}
-
-		// debug grid: both modules of the pair
-		for (int d = 0; d < 8; d++)
-		{
-			uint16_t const reg = m_anz1_out[7 - d];
-			m_dbg[even_field * 8 + d] = digit_map(even_field, reg & 0xff) & 0x7f;
-			m_dbg[odd_field  * 8 + d] = digit_map(odd_field, (reg >> 8) & 0xff) & 0x7f;
-		}
-
-		// Anzout4 chain (digit offset 3), odd module of the second pair = module 3:
-		// coin-accept LEDs + magnets
-		if (odd_field == 3)
-		{
-			uint8_t const aux = m_anz1_out[4] >> 8;
-			m_anzled[0] = BIT(aux, 0); // 0,10 DM
-			m_anzled[1] = BIT(aux, 1); // 1 DM
-			m_anzled[2] = BIT(aux, 2); // 2 DM
-			m_anzled[3] = BIT(aux, 3); // 5 DM
-			m_magnet[0] = BIT(aux, 4); // Magnet L
-			m_magnet[1] = BIT(aux, 5); // Magnet R
-			//nc
-			m_anzled[4] = BIT(aux, 7); // Freispiele
-		}
+		int const even_field = m_anz_cycle << 1;
+		anzout3_w(even_field); // Sonderspiele (+ Münzspeicher Anz0)
+		anzout4_w(even_field); // coin-accept LEDs + magnets
+		anzout5_w(even_field); // Münzspeicher Anz1..4
+		anz_dbg_w(even_field);  // raw debug grid
 	}
 
 	m_anz_bank ^= 1; // the two banks alternate, reset by ENMUX down
