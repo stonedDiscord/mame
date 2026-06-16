@@ -81,7 +81,7 @@ private:
 	bool m_kbd_bd = false;
 	uint8_t m_optic = 0x00;
 
-	required_device<cpu_device> m_maincpu;
+	required_device<i8085a_cpu_device> m_maincpu;
 	required_device<i8255_device> m_ppi;
 	required_device<i8256_device> m_uart;
 	required_device<rs232_port_device> m_rs232;
@@ -622,18 +622,19 @@ void stella8085_state::doppelpot(machine_config &config)
 
 	I8256(config, m_uart, 6.144_MHz_XTAL / 2);
 	m_uart->int_callback().set_inputline(m_maincpu, I8085_INTR_LINE);
+	m_maincpu->in_inta_func().set(m_uart, FUNC(i8256_device::inta_r));
 	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
 	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
 	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
 
 	// 4 wheel stepper motors, each driven by a 2-bit coil pattern with an index optic
-	REEL(config, m_motor[0], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[0], MPU3_48STEP_REEL, 96, 6, 0x00, 2);
 	m_motor[0]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<0>));
-	REEL(config, m_motor[1], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[1], MPU3_48STEP_REEL, 96, 6, 0x00, 2);
 	m_motor[1]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<1>));
-	REEL(config, m_motor[2], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[2], MPU3_48STEP_REEL, 96, 6, 0x00, 2);
 	m_motor[2]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<2>));
-	REEL(config, m_motor[3], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[3], MPU3_48STEP_REEL, 96, 6, 0x00, 2);
 	m_motor[3]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<3>));
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
