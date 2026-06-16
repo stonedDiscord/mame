@@ -34,6 +34,7 @@ Nova Kniffi reference: https://www.youtube.com/watch?v=YBq2Z1irXek
 #include "machine/i8279.h"
 #include "machine/mc146818.h"
 #include "machine/msm6242.h"
+#include "machine/steppers.h"
 #include "sound/beep.h"
 
 #include "bus/rs232/rs232.h"
@@ -59,6 +60,7 @@ public:
 		m_uart(*this, "muart"),
 		m_rs232(*this, "rs232"),
 		m_kdc(*this, "kdc"),
+		m_motor(*this, "motor%u", 0U),
 		m_tz(*this, "TZ%u", 0U),
 		m_dsw(*this, "DSW"),
 		m_digits(*this, "digit%u", 0U),
@@ -77,12 +79,14 @@ private:
 	uint8_t m_digit = 0U;
 	uint8_t m_kbd_sl = 0x00;
 	bool m_kbd_bd = false;
+	uint8_t m_optic = 0x00;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<i8255_device> m_ppi;
 	required_device<i8256_device> m_uart;
 	required_device<rs232_port_device> m_rs232;
 	required_device<i8279_device> m_kdc;
+	optional_device_array<stepper_device, 4> m_motor;
 	required_ioport_array<8> m_tz;
 	required_ioport m_dsw;
 	output_finder<16> m_digits;
@@ -100,6 +104,7 @@ private:
 	uint8_t lw_r(); //P1.0-P1.3
 	void machine1_w(uint8_t data);
 	void machine2_w(uint8_t data);
+	template <unsigned N> void motor_optic_w(int state) { if (state) m_optic |= (1 << N); else m_optic &= ~(1 << N); }
 
 	// I8279 Interface
 	uint8_t kbd_rl_r();
@@ -126,6 +131,7 @@ void stella8085_state::machine_start()
 	m_sound_timer = timer_alloc(FUNC(stella8085_state::sound_stop), this);
 
 	save_item(NAME(m_digit));
+	save_item(NAME(m_optic));
 }
 
 void stella8085_state::large_program_map(address_map &map)
@@ -174,25 +180,41 @@ void stella8085_state::io_4040_map(address_map &map)
 *                                            *
 *********************************************/
 
+// Each wheel is spun by a 2-phase stepper and read back by a light barrier on
+// P1.0-P1.3. The wheels are coded optical discs: the optic flag is split into
+// segments of varying width, so as the disc turns the light barrier produces a
+// sequence of pulses whose widths encode the absolute position. The init code
+// (homing one wheel at a time) measures these pulse widths and matches them
+// against a per-wheel table at 0x371d ( 0e 09 08 07 06 06 06 00 07 07 07 08 0a
+// 10 20 ff ) to find the home reference.
+//
+// TODO: the stepper below only emits a single index pulse per revolution, which
+// is enough to make the wheels spin and the barrier toggle but not to satisfy
+// the width-matching homing - that needs the coded disc segment widths modelled.
 uint8_t stella8085_state::lw_r()
 {
 	// wheel light sensors
 
-	// LIW1
-	// LIW2
-	// LIW3
-	// LIW4
-	//M5A out
-	//M5B out
-	//P1.6 is always low
-	// LIW5
+	// P1.0 LIW1 - wheel 1 index optic (active high)
+	// P1.1 LIW2 - wheel 2 index optic
+	// P1.2 LIW3 - wheel 3 index optic
+	// P1.3 LIW4 - wheel 4 index optic
+	// P1.4 M5A out
+	// P1.5 M5B out
+	// P1.6 is always low
+	// P1.7 LIW5
 
-	return 0xbf;
+	return 0xb0 | (m_optic & 0x0f);
 }
 
 void stella8085_state::machine1_w(uint8_t data)
 {
-	popmessage("M1 A %d B %d\nM2 A %d B %d\nM3 A %d B %d\nM4 A %d B %d",BIT(0,data),BIT(1,data),BIT(2,data),BIT(3,data),BIT(4,data),BIT(5,data),BIT(6,data),BIT(7,data));
+	// each wheel is a 2-phase stepper motor driven by two coils:
+	// P2.0/P2.1 -> motor 1, P2.2/P2.3 -> motor 2, P2.4/P2.5 -> motor 3, P2.6/P2.7 -> motor 4
+	m_motor[0]->update( data       & 0x03);
+	m_motor[1]->update((data >> 2) & 0x03);
+	m_motor[2]->update((data >> 4) & 0x03);
+	m_motor[3]->update((data >> 6) & 0x03);
 }
 
 void stella8085_state::machine2_w(uint8_t data)
@@ -599,6 +621,16 @@ void stella8085_state::doppelpot(machine_config &config)
 	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
 	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
 	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
+
+	// 4 wheel stepper motors, each driven by a 2-bit coil pattern with an index optic
+	REEL(config, m_motor[0], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	m_motor[0]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<0>));
+	REEL(config, m_motor[1], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	m_motor[1]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<1>));
+	REEL(config, m_motor[2], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	m_motor[2]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<2>));
+	REEL(config, m_motor[3], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	m_motor[3]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<3>));
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 	m_uart->txd_handler().set(m_rs232, FUNC(rs232_port_device::write_txd));
