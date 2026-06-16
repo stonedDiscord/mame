@@ -215,6 +215,10 @@ void stella8085_state::machine1_w(uint8_t data)
 	m_motor[1]->update((data >> 2) & 0x03);
 	m_motor[2]->update((data >> 4) & 0x03);
 	m_motor[3]->update((data >> 6) & 0x03);
+
+	// refresh the reel position/scroll outputs so the layout discs animate
+	for (auto &motor : m_motor)
+		motor->draw();
 }
 
 void stella8085_state::machine2_w(uint8_t data)
