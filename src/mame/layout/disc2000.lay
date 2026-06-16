@@ -50,14 +50,21 @@ license:CC0-1.0
 
 	<!-- a vertical symbol strip used as a spinning wheel; scrolled via the
 	     stepper "scroll" output so it animates only while the wheel turns.
-	     400 tall, 5 cells of 80 (sun, 80, 60, 40, sun) so it wraps seamlessly -->
+	     960 tall, 12 cells of 80 (sun, 40, 1,60, 40, sun, 40, 1,60, 40, sun, 40, 80, 40) so it wraps seamlessly -->
 	<element name="disc_reel">
-		<rect><bounds x="0" y="0" width="100" height="400" /><color red="0.05" green="0.05" blue="0.05" /></rect>
+		<rect><bounds x="0" y="0" width="100" height="960" /><color red="0.05" green="0.05" blue="0.05" /></rect>
 		<disk><bounds x="25" y="15"  width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="80"><bounds x="0" y="95"  width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="60"><bounds x="0" y="175" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="40"><bounds x="0" y="95"  width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="1,60"><bounds x="0" y="175" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
 		<text string="40"><bounds x="0" y="255" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
 		<disk><bounds x="25" y="335" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
+		<text string="40"><bounds x="0" y="415" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="1,60"><bounds x="0" y="495" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="40"><bounds x="0" y="575" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<disk><bounds x="25" y="655" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
+		<text string="40"><bounds x="0" y="735" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="80"><bounds x="0" y="815" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="40"><bounds x="0" y="895" width="100" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
 	</element>
 
 	<element name="ladder" defstate="0">
@@ -349,17 +356,17 @@ license:CC0-1.0
 		     each reel only animates while its motor is turning -->
 		<element ref="disc_reel">
 			<bounds x="100" y="150" width="120" height="120" />
-			<yscroll name="motor0:scroll" size="0.2" wrap="yes" min="0" max="65535" />
+			<yscroll name="motor0:scroll" size="0.125" wrap="yes" min="0" max="65535" />
 		</element>
 
 		<element ref="disc_reel">
 			<bounds x="260" y="150" width="120" height="120" />
-			<yscroll name="motor1:scroll" size="0.2" wrap="yes" min="0" max="65535" />
+			<yscroll name="motor1:scroll" size="0.125" wrap="yes" min="0" max="65535" />
 		</element>
 
 		<element ref="disc_reel">
 			<bounds x="185" y="185" width="120" height="120" />
-			<yscroll name="motor2:scroll" size="0.2" wrap="yes" min="0" max="65535" />
+			<yscroll name="motor2:scroll" size="0.125" wrap="yes" min="0" max="65535" />
 		</element>
 
 
