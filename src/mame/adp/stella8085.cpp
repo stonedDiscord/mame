@@ -278,12 +278,11 @@ void stella8085_state::kbd_bd_w(uint8_t data)
 
 uint8_t stella8085_state::kbd_rl_r()
 {
-	uint8_t ret = 0xff;
-	if (m_kbd_sl < 8)
-		ret = m_tz[m_kbd_sl]->read();
-	else
-		LOG("read unmapped line %02x\n", m_kbd_sl);
-	return ret;
+	// The 8279 is in 16-character display mode, so its scan counter runs 0-15,
+	// but only 8 sensor rows (TZ0-TZ7) exist - mask the scan line to 8.
+	// The i8279 inverts RL into its sensor RAM (rl = in_rl ^ 0xff); the firmware
+	// expects the raw signal levels, so pre-invert here to cancel that out.
+	return m_tz[m_kbd_sl & 7]->read() ^ 0xff;
 }
 
 void stella8085_state::disp_w(uint8_t data)
@@ -409,7 +408,7 @@ void stella8085_state::io71(uint8_t data)
 		popmessage("GONG");
 	if (US)
 		LOG("activating US\n");
-	m_beep->set_output_gain(ALL_OUTPUTS,!DG);
+	m_beep->set_output_gain(ALL_OUTPUTS,DG);
 	if (UG || DS || DM || UM)
 		LOG("UG %d DS %d DM %d UM %d\n", UG,DS,DM,UM);
 }
@@ -558,7 +557,9 @@ static INPUT_PORTS_START( disc )
 	PORT_INCLUDE(stella8085_dip)
 
 	PORT_START("TZ0") //TASTEN
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_DOOR ) // TS Türschalter
+	PORT_CONFNAME( 0x01, 0x01, "Door (Türschalter)" ) // TS
+	PORT_CONFSETTING(    0x01, "Closed" )
+	PORT_CONFSETTING(    0x00, "Open" )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_TILT ) // SK Schlagkontakt / Read data button
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // ZE2
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_PAYOUT ) // Return
@@ -568,13 +569,17 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_START ) // NF
 
 	PORT_START("TZ1")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN4 ) PORT_NAME("DM 0.10")  //LIM1 COIN II
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_COIN3 ) PORT_NAME("DM 1.00")  //LIM2 COIN II
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_NAME("DM 2.00")  //LIM3 COIN II
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_NAME("DM 5.00")  //LIM4 COIN II
+	// LIM = Münzeingang: a microswitch coin unit idles at 0V and switches to
+	// +12V on a coin, so these are active high. The boot/coin routines read this
+	// row at the 8279 and require at least one LIM bit low at idle (no coins);
+	// idling them high traps the firmware in its Störung loop at 0x124b.
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN4 ) PORT_NAME("DM 0.10")  //LIM1 COIN II
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_COIN3 ) PORT_NAME("DM 1.00")  //LIM2 COIN II
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN2 ) PORT_NAME("DM 2.00")  //LIM3 COIN II
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("DM 5.00")  //LIM4 COIN II
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN ) //MK
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN ) //MK Münzeinheitenkennung
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIG
 
 	PORT_START("TZ2")
@@ -967,7 +972,7 @@ GAMEL( 1983, bahia,           0, excellent, servicem, stella8085_state, empty_in
 GAMEL( 1984, disc,            0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc",              MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1985, dpplstrt,        0, excellent, servicem, stella8085_state, empty_init, ROT0, "Nova",   "Doppelstart",       MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1986, discoly,         0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc Olympia",      MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_disc2000 )
-GAMEL( 1986, dpplpot,         0, doppelpot, servicem, stella8085_state, empty_init, ROT0, "Nova",   "Doppelpot",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
+GAMEL( 1986, dpplpot,         0, doppelpot, disc,     stella8085_state, empty_init, ROT0, "Nova",   "Doppelpot",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_disc2000 )
 GAMEL( 1986, elitdisc,        0, doppelpot, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Elite Disc",        MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_disc2000 )
 GAMEL( 1986, sjackpot,        0, doppelpot, disc,     stella8085_state, empty_init, ROT0, "Nova",   "Super Jackpot",     MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1986, vmulti,          0, excellent, disc,     stella8085_state, empty_init, ROT0, "Venus",  "Multi",             MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
