@@ -104,7 +104,7 @@ private:
 	uint8_t lw_r(); //P1.0-P1.3
 	void machine1_w(uint8_t data);
 	void machine2_w(uint8_t data);
-	template <unsigned N> void motor_optic_w(int state) { if (state) m_optic |= (1 << N); else m_optic &= ~(1 << N); }
+	void update_optics();
 
 	// I8279 Interface
 	uint8_t kbd_rl_r();
@@ -181,16 +181,11 @@ void stella8085_state::io_4040_map(address_map &map)
 *********************************************/
 
 // Each wheel is spun by a 2-phase stepper and read back by a light barrier on
-// P1.0-P1.3. The wheels are coded optical discs: the optic flag is split into
-// segments of varying width, so as the disc turns the light barrier produces a
-// sequence of pulses whose widths encode the absolute position. The init code
-// (homing one wheel at a time) measures these pulse widths and matches them
-// against a per-wheel table at 0x371d ( 0e 09 08 07 06 06 06 00 07 07 07 08 0a
-// 10 20 ff ) to find the home reference.
-//
-// TODO: the stepper below only emits a single index pulse per revolution, which
-// is enough to make the wheels spin and the barrier toggle but not to satisfy
-// the width-matching homing - that needs the coded disc segment widths modelled.
+// P1.0-P1.3. The wheels are coded optical discs: a ring of slots whose widths
+// and spacing encode the symbol positions, with one wheel-specific reference.
+// The init code (homing one wheel at a time) slows the motor near home and reads
+// the slot it stops on; the per-wheel disc is generated in update_optics() from
+// DISC_PATTERN, captured from real hardware (see the comment there).
 uint8_t stella8085_state::lw_r()
 {
 	// wheel light sensors
@@ -207,6 +202,38 @@ uint8_t stella8085_state::lw_r()
 	return 0xb0 | (m_optic & 0x0f);
 }
 
+// Coded optical disc per wheel, captured from real disc2000 hardware .
+// The left (wheel 1) and right (wheel 2) wheels are physically identical discs.
+// #...#...#...#..###..#...#...#...#...#...#...#...
+static constexpr uint64_t DISC_LR =
+	(1ULL<<0)|(1ULL<<4)|(1ULL<<8)|(1ULL<<12)|(1ULL<<15)|(1ULL<<16)|(1ULL<<17)|
+	(1ULL<<20)|(1ULL<<24)|(1ULL<<28)|(1ULL<<32)|(1ULL<<36)|(1ULL<<40)|(1ULL<<44);
+
+static constexpr uint64_t DISC_PATTERN[4] =
+{
+	DISC_LR, // wheel 1 (left)
+	DISC_LR, // wheel 2 (right) - physically identical to the left wheel
+	// wheel 3 (middle): #...#...#...#...#...#...#...#..###..#...#...#...
+	(1ULL<<0)|(1ULL<<4)|(1ULL<<8)|(1ULL<<12)|(1ULL<<16)|(1ULL<<20)|(1ULL<<24)|
+	(1ULL<<28)|(1ULL<<31)|(1ULL<<32)|(1ULL<<33)|(1ULL<<36)|(1ULL<<40)|(1ULL<<44),
+	// wheel 4: unused on disc2001
+	0
+};
+
+void stella8085_state::update_optics()
+{
+	// each wheel's light barrier (P1.0-P1.3) follows its coded disc as it turns;
+	// the reel position (0..95 half-steps) maps to the 48-step disc table
+	for (unsigned n = 0; n < 4; n++)
+	{
+		const int step = (m_motor[n]->get_position() >> 1) % 48;
+		if (BIT(DISC_PATTERN[n], step))
+			m_optic |= (1 << n);
+		else
+			m_optic &= ~(1 << n);
+	}
+}
+
 void stella8085_state::machine1_w(uint8_t data)
 {
 	// each wheel is a 2-phase stepper motor driven by two coils:
@@ -215,6 +242,8 @@ void stella8085_state::machine1_w(uint8_t data)
 	m_motor[1]->update((data >> 2) & 0x03);
 	m_motor[2]->update((data >> 4) & 0x03);
 	m_motor[3]->update((data >> 6) & 0x03);
+
+	update_optics();
 
 	// refresh the reel position/scroll outputs so the layout discs animate
 	for (auto &motor : m_motor)
@@ -627,15 +656,13 @@ void stella8085_state::doppelpot(machine_config &config)
 	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
 	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
 
-	// 4 wheel stepper motors, each driven by a 2-bit coil pattern with an index optic
-	REEL(config, m_motor[0], MPU3_48STEP_REEL, 96, 6, 0x00, 2);
-	m_motor[0]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<0>));
-	REEL(config, m_motor[1], MPU3_48STEP_REEL, 96, 6, 0x00, 2);
-	m_motor[1]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<1>));
-	REEL(config, m_motor[2], MPU3_48STEP_REEL, 96, 6, 0x00, 2);
-	m_motor[2]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<2>));
-	REEL(config, m_motor[3], MPU3_48STEP_REEL, 96, 6, 0x00, 2);
-	m_motor[3]->optic_handler().set(FUNC(stella8085_state::motor_optic_w<3>));
+	// wheel stepper motors, each driven by a 2-bit coil pattern. The REEL only
+	// provides gray-code decoding/position here; the light barrier is generated
+	// in update_optics() from the per-wheel coded disc (DISC_PATTERN).
+	REEL(config, m_motor[0], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[1], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[2], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[3], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 	m_uart->txd_handler().set(m_rs232, FUNC(rs232_port_device::write_txd));
