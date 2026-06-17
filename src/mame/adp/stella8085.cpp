@@ -86,7 +86,9 @@ private:
 	uint8_t m_coin_seq = 0;       // 0 = idle, otherwise the current step
 	uint8_t m_coin_lim = 0;       // LIM denomination bit for the coin being inserted
 	uint8_t m_coin_lim_out = 0;   // LIM level currently injected into TZ1 (0-3)
-	uint8_t m_coin_lig = 1;       // LIG level currently injected into TZ1 (bit7, idle high)
+	uint8_t m_coin_lig = 0;       // LIG level injected into TZ1 (bit7). Real-HW healthy idle = LOW
+	                              // (test-ROM TZ1=0x00); the firmware (FUN_ram_1f0e) sets c119 bit0
+	                              // when LIG reads HIGH and won't arm the acceptor until it's clear.
 	uint8_t m_coin_ruem = 1;      // RUEM level currently injected into TZ2 (bit4, idle high)
 	uint8_t m_coin_zem = 1;       // ZEM1 (Fadenfoul) level injected into TZ2 (bit6, idle high)
 	uint8_t m_coin_keys = 0;      // previous IPT_COIN key state, for edge detection
@@ -382,10 +384,10 @@ TIMER_CALLBACK_MEMBER(stella8085_state::coin_seq_tick)
 		m_coin_seq = 3;
 		m_coin_timer->adjust(attotime::from_msec(80));
 		break;
-	default: // coin has fully passed - back to idle
+	default: // coin has fully passed - back to idle (LIG low so the acceptor re-arms)
 		m_coin_ruem = 1;
 		m_coin_zem = 1;
-		m_coin_lig = 1;
+		m_coin_lig = 0;
 		m_coin_seq = 0;
 		break;
 	}
