@@ -87,6 +87,7 @@ private:
 	uint8_t m_coin_lim = 0;       // LIM denomination bit for the coin being inserted
 	uint8_t m_coin_lim_out = 0;   // LIM level currently injected into TZ1 (0-3)
 	uint8_t m_coin_lig = 1;       // LIG level currently injected into TZ1 (bit7, idle high)
+	uint8_t m_coin_ruem = 1;      // RUEM level currently injected into TZ2 (bit4, idle high)
 	uint8_t m_coin_keys = 0;      // previous IPT_COIN key state, for edge detection
 
 	required_device<i8085a_cpu_device> m_maincpu;
@@ -149,6 +150,7 @@ void stella8085_state::machine_start()
 	save_item(NAME(m_coin_lim));
 	save_item(NAME(m_coin_lim_out));
 	save_item(NAME(m_coin_lig));
+	save_item(NAME(m_coin_ruem));
 	save_item(NAME(m_coin_keys));
 }
 
@@ -309,14 +311,6 @@ uint8_t stella8085_state::kbd_rl_r()
 	// pulses low as the coin passes the common barrier.
 	if (row == 1)
 	{
-		// TEMP TEST: auto-insert a single DM 0.10 coin at t=8s
-		const attotime now = machine().time();
-		if (m_coin_seq == 0 && now >= attotime::from_seconds(8) && now < attotime::from_usec(8000100))
-		{
-			m_coin_lim = 0x01;
-			m_coin_seq = 1;
-			m_coin_timer->adjust(attotime::zero);
-		}
 		// edge-detect the IPT_COIN keys (active high on the LIM bits) and kick off
 		// the acceptor sequence for one denomination, then replace the raw key bits
 		// with the replayed light-barrier levels (see coin_seq_tick).
@@ -329,7 +323,15 @@ uint8_t stella8085_state::kbd_rl_r()
 			m_coin_seq = 1;
 			m_coin_timer->adjust(attotime::zero);
 		}
+		// bit7 = LIG (gemeinsame Münzlichtschranke), the common barrier that pulses
+		// low AFTER the coin pulse.
 		data = (data & 0x70) | m_coin_lim_out | (m_coin_lig ? 0x80 : 0x00);
+	}
+	else if (row == 2)
+	{
+		// bit4 = RUEM (Rückführung), the common coin line that pulses low at the
+		// SAME time as the denomination pulse.
+		data = (data & ~0x10) | (m_coin_ruem ? 0x10 : 0x00);
 	}
 
 	// The i8279 inverts RL into its sensor RAM (rl = in_rl ^ 0xff); the firmware
@@ -337,31 +339,31 @@ uint8_t stella8085_state::kbd_rl_r()
 	return data ^ 0xff;
 }
 
-// The firmware (FUN_ram_1f0e/34a4 in disc2001) latches the LIM denomination then
-// only credits if LIG pulses afterwards, so replay: LIM rises, LIG goes active a
-// moment later, LIM falls, then LIG releases.
+// The firmware (FUN_ram_1f0e/34a4 in disc2001) latches the LIM denomination while
+// RUEM (the common line, simultaneous with the coin pulse per the pinout) is low,
+// so replay: LIM_n high + RUEM low together for one pulse, then release.
 
 TIMER_CALLBACK_MEMBER(stella8085_state::coin_seq_tick)
 {
 	switch (m_coin_seq)
 	{
-	case 1: // coin trips its denomination barrier (LIM_n high)
+	case 1: // the coin pulse: LIM_n high and RUEM (TZ2 bit4) low, simultaneously
 		m_coin_lim_out = m_coin_lim;
+		m_coin_ruem = 0;
 		m_coin_lig = 1;
 		m_coin_seq = 2;
-		m_coin_timer->adjust(attotime::from_msec(30));
+		m_coin_timer->adjust(attotime::from_msec(40));
 		break;
-	case 2: // coin leaves the denomination barrier
+	case 2: // coin leaves the denomination but trips the common barrier (LIG) -
+		// with LIM released and both RUEM and LIG low, c11a=0 and c119&3=0 align
 		m_coin_lim_out = 0;
-		m_coin_seq = 3;
-		m_coin_timer->adjust(attotime::from_msec(10));
-		break;
-	case 3: // coin trips the common barrier afterwards (LIG low)
+		m_coin_ruem = 0;
 		m_coin_lig = 0;
-		m_coin_seq = 4;
-		m_coin_timer->adjust(attotime::from_msec(30));
+		m_coin_seq = 3;
+		m_coin_timer->adjust(attotime::from_msec(80));
 		break;
 	default: // coin has fully passed - back to idle
+		m_coin_ruem = 1;
 		m_coin_lig = 1;
 		m_coin_seq = 0;
 		break;
@@ -659,8 +661,8 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_COIN3 ) PORT_NAME("DM 1.00") //LIM2
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN2 ) PORT_NAME("DM 2.00") //LIM3
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("DM 5.00") //LIM4
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
 	// MK (Münzeinheitenkennung) selects the coin-unit mode in FUN_ram_15b2:
 	// MK low -> c139 bit3 clear -> microswitch unit (LIM idles low, coin pulses
 	// high), which is how this driver models it. MK high would select the optical
@@ -669,14 +671,17 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIG
 
 	PORT_START("TZ2")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN4 ) PORT_NAME("DM 0.10")  //LIA1 COIN I
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_COIN3 ) PORT_NAME("DM 1.00")  //LIA2 COIN I
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_NAME("DM 2.00")  //LIA3 COIN I
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_NAME("DM 5.00")  //LIA4 COIN I
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_UNKNOWN )
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	// LIA = Auswerferlichtschranke (payout/ejector light barriers, idle high) -
+	// these fire when a coin is PAID OUT, not inserted, so they are not IPT_COIN
+	// (the coin-insert keys are the LIM inputs on TZ1).
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIA1 0.10 eject
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIA2 1.00 eject
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIA3 2.00 eject
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIA4 5.00 eject
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN ) // RüM Rückführung Münzen (common line that pulses with the coin pulse)
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Lü
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN ) // ZEM1
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) // ZEM2
 
 	PORT_START("TZ3") //ZUSATZ-EINGAENGE
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) // Risiko Leiter 1
@@ -685,8 +690,8 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_SLOT_STOP3 )
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_BOOK ) // Serienuebernahme
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Rueckfuehrung
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
 
 	PORT_START("TZ4") //MATRIX-EINGAENGE
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
