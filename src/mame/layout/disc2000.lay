@@ -72,7 +72,7 @@ license:CC0-1.0
 			<color red="1.0" green="1.0" blue="1.0" />
 		</rect>
 		<rect state="0">
-			<color red="0.7" green="0.7" blue="0.7" />
+			<color red="0.5" green="0.5" blue="0.5" />
 		</rect>
 	</element>
 
@@ -241,7 +241,7 @@ license:CC0-1.0
 			<bounds x="390" y="280" width="45" height="25" />
 		</element>
 
-		<element name="lamp43" ref="ladder">
+		<element name="lamp34" ref="ladder">
 			<bounds x="390" y="310" width="45" height="25" />
 		</element>
 
@@ -277,7 +277,7 @@ license:CC0-1.0
 		</element>
 
 
-		<element name="lamp01" ref="ladder">
+		<element name="lamp15" ref="ladder">
 			<bounds x="175" y="320" width="45" height="25" />
 		</element>
 
