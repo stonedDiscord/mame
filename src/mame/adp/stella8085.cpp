@@ -72,6 +72,9 @@ public:
 	void doppelpot(machine_config &config) ATTR_COLD;
 	void excellent(machine_config &config) ATTR_COLD;
 
+	// referenced from PORT_CHANGED_MEMBER in the input ports, so must be public
+	INPUT_CHANGED_MEMBER(coin_inserted);
+
 protected:
 	void machine_start() override ATTR_COLD;
 
@@ -80,6 +83,13 @@ private:
 	uint8_t m_kbd_sl = 0x00;
 	bool m_kbd_bd = false;
 	uint8_t m_optic = 0x00;
+
+	// coin acceptor sequencer: an IPT_COIN press is replayed as the light-barrier
+	// sequence the firmware validates (one LIM denomination pulse, then LIG).
+	uint8_t m_coin_seq = 0;       // 0 = idle, otherwise the current step
+	uint8_t m_coin_lim = 0;       // LIM denomination bit for the coin being inserted
+	uint8_t m_coin_lim_out = 0;   // LIM level currently injected into TZ1 (0-3)
+	uint8_t m_coin_lig = 1;       // LIG level currently injected into TZ1 (bit7, idle high)
 
 	required_device<i8085a_cpu_device> m_maincpu;
 	required_device<i8255_device> m_ppi;
@@ -93,6 +103,7 @@ private:
 	output_finder<8, 8> m_lamps;
 	required_device<beep_device> m_beep;
 	emu_timer *m_sound_timer;
+	emu_timer *m_coin_timer;
 
 	void large_program_map(address_map &map) ATTR_COLD;
 	void program_map(address_map &map) ATTR_COLD;
@@ -105,6 +116,9 @@ private:
 	void machine1_w(uint8_t data);
 	void machine2_w(uint8_t data);
 	void update_optics();
+
+	// coin acceptor
+	TIMER_CALLBACK_MEMBER(coin_seq_tick);
 
 	// I8279 Interface
 	uint8_t kbd_rl_r();
@@ -129,9 +143,14 @@ private:
 void stella8085_state::machine_start()
 {
 	m_sound_timer = timer_alloc(FUNC(stella8085_state::sound_stop), this);
+	m_coin_timer = timer_alloc(FUNC(stella8085_state::coin_seq_tick), this);
 
 	save_item(NAME(m_digit));
 	save_item(NAME(m_optic));
+	save_item(NAME(m_coin_seq));
+	save_item(NAME(m_coin_lim));
+	save_item(NAME(m_coin_lim_out));
+	save_item(NAME(m_coin_lig));
 }
 
 void stella8085_state::large_program_map(address_map &map)
@@ -280,9 +299,62 @@ uint8_t stella8085_state::kbd_rl_r()
 {
 	// The 8279 is in 16-character display mode, so its scan counter runs 0-15,
 	// but only 8 sensor rows (TZ0-TZ7) exist - mask the scan line to 8.
+	const uint8_t row = m_kbd_sl & 7;
+	uint8_t data = m_tz[row]->read();
+
+	// Row 1 carries the coin acceptor (LIM1-4 = bits 0-3, LIG = bit 7). The raw
+	// IPT_COIN keys only trigger the sequencer, so synthesise those bits from the
+	// replayed light-barrier levels (see coin_seq_tick) instead of the key state.
+	// The latch does c11a |= (raw LIM) (FUN_ram_1f0e), so LIM idles LOW (c11a clean
+	// = 0 at idle) and a coin pulses ONE line HIGH. LIG idles high (active low) and
+	// pulses low as the coin passes the common barrier.
+	if (row == 1)
+		data = (data & 0x70) | m_coin_lim_out | (m_coin_lig ? 0x80 : 0x00);
+
 	// The i8279 inverts RL into its sensor RAM (rl = in_rl ^ 0xff); the firmware
 	// expects the raw signal levels, so pre-invert here to cancel that out.
-	return m_tz[m_kbd_sl & 7]->read() ^ 0xff;
+	return data ^ 0xff;
+}
+
+// An IPT_COIN press kicks off the acceptor sequence for one denomination. The
+// firmware (FUN_ram_1f0e/34a4 in disc2001) latches the LIM denomination bit and
+// then only credits if LIG pulses afterwards, so replay: LIM rises, LIG goes
+// active a moment later, LIM falls, then LIG releases. param = the LIM bit.
+INPUT_CHANGED_MEMBER(stella8085_state::coin_inserted)
+{
+	if (newval && m_coin_seq == 0)
+	{
+		m_coin_lim = uint8_t(param);
+		m_coin_seq = 1;
+		m_coin_timer->adjust(attotime::zero);
+	}
+}
+
+TIMER_CALLBACK_MEMBER(stella8085_state::coin_seq_tick)
+{
+	switch (m_coin_seq)
+	{
+	case 1: // coin reaches its denomination barrier
+		m_coin_lim_out = m_coin_lim;
+		m_coin_lig = 1;
+		m_coin_seq = 2;
+		m_coin_timer->adjust(attotime::from_msec(40));
+		break;
+	case 2: // common light barrier trips after the denomination pulse
+		m_coin_lig = 0;
+		m_coin_seq = 3;
+		m_coin_timer->adjust(attotime::from_msec(80));
+		break;
+	case 3: // coin has passed the denomination barrier
+		m_coin_lim_out = 0;
+		m_coin_seq = 4;
+		m_coin_timer->adjust(attotime::from_msec(40));
+		break;
+	default: // coin has fully passed - back to idle
+		m_coin_lig = 1;
+		m_coin_seq = 0;
+		break;
+	}
 }
 
 void stella8085_state::disp_w(uint8_t data)
@@ -569,14 +641,13 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_START ) // NF
 
 	PORT_START("TZ1")
-	// LIM = Münzeingang: a microswitch coin unit idles at 0V and switches to
-	// +12V on a coin, so these are active high. The boot/coin routines read this
-	// row at the 8279 and require at least one LIM bit low at idle (no coins);
-	// idling them high traps the firmware in its Störung loop at 0x124b.
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN4 ) PORT_NAME("DM 0.10")  //LIM1 COIN II
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_COIN3 ) PORT_NAME("DM 1.00")  //LIM2 COIN II
-	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN2 ) PORT_NAME("DM 2.00")  //LIM3 COIN II
-	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("DM 5.00")  //LIM4 COIN II
+	// LIM = Münzeingang (per denomination). These coin keys only trigger the
+	// acceptor sequencer (coin_inserted); the actual LIM/LIG matrix levels are
+	// replayed into this row by kbd_rl_r, so a single press credits one coin.
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN4 ) PORT_NAME("DM 0.10") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(stella8085_state::coin_inserted), 0x01) //LIM1
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_COIN3 ) PORT_NAME("DM 1.00") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(stella8085_state::coin_inserted), 0x02) //LIM2
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN2 ) PORT_NAME("DM 2.00") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(stella8085_state::coin_inserted), 0x04) //LIM3
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("DM 5.00") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(stella8085_state::coin_inserted), 0x08) //LIM4
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN ) //MK Münzeinheitenkennung
