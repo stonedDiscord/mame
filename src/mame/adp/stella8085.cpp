@@ -91,6 +91,11 @@ private:
 	uint8_t m_coin_zem = 1;       // ZEM1 (Fadenfoul) level injected into TZ2 (bit6, idle high)
 	uint8_t m_coin_keys = 0;      // previous IPT_COIN key state, for edge detection
 
+	uint8_t m_lia_out = 0x0f;     // LIA1-4 level currently injected into TZ2 (bits 0-3, idle high)
+	uint8_t m_aw_state = 0;       // previous AW1-4 state for edge detection
+	uint8_t m_lia_seq = 0;        // LIA sequence step
+	uint8_t m_lia_bit = 0;        // LIA bit to pulse
+
 	required_device<i8085a_cpu_device> m_maincpu;
 	required_device<i8255_device> m_ppi;
 	required_device<i8256_device> m_uart;
@@ -104,6 +109,7 @@ private:
 	required_device<beep_device> m_beep;
 	emu_timer *m_sound_timer;
 	emu_timer *m_coin_timer;
+	emu_timer *m_lia_timer;
 
 	void large_program_map(address_map &map) ATTR_COLD;
 	void program_map(address_map &map) ATTR_COLD;
@@ -119,6 +125,7 @@ private:
 
 	// coin acceptor
 	TIMER_CALLBACK_MEMBER(coin_seq_tick);
+	TIMER_CALLBACK_MEMBER(lia_tick);
 
 	// I8279 Interface
 	uint8_t kbd_rl_r();
@@ -144,6 +151,7 @@ void stella8085_state::machine_start()
 {
 	m_sound_timer = timer_alloc(FUNC(stella8085_state::sound_stop), this);
 	m_coin_timer = timer_alloc(FUNC(stella8085_state::coin_seq_tick), this);
+	m_lia_timer = timer_alloc(FUNC(stella8085_state::lia_tick), this);
 
 	save_item(NAME(m_digit));
 	save_item(NAME(m_optic));
@@ -154,6 +162,10 @@ void stella8085_state::machine_start()
 	save_item(NAME(m_coin_ruem));
 	save_item(NAME(m_coin_zem));
 	save_item(NAME(m_coin_keys));
+	save_item(NAME(m_lia_out));
+	save_item(NAME(m_aw_state));
+	save_item(NAME(m_lia_seq));
+	save_item(NAME(m_lia_bit));
 }
 
 void stella8085_state::large_program_map(address_map &map)
@@ -334,9 +346,9 @@ uint8_t stella8085_state::kbd_rl_r()
 		// bit4 = RUEM (Rückführung), the common line low at the SAME time as the coin
 		// pulse; bit6 = ZEM1 (Fadenfoul), which a valid coin pulses low then back
 		// high (if it stays low a string is attached - the firmware waits for this).
-		// LIA payout barriers (bits 0-3) await hopper modelling.
-		data = 0xff & ~0x50;
-		data |= (m_coin_ruem ? 0x10 : 0x00) | (m_coin_zem ? 0x40 : 0x00);
+		// LIA payout barriers (bits 0-3) are pulsed after a coin eject.
+		data = 0xff & ~0x50 & ~0x0f;
+		data |= (m_coin_ruem ? 0x10 : 0x00) | (m_coin_zem ? 0x40 : 0x00) | m_lia_out;
 	}
 
 	// The i8279 inverts RL into its sensor RAM (rl = in_rl ^ 0xff); the firmware
@@ -375,6 +387,22 @@ TIMER_CALLBACK_MEMBER(stella8085_state::coin_seq_tick)
 		m_coin_zem = 1;
 		m_coin_lig = 1;
 		m_coin_seq = 0;
+		break;
+	}
+}
+
+TIMER_CALLBACK_MEMBER(stella8085_state::lia_tick)
+{
+	switch (m_lia_seq)
+	{
+	case 1: // start the LIA pulse (low)
+		m_lia_out = 0x0f & ~m_lia_bit;
+		m_lia_seq = 2;
+		m_lia_timer->adjust(attotime::from_msec(40));
+		break;
+	default: // end of pulse - back to idle (high)
+		m_lia_out = 0x0f;
+		m_lia_seq = 0;
 		break;
 	}
 }
@@ -456,6 +484,10 @@ void stella8085_state::io9w(uint8_t data)
 
 void stella8085_state::io70(uint8_t data)
 {
+	const uint8_t aw = data & 0x0f;
+	const uint8_t pressed = aw & ~m_aw_state;
+	m_aw_state = aw;
+
 	const bool AW1 = BIT(data,0);
 	const bool AW2 = BIT(data,1);
 	const bool AW3 = BIT(data,2);
@@ -471,6 +503,13 @@ void stella8085_state::io70(uint8_t data)
 	machine().bookkeeping().coin_counter_w(2,AW3);
 	machine().bookkeeping().coin_counter_w(3,AW4);
 	machine().bookkeeping().coin_counter_w(5,SZ); // game counter
+
+	if (pressed && m_lia_seq == 0)
+	{
+		m_lia_bit = pressed & (~pressed + 1); // a single denomination
+		m_lia_seq = 1;
+		m_lia_timer->adjust(attotime::from_msec(40)); // wait a bit
+	}
 
 	if (D6)
 	{
