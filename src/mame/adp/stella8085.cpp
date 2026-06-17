@@ -235,11 +235,8 @@ static constexpr uint64_t DISC_PATTERN[4] =
 {
 	DISC_LR, // wheel 1 (left)
 	DISC_LR, // wheel 2 (right) - physically identical to the left wheel
-	// wheel 3 (middle): #...#...#...#...#...#...#...#..###..#...#...#...
-	(1ULL<<0)|(1ULL<<4)|(1ULL<<8)|(1ULL<<12)|(1ULL<<16)|(1ULL<<20)|(1ULL<<24)|
-	(1ULL<<28)|(1ULL<<31)|(1ULL<<32)|(1ULL<<33)|(1ULL<<36)|(1ULL<<40)|(1ULL<<44),
-	// wheel 4: unused on disc2001
-	0
+	DISC_LR,
+	DISC_LR
 };
 
 void stella8085_state::update_optics()
