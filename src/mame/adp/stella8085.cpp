@@ -88,6 +88,7 @@ private:
 	uint8_t m_coin_lim_out = 0;   // LIM level currently injected into TZ1 (0-3)
 	uint8_t m_coin_lig = 1;       // LIG level currently injected into TZ1 (bit7, idle high)
 	uint8_t m_coin_ruem = 1;      // RUEM level currently injected into TZ2 (bit4, idle high)
+	uint8_t m_coin_zem = 1;       // ZEM1 (Fadenfoul) level injected into TZ2 (bit6, idle high)
 	uint8_t m_coin_keys = 0;      // previous IPT_COIN key state, for edge detection
 
 	required_device<i8085a_cpu_device> m_maincpu;
@@ -151,6 +152,7 @@ void stella8085_state::machine_start()
 	save_item(NAME(m_coin_lim_out));
 	save_item(NAME(m_coin_lig));
 	save_item(NAME(m_coin_ruem));
+	save_item(NAME(m_coin_zem));
 	save_item(NAME(m_coin_keys));
 }
 
@@ -329,9 +331,15 @@ uint8_t stella8085_state::kbd_rl_r()
 	}
 	else if (row == 2)
 	{
-		// bit4 = RUEM (Rückführung), the common coin line that pulses low at the
-		// SAME time as the denomination pulse.
-		data = (data & ~0x10) | (m_coin_ruem ? 0x10 : 0x00);
+		// TZ2 carries no operator input - every bit is an internal coin-mechanism
+		// light barrier - so build the whole row from the emulator rather than the
+		// port. All barriers idle high (active low); the coin sequencer pulses two:
+		// bit4 = RUEM (Rückführung), the common line low at the SAME time as the coin
+		// pulse; bit6 = ZEM1 (Fadenfoul), which a valid coin pulses low then back
+		// high (if it stays low a string is attached - the firmware waits for this).
+		// LIA payout barriers (bits 0-3) await hopper modelling.
+		data = 0xff & ~0x50;
+		data |= (m_coin_ruem ? 0x10 : 0x00) | (m_coin_zem ? 0x40 : 0x00);
 	}
 
 	// The i8279 inverts RL into its sensor RAM (rl = in_rl ^ 0xff); the firmware
@@ -347,23 +355,27 @@ TIMER_CALLBACK_MEMBER(stella8085_state::coin_seq_tick)
 {
 	switch (m_coin_seq)
 	{
-	case 1: // the coin pulse: LIM_n high and RUEM (TZ2 bit4) low, simultaneously
+	case 1: // the coin pulse: LIM_n high, RUEM (bit4) low and ZEM1 (Fadenfoul, bit6)
+		// low together - the coin is dropping past the denomination and Fadenfoul
 		m_coin_lim_out = m_coin_lim;
 		m_coin_ruem = 0;
+		m_coin_zem = 0;
 		m_coin_lig = 1;
 		m_coin_seq = 2;
 		m_coin_timer->adjust(attotime::from_msec(40));
 		break;
-	case 2: // coin leaves the denomination but trips the common barrier (LIG) -
-		// with LIM released and both RUEM and LIG low, c11a=0 and c119&3=0 align
+	case 2: // coin past the denomination but still at the Fadenfoul/common barriers:
+		// LIM off (c11a=0), ZEM1 + LIG low (c119 bit1/bit0 clear) -> accept window
 		m_coin_lim_out = 0;
 		m_coin_ruem = 0;
+		m_coin_zem = 0;
 		m_coin_lig = 0;
 		m_coin_seq = 3;
 		m_coin_timer->adjust(attotime::from_msec(80));
 		break;
 	default: // coin has fully passed - back to idle
 		m_coin_ruem = 1;
+		m_coin_zem = 1;
 		m_coin_lig = 1;
 		m_coin_seq = 0;
 		break;
@@ -621,10 +633,11 @@ static INPUT_PORTS_START( servicem )
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("DM 5.00")  //LIM4 COIN II
 
 	PORT_START("TZ2")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN4 ) PORT_NAME("DM 0.10")  //LIA1 COIN I
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_COIN3 ) PORT_NAME("DM 1.00")  //LIA2 COIN I
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_NAME("DM 2.00")  //LIA3 COIN I
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_NAME("DM 5.00")  //LIA4 COIN I
+	// TZ2 carries no operator inputs - every bit is an internal coin-mechanism
+	// light barrier / feedback signal (LIA1-4 payout barriers, RüM, Lü, ZEM1/2).
+	// The whole row is built from the emulator in kbd_rl_r, so this port is just a
+	// placeholder to satisfy the TZ ioport array and is never read.
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("TZ3") //ZUSATZ-EINGAENGE
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
@@ -642,6 +655,9 @@ static INPUT_PORTS_START( disc )
 	PORT_INCLUDE(stella8085_dip)
 
 	PORT_START("TZ0") //TASTEN
+	// bit0=1 is the working play state (clean idle display, main loop runs). NOTE:
+	// the credit gate FUN_ram_5d98 wants door bit0=0, which conflicts - the door /
+	// i8279 level feeding the firmware is not yet faithful (coin-credit TODO).
 	PORT_CONFNAME( 0x01, 0x01, "Door (Türschalter)" ) // TS
 	PORT_CONFSETTING(    0x01, "Closed" )
 	PORT_CONFSETTING(    0x00, "Open" )
@@ -671,17 +687,11 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIG
 
 	PORT_START("TZ2")
-	// LIA = Auswerferlichtschranke (payout/ejector light barriers, idle high) -
-	// these fire when a coin is PAID OUT, not inserted, so they are not IPT_COIN
-	// (the coin-insert keys are the LIM inputs on TZ1).
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIA1 0.10 eject
-	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIA2 1.00 eject
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIA3 2.00 eject
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIA4 5.00 eject
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN ) // RüM Rückführung Münzen (common line that pulses with the coin pulse)
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Lü
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN ) // ZEM1
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) // ZEM2
+	// TZ2 carries no operator inputs - every bit is an internal coin-mechanism
+	// light barrier / feedback signal (LIA1-4 payout barriers, RüM, Lü, ZEM1/2).
+	// The whole row is built from the emulator in kbd_rl_r, so this port is just a
+	// placeholder to satisfy the TZ ioport array and is never read.
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("TZ3") //ZUSATZ-EINGAENGE
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) // Risiko Leiter 1
