@@ -387,10 +387,11 @@ void fanucs15_state::fanucs15(machine_config &config)
 
 	M68000(config, m_gfxcpu, XTAL(10'000'000));      // wants bit 15 of 70500 to be set
 	m_gfxcpu->set_addrmap(AS_PROGRAM, &fanucs15_state::gfxcpu_mem);
-	m_gfxcpu->set_disable();
+	//m_gfxcpu->set_disable();
 
 	I80286(config, m_convcpu, XTAL(8'000'000));      // wants 70500 to return 0x8000 (same as what gfxcpu looks for, basically)
 	m_convcpu->set_addrmap(AS_PROGRAM, &fanucs15_state::convcpu_mem);
+    m_convcpu->set_disable();
 }
 
 /* ROM definition */
