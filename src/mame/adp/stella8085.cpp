@@ -466,7 +466,7 @@ TIMER_CALLBACK_MEMBER(stella8085_state::sound_stop)
 
 void stella8085_state::rst65_w(uint8_t state)
 {
-	m_maincpu->set_input_line(I8085_RST55_LINE, state ? ASSERT_LINE : CLEAR_LINE);
+	m_maincpu->set_input_line(I8085_RST65_LINE, state ? ASSERT_LINE : CLEAR_LINE);
 }
 
 void stella8085_state::io00(uint8_t data)
