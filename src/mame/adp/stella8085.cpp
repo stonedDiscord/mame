@@ -85,15 +85,16 @@ private:
 	// sequence the firmware validates (one LIM denomination pulse, then LIG).
 	uint8_t m_coin_seq = 0;       // 0 = idle, otherwise the current step
 	uint8_t m_coin_lim = 0;       // LIM denomination bit for the coin being inserted
-	uint8_t m_coin_lim_out = 0;   // LIM level currently injected into TZ1 (0-3)
-	uint8_t m_coin_lig = 0;       // LIG level injected into TZ1 (bit7). Real-HW healthy idle = LOW
-	                              // (test-ROM TZ1=0x00); the firmware (FUN_ram_1f0e) sets c119 bit0
-	                              // when LIG reads HIGH and won't arm the acceptor until it's clear.
-	uint8_t m_coin_ruem = 1;      // RUEM level currently injected into TZ2 (bit4, idle high)
-	uint8_t m_coin_zem = 1;       // ZEM1 (Fadenfoul) level injected into TZ2 (bit6, idle high)
+	// Physical RL levels: lines idle HIGH, a coin/eject pulses them LOW (the i8279
+	// inverts for the firmware). These hold which line is currently pulled low.
+	uint8_t m_coin_lim_out = 0;   // LIM bit (TZ1 0-3) currently pulsed low (0 = none)
+	uint8_t m_coin_lig = 0;       // LIG (TZ1 bit7): 1 = pulsed low, 0 = idle high
+	uint8_t m_coin_ruem = 0;      // RUEM (TZ2 bit4): physical rest = LOW (firmware reads it high)
+	uint8_t m_coin_zem = 0;       // ZEM1 (TZ2 bit6 Fadenfoul): 1 = pulsed low, 0 = idle high
 	uint8_t m_coin_keys = 0;      // previous IPT_COIN key state, for edge detection
 
-	uint8_t m_lia_out = 0x0f;     // LIA1-4 level currently injected into TZ2 (bits 0-3, idle high)
+	uint8_t m_lia_out = 0;        // LIA bit (TZ2 0-3) currently pulsed low (0 = none, all high)
+	                              // pulse direction for coin/eject is TODO (coins deferred)
 	uint8_t m_aw_state = 0;       // previous AW1-4 state for edge detection
 	uint8_t m_lia_seq = 0;        // LIA sequence step
 	uint8_t m_lia_bit = 0;        // LIA bit to pulse
@@ -315,17 +316,19 @@ uint8_t stella8085_state::kbd_rl_r()
 	const uint8_t row = m_kbd_sl & 7;
 	uint8_t data = m_tz[row]->read();
 
+	// kbd_rl_r returns the PHYSICAL RL pin levels; the i8279 inverts them into its
+	// sensor RAM (rl = in_rl ^ 0xff, see i8279.cpp) and the firmware reads that.
+	// So the ioports hold the real electrical levels, and what the firmware reads
+	// is their complement (matching the real-HW test-ROM dump FC 00 10 33 00..).
+
 	// Row 1 carries the coin acceptor (LIM1-4 = bits 0-3, LIG = bit 7). The raw
-	// IPT_COIN keys only trigger the sequencer, so synthesise those bits from the
-	// replayed light-barrier levels (see coin_seq_tick) instead of the key state.
-	// The latch does c11a |= (raw LIM) (FUN_ram_1f0e), so LIM idles LOW (c11a clean
-	// = 0 at idle) and a coin pulses ONE line HIGH. LIG idles high (active low) and
-	// pulses low as the coin passes the common barrier.
+	// IPT_COIN keys only trigger the sequencer; the actual line levels are replayed
+	// (see coin_seq_tick). Physically every line idles HIGH (pulled up); a coin
+	// grounds one LIM line and the common LIG barrier (drives them LOW).
 	if (row == 1)
 	{
 		// edge-detect the IPT_COIN keys (active high on the LIM bits) and kick off
-		// the acceptor sequence for one denomination, then replace the raw key bits
-		// with the replayed light-barrier levels (see coin_seq_tick).
+		// the acceptor sequence for one denomination, then build the physical levels.
 		const uint8_t keys = data & 0x0f;
 		const uint8_t pressed = keys & ~m_coin_keys;
 		m_coin_keys = keys;
@@ -335,26 +338,21 @@ uint8_t stella8085_state::kbd_rl_r()
 			m_coin_seq = 1;
 			m_coin_timer->adjust(attotime::zero);
 		}
-		// bit7 = LIG (gemeinsame Münzlichtschranke), the common barrier that pulses
-		// low AFTER the coin pulse.
-		data = (data & 0x70) | m_coin_lim_out | (m_coin_lig ? 0x80 : 0x00);
+		// bits 4-6 (NC, MK) idle high; LIM low nibble idles high, coin pulses one low;
+		// bit7 = LIG (gemeinsame Münzlichtschranke), idles high, pulses low.
+		data = 0x70 | (0x0f & ~m_coin_lim_out) | (m_coin_lig ? 0x00 : 0x80);
 	}
 	else if (row == 2)
 	{
 		// TZ2 carries no operator input - every bit is an internal coin-mechanism
-		// light barrier - so build the whole row from the emulator rather than the
-		// port. All barriers idle high (active low); the coin sequencer pulses two:
-		// bit4 = RUEM (Rückführung), the common line low at the SAME time as the coin
-		// pulse; bit6 = ZEM1 (Fadenfoul), which a valid coin pulses low then back
-		// high (if it stays low a string is attached - the firmware waits for this).
-		// LIA payout barriers (bits 0-3) are pulsed after a coin eject.
-		data = 0xff & ~0x50 & ~0x0f;
-		data |= (m_coin_ruem ? 0x10 : 0x00) | (m_coin_zem ? 0x40 : 0x00) | m_lia_out;
+		// light barrier - so build the whole row from the emulator. Physical rest
+		// levels (real-HW dump TZ2=0x10 => firmware reads 0x10 => physical 0xEF):
+		// LIA(0-3), LÜ(5), ZEM1(6), ZEM2(7) idle HIGH; RUEM(4) idles LOW. A coin
+		// pulses ZEM1 low; an eject pulses one LIA line low.
+		data = 0xa0 | (0x0f & ~m_lia_out) | (m_coin_ruem ? 0x10 : 0x00) | (m_coin_zem ? 0x00 : 0x40);
 	}
 
-	// The i8279 inverts RL into its sensor RAM (rl = in_rl ^ 0xff); the firmware
-	// expects the raw signal levels, so pre-invert here to cancel that out.
-	return data ^ 0xff;
+	return data;
 }
 
 // The firmware (FUN_ram_1f0e/34a4 in disc2001) latches the LIM denomination while
@@ -363,29 +361,27 @@ uint8_t stella8085_state::kbd_rl_r()
 
 TIMER_CALLBACK_MEMBER(stella8085_state::coin_seq_tick)
 {
+	// Physical pulse: lines drop LOW as the coin passes. (exact sequence/timing vs
+	// the firmware is still TODO - coin crediting is deferred.)
 	switch (m_coin_seq)
 	{
-	case 1: // the coin pulse: LIM_n high, RUEM (bit4) low and ZEM1 (Fadenfoul, bit6)
-		// low together - the coin is dropping past the denomination and Fadenfoul
+	case 1: // coin dropping past the denomination + Fadenfoul: LIM_n + ZEM1 low
 		m_coin_lim_out = m_coin_lim;
-		m_coin_ruem = 0;
-		m_coin_zem = 0;
+		m_coin_zem = 1;
 		m_coin_lig = 1;
 		m_coin_seq = 2;
 		m_coin_timer->adjust(attotime::from_msec(40));
 		break;
-	case 2: // coin past the denomination but still at the Fadenfoul/common barriers:
-		// LIM off (c11a=0), ZEM1 + LIG low (c119 bit1/bit0 clear) -> accept window
+	case 2: // coin past the denomination, still at the common barrier: LIM high, LIG low
 		m_coin_lim_out = 0;
-		m_coin_ruem = 0;
-		m_coin_zem = 0;
-		m_coin_lig = 0;
+		m_coin_zem = 1;
+		m_coin_lig = 1;
 		m_coin_seq = 3;
 		m_coin_timer->adjust(attotime::from_msec(80));
 		break;
-	default: // coin has fully passed - back to idle (LIG low so the acceptor re-arms)
-		m_coin_ruem = 1;
-		m_coin_zem = 1;
+	default: // coin has fully passed - back to idle (all lines high)
+		m_coin_lim_out = 0;
+		m_coin_zem = 0;
 		m_coin_lig = 0;
 		m_coin_seq = 0;
 		break;
@@ -396,13 +392,13 @@ TIMER_CALLBACK_MEMBER(stella8085_state::lia_tick)
 {
 	switch (m_lia_seq)
 	{
-	case 1: // start the LIA pulse (low)
-		m_lia_out = 0x0f & ~m_lia_bit;
+	case 1: // start the LIA pulse: pull the one LIA line low
+		m_lia_out = m_lia_bit;
 		m_lia_seq = 2;
 		m_lia_timer->adjust(attotime::from_msec(40));
 		break;
-	default: // end of pulse - back to idle (high)
-		m_lia_out = 0x0f;
+	default: // end of pulse - back to idle (all LIA lines high)
+		m_lia_out = 0;
 		m_lia_seq = 0;
 		break;
 	}
@@ -493,6 +489,9 @@ void stella8085_state::io70(uint8_t data)
 	const bool D6 = BIT(data,6); // high on startup
 	const bool PA7 = BIT(data,7);
 
+	if (MP)
+		popmessage("MP");
+
 	machine().bookkeeping().coin_lockout_global_w(MP); // coin magnet
 	machine().bookkeeping().coin_counter_w(0,AW1); // coin eject
 	machine().bookkeeping().coin_counter_w(1,AW2);
@@ -519,7 +518,7 @@ void stella8085_state::io70(uint8_t data)
 void stella8085_state::io71(uint8_t data)
 {
 	const bool RS = BIT(data,0);
-	const bool GONG = BIT(data,1);
+	//const bool GONG = BIT(data,1);
 	const bool DG = BIT(data,2);
 	const bool UG = BIT(data,3);
 	const bool DS = BIT(data,4);
@@ -533,8 +532,9 @@ void stella8085_state::io71(uint8_t data)
 	else
 		m_maincpu->set_input_line(I8085_RST55_LINE, CLEAR_LINE);
 
+	/*
 	if (GONG)
-		popmessage("GONG");
+		popmessage("GONG");*/
 	if (US)
 		LOG("activating US\n");
 	m_beep->set_output_gain(ALL_OUTPUTS,DG);
@@ -687,12 +687,13 @@ static INPUT_PORTS_START( disc )
 	PORT_INCLUDE(stella8085_dip)
 
 	PORT_START("TZ0") //TASTEN
-	// bit0=1 is the working play state (clean idle display, main loop runs). NOTE:
-	// the credit gate FUN_ram_5d98 wants door bit0=0, which conflicts - the door /
-	// i8279 level feeding the firmware is not yet faithful (coin-credit TODO).
-	PORT_CONFNAME( 0x01, 0x01, "Door (Türschalter)" ) // TS
-	PORT_CONFSETTING(    0x01, "Closed" )
-	PORT_CONFSETTING(    0x00, "Open" )
+	// These are PHYSICAL RL levels; the i8279 inverts them for the firmware. Real-HW
+	// rest dump (door open) = firmware reads TZ0 0xFC => physical 0x03: door(bit0) and
+	// bit1 idle high, bits 2-7 idle low. Door physically reads HIGH when open, LOW
+	// when closed (firmware then reads bit0=1 closed = the working play state).
+	PORT_CONFNAME( 0x01, 0x00, "Door (Türschalter)" ) // TS
+	PORT_CONFSETTING(    0x00, "Closed" )
+	PORT_CONFSETTING(    0x01, "Open" )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_TILT ) // SK Schlagkontakt / Read data button
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // ZE2
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_PAYOUT ) // Return
@@ -709,14 +710,13 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_COIN3 ) PORT_NAME("DM 1.00") //LIM2
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN2 ) PORT_NAME("DM 2.00") //LIM3
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("DM 5.00") //LIM4
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
-	// MK (Münzeinheitenkennung) selects the coin-unit mode in FUN_ram_15b2:
-	// MK low -> c139 bit3 clear -> microswitch unit (LIM idles low, coin pulses
-	// high), which is how this driver models it. MK high would select the optical
-	// unit (LIM idles high) and mismatch the LIM polarity, jamming c11a at 0x0F.
+	// Only the COIN bits (0-3) of this port are used - kbd_rl_r edge-detects them to
+	// trigger the acceptor sequencer and then synthesises the whole physical row
+	// (bits 4-7 = NC/MK/LIG are built in kbd_rl_r, not read from here).
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // NC
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // NC
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_UNKNOWN ) //MK Münzeinheitenkennung
-	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) //LIG
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNKNOWN ) //LIG
 
 	PORT_START("TZ2")
 	// TZ2 carries no operator inputs - every bit is an internal coin-mechanism
@@ -726,20 +726,22 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("TZ3") //ZUSATZ-EINGAENGE
+	// Physical RL. Real-HW dump = firmware reads TZ3 0x33 => physical 0xCC:
+	// bits 2,3,6,7 idle high, bits 0,1,4,5 idle low.
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) // Risiko Leiter 1
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) // Risiko Leiter 2
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN) // ZE2
-	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_SLOT_STOP3 )
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_SLOT_STOP3 )
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_BOOK ) // Serienuebernahme
-	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Rueckfuehrung
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // Rueckfuehrung
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
 
 	PORT_START("TZ4") //MATRIX-EINGAENGE
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN ) // physical idle high (firmware reads 0x00)
 
 	PORT_START("TZ5") //MATRIX-EINGAENGE
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN ) // physical idle high (firmware reads 0x00)
 
 	PORT_INCLUDE(stella8085_service)
 INPUT_PORTS_END
@@ -1122,7 +1124,7 @@ GAMEL( 1987, sprmlti,  sprmltib, dicemstr,  servicem, stella8085_state, empty_in
 GAMEL( 1987, sprmltib,        0, doppelpot, servicem, stella8085_state, empty_init, ROT0, "Venus",  "Super Multi (DOB)", MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1988, extrbltt,        0, dicemstr,  servicem, stella8085_state, empty_init, ROT0, "ADP",    "Extrablatt",        MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1988, juwel,           0, dicemstr,  disc,     stella8085_state, empty_init, ROT0, "ADP",    "Juwel",             MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
-GAMEL( 1988, mastro,          0, dicemstr,  servicem, stella8085_state, empty_init, ROT0, "ADP",    "Astro (Merkur)",    MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
+GAMEL( 1988, mastro,          0, dicemstr,  disc,     stella8085_state, empty_init, ROT0, "ADP",    "Astro (Merkur)",    MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1988, sherzas,         0, dicemstr,  servicem, stella8085_state, empty_init, ROT0, "Merkur", "Super Herz As",     MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1989, disc3000,        0, doppelpot, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc 3000",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_disc2000 )
 GAMEL( 1989, disciip,         0, dicemstr,  disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc II Plus",      MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
