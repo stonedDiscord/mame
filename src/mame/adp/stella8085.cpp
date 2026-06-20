@@ -241,8 +241,19 @@ uint8_t stella8085_state::lw_r()
 // The left (wheel 1) and right (wheel 2) wheels are physically identical discs.
 // #...#...#...#..###..#...#...#...#...#...#...#...
 static constexpr uint64_t DISC_LR =
-	(1ULL<<1)|(1ULL<<5)|(1ULL<<9)|(1ULL<<13)|(1ULL<<16)|(1ULL<<17)|(1ULL<<18)|
-	(1ULL<<21)|(1ULL<<25)|(1ULL<<29)|(1ULL<<33)|(1ULL<<37)|(1ULL<<41)|(1ULL<<45);
+	(1ULL<<0)|(1ULL<<4)|(1ULL<<8)|(1ULL<<12)|(1ULL<<15)|(1ULL<<16)|(1ULL<<17)|
+	(1ULL<<20)|(1ULL<<24)|(1ULL<<28)|(1ULL<<32)|(1ULL<<36)|(1ULL<<40)|(1ULL<<44);
+
+// The firmware homes each wheel against this disc and parks symbol 0 one optic
+// step *before* an index mark (verified: it stops in the gap just ahead of a mark,
+// at the same get_position the visible reel is drawn at). The disc is mounted with
+// that one-step angular offset relative to the stepper's electrical home, so the
+// optic the firmware samples is the disc rotated back by one step. Without it the
+// wheel motor self-test (Foul service screen, FUN_ram_0f71) reads the index optic
+// dark, steps the motor +1 step, still reads dark and reports all three motors
+// faulty (service code 00000007). With it the step lands on the next mark, the
+// optic toggles and the test passes, matching real hardware.
+static constexpr int DISC_OPTIC_OFFSET = 47; // -1 (mod 48)
 
 static constexpr uint64_t DISC_PATTERN[4] =
 {
@@ -258,7 +269,7 @@ void stella8085_state::update_optics()
 	// the reel position (0..95 half-steps) maps to the 48-step disc table
 	for (unsigned n = 0; n < 4; n++)
 	{
-		const int step = (m_motor[n]->get_position() >> 1) % 48;
+		const int step = ((m_motor[n]->get_position() >> 1) + DISC_OPTIC_OFFSET) % 48;
 		if (BIT(DISC_PATTERN[n], step))
 			m_optic |= (1 << n);
 		else
