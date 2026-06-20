@@ -181,42 +181,52 @@ license:CC0-1.0
 <!-- left panel -->
 		<!-- Leiter II LZ3+LZ6+LZ7-->
 
+		<!-- 100 Sonderspiele -->
 		<element name="lamp75" ref="ladder">
 			<bounds x="45" y="150" width="45" height="25" />
 		</element>
 
+		<!-- 50 Sonderspiele -->
 		<element name="lamp73" ref="ladder">
 			<bounds x="45" y="190" width="45" height="25" />
 		</element>
 
+		<!-- 25 Sonderspiele -->
 		<element name="lamp72" ref="ladder">
 			<bounds x="45" y="220" width="45" height="25" />
 		</element>
 
+		<!-- 12 Sonderspiele -->
 		<element name="lamp71" ref="ladder">
 			<bounds x="45" y="250" width="45" height="25" />
 		</element>
 
+		<!-- 6 Sonderspiele -->
 		<element name="lamp70" ref="ladder">
 			<bounds x="45" y="280" width="45" height="25" />
 		</element>
 
+		<!-- 3 Sonderspiele -->
 		<element name="lamp64" ref="ladder">
 			<bounds x="45" y="310" width="45" height="25" />
 		</element>
 
+		<!-- 2,60 DM -->
 		<element name="lamp63" ref="ladder">
 			<bounds x="45" y="340" width="45" height="25" />
 		</element>
 
+		<!-- 1,30 DM -->
 		<element name="lamp62" ref="ladder">
 			<bounds x="45" y="370" width="45" height="25" />
 		</element>
 
+		<!-- 60pf -->
 		<element name="lamp61" ref="ladder">
 			<bounds x="45" y="400" width="45" height="25" />
 		</element>
 
+		<!-- 30pf -->
 		<element name="lamp60" ref="ladder">
 			<bounds x="45" y="430" width="45" height="25" />
 		</element>
@@ -229,42 +239,52 @@ license:CC0-1.0
 <!-- right panel -->
 		<!-- Leiter I  LZ3+LZ4-->
 
+		<!-- 100 Sonderspiele -->
 		<element name="lamp45" ref="ladder">
 			<bounds x="390" y="150" width="45" height="25" />
 		</element>
 
+		<!-- 45 Sonderspiele -->
 		<element name="lamp43" ref="ladder">
 			<bounds x="390" y="190" width="45" height="25" />
 		</element>
 
+		<!-- 20 Sonderspiele -->
 		<element name="lamp42" ref="ladder">
 			<bounds x="390" y="220" width="45" height="25" />
 		</element>
 
+		<!-- 10 Sonderspiele -->
 		<element name="lamp41" ref="ladder">
 			<bounds x="390" y="250" width="45" height="25" />
 		</element>
 
+		<!-- 5 Sonderspiele -->
 		<element name="lamp40" ref="ladder">
 			<bounds x="390" y="280" width="45" height="25" />
 		</element>
 
+		<!-- 2 Sonderspiele -->
 		<element name="lamp34" ref="ladder">
 			<bounds x="390" y="310" width="45" height="25" />
 		</element>
 
+		<!-- 1,60 DM -->
 		<element name="lamp33" ref="ladder">
 			<bounds x="390" y="340" width="45" height="25" />
 		</element>
 
+		<!-- 80pf -->
 		<element name="lamp32" ref="ladder">
 			<bounds x="390" y="370" width="45" height="25" />
 		</element>
 
+		<!-- 40pf -->
 		<element name="lamp31" ref="ladder">
 			<bounds x="390" y="400" width="45" height="25" />
 		</element>
 
+		<!-- 20pf -->
 		<element name="lamp30" ref="ladder">
 			<bounds x="390" y="430" width="45" height="25" />
 		</element>
@@ -281,54 +301,66 @@ license:CC0-1.0
 		</element>
 
 
+		<!-- 10 Sonderspiele -->
 		<element name="lamp14" ref="ladder">
 			<bounds x="130" y="335" width="45" height="25" />
 		</element>
 
+		<!-- 25 Sonderspiele -->
 		<element name="lamp13" ref="ladder">
 			<bounds x="130" y="365" width="45" height="25" />
 		</element>
 
 
+		<!-- 100 Sonderspiele -->
 		<element name="lamp15" ref="ladder">
 			<bounds x="175" y="320" width="45" height="25" />
 		</element>
 
+		<!-- Serienausspielung -->
 		<element name="lamp55" ref="ladder">
 			<bounds x="175" y="350" width="45" height="25" />
 		</element>
 
+		<!-- 50 Sonderspiele -->
 		<element name="lamp12" ref="ladder">
 			<bounds x="175" y="380" width="45" height="25" />
 		</element>
 
 
+		<!-- 12 Sonderspiele -->
 		<element name="lamp16" ref="ladder">
 			<bounds x="220" y="335" width="45" height="25" />
 		</element>
 
+		<!-- 20 Sonderspiele -->
 		<element name="lamp10" ref="ladder">
 			<bounds x="220" y="365" width="45" height="25" />
 		</element>
 
 
+		<!-- 100 Sonderspiele -->
 		<element name="lamp11" ref="ladder">
 			<bounds x="265" y="320" width="45" height="25" />
 		</element>
 
+		<!-- Serienausspielung -->
 		<element name="lamp54" ref="ladder">
 			<bounds x="265" y="350" width="45" height="25" />
 		</element>
 
+		<!-- 3 Sonderspiele -->
 		<element name="lamp06" ref="ladder">
 			<bounds x="265" y="380" width="45" height="25" />
 		</element>
 
 
+		<!-- 6 Sonderspiele -->
 		<element name="lamp03" ref="ladder">
 			<bounds x="310" y="335" width="45" height="25" />
 		</element>
 
+		<!-- 10 Sonderspiele -->
 		<element name="lamp05" ref="ladder">
 			<bounds x="310" y="365" width="45" height="25" />
 		</element>
