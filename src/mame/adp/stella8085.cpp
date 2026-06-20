@@ -241,8 +241,8 @@ uint8_t stella8085_state::lw_r()
 // The left (wheel 1) and right (wheel 2) wheels are physically identical discs.
 // #...#...#...#..###..#...#...#...#...#...#...#...
 static constexpr uint64_t DISC_LR =
-	(1ULL<<0)|(1ULL<<4)|(1ULL<<8)|(1ULL<<12)|(1ULL<<15)|(1ULL<<16)|(1ULL<<17)|
-	(1ULL<<20)|(1ULL<<24)|(1ULL<<28)|(1ULL<<32)|(1ULL<<36)|(1ULL<<40)|(1ULL<<44);
+	(1ULL<<1)|(1ULL<<5)|(1ULL<<9)|(1ULL<<13)|(1ULL<<16)|(1ULL<<17)|(1ULL<<18)|
+	(1ULL<<21)|(1ULL<<25)|(1ULL<<29)|(1ULL<<33)|(1ULL<<37)|(1ULL<<41)|(1ULL<<45);
 
 static constexpr uint64_t DISC_PATTERN[4] =
 {
@@ -553,7 +553,7 @@ void stella8085_state::io71(uint8_t data)
 		popmessage("GONG");*/
 	if (US)
 		LOG("activating US\n");
-	m_beep->set_output_gain(ALL_OUTPUTS,DG);
+	m_beep->set_output_gain(ALL_OUTPUTS,!DG);
 	if (UG || DS || DM || UM)
 		LOG("UG %d DS %d DM %d UM %d\n", UG,DS,DM,UM);
 }
