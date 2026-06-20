@@ -93,11 +93,10 @@ private:
 	uint8_t m_coin_zem = 0;       // ZEM1 (TZ2 bit6 Fadenfoul): 1 = pulsed low, 0 = idle high
 	uint8_t m_coin_keys = 0;      // previous IPT_COIN key state, for edge detection
 
-	uint8_t m_lia_out = 0;        // LIA bit (TZ2 0-3) currently pulsed low (0 = none, all high)
-	                              // pulse direction for coin/eject is TODO (coins deferred)
-	uint8_t m_aw_state = 0;       // previous AW1-4 state for edge detection
-	uint8_t m_lia_seq = 0;        // LIA sequence step
-	uint8_t m_lia_bit = 0;        // LIA bit to pulse
+	uint8_t m_lia_out = 0;        // LIA bits (TZ2 0-3) currently blocked low (0 = none, all high)
+	uint8_t m_aw_state = 0x0f;    // previous AW1-4 state for edge detection (idle high)
+	uint8_t m_lia_seq = 0;        // LIA block sequence step
+	uint8_t m_lia_bit = 0;        // LIA bits (channels) whose ejected coin is in transit
 
 	required_device<i8085a_cpu_device> m_maincpu;
 	required_device<i8255_device> m_ppi;
@@ -348,8 +347,14 @@ uint8_t stella8085_state::kbd_rl_r()
 		// light barrier - so build the whole row from the emulator. Physical rest
 		// levels (real-HW dump TZ2=0x10 => firmware reads 0x10 => physical 0xEF):
 		// LIA(0-3), LÜ(5), ZEM1(6), ZEM2(7) idle HIGH; RUEM(4) idles LOW. A coin
-		// pulses ZEM1 low; an eject pulses one LIA line low.
-		data = 0xa0 | (0x0f & ~m_lia_out) | (m_coin_ruem ? 0x10 : 0x00) | (m_coin_zem ? 0x00 : 0x40);
+		// pulses ZEM1 low; an ejected coin in transit pulses its LIA line low.
+		// The barrier self-test signal (D6 = c01b bit6) drives all four LIA barriers
+		// blocked (low): the firmware clears D6 and checks they read high, then sets D6
+		// and checks they read low. It toggles D6 in RAM without re-latching port 0x70
+		// during the (interrupt-masked) check, so read the intent straight from c01b.
+		const bool short_test = BIT(m_maincpu->space(AS_PROGRAM).read_byte(0xc01b), 6);
+		const uint8_t lia = short_test ? 0x00 : (0x0f & ~m_lia_out);
+		data = 0xa0 | lia | (m_coin_ruem ? 0x10 : 0x00) | (m_coin_zem ? 0x00 : 0x40);
 	}
 
 	return data;
@@ -392,13 +397,14 @@ TIMER_CALLBACK_MEMBER(stella8085_state::lia_tick)
 {
 	switch (m_lia_seq)
 	{
-	case 1: // start the LIA pulse: pull the one LIA line low
+	case 1: // coin now passing the barrier(s): pull the ejected channels' LIA low
 		m_lia_out = m_lia_bit;
 		m_lia_seq = 2;
-		m_lia_timer->adjust(attotime::from_msec(40));
+		m_lia_timer->adjust(attotime::from_msec(40)); // time for the coin to clear into the tray
 		break;
-	default: // end of pulse - back to idle (all LIA lines high)
+	default: // coin has landed in the tray: barriers back to idle (all high)
 		m_lia_out = 0;
+		m_lia_bit = 0;
 		m_lia_seq = 0;
 		break;
 	}
@@ -476,40 +482,46 @@ void stella8085_state::io9w(uint8_t data)
 
 void stella8085_state::io70(uint8_t data)
 {
+	// AW1-4 (the coin-eject outputs) idle HIGH and are pulled LOW to eject a coin,
+	// so an eject is a falling edge (high->low) on a line.
 	const uint8_t aw = data & 0x0f;
-	const uint8_t pressed = aw & ~m_aw_state;
+	const uint8_t ejected = m_aw_state & ~aw; // lines that just went high->low
 	m_aw_state = aw;
 
-	const bool AW1 = BIT(data,0);
-	const bool AW2 = BIT(data,1);
-	const bool AW3 = BIT(data,2);
-	const bool AW4 = BIT(data,3);
+	const bool AW1 = !BIT(data,0); // active low: true while ejecting this channel
+	const bool AW2 = !BIT(data,1);
+	const bool AW3 = !BIT(data,2);
+	const bool AW4 = !BIT(data,3);
 	const bool MP = BIT(data,4);
 	const bool SZ = BIT(data,5);
 	const bool D6 = BIT(data,6); // high on startup
 	const bool PA7 = BIT(data,7);
 
-	if (MP)
-		popmessage("MP");
+	if (ejected)
+		popmessage("eject %d%d%d%d MP %d SZ %d D6 %d PA7 %d\n", AW4,AW3,AW2,AW1,MP,SZ,D6,PA7);
 
 	machine().bookkeeping().coin_lockout_global_w(MP); // coin magnet
-	machine().bookkeeping().coin_counter_w(0,AW1); // coin eject
+	machine().bookkeeping().coin_counter_w(0,AW1); // coin eject (active low)
 	machine().bookkeeping().coin_counter_w(1,AW2);
 	machine().bookkeeping().coin_counter_w(2,AW3);
 	machine().bookkeeping().coin_counter_w(3,AW4);
 	machine().bookkeeping().coin_counter_w(5,SZ); // game counter
 
-	if (pressed && m_lia_seq == 0)
+	// Each channel pulsed low ejects one coin. A short moment later the coin drops
+	// through that channel's LIA light barrier (pulling the line low), then falls into
+	// the payout tray and the barrier returns to idle.
+	if (ejected)
 	{
-		m_lia_bit = pressed & (~pressed + 1); // a single denomination
-		m_lia_seq = 1;
-		m_lia_timer->adjust(attotime::from_msec(40)); // wait a bit
+		m_lia_bit |= ejected; // every channel that just started ejecting
+		if (m_lia_seq == 0)
+		{
+			m_lia_seq = 1;
+			m_lia_timer->adjust(attotime::from_msec(40)); // coin travels to the barrier
+		}
 	}
 
-	if (D6)
-	{
-		//LOG("Short test\n");
-	}
+	// D6 ("Short test", c01b bit6) drives the LIA barrier self-test; the barriers
+	// follow it directly off c01b in kbd_rl_r (the firmware doesn't re-latch it here).
 
 	if (PA7)
 		LOG("PA7 high\n");
