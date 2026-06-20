@@ -697,7 +697,7 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_TILT ) // SK Schlagkontakt / Read data button
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // ZE2
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_PAYOUT ) // Return
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SLOT_STOP2 ) // STR
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_SLOT_STOP3 ) // STR
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNKNOWN )
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_UNKNOWN )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_START ) // NF
@@ -706,10 +706,10 @@ static INPUT_PORTS_START( disc )
 	// LIM = Münzeingang (per denomination). These coin keys only trigger the
 	// acceptor sequencer (coin_inserted); the actual LIM/LIG matrix levels are
 	// replayed into this row by kbd_rl_r, so a single press credits one coin.
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN4 ) PORT_NAME("DM 0.10") //LIM1
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_COIN3 ) PORT_NAME("DM 1.00") //LIM2
-	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN2 ) PORT_NAME("DM 2.00") //LIM3
-	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_NAME("DM 5.00") //LIM4
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN4 ) PORT_NAME("DM 0.10") //LIM1
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_COIN3 ) PORT_NAME("DM 1.00") //LIM2
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_NAME("DM 2.00") //LIM3
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_NAME("DM 5.00") //LIM4
 	// Only the COIN bits (0-3) of this port are used - kbd_rl_r edge-detects them to
 	// trigger the acceptor sequencer and then synthesises the whole physical row
 	// (bits 4-7 = NC/MK/LIG are built in kbd_rl_r, not read from here).
@@ -726,14 +726,19 @@ static INPUT_PORTS_START( disc )
 	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("TZ3") //ZUSATZ-EINGAENGE
-	// Physical RL. Real-HW dump = firmware reads TZ3 0x33 => physical 0xCC:
-	// bits 2,3,6,7 idle high, bits 0,1,4,5 idle low.
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) // Risiko Leiter 1
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) // Risiko Leiter 2
+	// Physical RL (the i8279 inverts these for the firmware). Zusatzeingaenge per the
+	// pinout: each input is +12V (active) or 0V. ZE5 is the common key return line
+	// (gemeinsame Rueckfuehrungsltg.): 0V at rest, +12V when Rueckgabe / Teilgewinn-
+	// Annahme / Spiel-starten is pressed. The Foul self-test row-3 check (FUN_1f3d:
+	// RL & 0x2b == 0x20) only passes when bit5 is high and bits 0,1,3 are low at rest;
+	// the old real-HW dump (reads 0x33 => physical 0xCC) was a FAULTED unit (stop2 +
+	// return line flagged), so a healthy machine idles bit5 high (and bit3 low).
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_GAMBLE_LOW ) // ZE0 Risikotaste Leiter 1
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_GAMBLE_HIGH ) // ZE1 Risikotaste Leiter 2
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN) // ZE2
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_SLOT_STOP3 )
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_BOOK ) // Serienuebernahme
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // Rueckfuehrung
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_SLOT_STOP2 ) // ZE3 Stop-Scheibe 2
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_GAMBLE_BOOK ) // ZE4 Serienuebernahme
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN ) // ZE5 gemeinsame Rueckfuehrungsltg der Tasten
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) // NC
 
