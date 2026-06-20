@@ -103,7 +103,7 @@ private:
 	required_device<i8256_device> m_uart;
 	required_device<rs232_port_device> m_rs232;
 	required_device<i8279_device> m_kdc;
-	optional_device_array<stepper_device, 4> m_motor;
+	optional_device_array<stepper_device, 5> m_motor;
 	required_ioport_array<8> m_tz;
 	required_ioport m_dsw;
 	output_finder<16> m_digits;
@@ -112,6 +112,9 @@ private:
 	emu_timer *m_sound_timer;
 	emu_timer *m_coin_timer;
 	emu_timer *m_lia_timer;
+	emu_timer *m_rst55_timer;     // 556+4040+4051 chain -> CD4013 -> RST5.5 note-advance clock
+	emu_timer *m_rst55_clear_timer; // clears RST5.5 just after the ISR acknowledges it
+	uint8_t m_snd_chan = 0;       // 4051 channel = sound byte bits 4,5 = note-advance rate
 
 	void large_program_map(address_map &map) ATTR_COLD;
 	void program_map(address_map &map) ATTR_COLD;
@@ -146,15 +149,31 @@ private:
 	void makesound(uint8_t tone, uint8_t octave, uint8_t length);
 	int soundfreq(uint8_t channel, uint8_t clockdiv);
 	TIMER_CALLBACK_MEMBER(sound_stop);
+	TIMER_CALLBACK_MEMBER(rst55_tick);
+	TIMER_CALLBACK_MEMBER(rst55_clear);
+	IRQ_CALLBACK_MEMBER(sound_irq_ack);
 };
+
+// Note-advance rate for the RST5.5 sound interrupt. On the PCB a 556 oscillator
+// feeds a 4040 ripple counter whose taps are selected by a 4051 mux driven by the
+// sound byte's D4/D5; the selected clock toggles a CD4013 flip-flop wired to RST5.5.
+// So the *previous* note's D4/D5 bits set how long until the next note is fetched.
+// These four periods are estimates (the exact 556 RC / 4040 taps are unverified) -
+// tune them to match the real tempo.
+static constexpr int SND_PERIOD_US[4] = { 30000, 60000, 120000, 240000 };
 
 void stella8085_state::machine_start()
 {
 	m_sound_timer = timer_alloc(FUNC(stella8085_state::sound_stop), this);
 	m_coin_timer = timer_alloc(FUNC(stella8085_state::coin_seq_tick), this);
 	m_lia_timer = timer_alloc(FUNC(stella8085_state::lia_tick), this);
+	m_rst55_timer = timer_alloc(FUNC(stella8085_state::rst55_tick), this);
+	m_rst55_clear_timer = timer_alloc(FUNC(stella8085_state::rst55_clear), this);
+	// 556 free-runs continuously; start the note-advance clock at the default rate
+	m_rst55_timer->adjust(attotime::from_usec(SND_PERIOD_US[0]), 0, attotime::from_usec(SND_PERIOD_US[0]));
 
 	save_item(NAME(m_digit));
+	save_item(NAME(m_snd_chan));
 	save_item(NAME(m_optic));
 	save_item(NAME(m_coin_seq));
 	save_item(NAME(m_coin_lim));
@@ -255,10 +274,11 @@ static constexpr uint64_t DISC_LR =
 // optic toggles and the test passes, matching real hardware.
 static constexpr int DISC_OPTIC_OFFSET = 47; // -1 (mod 48)
 
-static constexpr uint64_t DISC_PATTERN[4] =
+static constexpr uint64_t DISC_PATTERN[5] =
 {
 	DISC_LR, // wheel 1 (left)
-	DISC_LR, // wheel 2 (right) - physically identical to the left wheel
+	DISC_LR, // wheel 2 (right)
+	DISC_LR,
 	DISC_LR,
 	DISC_LR
 };
@@ -295,7 +315,13 @@ void stella8085_state::machine1_w(uint8_t data)
 
 void stella8085_state::machine2_w(uint8_t data)
 {
-	popmessage("M5 A %d B %d",BIT(4,data),BIT(5,data));
+	m_motor[4]->update((data >> 4) & 0x03);
+
+	update_optics();
+
+	// refresh the reel position/scroll outputs so the layout discs animate
+	for (auto &motor : m_motor)
+		motor->draw();
 }
 
 /*********************************************
@@ -553,18 +579,23 @@ void stella8085_state::io71(uint8_t data)
 	const bool DM = BIT(data,6);
 	const bool UM = BIT(data,7);
 
-	// IO 71 D0 connected through CD4013 flipflop to DIP switch connected to RST55
-	if (BIT(m_dsw->read(), 3))
-		m_maincpu->set_input_line(I8085_RST55_LINE, RS ? CLEAR_LINE : ASSERT_LINE);
-	else
-		m_maincpu->set_input_line(I8085_RST55_LINE, CLEAR_LINE);
+	// IO71 D0 is the CD4013 flip-flop reset (DIP-gated to RST5.5). The note-advance
+	// interrupt is *asserted* by the 556/4040/4051 timer chain (see rst55_tick); the
+	// RST5.5 ISR pulses D0 high to acknowledge/clear it. D0 low just re-arms the FF.
+	// D0 high resets the CD4013 -> clears RST5.5 (the ISR's note acknowledge). On real HW
+	// this happens here; in MAME clearing the CPU's own interrupt line from its running
+	// I/O write is not applied in time and RST5.5 re-fires back-to-back, so the actual
+	// clear is driven from the interrupt-acknowledge instead (see sound_irq_ack).
+	(void)RS;
+
+	// DG is a hardware muting circuit (suppresses speaker crackle when idle).
+	m_beep->set_output_gain(ALL_OUTPUTS,DG);
 
 	/*
 	if (GONG)
 		popmessage("GONG");*/
 	if (US)
 		LOG("activating US\n");
-	m_beep->set_output_gain(ALL_OUTPUTS,!DG);
 	if (UG || DS || DM || UM)
 		LOG("UG %d DS %d DM %d UM %d\n", UG,DS,DM,UM);
 }
@@ -572,31 +603,65 @@ void stella8085_state::io71(uint8_t data)
 void stella8085_state::sounddev(uint8_t data)
 {
 	uint8_t tone = data & 0x0f;
-	uint8_t length = data & 0x30;
-	uint8_t octave = data & 0xc0;
-	makesound(tone, octave, 60*(length+1)); // 60 is not correct
+	uint8_t octave = (data >> 6) & 0x03;
+	// D4/D5 pick the 4051 channel = the 556/4040 tap that times the next RST5.5, i.e. how
+	// long this note sounds. Re-arm the note-advance clock at that rate.
+	m_snd_chan = (data >> 4) & 0x03;
+	const attotime period = attotime::from_usec(SND_PERIOD_US[m_snd_chan]);
+	m_rst55_timer->adjust(period, 0, period);
+	makesound(tone, octave, SND_PERIOD_US[m_snd_chan] / 1000);
 }
 
 void stella8085_state::makesound(uint8_t tone, uint8_t octave, uint8_t length)
 {
-	int sfrq = soundfreq(tone, octave);
-	LOG("sound freq %02x for %02x ms\n", sfrq, length);
-	m_beep->set_clock(sfrq);
-	if (length > 0)
-	{
-		m_beep->set_state(1);
-		m_sound_timer->adjust(attotime::from_msec(length), 0);
-	}
-	else
+	if (tone == 0) // rest
 	{
 		m_beep->set_state(0);
+		return;
 	}
+	int sfrq = soundfreq(tone, octave);
+	fprintf(stderr, "NOTE tone=%2d oct=%d -> %d Hz, %d ms\n", tone, octave, sfrq, length);
+	LOG("sound freq %d Hz for %d ms\n", sfrq, length);
+	m_beep->set_clock(sfrq);
+	m_beep->set_state(1);
+	// hold the note until the next one arrives; stop if the tune ended (no refresh)
+	m_sound_timer->adjust(attotime::from_msec(length), 0);
+}
+
+TIMER_CALLBACK_MEMBER(stella8085_state::rst55_tick)
+{
+	// A 556 oscillator -> 4040 divider -> 4051 (selected by the last sound byte's
+	// D4/D5) clocks the CD4013 flip-flop wired to RST5.5. The flip-flop asserts RST5.5
+	// (held) until the RST5.5 ISR resets it via io71 D0. DIP SW1:1 gates it to the CPU.
+	// (A fine scheduling quantum makes that self-clear take effect before the ISR re-
+	// enables interrupts, otherwise it would re-fire and the whole tune plays at once.)
+	if (BIT(m_dsw->read(), 3))
+		m_maincpu->set_input_line(I8085_RST55_LINE, ASSERT_LINE);
+}
+
+IRQ_CALLBACK_MEMBER(stella8085_state::sound_irq_ack)
+{
+	// When the CPU actually takes the RST5.5 (sound) interrupt, schedule the CD4013
+	// reset shortly after - this lands inside the ISR (interrupts disabled) so RST5.5
+	// is cleared before the ISR re-enables them, modelling the io71 D0 acknowledge
+	// without the unreliable "CPU clears its own line mid-instruction" behaviour.
+	if (irqline == I8085_RST55_LINE)
+		m_rst55_clear_timer->adjust(attotime::from_usec(1));
+	return 0;
+}
+
+TIMER_CALLBACK_MEMBER(stella8085_state::rst55_clear)
+{
+	m_maincpu->set_input_line(I8085_RST55_LINE, CLEAR_LINE);
 }
 
 int stella8085_state::soundfreq(uint8_t channel, uint8_t clockdiv)
 {
 	const int SOUND_CLOCK = (m_maincpu->clock() / 3);
-	const int INT_CLOCK = SOUND_CLOCK >> (4-clockdiv);
+	// clockdiv = octave (0-3). The S50240-style divider produces the top octave from
+	// SOUND_CLOCK / ratio; the SOUND_OCTAVE chain then divides it down. (6-clockdiv)
+	// places the notes in a musical range; raise the constant to drop the pitch further.
+	const int INT_CLOCK = SOUND_CLOCK >> (6-clockdiv);
 	const int C8SHARP = INT_CLOCK / 451;
 	const int D8 = INT_CLOCK / 426;
 	const int D8SHARP = INT_CLOCK / 402;
@@ -783,6 +848,7 @@ void stella8085_state::dicemstr(machine_config &config)
 	I8085A(config, m_maincpu, 10.240_MHz_XTAL / 2); // divider not verified
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::large_program_map);
 	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(stella8085_state::sound_irq_ack));
 
 	I8255(config, m_ppi);
 	m_ppi->out_pa_callback().set(FUNC(stella8085_state::io70));
@@ -799,6 +865,7 @@ void stella8085_state::dicemstr(machine_config &config)
 
 	I8279(config, m_kdc, 10.240_MHz_XTAL / 4); // divider not verified
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
+	m_kdc->out_bd_callback().set(FUNC(stella8085_state::kbd_bd_w));
 	m_kdc->out_disp_callback().set(FUNC(stella8085_state::disp_w));
 	m_kdc->in_rl_callback().set(FUNC(stella8085_state::kbd_rl_r));
 	m_kdc->out_irq_callback().set_inputline(m_maincpu, I8085_RST65_LINE);
@@ -815,6 +882,7 @@ void stella8085_state::doppelpot(machine_config &config)
 	I8085A(config, m_maincpu, 6.144_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
 	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(stella8085_state::sound_irq_ack));
 
 	I8255(config, m_ppi);
 	m_ppi->out_pa_callback().set(FUNC(stella8085_state::io70));
@@ -835,6 +903,7 @@ void stella8085_state::doppelpot(machine_config &config)
 	REEL(config, m_motor[1], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
 	REEL(config, m_motor[2], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
 	REEL(config, m_motor[3], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[4], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 	m_uart->txd_handler().set(m_rs232, FUNC(rs232_port_device::write_txd));
