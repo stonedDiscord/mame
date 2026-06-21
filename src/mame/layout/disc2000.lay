@@ -48,38 +48,42 @@ license:CC0-1.0
 		</led7seg>
 	</element>
 
-	<!-- a horizontal two-row symbol strip used by the outer wheels; scrolled
-	     sideways via the stepper "scroll" output so it animates only while the
-	     wheel turns.  960 wide (12 cells of 80), 200 tall (2 rows of 100) so it
-	     wraps seamlessly.  The two rows carry offset sequences for variety. -->
-	<element name="disc_reel_h">
-		<rect><bounds x="0" y="0" width="960" height="200" /><color red="0.05" green="0.05" blue="0.05" /></rect>
-		<!-- row 1: sun, 40, 1,60, 40, sun, 40, 1,60, 40, sun, 40, 80, 40 -->
+	<!-- The outer wheels are built from two independent single-row strips
+	     (top + bottom) so they can scroll in opposite directions, simulating
+	     the front/back of a rotating disc.  Each is 960 wide (12 cells of 80)
+	     by 100 tall and wraps seamlessly. -->
+	<!-- top row: sun, 40, 1,60, 40, sun, 40, 1,60, 40, sun, 40, 80, 40 -->
+	<element name="disc_reel_h_top">
+		<rect><bounds x="0" y="0" width="960" height="100" /><color red="0.05" green="0.05" blue="0.05" /></rect>
 		<disk><bounds x="15"  y="25" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="80"  y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="1,60"><bounds x="160" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="40"><bounds x="240" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="40"><bounds x="80"  y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="1,60"><bounds x="160" y="25" width="80" height="50" /><color red="0.0" green="1.0" blue="0.0" /></text>
+		<text string="40"><bounds x="240" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
 		<disk><bounds x="335" y="25" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="400" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="1,60"><bounds x="480" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="40"><bounds x="560" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="40"><bounds x="400" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="1,60"><bounds x="480" y="25" width="80" height="50" /><color red="0.0" green="1.0" blue="0.0" /></text>
+		<text string="40"><bounds x="560" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
 		<disk><bounds x="655" y="25" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="720" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="80"><bounds x="800" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="40"><bounds x="880" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<!-- row 2: 40, sun, 40, 1,60, 40, sun, 40, 1,60, 40, sun, 40, 80 -->
-		<text string="40"><bounds x="0"   y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<disk><bounds x="95"  y="125" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="160" y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="1,60"><bounds x="240" y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="40"><bounds x="320" y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<disk><bounds x="415" y="125" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="480" y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="1,60"><bounds x="560" y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="40"><bounds x="640" y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<disk><bounds x="735" y="125" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="800" y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="80"><bounds x="880" y="125" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="40"><bounds x="720" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="80"><bounds x="800" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="40"><bounds x="880" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+	</element>
+
+	<!-- bottom row: 30, 2,60, 30, DISC, 30, 60, 30, 1,30, 30, DISC, 30, 1,30 -->
+	<element name="disc_reel_h_bot">
+		<rect><bounds x="0" y="0" width="960" height="100" /><color red="0.05" green="0.05" blue="0.05" /></rect>
+		<text string="30"><bounds x="0"   y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="2,60"><bounds x="80"  y="25" width="80" height="50" /><color red="1.0" green="0.0" blue="0.0" /></text>
+		<text string="30"><bounds x="160" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="DISC"><bounds x="240" y="25" width="80" height="50" /><color red="1.0" green="0.0" blue="0.0" /></text>
+		<text string="30"><bounds x="320" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="60"><bounds x="400" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="30"><bounds x="480" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="1,30"><bounds x="560" y="25" width="80" height="50" /><color red="0.0" green="1.0" blue="0.0" /></text>
+		<text string="30"><bounds x="640" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="DISC"><bounds x="720" y="25" width="80" height="50" /><color red="1.0" green="0.0" blue="0.0" /></text>
+		<text string="30"><bounds x="800" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="1,30"><bounds x="880" y="25" width="80" height="50" /><color red="0.0" green="1.0" blue="1.0" /></text>
 	</element>
 
 	<!-- single-row horizontal strip for the middle wheel; same cell pitch as
@@ -88,17 +92,17 @@ license:CC0-1.0
 	<element name="disc_reel_h1">
 		<rect><bounds x="0" y="0" width="960" height="100" /><color red="0.05" green="0.05" blue="0.05" /></rect>
 		<disk><bounds x="15"  y="25" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="80"  y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="1,60"><bounds x="160" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="40"><bounds x="240" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<disk><bounds x="335" y="25" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="400" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="1,60"><bounds x="480" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="40"><bounds x="560" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<disk><bounds x="655" y="25" width="50" height="50" /><color red="1.0" green="0.85" blue="0.0" /></disk>
-		<text string="40"><bounds x="720" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="80"><bounds x="800" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
-		<text string="40"><bounds x="880" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="60"><bounds x="80"  y="25" width="80" height="50" /><color red="0.0" green="0.0" blue="1.0" /></text>
+		<text string="40"><bounds x="160" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="80"><bounds x="240" y="25" width="80" height="50" /><color red="1.0" green="0.0" blue="0.0" /></text>
+		<text string="40"><bounds x="320" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="2,60"><bounds x="400" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="1.0" /></text>
+		<text string="2000"><bounds x="480" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="60"><bounds x="560" y="25" width="80" height="50" /><color red="0.0" green="0.0" blue="1.0" /></text>
+		<text string="30"><bounds x="560" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
+		<text string="1,30"><bounds x="720" y="25" width="80" height="50" /><color red="0.0" green="1.0" blue="0.0" /></text>
+		<text string="80"><bounds x="800" y="25" width="80" height="50" /><color red="1.0" green="0.0" blue="0.0" /></text>
+		<text string="40"><bounds x="880" y="25" width="80" height="50" /><color red="1.0" green="1.0" blue="0.0" /></text>
 	</element>
 
 	<element name="ladder" defstate="0">
@@ -427,14 +431,24 @@ license:CC0-1.0
 
 		<!-- three spinning wheels, scrolled by the stepper motor outputs;
 		     each reel only animates while its motor is turning -->
-		<element ref="disc_reel_h">
-			<bounds x="122" y="150" width="76" height="120" />
+		<!-- left wheel: top row forward, bottom row reversed (min/max swapped) -->
+		<element ref="disc_reel_h_top">
+			<bounds x="122" y="150" width="76" height="60" />
 			<xscroll name="motor0:scroll" size="0.132" wrap="yes" min="0" max="65535" />
 		</element>
+		<element ref="disc_reel_h_bot">
+			<bounds x="122" y="210" width="76" height="60" />
+			<xscroll name="motor0:scroll" size="0.132" wrap="yes" min="65535" max="0" />
+		</element>
 
-		<element ref="disc_reel_h">
-			<bounds x="282" y="150" width="76" height="120" />
+		<!-- right wheel: top row forward, bottom row reversed -->
+		<element ref="disc_reel_h_top">
+			<bounds x="282" y="150" width="76" height="60" />
 			<xscroll name="motor1:scroll" size="0.132" wrap="yes" min="0" max="65535" />
+		</element>
+		<element ref="disc_reel_h_bot">
+			<bounds x="282" y="210" width="76" height="60" />
+			<xscroll name="motor1:scroll" size="0.132" wrap="yes" min="65535" max="0" />
 		</element>
 
 		<element ref="disc_reel_h1">
