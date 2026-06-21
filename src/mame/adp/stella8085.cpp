@@ -374,11 +374,9 @@ uint8_t stella8085_state::kbd_rl_r()
 	// IPT_COIN keys only trigger the sequencer; the actual line levels are replayed
 	// (see coin_seq_tick). Physically every line idles HIGH (pulled up); a coin
 	// grounds one LIM line and the common LIG barrier (drives them LOW).
-	// The barrier self-test signal (D6, port A bit6) drives every coin light barrier
-	// blocked (low): the firmware clears D6 and checks the barriers read high, then sets
-	// D6 and checks they read low. D6 is latched from the OUT 70h write in io70.
-	const bool short_test = m_short_test;
-
+	// The barrier self-test signal (D6 = m_short_test, latched from the OUT 70h write in
+	// io70) drives every coin light barrier blocked (low): the firmware clears D6 and
+	// checks the barriers read high, then sets D6 and checks they read low.
 	if (row == 1)
 	{
 		// edge-detect the IPT_COIN keys (active high on the LIM bits) and kick off
@@ -395,7 +393,7 @@ uint8_t stella8085_state::kbd_rl_r()
 		// bits 4-6 (NC, MK) idle high; LIM low nibble idles high, coin pulses one low;
 		// bit7 = LIG (gemeinsame Münzlichtschranke / common coin barrier), idles high,
 		// pulses low on a coin and reads low during the D6 barrier self-test.
-		data = 0x70 | (0x0f & ~m_coin_lim_out) | ((m_coin_lig || short_test) ? 0x00 : 0x80);
+		data = 0x70 | (0x0f & ~m_coin_lim_out) | ((m_coin_lig || m_short_test) ? 0x00 : 0x80);
 	}
 	else if (row == 2)
 	{
@@ -404,7 +402,7 @@ uint8_t stella8085_state::kbd_rl_r()
 		// ZEM2(7) idle HIGH; RUEM(4) idles LOW; a coin pulses ZEM1 low; an ejected coin
 		// pulses its LIA line low. During the D6 self-test every checked barrier
 		// (LIA 0-3, LÜ 5, ZEM1 6) reads blocked (low); ZEM2 (7) is not tested.
-		if (short_test)
+		if (m_short_test)
 			data = 0x80; // ZEM2 high; LIA / LÜ / ZEM1 / RUEM all low (blocked)
 		else
 			data = 0xa0 | (0x0f & ~m_lia_out) | (m_coin_ruem ? 0x10 : 0x00) | (m_coin_zem ? 0x00 : 0x40);
