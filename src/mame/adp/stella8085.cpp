@@ -510,10 +510,10 @@ void stella8085_state::io70(uint8_t data)
 	const uint8_t ejected = m_aw_state & ~aw; // lines that just went high->low
 	m_aw_state = aw;
 
-	const bool AW1 = !BIT(data,0); // active low: true while ejecting this channel
-	const bool AW2 = !BIT(data,1);
-	const bool AW3 = !BIT(data,2);
-	const bool AW4 = !BIT(data,3);
+	const bool AW1 = BIT(data,0);
+	const bool AW2 = BIT(data,1);
+	const bool AW3 = BIT(data,2);
+	const bool AW4 = BIT(data,3);
 	const bool MP = BIT(data,4);
 	const bool SZ = BIT(data,5);
 	const bool D6 = BIT(data,6); // high on startup
@@ -701,7 +701,10 @@ static INPUT_PORTS_START( servicem )
 	PORT_INCLUDE(stella8085_dip)
 
 	PORT_START("TZ0") //TASTEN
-	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	PORT_CONFNAME( 0x01, 0x00, "Door (Türschalter)" ) // TS
+	PORT_CONFSETTING(    0x00, "Closed" )
+	PORT_CONFSETTING(    0x01, "Open" )
+	PORT_BIT( 0xfe, IP_ACTIVE_HIGH, IPT_UNKNOWN )
 
 	PORT_START("TZ1")
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN4 ) PORT_NAME("DM 0.10")  //LIM1 COIN II
@@ -851,12 +854,7 @@ void stella8085_state::doppelpot(machine_config &config)
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 	m_uart->txd_handler().set(m_rs232, FUNC(rs232_port_device::write_txd));
 	m_rs232->rxd_handler().set(m_uart, FUNC(i8256_device::write_rxd));
-	// CTS is tied active on the board (the firmware drives the serial port with no
-	// hardware flow control). Do NOT route it to the rs232 slot: an empty slot resets
-	// CTS deasserted (high), which gates the i8256 transmitter so write_buffer never
-	// drains and the firmware spins forever in its wait-for-TBE loop. Leave the i8256
-	// CTS at its asserted (low) default so transmission works standalone like real HW.
-	//m_rs232->cts_handler().set(m_uart, FUNC(i8256_device::write_cts));
+	// CTS is gnd
 
 	I8279(config, m_kdc, 6.144_MHz_XTAL / 2);
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
@@ -877,6 +875,7 @@ void stella8085_state::doppelpot(machine_config &config)
 void stella8085_state::excellent(machine_config &config)
 {
 	I8255(config, "ppi");
+	// TODO wire this back up
 	//m_ppi->out_pa_callback().set(FUNC(stella8085_state::io70));
 	//m_ppi->out_pb_callback().set(FUNC(stella8085_state::io71));
 	//m_ppi->out_pc_callback().set(FUNC(stella8085_state::sounddev));
