@@ -23,6 +23,9 @@ At least 4 different boards exist:
 Dice Master reference: https://www.youtube.com/watch?v=NlB06dMxjME
 Merkur Disc reference: https://www.youtube.com/watch?v=1NjJPkzg9Mk
 Nova Kniffi reference: https://www.youtube.com/watch?v=YBq2Z1irXek
+
+At first boot the machine requires initialization by pressing Up 1,- and Initialize at the same time.
+Opening the door puts the machine into service mode where the keys on the service keyboard actually do something.
 */
 
 
@@ -44,7 +47,7 @@ Nova Kniffi reference: https://www.youtube.com/watch?v=YBq2Z1irXek
 #include "adpservice.lh"
 #include "disc2000.lh"
 
-//#define VERBOSE 1
+#define VERBOSE 1
 #include "logmacro.h"
 
 
@@ -147,7 +150,7 @@ private:
 	void io9w(uint8_t data) ATTR_COLD;
 
 	void makesound(uint8_t tone, uint8_t octave, uint8_t length);
-	int soundfreq(uint8_t channel, uint8_t clockdiv);
+	int soundfreq(uint8_t channel, uint8_t octave);
 	TIMER_CALLBACK_MEMBER(sound_stop);
 	TIMER_CALLBACK_MEMBER(rst55_tick);
 	TIMER_CALLBACK_MEMBER(rst55_clear);
@@ -161,6 +164,14 @@ private:
 // These four periods are estimates (the exact 556 RC / 4040 taps are unverified) -
 // tune them to match the real tempo.
 static constexpr int SND_PERIOD_US[4] = { 30000, 60000, 120000, 240000 };
+
+// S50240 (ICG9) top-octave-synthesizer master clock, at the *highest* octave.
+// On the PCB the 74LS290 (ICG8-1) derives SOUND_CLOCK from BUS_CLK; the 4040
+// (ICG8-2) divides it and the 4051 (ICF8, selected by SOUND_D6/D7) taps Q(octave)
+// to feed the S50240 clock through TR84. Folding the octave-0 divider in here, the
+// per-octave pitch is simply SOUND_CLOCK >> octave. ~2 MHz is the MK50240 nominal
+// for equal temperament (÷239 = C9, ÷478 = C8); adjust to match the real board.
+static constexpr int SOUND_CLOCK = (6.144_MHz_XTAL / 8).value();
 
 void stella8085_state::machine_start()
 {
@@ -588,8 +599,9 @@ void stella8085_state::io71(uint8_t data)
 	// clear is driven from the interrupt-acknowledge instead (see sound_irq_ack).
 	(void)RS;
 
-	// DG is a hardware muting circuit (suppresses speaker crackle when idle).
-	m_beep->set_output_gain(ALL_OUTPUTS,DG);
+	// DG (OUT 0x71 bit2, ICJ6 Q6) drives a hardware muting circuit
+	// that suppresses speaker crackle
+	m_beep->set_output_gain(ALL_OUTPUTS,!DG);
 
 	/*
 	if (GONG)
@@ -602,6 +614,9 @@ void stella8085_state::io71(uint8_t data)
 
 void stella8085_state::sounddev(uint8_t data)
 {
+	LOG("sound %02X\n", data);
+	// OUT 0x72 is latched by ICH6 into SOUND_D0..D7: D0-D3 = note (4067 channel),
+	// D4-D5 = note-advance tap, D6-D7 = octave (S50240 clock divider).
 	uint8_t tone = data & 0x0f;
 	uint8_t octave = (data >> 6) & 0x03;
 	// D4/D5 pick the 4051 channel = the 556/4040 tap that times the next RST5.5, i.e. how
@@ -614,13 +629,19 @@ void stella8085_state::sounddev(uint8_t data)
 
 void stella8085_state::makesound(uint8_t tone, uint8_t octave, uint8_t length)
 {
+	// Only 4067 channels 1-12 are wired to a divider (the 12 semitones). Channel 0 is a
+	// real rest (the tune's note gaps) -> silence. Channels 13-15 are not notes: the
+	// firmware constantly sprays 0xFF (all bits set) to OUT 0x72 to silence the chip
+	// between notes - if we acted on those we would either play a constant tone over the
+	// melody or cut every note dead. Ignore them so the current note rings for its length.
+	if (tone > 12)
+		return;
 	if (tone == 0) // rest
 	{
 		m_beep->set_state(0);
 		return;
 	}
 	int sfrq = soundfreq(tone, octave);
-	fprintf(stderr, "NOTE tone=%2d oct=%d -> %d Hz, %d ms\n", tone, octave, sfrq, length);
 	LOG("sound freq %d Hz for %d ms\n", sfrq, length);
 	m_beep->set_clock(sfrq);
 	m_beep->set_state(1);
@@ -655,55 +676,19 @@ TIMER_CALLBACK_MEMBER(stella8085_state::rst55_clear)
 	m_maincpu->set_input_line(I8085_RST55_LINE, CLEAR_LINE);
 }
 
-int stella8085_state::soundfreq(uint8_t channel, uint8_t clockdiv)
+int stella8085_state::soundfreq(uint8_t channel, uint8_t octave)
 {
-	const int SOUND_CLOCK = (m_maincpu->clock() / 3);
-	// clockdiv = octave (0-3). The S50240-style divider produces the top octave from
-	// SOUND_CLOCK / ratio; the SOUND_OCTAVE chain then divides it down. (6-clockdiv)
-	// places the notes in a musical range; raise the constant to drop the pitch further.
-	const int INT_CLOCK = SOUND_CLOCK >> (6-clockdiv);
-	const int C8SHARP = INT_CLOCK / 451;
-	const int D8 = INT_CLOCK / 426;
-	const int D8SHARP = INT_CLOCK / 402;
-	const int E8 = INT_CLOCK / 379;
-	const int F8 = INT_CLOCK / 358;
-	const int F8SHARP = INT_CLOCK / 338;
-	const int G8 = INT_CLOCK / 319;
-	const int G8SHARP = INT_CLOCK / 301;
-	const int A8 = INT_CLOCK / 284;
-	const int A8SHARP = INT_CLOCK / 268;
-	const int B8 = INT_CLOCK / 253;
-	const int C9 = INT_CLOCK / 239;
-	const int C8 = INT_CLOCK / 478; //unused?
-	switch (channel)
-	{
-		case 1:
-			return C9;
-		case 2:
-			return B8;
-		case 3:
-			return A8SHARP;
-		case 4:
-			return A8;
-		case 5:
-			return G8SHARP;
-		case 6:
-			return G8;
-		case 7:
-			return F8SHARP;
-		case 8:
-			return F8;
-		case 9:
-			return E8;
-		case 10:
-			return D8SHARP;
-		case 11:
-			return D8;
-		case 12:
-			return C8SHARP;
-		default:
-			return C8;
-	}
+	// MK50240 top-octave divider ratios. The S50240 emits 13 outputs (one octave of
+	// 12 equal-tempered semitones) as SOUND_CLOCK / ratio. The 4067 (ICH8) routes one
+	// of them to the speaker, addressed by the tone nibble SOUND_S0..S3:
+	//   ch 1=C9 2=B8 3=A8# 4=A8 5=G8# 6=G8 7=F8# 8=F8 9=E8 10=D8# 11=D8 12=C8#
+	// ch 0 (÷478=C8) and ch 13..15 are not wired to the mux -> silence.
+	static const int ratio[13] = { 478, 239, 253, 268, 284, 301, 319, 338, 358, 379, 402, 426, 451 };
+	if (channel < 1 || channel > 12)
+		return 0;
+	// octave (SOUND_D6/D7) taps the 4040/4051 clock divider feeding the S50240, so a
+	// larger octave field divides the master clock further -> lower pitch.
+	return (SOUND_CLOCK >> octave) / ratio[channel];
 }
 
 static INPUT_PORTS_START( stella8085_service )
@@ -861,7 +846,12 @@ void stella8085_state::dicemstr(machine_config &config)
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 	m_uart->txd_handler().set(m_rs232, FUNC(rs232_port_device::write_txd));
 	m_rs232->rxd_handler().set(m_uart, FUNC(i8256_device::write_rxd));
-	m_rs232->cts_handler().set(m_uart, FUNC(i8256_device::write_cts));
+	// CTS is tied active on the board (the firmware drives the serial port with no
+	// hardware flow control). Do NOT route it to the rs232 slot: an empty slot resets
+	// CTS deasserted (high), which gates the i8256 transmitter so write_buffer never
+	// drains and the firmware spins forever in its wait-for-TBE loop. Leave the i8256
+	// CTS at its asserted (low) default so transmission works standalone like real HW.
+	//m_rs232->cts_handler().set(m_uart, FUNC(i8256_device::write_cts));
 
 	I8279(config, m_kdc, 10.240_MHz_XTAL / 4); // divider not verified
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
@@ -908,7 +898,12 @@ void stella8085_state::doppelpot(machine_config &config)
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 	m_uart->txd_handler().set(m_rs232, FUNC(rs232_port_device::write_txd));
 	m_rs232->rxd_handler().set(m_uart, FUNC(i8256_device::write_rxd));
-	m_rs232->cts_handler().set(m_uart, FUNC(i8256_device::write_cts));
+	// CTS is tied active on the board (the firmware drives the serial port with no
+	// hardware flow control). Do NOT route it to the rs232 slot: an empty slot resets
+	// CTS deasserted (high), which gates the i8256 transmitter so write_buffer never
+	// drains and the firmware spins forever in its wait-for-TBE loop. Leave the i8256
+	// CTS at its asserted (low) default so transmission works standalone like real HW.
+	//m_rs232->cts_handler().set(m_uart, FUNC(i8256_device::write_cts));
 
 	I8279(config, m_kdc, 6.144_MHz_XTAL / 2);
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
