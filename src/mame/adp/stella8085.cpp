@@ -98,6 +98,7 @@ private:
 
 	uint8_t m_lia_out = 0;        // LIA bits (TZ2 0-3) currently blocked low (0 = none, all high)
 	uint8_t m_aw_state = 0x0f;    // previous AW1-4 state for edge detection (idle high)
+	bool m_short_test = false;    // D6 (port A bit6): coin-barrier self-test drive, latched in io70
 	uint8_t m_lia_seq = 0;        // LIA block sequence step
 	uint8_t m_lia_bit = 0;        // LIA bits (channels) whose ejected coin is in transit
 
@@ -195,6 +196,7 @@ void stella8085_state::machine_start()
 	save_item(NAME(m_coin_keys));
 	save_item(NAME(m_lia_out));
 	save_item(NAME(m_aw_state));
+	save_item(NAME(m_short_test));
 	save_item(NAME(m_lia_seq));
 	save_item(NAME(m_lia_bit));
 }
@@ -372,11 +374,10 @@ uint8_t stella8085_state::kbd_rl_r()
 	// IPT_COIN keys only trigger the sequencer; the actual line levels are replayed
 	// (see coin_seq_tick). Physically every line idles HIGH (pulled up); a coin
 	// grounds one LIM line and the common LIG barrier (drives them LOW).
-	// The barrier self-test signal (D6 = c01b bit6) drives every coin light barrier
+	// The barrier self-test signal (D6, port A bit6) drives every coin light barrier
 	// blocked (low): the firmware clears D6 and checks the barriers read high, then sets
-	// D6 and checks they read low. It toggles D6 in RAM without re-latching port 0x70
-	// during the (interrupt-masked) check, so read the intent straight from c01b.
-	const bool short_test = BIT(m_maincpu->space(AS_PROGRAM).read_byte(0xc01b), 6);
+	// D6 and checks they read low. D6 is latched from the OUT 70h write in io70.
+	const bool short_test = m_short_test;
 
 	if (row == 1)
 	{
@@ -572,8 +573,10 @@ void stella8085_state::io70(uint8_t data)
 		}
 	}
 
-	// D6 ("Short test", c01b bit6) drives the LIA barrier self-test; the barriers
-	// follow it directly off c01b in kbd_rl_r (the firmware doesn't re-latch it here).
+	// D6 ("Short test") drives the LIA/LIG coin-barrier self-test. The firmware always
+	// flushes its port-A shadow to the chip (every STA c01b is paired with OUT 70h), so
+	// the level latched here is the live signal kbd_rl_r feeds the barriers.
+	m_short_test = D6;
 
 	if (PA7)
 		LOG("PA7 high\n");
