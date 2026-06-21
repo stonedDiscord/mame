@@ -158,21 +158,15 @@ private:
 	IRQ_CALLBACK_MEMBER(sound_irq_ack);
 };
 
-// Note-advance rate for the RST5.5 sound interrupt. On the PCB a 556 oscillator
-// feeds a 4040 ripple counter whose taps are selected by a 4051 mux driven by the
-// sound byte's D4/D5; the selected clock toggles a CD4013 flip-flop wired to RST5.5.
-// So the *previous* note's D4/D5 bits set how long until the next note is fetched.
-// These four periods are estimates (the exact 556 RC / 4040 taps are unverified) -
-// tune them to match the real tempo.
+// Note-advance rate for the RST5.5 sound interrupt: a 556 -> 4040 -> 4051 chain
+// (selected by the sound byte's D4/D5) clocks the CD4013 flip-flop on RST5.5.
+// TODO: estimates - the exact 556 RC / 4040 taps are unverified.
 static constexpr int SND_PERIOD_US[4] = { 30000, 60000, 120000, 240000 };
 
-// S50240 (ICG9) top-octave-synthesizer master clock, at the *highest* octave.
-// On the PCB the 74LS290 (ICG8-1) derives SOUND_CLOCK from BUS_CLK; the 4040
-// (ICG8-2) divides it and the 4051 (ICF8, selected by SOUND_D6/D7) taps Q(octave)
-// to feed the S50240 clock through TR84. Folding the octave-0 divider in here, the
-// per-octave pitch is simply SOUND_CLOCK >> octave. ~2 MHz is the MK50240 nominal
-// for equal temperament (÷239 = C9, ÷478 = C8); adjust to match the real board.
-static constexpr int SOUND_CLOCK = (6.144_MHz_XTAL / 8).value();
+// S50240 (ICG9) top-octave-synthesizer master clock, folding in the octave-0
+// divider so per-octave pitch is SOUND_CLOCK >> octave (÷239 = C9, ÷478 = C8).
+// TODO: ~2 MHz is the MK50240 nominal; adjust to match the real board.
+static constexpr int SOUND_CLOCK = (6.144_MHz_XTAL / 3).value();
 
 void stella8085_state::machine_start()
 {
@@ -247,44 +241,26 @@ void stella8085_state::io_4040_map(address_map &map)
 *                                            *
 *********************************************/
 
-// Each wheel is spun by a 2-phase stepper and read back by a light barrier on
-// P1.0-P1.3. The wheels are coded optical discs: a ring of slots whose widths
-// and spacing encode the symbol positions, with one wheel-specific reference.
-// The init code (homing one wheel at a time) slows the motor near home and reads
-// the slot it stops on; the per-wheel disc is generated in update_optics() from
-// DISC_PATTERN, captured from real hardware (see the comment there).
+// Each wheel is spun by a 2-phase stepper and read back by a coded optical disc on
+// its index light barrier (P1.0-P1.3); the per-wheel disc is in DISC_PATTERN.
 uint8_t stella8085_state::lw_r()
 {
-	// wheel light sensors
-
-	// P1.0 LIW1 - wheel 1 index optic (active high)
-	// P1.1 LIW2 - wheel 2 index optic
-	// P1.2 LIW3 - wheel 3 index optic
-	// P1.3 LIW4 - wheel 4 index optic
-	// P1.4 M5A out
-	// P1.5 M5B out
-	// P1.6 is always low
-	// P1.7 LIW5
-
+	// P1.0-P1.3 LIW1-4 wheel index optics (active high), P1.4/P1.5 M5A/M5B out,
+	// P1.6 always low, P1.7 LIW5
 	return 0xb0 | (m_optic & 0x0f);
 }
 
-// Coded optical disc per wheel, captured from real disc2000 hardware .
+// Coded optical disc per wheel, captured from real disc2000 hardware.
 // The left (wheel 1) and right (wheel 2) wheels are physically identical discs.
 // #...#...#...#..###..#...#...#...#...#...#...#...
 static constexpr uint64_t DISC_LR =
 	(1ULL<<0)|(1ULL<<4)|(1ULL<<8)|(1ULL<<12)|(1ULL<<15)|(1ULL<<16)|(1ULL<<17)|
 	(1ULL<<20)|(1ULL<<24)|(1ULL<<28)|(1ULL<<32)|(1ULL<<36)|(1ULL<<40)|(1ULL<<44);
 
-// The firmware homes each wheel against this disc and parks symbol 0 one optic
-// step *before* an index mark (verified: it stops in the gap just ahead of a mark,
-// at the same get_position the visible reel is drawn at). The disc is mounted with
-// that one-step angular offset relative to the stepper's electrical home, so the
-// optic the firmware samples is the disc rotated back by one step. Without it the
-// wheel motor self-test (Foul service screen, FUN_ram_0f71) reads the index optic
-// dark, steps the motor +1 step, still reads dark and reports all three motors
-// faulty (service code 00000007). With it the step lands on the next mark, the
-// optic toggles and the test passes, matching real hardware.
+// The disc is mounted one optic step before the stepper's electrical home, so the
+// optic the firmware samples is the disc rotated back by one step. The wheel motor
+// self-test relies on the optic toggling when it steps off home; without the offset
+// it reads dark both before and after and reports all motors faulty.
 static constexpr int DISC_OPTIC_OFFSET = 47; // -1 (mod 48)
 
 static constexpr uint64_t DISC_PATTERN[5] =
@@ -365,18 +341,15 @@ uint8_t stella8085_state::kbd_rl_r()
 	const uint8_t row = m_kbd_sl & 7;
 	uint8_t data = m_tz[row]->read();
 
-	// kbd_rl_r returns the PHYSICAL RL pin levels; the i8279 inverts them into its
-	// sensor RAM (rl = in_rl ^ 0xff, see i8279.cpp) and the firmware reads that.
-	// So the ioports hold the real electrical levels, and what the firmware reads
-	// is their complement (matching the real-HW test-ROM dump FC 00 10 33 00..).
+	// This returns the physical RL pin levels; the i8279 inverts them into its sensor
+	// RAM (rl = in_rl ^ 0xff, see i8279.cpp), so the firmware reads the complement.
+	//
+	// m_short_test (port-A D6) is the coin-barrier self-test: when set, every checked
+	// barrier reads blocked (low). The firmware toggles it and verifies high then low.
 
-	// Row 1 carries the coin acceptor (LIM1-4 = bits 0-3, LIG = bit 7). The raw
-	// IPT_COIN keys only trigger the sequencer; the actual line levels are replayed
-	// (see coin_seq_tick). Physically every line idles HIGH (pulled up); a coin
-	// grounds one LIM line and the common LIG barrier (drives them LOW).
-	// The barrier self-test signal (D6 = m_short_test, latched from the OUT 70h write in
-	// io70) drives every coin light barrier blocked (low): the firmware clears D6 and
-	// checks the barriers read high, then sets D6 and checks they read low.
+	// Row 1 = coin acceptor (LIM1-4 bits 0-3, LIG bit 7). IPT_COIN keys only trigger
+	// the sequencer; the line levels are replayed (see coin_seq_tick). Lines idle HIGH;
+	// a coin pulls one LIM line and the common LIG barrier LOW.
 	if (row == 1)
 	{
 		// edge-detect the IPT_COIN keys (active high on the LIM bits) and kick off
@@ -390,18 +363,14 @@ uint8_t stella8085_state::kbd_rl_r()
 			m_coin_seq = 1;
 			m_coin_timer->adjust(attotime::zero);
 		}
-		// bits 4-6 (NC, MK) idle high; LIM low nibble idles high, coin pulses one low;
-		// bit7 = LIG (gemeinsame Münzlichtschranke / common coin barrier), idles high,
-		// pulses low on a coin and reads low during the D6 barrier self-test.
+		// bits 4-6 (NC, MK) idle high; bit7 = LIG (common coin barrier) pulses low.
 		data = 0x70 | (0x0f & ~m_coin_lim_out) | ((m_coin_lig || m_short_test) ? 0x00 : 0x80);
 	}
 	else if (row == 2)
 	{
-		// TZ2 carries no operator input - every bit is an internal coin-mechanism light
-		// barrier. Physical rest (real-HW dump TZ2=0x10 => 0xEF): LIA(0-3), LÜ(5), ZEM1(6),
-		// ZEM2(7) idle HIGH; RUEM(4) idles LOW; a coin pulses ZEM1 low; an ejected coin
-		// pulses its LIA line low. During the D6 self-test every checked barrier
-		// (LIA 0-3, LÜ 5, ZEM1 6) reads blocked (low); ZEM2 (7) is not tested.
+		// TZ2 = internal coin-mechanism barriers. Rest: LIA(0-3), LÜ(5), ZEM1(6),
+		// ZEM2(7) idle HIGH, RUEM(4) idles LOW. A coin pulses ZEM1 low; an ejected
+		// coin pulses its LIA line low. The self-test blocks LIA 0-3 / LÜ 5 / ZEM1 6.
 		if (m_short_test)
 			data = 0x80; // ZEM2 high; LIA / LÜ / ZEM1 / RUEM all low (blocked)
 		else
@@ -411,14 +380,10 @@ uint8_t stella8085_state::kbd_rl_r()
 	return data;
 }
 
-// The firmware (FUN_ram_1f0e/34a4 in disc2001) latches the LIM denomination while
-// RUEM (the common line, simultaneous with the coin pulse per the pinout) is low,
-// so replay: LIM_n high + RUEM low together for one pulse, then release.
-
 TIMER_CALLBACK_MEMBER(stella8085_state::coin_seq_tick)
 {
-	// Physical pulse: lines drop LOW as the coin passes. (exact sequence/timing vs
-	// the firmware is still TODO - coin crediting is deferred.)
+	// Replay the line levels as a coin passes the barriers (lines drop LOW).
+	// TODO: exact sequence/timing vs the firmware; coin crediting is deferred.
 	switch (m_coin_seq)
 	{
 	case 1: // coin dropping past the denomination + Fadenfoul: LIM_n + ZEM1 low
@@ -558,9 +523,8 @@ void stella8085_state::io70(uint8_t data)
 	machine().bookkeeping().coin_counter_w(3,AW4);
 	machine().bookkeeping().coin_counter_w(5,SZ); // game counter
 
-	// Each channel pulsed low ejects one coin. A short moment later the coin drops
-	// through that channel's LIA light barrier (pulling the line low), then falls into
-	// the payout tray and the barrier returns to idle.
+	// Each channel pulsed low ejects one coin; a moment later it drops through that
+	// channel's LIA barrier (line low) and into the tray (see lia_tick).
 	if (ejected)
 	{
 		m_lia_bit |= ejected; // every channel that just started ejecting
@@ -571,9 +535,7 @@ void stella8085_state::io70(uint8_t data)
 		}
 	}
 
-	// D6 ("Short test") drives the LIA/LIG coin-barrier self-test. The firmware always
-	// flushes its port-A shadow to the chip (every STA c01b is paired with OUT 70h), so
-	// the level latched here is the live signal kbd_rl_r feeds the barriers.
+	// D6 ("Short test") drives the LIA/LIG coin-barrier self-test; kbd_rl_r reads it back.
 	m_short_test = D6;
 
 	if (PA7)
@@ -591,17 +553,12 @@ void stella8085_state::io71(uint8_t data)
 	const bool DM = BIT(data,6);
 	const bool UM = BIT(data,7);
 
-	// IO71 D0 is the CD4013 flip-flop reset (DIP-gated to RST5.5). The note-advance
-	// interrupt is *asserted* by the 556/4040/4051 timer chain (see rst55_tick); the
-	// RST5.5 ISR pulses D0 high to acknowledge/clear it. D0 low just re-arms the FF.
-	// D0 high resets the CD4013 -> clears RST5.5 (the ISR's note acknowledge). On real HW
-	// this happens here; in MAME clearing the CPU's own interrupt line from its running
-	// I/O write is not applied in time and RST5.5 re-fires back-to-back, so the actual
-	// clear is driven from the interrupt-acknowledge instead (see sound_irq_ack).
+	// D0 (RS) is the CD4013 flip-flop reset: the RST5.5 ISR pulses it high to
+	// acknowledge the note-advance interrupt asserted by the 556/4040/4051 chain.
+	// The actual RST5.5 clear is driven from sound_irq_ack instead (see there).
 	(void)RS;
 
-	// DG (OUT 0x71 bit2, ICJ6 Q6) drives a hardware muting circuit
-	// that suppresses speaker crackle
+	// DG (bit2, ICJ6 Q6) drives a muting circuit that suppresses speaker crackle
 	m_beep->set_output_gain(ALL_OUTPUTS,!DG);
 
 	/*
@@ -620,8 +577,8 @@ void stella8085_state::sounddev(uint8_t data)
 	// D4-D5 = note-advance tap, D6-D7 = octave (S50240 clock divider).
 	uint8_t tone = data & 0x0f;
 	uint8_t octave = (data >> 6) & 0x03;
-	// D4/D5 pick the 4051 channel = the 556/4040 tap that times the next RST5.5, i.e. how
-	// long this note sounds. Re-arm the note-advance clock at that rate.
+	// D4/D5 pick the 4051 channel (556/4040 tap) timing the next RST5.5, i.e. the note
+	// length. Re-arm the note-advance clock at that rate.
 	m_snd_chan = (data >> 4) & 0x03;
 	const attotime period = attotime::from_usec(SND_PERIOD_US[m_snd_chan]);
 	m_rst55_timer->adjust(period, 0, period);
@@ -630,11 +587,8 @@ void stella8085_state::sounddev(uint8_t data)
 
 void stella8085_state::makesound(uint8_t tone, uint8_t octave, uint8_t length)
 {
-	// Only 4067 channels 1-12 are wired to a divider (the 12 semitones). Channel 0 is a
-	// real rest (the tune's note gaps) -> silence. Channels 13-15 are not notes: the
-	// firmware constantly sprays 0xFF (all bits set) to OUT 0x72 to silence the chip
-	// between notes - if we acted on those we would either play a constant tone over the
-	// melody or cut every note dead. Ignore them so the current note rings for its length.
+	// Only 4067 channels 1-12 are semitones; channel 0 is a rest. Channels 13-15 are
+	// the firmware's 0xFF idle spray between notes - ignore so the note rings out.
 	if (tone > 12)
 		return;
 	if (tone == 0) // rest
@@ -652,21 +606,17 @@ void stella8085_state::makesound(uint8_t tone, uint8_t octave, uint8_t length)
 
 TIMER_CALLBACK_MEMBER(stella8085_state::rst55_tick)
 {
-	// A 556 oscillator -> 4040 divider -> 4051 (selected by the last sound byte's
-	// D4/D5) clocks the CD4013 flip-flop wired to RST5.5. The flip-flop asserts RST5.5
-	// (held) until the RST5.5 ISR resets it via io71 D0. DIP SW1:1 gates it to the CPU.
-	// (A fine scheduling quantum makes that self-clear take effect before the ISR re-
-	// enables interrupts, otherwise it would re-fire and the whole tune plays at once.)
+	// A 556 -> 4040 -> 4051 (selected by the last sound byte's D4/D5) clocks the
+	// CD4013 flip-flop that asserts RST5.5, held until the ISR resets it via io71 D0.
+	// DIP SW1:1 gates it to the CPU.
 	if (BIT(m_dsw->read(), 3))
 		m_maincpu->set_input_line(I8085_RST55_LINE, ASSERT_LINE);
 }
 
 IRQ_CALLBACK_MEMBER(stella8085_state::sound_irq_ack)
 {
-	// When the CPU actually takes the RST5.5 (sound) interrupt, schedule the CD4013
-	// reset shortly after - this lands inside the ISR (interrupts disabled) so RST5.5
-	// is cleared before the ISR re-enables them, modelling the io71 D0 acknowledge
-	// without the unreliable "CPU clears its own line mid-instruction" behaviour.
+	// Clear RST5.5 just after the CPU takes it (inside the ISR, interrupts disabled),
+	// modelling the io71 D0 acknowledge.
 	if (irqline == I8085_RST55_LINE)
 		m_rst55_clear_timer->adjust(attotime::from_usec(1));
 	return 0;
@@ -679,16 +629,13 @@ TIMER_CALLBACK_MEMBER(stella8085_state::rst55_clear)
 
 int stella8085_state::soundfreq(uint8_t channel, uint8_t octave)
 {
-	// MK50240 top-octave divider ratios. The S50240 emits 13 outputs (one octave of
-	// 12 equal-tempered semitones) as SOUND_CLOCK / ratio. The 4067 (ICH8) routes one
-	// of them to the speaker, addressed by the tone nibble SOUND_S0..S3:
-	//   ch 1=C9 2=B8 3=A8# 4=A8 5=G8# 6=G8 7=F8# 8=F8 9=E8 10=D8# 11=D8 12=C8#
-	// ch 0 (÷478=C8) and ch 13..15 are not wired to the mux -> silence.
+	// MK50240 top-octave divider ratios: one octave of 12 semitones as
+	// SOUND_CLOCK / ratio, routed to the speaker by the 4067 (ICH8) tone nibble.
+	// ch 1=C9 2=B8 3=A8# 4=A8 5=G8# 6=G8 7=F8# 8=F8 9=E8 10=D8# 11=D8 12=C8#
 	static const int ratio[13] = { 478, 239, 253, 268, 284, 301, 319, 338, 358, 379, 402, 426, 451 };
 	if (channel < 1 || channel > 12)
 		return 0;
-	// octave (SOUND_D6/D7) taps the 4040/4051 clock divider feeding the S50240, so a
-	// larger octave field divides the master clock further -> lower pitch.
+	// octave (SOUND_D6/D7) further divides the master clock -> lower pitch.
 	return (SOUND_CLOCK >> octave) / ratio[channel];
 }
 
