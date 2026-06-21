@@ -874,11 +874,10 @@ void stella8085_state::doppelpot(machine_config &config)
 
 void stella8085_state::excellent(machine_config &config)
 {
-	I8255(config, "ppi");
-	// TODO wire this back up
-	//m_ppi->out_pa_callback().set(FUNC(stella8085_state::io70));
-	//m_ppi->out_pb_callback().set(FUNC(stella8085_state::io71));
-	//m_ppi->out_pc_callback().set(FUNC(stella8085_state::sounddev));
+	i8255_device &ppi(I8255A(config, "ppi"));
+	ppi.out_pa_callback().set(FUNC(stella8085_state::io70));
+	ppi.out_pb_callback().set(FUNC(stella8085_state::io71));
+	ppi.out_pc_callback().set(FUNC(stella8085_state::sounddev));
 
 	doppelpot(config);
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_4040_map);
