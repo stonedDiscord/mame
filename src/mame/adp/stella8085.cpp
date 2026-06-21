@@ -247,7 +247,7 @@ uint8_t stella8085_state::lw_r()
 {
 	// P1.0-P1.3 LIW1-4 wheel index optics (active high), P1.4/P1.5 M5A/M5B out,
 	// P1.6 always low, P1.7 LIW5
-	return 0xb0 | (m_optic & 0x0f);
+	return 0x30 | (m_optic & 0x8f);
 }
 
 // Coded optical disc per wheel, captured from real disc2000 hardware.
@@ -274,15 +274,16 @@ static constexpr uint64_t DISC_PATTERN[5] =
 
 void stella8085_state::update_optics()
 {
-	// each wheel's light barrier (P1.0-P1.3) follows its coded disc as it turns;
-	// the reel position (0..95 half-steps) maps to the 48-step disc table
-	for (unsigned n = 0; n < 4; n++)
+	// each wheel's light barrier follows its coded disc as it turns; the reel position
+	// (0..95 half-steps) maps to the 48-step disc table. LIW1-4 are P1.0-3, LIW5 is P1.7.
+	static constexpr int optic_bit[5] = { 0, 1, 2, 3, 7 };
+	for (unsigned n = 0; n < 5; n++)
 	{
 		const int step = ((m_motor[n]->get_position() >> 1) + DISC_OPTIC_OFFSET) % 48;
 		if (BIT(DISC_PATTERN[n], step))
-			m_optic |= (1 << n);
+			m_optic |= (1 << optic_bit[n]);
 		else
-			m_optic &= ~(1 << n);
+			m_optic &= ~(1 << optic_bit[n]);
 	}
 }
 
