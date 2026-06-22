@@ -45,6 +45,7 @@ Opening the door puts the machine into service mode where the keys on the servic
 #include "speaker.h"
 
 #include "adpservice.lh"
+#include "bahia.lh"
 #include "disc2000.lh"
 
 #define VERBOSE 1
@@ -166,7 +167,7 @@ static constexpr int SND_PERIOD_US[4] = { 60000, 120000, 240000, 480000 };
 // S50240 (ICG9) top-octave-synthesizer master clock, folding in the octave-0
 // divider so per-octave pitch is SOUND_CLOCK >> octave (÷239 = C9, ÷478 = C8).
 // TODO: ~2 MHz is the MK50240 nominal; adjust to match the real board.
-static constexpr int SOUND_CLOCK = (6.144_MHz_XTAL / 3).value();
+static constexpr int SOUND_CLOCK = (6.144_MHz_XTAL / 4).value();
 
 void stella8085_state::machine_start()
 {
@@ -1109,7 +1110,7 @@ ROM_END
 ROM_START( sjackpot )
 	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASE00 )
 	ROM_LOAD( "super_jackpot_i.ice6",  0x0000, 0x4000, CRC(3f14364a) SHA1(4711e2d1aa76a08478177ad7b1f5509b11649f9d) )
-	ROM_LOAD( "super_jackpot_ii.icd6", 0x4000, 0x4000, CRC(984d4ca1) SHA1(1da5533f06fb7a1ab8f221c5a58c1afafdd5f862) )
+	ROM_LOAD( "super_jackpot_ii.icd6", 0x4000, 0x4000, BAD_DUMP CRC(984d4ca1) SHA1(1da5533f06fb7a1ab8f221c5a58c1afafdd5f862) )
 ROM_END
 
 ROM_START( sprmlti )
@@ -1155,7 +1156,7 @@ ROM_END
 } // anonymous namespace
 
 GAMEL( 1982, excellnt,        0, excellent, servicem, stella8085_state, empty_init, ROT0, "ADP",    "Excellent",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
-GAMEL( 1983, bahia,           0, excellent, servicem, stella8085_state, empty_init, ROT0, "ADP",    "Bahia",             MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
+GAMEL( 1983, bahia,           0, excellent, servicem, stella8085_state, empty_init, ROT0, "ADP",    "Bahia",             MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_bahia )
 GAMEL( 1984, disc,            0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc",              MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1985, dpplstrt,        0, excellent, servicem, stella8085_state, empty_init, ROT0, "Nova",   "Doppelstart",       MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1986, discoly,         0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc Olympia",      MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_disc2000 )
