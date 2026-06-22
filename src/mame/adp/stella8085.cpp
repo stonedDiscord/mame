@@ -79,7 +79,7 @@ public:
 protected:
 	void machine_start() override ATTR_COLD;
 
-	void mainboard(machine_config &config, const XTAL &cpu_clock, const XTAL &uart_clock, const XTAL &kdc_clock) ATTR_COLD;
+	void mainboard(machine_config &config, const XTAL &clock) ATTR_COLD;
 
 private:
 	uint8_t m_digit = 0U;
@@ -832,13 +832,14 @@ static INPUT_PORTS_START( disc )
 	PORT_INCLUDE(stella8085_service)
 INPUT_PORTS_END
 
-void stella8085_state::mainboard(machine_config &config, const XTAL &cpu_clock, const XTAL &uart_clock, const XTAL &kdc_clock)
+void stella8085_state::mainboard(machine_config &config, const XTAL &clock)
 {
-	I8085A(config, m_maincpu, cpu_clock);
+	// The 8256 UART and 8279 KDC are both clocked from the CPU clock divided by two.
+	I8085A(config, m_maincpu, clock);
 	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
 	m_maincpu->set_irq_acknowledge_callback(FUNC(stella8085_state::sound_irq_ack));
 
-	I8256(config, m_uart, uart_clock);
+	I8256(config, m_uart, clock / 2);
 	m_uart->int_callback().set_inputline(m_maincpu, I8085_INTR_LINE);
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
@@ -846,7 +847,7 @@ void stella8085_state::mainboard(machine_config &config, const XTAL &cpu_clock, 
 	m_rs232->rxd_handler().set(m_uart, FUNC(i8256_device::write_rxd));
 	// CTS is gnd
 
-	I8279(config, m_kdc, kdc_clock);
+	I8279(config, m_kdc, clock / 2);
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
 	m_kdc->out_bd_callback().set(FUNC(stella8085_state::kbd_bd_w));
 	m_kdc->out_disp_callback().set(FUNC(stella8085_state::disp_w));
@@ -860,8 +861,7 @@ void stella8085_state::mainboard(machine_config &config, const XTAL &cpu_clock, 
 
 void stella8085_state::dicemstr(machine_config &config)
 {
-	// dividers not verified
-	mainboard(config, 10.240_MHz_XTAL / 2, 10.240_MHz_XTAL / 2, 10.240_MHz_XTAL / 4);
+	mainboard(config, 10.240_MHz_XTAL / 2); // CPU divider not verified
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::large_program_map);
 
 	RTC62421(config, "rtc", 32.768_kHz_XTAL);
@@ -869,7 +869,7 @@ void stella8085_state::dicemstr(machine_config &config)
 
 void stella8085_state::doppelpot(machine_config &config)
 {
-	mainboard(config, 6.144_MHz_XTAL, 6.144_MHz_XTAL / 2, 6.144_MHz_XTAL / 2);
+	mainboard(config, 6.144_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
 
 	m_maincpu->in_inta_func().set(m_uart, FUNC(i8256_device::inta_r));
