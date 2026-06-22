@@ -68,6 +68,7 @@ public:
 		m_dsw(*this, "DSW"),
 		m_digits(*this, "digit%u", 0U),
 		m_lamps(*this, "lamp%u%u", 0U, 0U),
+		m_counters(*this, "counter%u", 0U),
 		m_beep(*this, "beeper")
 	{ }
 
@@ -104,6 +105,9 @@ private:
 	uint8_t m_lia_seq = 0;        // LIA block sequence step
 	uint8_t m_lia_bit = 0;        // LIA bits (channels) whose ejected coin is in transit
 
+	uint16_t m_count[3] = { 0, 0, 0 };  // G/M/S up-down counter values (excellent layout)
+	uint8_t m_io71_last = 0;            // previous io71 value, for counter coil edge detection
+
 	required_device<i8085a_cpu_device> m_maincpu;
 	required_device<i8256_device> m_uart;
 	required_device<rs232_port_device> m_rs232;
@@ -113,6 +117,7 @@ private:
 	required_ioport m_dsw;
 	output_finder<16> m_digits;
 	output_finder<8, 8> m_lamps;
+	output_finder<3> m_counters;
 	required_device<beep_device> m_beep;
 	emu_timer *m_sound_timer;
 	emu_timer *m_coin_timer;
@@ -199,6 +204,8 @@ void stella8085_state::machine_start()
 	save_item(NAME(m_short_test));
 	save_item(NAME(m_lia_seq));
 	save_item(NAME(m_lia_bit));
+	save_item(NAME(m_count));
+	save_item(NAME(m_io71_last));
 }
 
 void stella8085_state::large_program_map(address_map &map)
@@ -578,6 +585,29 @@ void stella8085_state::io71(uint8_t data)
 		LOG("activating US\n");
 	if (UG || DS || DM || UM)
 		LOG("UG %d DS %d DM %d UM %d\n", UG,DS,DM,UM);
+
+	// G/M/S up-down counters, shown on the bahia layout's three simplecounters.
+	// Each register has a separate up and down coil: a rising edge on the up coil
+	// increments it, on the down coil decrements it (clamped to the counter range).
+	//   counter0 = G (UG/DG) -> pf_counter
+	//   counter1 = M (UM/DM) -> dm_counter (Munzspeicher)
+	//   counter2 = S (US/DS) -> sp_counter (Sonderspiele)
+	static const struct { uint8_t up_bit, down_bit; uint16_t max; } s_coils[3] =
+	{
+		{ 3, 2,  99 }, // G
+		{ 7, 6, 999 }, // M
+		{ 5, 4,  99 }, // S
+	};
+	const uint8_t rising = data & ~m_io71_last;
+	m_io71_last = data;
+	for (int i = 0; i < 3; i++)
+	{
+		if (BIT(rising, s_coils[i].up_bit) && m_count[i] < s_coils[i].max)
+			m_count[i]++;
+		if (BIT(rising, s_coils[i].down_bit) && m_count[i] > 0)
+			m_count[i]--;
+		m_counters[i] = m_count[i];
+	}
 }
 
 void stella8085_state::sounddev(uint8_t data)
