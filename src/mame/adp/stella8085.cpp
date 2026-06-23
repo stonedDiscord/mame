@@ -76,7 +76,7 @@ private:
 	uint8_t m_kbd_sl = 0x00;
 	bool m_kbd_bd = false;
 
-	required_device<cpu_device> m_maincpu;
+	required_device<i8085a_cpu_device> m_maincpu;
 	required_device<i8255_device> m_ppi;
 	required_device<i8256_device> m_uart;
 	required_device<i8279_device> m_kdc;
