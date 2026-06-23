@@ -29,6 +29,7 @@ Nova Kniffi reference: https://www.youtube.com/watch?v=YBq2Z1irXek
 #include "emu.h"
 
 #include "cpu/i8085/i8085.h"
+#include "bus/rs232/rs232.h"
 #include "machine/i8255.h"
 #include "machine/i8256.h"
 #include "machine/i8279.h"
@@ -54,6 +55,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_uart(*this, "muart"),
+		m_rs232(*this, "rs232"),
 		m_kdc(*this, "kdc"),
 		m_tz(*this, "TZ%u", 0U),
 		m_dsw(*this, "DSW"),
@@ -77,6 +79,7 @@ private:
 
 	required_device<i8085a_cpu_device> m_maincpu;
 	required_device<i8256_device> m_uart;
+	required_device<rs232_port_device> m_rs232;
 	required_device<i8279_device> m_kdc;
 	required_ioport_array<8> m_tz;
 	required_ioport m_dsw;
@@ -557,6 +560,11 @@ void stella8085_state::boards_common(machine_config &config, XTAL clock)
 	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
 	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
 	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
+
+	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
+	m_uart->txd_handler().set(m_rs232, FUNC(rs232_port_device::write_txd));
+	m_uart->write_cts(0);
+	m_rs232->rxd_handler().set(m_uart, FUNC(i8256_device::write_rxd));
 
 	I8279(config, m_kdc, clock / 2);
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
