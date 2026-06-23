@@ -138,7 +138,7 @@ void stella8085_state::program_4109_map(address_map &map)
 void stella8085_state::program_4087_map(address_map &map)
 {
 	map(0x0000, 0x8fff).rom(); // ICE6, ICD6, ICC5
-	map(0x9000, 0x933f).rw("rtc", FUNC(mc146818_device::read_direct), FUNC(mc146818_device::write_direct));
+	map(0x9000, 0x9fff).rw("rtc", FUNC(mc146818_device::read_direct), FUNC(mc146818_device::write_direct));
 	map(0xa000, 0xafff).ram(); // ??
 	map(0xc000, 0xc7ff).ram(); // ICC6
 }
@@ -158,8 +158,6 @@ void stella8085_state::io_4087_map(address_map &map)
 	map(0x70, 0x70).w(FUNC(stella8085_state::io70w));
 	map(0x71, 0x71).w(FUNC(stella8085_state::io71w));
 	map(0x72, 0x72).w(FUNC(stella8085_state::sounddev));
-	// map(0x80, 0x8f) //Y8 ICC5 empty socket
-	map(0x90, 0x9f).rw(FUNC(stella8085_state::io9r),FUNC(stella8085_state::io9w)); //Y9 wired to rtc circuits but somehow memory mapped in hardware
 }
 
 void stella8085_state::io_4040_map(address_map &map)
