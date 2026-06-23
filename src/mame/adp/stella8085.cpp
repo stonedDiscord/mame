@@ -832,6 +832,78 @@ static INPUT_PORTS_START( disc )
 	PORT_INCLUDE(stella8085_service)
 INPUT_PORTS_END
 
+// MERKUR Bahia (excellent board). The coin rows (TZ1/TZ2) are synthesised by
+// kbd_rl_r exactly as for the disc games, so the Foul self-test's coin-barrier
+// columns already pass; what differs from the generic servicem layout is the
+// operator keys (TASTEN) and the Zusatzeingaenge, which the Foul test reads back
+// and which servicem left as untuned placeholders. Bit positions/levels follow
+// the proven disc layout; the signal assignments follow the Bahia service manual
+// ("Steuereinheit" pinout): on Bahia only ZE4/ZE5/ZE6 are wired.
+static INPUT_PORTS_START( bahia )
+	PORT_INCLUDE(stella8085_dip)
+
+	PORT_START("TZ0") //TASTEN
+	// Physical RL levels (the i8279 inverts them for the firmware). NF/STR/Rue are
+	// the three TASTEN the Foul test checks (display position 6): per the manual they
+	// idle at +12V when not pressed. Door bit0 reads HIGH open / LOW closed.
+	PORT_CONFNAME( 0x01, 0x00, "Door (Tuerschalter)" ) // TS
+	PORT_CONFSETTING(    0x00, "Closed" )
+	PORT_CONFSETTING(    0x01, "Open" )
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_TILT ) // SK Schlagkontakt
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_GAMBLE_PAYOUT ) PORT_NAME("Rueckgabe (Rue)") // Rue: contact closed to GND at rest (reads low)
+	// STR (Risiko) and NF (Start-Stop) are LIGHT BARRIERS (Li<->Ri / Li<->NF), not
+	// mechanical switches: the beam idles clear at +12V (physical high) and is broken
+	// to actuate. The Foul test flags them as faulty if they don't read clear at rest,
+	// so they must idle high (active low).
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko (STR)")        // STR Risiko-Lichtschranke
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_UNKNOWN )
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_START ) PORT_NAME("Spiel starten (SST/NF)")    // NF Start-Stop-Lichtschranke
+
+	PORT_START("TZ1")
+	// LIM = Muenzeingang (per denomination); kbd_rl_r replays the LIM/LIG levels, so a
+	// single press credits one coin (identical to the disc coin rows).
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN4 ) PORT_NAME("DM 0.10") //LIM1
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_COIN3 ) PORT_NAME("DM 1.00") //LIM2
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_NAME("DM 2.00") //LIM3
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_NAME("DM 5.00") //LIM4
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // NC
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // NC
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // MK Muenzeinheitenkennung
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // LIG
+
+	PORT_START("TZ2")
+	// Internal coin-mechanism light barriers (LIA1-4, RueM, Lue, ZEM1/2); the whole
+	// row is built in kbd_rl_r, so this is just a placeholder.
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("TZ3") //ZUSATZ-EINGAENGE
+	// Per the Bahia manual / wiring only ZE4/ZE5/ZE6 are wired:
+	//   ZE4 = Serienuebernahme, idles at +12V (active low)
+	//   ZE5 = gemeinsame Rueckfuehrungsleitung, normally +12V; the Rueckgabe contact
+	//         (Rue, TZ0) is closed to GND at rest
+	//   ZE6 = Bonusuebernahme (the Zusatztaste the Foul test checks, display position 1)
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNKNOWN )  // ZE0 (unused on Bahia)
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNKNOWN )  // ZE1 (unused)
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )  // ZE2 (unused)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN )  // ZE3 (unused)
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK ) PORT_NAME("Serienuebernahme")  // ZE4 +12V at rest
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_UNKNOWN )  // ZE5 gemeinsame Rueckfuehrungsltg (+12V at rest)
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_GAMBLE_TAKE ) PORT_NAME("Bonus (Bonusuebernahme)") // ZE6
+	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )  // ZE7 (unused)
+
+	PORT_START("TZ4") //MATRIX-EINGAENGE
+	// Lizs/Lizm/Lizg counter light barriers (Foul position 7) live in this matrix,
+	// gated by the lamp rows; they need feedback emulation, not a static level.
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN ) // physical idle high (firmware reads 0x00)
+
+	PORT_START("TZ5") //MATRIX-EINGAENGE
+	PORT_BIT( 0xff, IP_ACTIVE_LOW, IPT_UNKNOWN ) // physical idle high (firmware reads 0x00)
+
+	PORT_INCLUDE(stella8085_service)
+INPUT_PORTS_END
+
 void stella8085_state::mainboard(machine_config &config, const XTAL &clock)
 {
 	// The 8256 UART and 8279 KDC are both clocked from the CPU clock divided by two.
@@ -901,6 +973,7 @@ void stella8085_state::excellent(machine_config &config)
 	doppelpot(config);
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_4040_map);
 	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_4040_map);
+
 }
 
 ROM_START( bahia )
@@ -1174,7 +1247,7 @@ ROM_END
 } // anonymous namespace
 
 GAMEL( 1982, excellnt,        0, excellent, servicem, stella8085_state, empty_init, ROT0, "ADP",    "Excellent",         MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
-GAMEL( 1983, bahia,           0, excellent, servicem, stella8085_state, empty_init, ROT0, "ADP",    "Bahia",             MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_bahia )
+GAMEL( 1983, bahia,           0, excellent, bahia,    stella8085_state, empty_init, ROT0, "ADP",    "Bahia",             MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_bahia )
 GAMEL( 1984, disc,            0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc",              MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1985, dpplstrt,        0, excellent, servicem, stella8085_state, empty_init, ROT0, "Nova",   "Doppelstart",       MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_adpservice )
 GAMEL( 1986, discoly,         0, excellent, disc,     stella8085_state, empty_init, ROT0, "ADP",    "Disc Olympia",      MACHINE_IMPERFECT_SOUND | MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_disc2000 )
