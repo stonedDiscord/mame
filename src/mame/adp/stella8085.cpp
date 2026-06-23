@@ -224,10 +224,8 @@ void stella8085_state::kbd_bd_w(uint8_t data)
 uint8_t stella8085_state::kbd_rl_r()
 {
 	uint8_t ret = 0xff;
-	if (m_kbd_sl < 8)
-		ret = m_tz[m_kbd_sl]->read();
-	else
-		LOG("read unmapped line %02x\n", m_kbd_sl);
+	const uint8_t RL = m_kbd_sl & 0x07; // only SL0-2 connected
+	ret = m_tz[RL]->read();
 	return ret;
 }
 
