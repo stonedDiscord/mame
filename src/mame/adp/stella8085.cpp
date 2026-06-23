@@ -200,13 +200,13 @@ void stella8085_state::machine2_w(uint8_t data)
 }
 
 /*********************************************
-*      I8279 Keyboard-Disply Interface       *
+*      I8279 Keyboard-Display Interface      *
 *                                            *
 *********************************************/
 
 void stella8085_state::kbd_sl_w(uint8_t data)
 {
-	m_kbd_sl = data;
+	m_kbd_sl = data & 0x0f; //SL0-SL3
 
 	// SL3 connected through CD4093 NAND to DIP switch connected to RST75
 	if (BIT(m_dsw->read(), 0))
