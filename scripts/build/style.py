@@ -354,6 +354,22 @@ def print_review(path, lineno, msg, out=None):
 	else:
 		print(json.dumps(review))
 
+def _escape_annotation_data(s):
+	return str(s).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+def _escape_annotation_property(s):
+	return _escape_annotation_data(s).replace(":", "%3A").replace(",", "%2C")
+
+def print_annotations(comments):
+	"""Emit GitHub Actions annotation commands so issues show up inline on the
+	pull request diff. Needs no token, so it works on pull requests from forks."""
+	for comment in comments:
+		path = _escape_annotation_property(comment["path"])
+		line = int(comment["line"])
+		title = _escape_annotation_property("style.py")
+		body = _escape_annotation_data(comment["body"])
+		print(f"::error file={path},line={line},title={title}::{body}")
+
 def execute_git_command(cmds, timeout=30, description="Git command"):
 	"""Execute git commands with fallback and error handling."""
 	for cmd in cmds:
@@ -464,6 +480,7 @@ def main():
 		print("Options:")
 		print("  -f,                  Automatically fix style issues where possible")
 		print("  -ci                  Run in CI mode (outputs JSON for GitHub Actions)")
+		print("  -annotations         Emit GitHub Actions inline annotations (::error)")
 		print("  --base-branch BRANCH Base branch for comparison (default: master)")
 		print("  --head-branch BRANCH Head branch for comparison (default: HEAD)")
 		print("  --help, -h           Show this help message")
@@ -484,6 +501,7 @@ def main():
 
 	fix = False
 	ci = False
+	annotations = False
 	base_branch = None
 	head_branch = None
 	args = []
@@ -496,6 +514,8 @@ def main():
 			fix = True
 		elif arg == "-ci":
 			ci = True
+		elif arg == "-annotations":
+			annotations = True
 		elif arg == "--base-branch":
 			if i + 1 >= len(argv):
 				print("Error: --base-branch requires an argument")
@@ -582,7 +602,8 @@ def main():
 			ciout.write(f"Error checking game entries vs lst: {e}\n")
 		sys.exit(1)
 
-	if ci and base_branch and head_branch:
+	# Restrict to lines the PR actually touches whenever we have a branch range.
+	if (ci or annotations) and base_branch and head_branch:
 		comments = filter_comments_for_ci(file_comments, base_branch, head_branch)
 	else:
 		comments = []
@@ -593,6 +614,8 @@ def main():
 		ciout.write(json.dumps(comments) + '\n')
 		ciout.write("EOF\n")
 		ciout.close()
+	elif annotations:
+		print_annotations(comments)
 	else:
 		if comments:
 			for comment in comments:
@@ -602,6 +625,10 @@ def main():
 				print("-" * 30)
 		else:
 			print("No style check errors found.")
+
+	# In annotations mode, fail the run when there are issues so the check gates.
+	if annotations and comments:
+		sys.exit(1)
 
 	sys.exit(0)
 

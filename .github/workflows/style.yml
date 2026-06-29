@@ -1,0 +1,34 @@
+name: Style review
+
+on:
+  pull_request:
+    paths:
+    - '**.c'
+    - '**.cpp'
+    - '**.h'
+    - '**.hpp'
+    - '**.hxx'
+    - '**.ipp'
+    - '**.mm'
+    - '**.lua'
+    - '**.py'
+    - '**.lay'
+    - '**.lst'
+
+permissions:
+  contents: read
+
+jobs:
+  style:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@main
+      with:
+        # Full history so style.py can diff the PR range.
+        fetch-depth: 0
+
+    - name: Run style checks
+      run: |
+        python3 scripts/build/style.py -annotations \
+          --base-branch "${{ github.event.pull_request.base.sha }}" \
+          --head-branch "${{ github.event.pull_request.head.sha }}"
