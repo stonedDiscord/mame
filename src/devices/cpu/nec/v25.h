@@ -39,6 +39,14 @@ public:
 	auto p1_out_cb() { return m_p1_out.bind(); }
 	auto p2_out_cb() { return m_p2_out.bind(); }
 
+	// serial transmit data (one byte per transmitted character)
+	auto txd0_cb() { return m_txd[0].bind(); }
+	auto txd1_cb() { return m_txd[1].bind(); }
+
+	// serial receive data (polled once per received character while RxE is set)
+	auto rxd0_cb() { return m_rxd[0].bind(); }
+	auto rxd1_cb() { return m_rxd[1].bind(); }
+
 	auto dma0_read_cb() { return m_dma_read[0].bind(); }
 	auto dma1_read_cb() { return m_dma_read[1].bind(); }
 
@@ -46,6 +54,8 @@ public:
 	auto dma1_write_cb() { return m_dma_write[1].bind(); }
 
 	TIMER_CALLBACK_MEMBER(v25_timer_callback);
+	TIMER_CALLBACK_MEMBER(v25_serial_tx_callback);
+	TIMER_CALLBACK_MEMBER(v25_serial_rx_callback);
 
 protected:
 	// construction/destruction
@@ -131,6 +141,11 @@ private:
 	uint8_t   m_scc[2];
 	uint8_t   m_brg[2];
 	uint8_t   m_sce[2];
+	uint8_t   m_txb[2];
+	bool      m_txb_full[2];
+	uint8_t   m_rxb[2];
+	emu_timer *m_serial_timer[2];
+	emu_timer *m_serial_rx_timer[2];
 
 	// DMA related
 	uint8_t   m_dmac[2];
@@ -159,6 +174,9 @@ private:
 	devcb_write8 m_p0_out;
 	devcb_write8 m_p1_out;
 	devcb_write8 m_p2_out;
+
+	devcb_write8::array<2> m_txd;
+	devcb_read8::array<2> m_rxd;
 
 	devcb_read16::array<2> m_dma_read;
 	devcb_write16::array<2> m_dma_write;
@@ -224,6 +242,13 @@ private:
 	void exic1_w(uint8_t d);
 	uint8_t exic2_r();
 	void exic2_w(uint8_t d);
+	void serial_tx_start(int ch);
+	void serial_rx_start(int ch);
+	bool macro_service(int source, uint8_t ms);
+	uint8_t rxb0_r();
+	void txb0_w(uint8_t d);
+	uint8_t rxb1_r();
+	void txb1_w(uint8_t d);
 	uint8_t srms0_r();
 	void srms0_w(uint8_t d);
 	uint8_t stms0_r();

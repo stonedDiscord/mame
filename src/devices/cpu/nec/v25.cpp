@@ -69,6 +69,8 @@ v25_common_device::v25_common_device(const machine_config &mconfig, device_type 
 	, m_p0_out(*this)
 	, m_p1_out(*this)
 	, m_p2_out(*this)
+	, m_txd(*this)
+	, m_rxd(*this, 0xff)
 	, m_dma_read(*this, 0xffff)
 	, m_dma_write(*this)
 	, m_prefetch_size(prefetch_size)
@@ -102,6 +104,30 @@ device_memory_interface::space_config_vector v25_common_device::memory_space_con
 TIMER_CALLBACK_MEMBER(v25_common_device::v25_timer_callback)
 {
 	m_pending_irq |= param;
+}
+
+TIMER_CALLBACK_MEMBER(v25_common_device::v25_serial_tx_callback)
+{
+	// a character has finished shifting out of the transmit register:
+	// present the byte to the outside world and request the TX-empty interrupt
+	const int ch = param;
+	m_txd[ch](m_txb[ch]);
+	m_pending_irq |= ch ? INTST1 : INTST0;
+}
+
+TIMER_CALLBACK_MEMBER(v25_common_device::v25_serial_rx_callback)
+{
+	// the firmware drives the synchronous receiver via the macro service, so a
+	// burst lasts exactly as long as the channel's macro service is armed: latch
+	// a byte, request the RX interrupt and re-arm only while the receiver is
+	// enabled and the macro service has not yet run its counter out.
+	const int ch = param;
+	const uint32_t source = ch ? INTSR1 : INTSR0;
+	if (!(BIT(m_scm[ch], 6) && (m_macro_service & source)))
+		return;
+	m_rxb[ch] = m_rxd[ch]();
+	m_pending_irq |= source;
+	serial_rx_start(ch);
 }
 
 void v25_common_device::prefetch()
@@ -225,6 +251,11 @@ void v25_common_device::device_reset()
 		m_scc[i] = 0;
 		m_brg[i] = 0;
 		m_sce[i] = 0;
+		m_txb[i] = 0;
+		m_txb_full[i] = false;
+		m_rxb[i] = 0;
+		m_serial_timer[i]->adjust(attotime::never);
+		m_serial_rx_timer[i]->adjust(attotime::never);
 	}
 
 	m_dmam[0] = m_dmam[1] = 0;
@@ -316,6 +347,42 @@ void v25_common_device::nec_trap()
 	nec_interrupt(NEC_TRAP_VECTOR, BRK);
 }
 
+// Perform a single macro service byte transfer for the given interrupt source.
+// The 8-byte channel control block lives in the internal RAM at (channel * 8),
+// the channel being the low three bits of that source's macro service mode
+// register.  The block layout (derived from the ST25 firmware) is:
+//   [+0] = macro service counter (transfers remaining)
+//   [+1] = special function register pointer (low byte of the SFR address)
+//   [+4..5] = memory pointer offset, [+6..7] = memory pointer segment
+// Returns true once the channel's counter expires, at which point the caller
+// raises the normal vectored interrupt.
+bool v25_common_device::macro_service(int source, uint8_t ms)
+{
+	const unsigned base = (ms & 0x07) * 8;
+	uint8_t count = m_data.read_byte(base + 0);                                      // transfers remaining
+	const uint8_t sfrp = m_data.read_byte(base + 1);                                 // SFR pointer (low byte of address)
+	uint16_t off = m_data.read_byte(base + 4) | (m_data.read_byte(base + 5) << 8);   // memory pointer offset
+	const uint16_t seg = m_data.read_byte(base + 6) | (m_data.read_byte(base + 7) << 8);
+	const unsigned addr = (seg << 4) + off;
+
+	if (source & (INTST0 | INTST1))
+		m_data.write_byte(0x100 + sfrp, v25_read_byte(addr));   // transmit: memory -> TxB (loading it sends the byte)
+	else
+		v25_write_byte(addr, m_data.read_byte(0x100 + sfrp));   // receive: RxB -> memory
+
+	m_data.write_byte(base + 4, ++off & 0xff);
+	m_data.write_byte(base + 5, off >> 8);
+	m_data.write_byte(base + 0, --count);
+
+	if (count == 0)
+	{
+		// channel exhausted: disable it so the vectored interrupt is taken
+		m_macro_service &= ~source;
+		return true;
+	}
+	return false;
+}
+
 void v25_common_device::external_int()
 {
 	// interrupt sources subject to priority control
@@ -338,6 +405,18 @@ void v25_common_device::external_int()
 		while (++i < 8)
 		{
 			if (m_ISPR & (1 << i)) break;
+
+			// HACK (st25): the RTOS scheduler tick is the time-base interrupt
+			// INTTB, but the firmware programs the IOS serial to the same priority
+			// level (7) and its TX/RX interrupts flood, so INTTB (checked last at
+			// i==7) is perpetually starved and tasks never rotate.  Give INTTB
+			// precedence at its level so the scheduler can run.
+			if (i == 7 && (pending & INTTB))
+			{
+				source = INTTB;
+				vector = NEC_INTTB_VECTOR;
+				break;
+			}
 
 			if (m_priority_inttu == i)
 			{
@@ -461,11 +540,18 @@ void v25_common_device::external_int()
 		if (source != 0)
 		{
 			m_pending_irq &= ~source;
+			bool take_irq = true;
 			if (m_macro_service & source)
 			{
-				logerror("Unhandled macro service %02x\n", ms);
+				// macro service is only implemented for the serial channels; for
+				// those, a byte is transferred automatically and the vectored
+				// interrupt is taken only once the channel counter expires.  Other
+				// sources fall back to a normal interrupt rather than acting on an
+				// (possibly unconfigured) channel control block.
+				if (source & (INTSR0 | INTST0 | INTSR1 | INTST1))
+					take_irq = macro_service(source, ms);
 			}
-			else
+			if (take_irq)
 			{
 				m_IRQS = vector;
 				m_ISPR |= (1 << i);
@@ -688,6 +774,12 @@ void v25_common_device::device_start()
 	for (i = 0; i < 4; i++)
 		m_timers[i] = timer_alloc(FUNC(v25_common_device::v25_timer_callback), this);
 
+	for (i = 0; i < 2; i++)
+	{
+		m_serial_timer[i] = timer_alloc(FUNC(v25_common_device::v25_serial_tx_callback), this);
+		m_serial_rx_timer[i] = timer_alloc(FUNC(v25_common_device::v25_serial_rx_callback), this);
+	}
+
 	std::fill_n(&m_intp_state[0], 3, 0);
 	std::fill_n(&m_ems[0], 3, 0);
 	std::fill_n(&m_srms[0], 2, 0);
@@ -726,6 +818,9 @@ void v25_common_device::device_start()
 	save_item(NAME(m_ems));
 	save_item(NAME(m_srms));
 	save_item(NAME(m_stms));
+	save_item(NAME(m_txb));
+	save_item(NAME(m_txb_full));
+	save_item(NAME(m_rxb));
 	save_item(NAME(m_tmms));
 	save_item(NAME(m_IRQS));
 	save_item(NAME(m_ISPR));
