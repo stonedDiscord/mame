@@ -87,8 +87,11 @@ public:
 	void st25_2(machine_config &config) ATTR_COLD;
 	void st25_3(machine_config &config) ATTR_COLD;
 
+protected:
+	virtual void machine_start() override ATTR_COLD;
+
 private:
-	uint16_t m_service;
+	uint16_t m_service = 0;
 	required_device<v25_device> m_maincpu;
 	required_device<m48t58_device> m_rtc;
 	required_device<okim6376_device> m_oki;
@@ -104,21 +107,36 @@ private:
 	void io5_w(uint8_t data);
 	void p2_w(uint8_t data);
 	void service_strobe_w(uint8_t data);
-	//void txd0_w(uint8_t data);
-	
+	void txd0_w(uint8_t data);
+	uint8_t service_rxd_r();
+
 };
 
 
+void st25_state::machine_start()
+{
+	save_item(NAME(m_service));
+}
+
 void st25_state::io_map(address_map &map)
 {
-	///ICC3 74HC138 inputs A13-15
+	// ICC3 74HC138 decodes A13-A15 into the eight Y0-Y7 chip selects below.
+	//
+	// The V25's serial channel 0 (TXD0 + serial clock) is a shared shift bus:
+	// data is clocked out into one long chain of shift registers and the various
+	// peripheral banks each have their own load/strobe line.  Writing to one of
+	// the Y0-Y3 windows pulses that bank's strobe, transferring the bits that are
+	// currently in the shift chain to the bank's parallel outputs (or, for the
+	// input bank, parallel-loading the bank so its contents can be clocked back
+	// in on RXD0).  The actual byte written by the OUT instruction is irrelevant;
+	// only the address (= which Y line) matters.
 
-	map(0x0000, 0x1fff).w(FUNC(st25_state::service_strobe_w)); // Y0 Service strobe
-	map(0x2000, 0x3fff).noprw(); // Y1 IOS load out
-	map(0x4000, 0x5fff).noprw(); // Y2 IOS load mot
-	map(0x6000, 0x7fff).noprw(); // Y3 IOS load in
+	map(0x0000, 0x1fff).w(FUNC(st25_state::service_strobe_w)); // Y0 service display strobe (2x HEF4094 -> 1x16 LCD: data bus + E/RS)
+	map(0x2000, 0x3fff).noprw(); // Y1 IOS "load out" strobe (latches shifted data into the lamp/output registers)
+	map(0x4000, 0x5fff).noprw(); // Y2 IOS "load mot" strobe (latches shifted data into the motor/hopper registers)
+	map(0x6000, 0x7fff).noprw(); // Y3 IOS "load in" strobe (parallel-loads the input registers to be read back over RXD0)
 	map(0x8000, 0x9fff).noprw(); // Y4 ICB1B oscillator ?
-	map(0xa000, 0xbfff).w(FUNC(st25_state::io5_w)); // Y5 Sound ST
+	map(0xa000, 0xbfff).w(FUNC(st25_state::io5_w)); // Y5 Sound ST (pulses the OKI M6376 strobe line)
 	map(0xc000, 0xdfff).rw(m_duart, FUNC(scn2681_device::read), FUNC(scn2681_device::write)); // Y6 DUART
 	map(0xe000, 0xffff).noprw(); // Y7
 }
@@ -175,22 +193,36 @@ void st25_state::p2_w(uint8_t data)
 
 void st25_state::service_strobe_w(uint8_t data)
 {
-	m_service = data;
-	m_lcd->e_w((m_service >> 8) & 0x01);
-	m_lcd->rs_w((m_service >> 8) & 0x10);
-	// TODO: 0x04 and 0x08 control the top and bottom halves of the keyboard
-
-	m_lcd->db_w(m_service & 0xff);
+	// STROBE pulses the HEF4094 STR line, latching the shift chain to the outputs
+	// (OE is tied high, so the outputs are otherwise transparent).  Per the service
+	// board schematic the chain is DATAin -> U1 -> U2: U2's eight outputs are the
+	// HD44780 data bus, while U1 carries the control bits (Q0=RS, Q4=E, and Q2/Q3
+	// gate the bottom/top keypad halves via D1/D2).  The first byte clocked out ends
+	// up in U2 (data), the second stays in U1 (control).
+	// TODO: bit/byte order within each register is unverified (depends on the V25
+	// shift direction) - confirm against real LCD text once the firmware drives it.
+	logerror("%s LCD-LATCH service=%04X %s db=%02X '%c'\n", machine().describe_context(), m_service, BIT(m_service,0)?"DATA":"CMD", (m_service>>8)&0xff, (((m_service>>8)&0xff)>=0x20&&((m_service>>8)&0xff)<0x7f)?((m_service>>8)&0xff):'.');
+	m_lcd->db_w((m_service >> 8) & 0xff);   // U2 = data bus
+	m_lcd->rs_w(BIT(m_service, 0));         // U1 Q0 = RS
+	m_lcd->e_w(BIT(m_service, 4));          // U1 Q4 = E
 }
 
-/*
 void st25_state::txd0_w(uint8_t data)
 {
-	// m_service is standing in for 2 HEF4094 shift registers
-	// TODO: shifting this by 8 or 1 bits depends on the serial implementation of the V25
+	// m_service is standing in for the two cascaded HEF4094 shift registers; each
+	// transmitted V25 serial byte is shifted in, newest byte in the low 8 bits.
 	m_service = m_service << 8 | data;
 }
-*/
+
+uint8_t st25_state::service_rxd_r()
+{
+	// RxD0 = IOS_DATA_IN on the main board: the machine inputs (keypad, coins,
+	// door, ...) are parallel-loaded into the IOS input shift registers by the
+	// IOS_LOAD_IN strobe and clocked back here.  Those input registers are on an
+	// I/O daughterboard whose layout isn't yet known, so this returns the idle
+	// level for now.  TODO: model the real input frame.
+	return 0xff;
+}
 
 static INPUT_PORTS_START(st25)
 	PORT_START("SERVICE0")
@@ -240,7 +272,8 @@ void st25_state::st25_1(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &st25_state::program_map_st25_1);
 	
 	m_maincpu->p2_out_cb().set(FUNC(st25_state::p2_w));
-	//m_maincpu->txd0_cb().set(FUNC(st25_state::txd0_w));
+	m_maincpu->txd0_cb().set(FUNC(st25_state::txd0_w));
+	m_maincpu->rxd0_cb().set(FUNC(st25_state::service_rxd_r));
 
 	M48T58(config, m_rtc, 0); // ST M48T18-150PC1
 
