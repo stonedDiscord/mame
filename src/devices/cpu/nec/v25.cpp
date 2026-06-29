@@ -528,13 +528,6 @@ void v25_common_device::external_int()
 					break;
 				}
 			}
-
-			if (i == 7 && (pending & INTTB))
-			{
-				source = INTTB;
-				vector = NEC_INTTB_VECTOR;
-				break;
-			}
 		}
 
 		if (source != 0)
