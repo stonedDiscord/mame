@@ -3237,6 +3237,19 @@ end
 
 ---------------------------------------------------
 --
+--@src/devices/bus/ddr/k1520.h,BUSES["K1520"] = true
+---------------------------------------------------
+
+if BUSES["K1520"] then
+	files {
+		MAME_DIR .. "src/devices/bus/ddr/k1520.cpp",
+		MAME_DIR .. "src/devices/bus/ddr/k1520.h",
+	}
+end
+
+
+---------------------------------------------------
+--
 --@src/devices/bus/megadrive/md_slot.h,BUSES["MEGADRIVE"] = true
 ---------------------------------------------------
 
