@@ -6,6 +6,14 @@ Robotron K8915
 
 2010-08-30
 
+Platinenbestückung
+K-Name 	Platine 	Kürzel 	Bedeutung des Kürzels 	Erläuterung
+K6001	062-8500	ASL		Adapter für Schreibleseeinheit	Controller für Magnetkartenschreiber
+?		045-8762	ZRE		Zentrale Recheneinheit	CPU und 256k RAM
+K6022	012-7090	ADA		Adapter für Datenaustausch	SIF1000-Interface
+?		045-8732	?		?	für Tastatur, Drucker und Fernleitung
+K7024	012-6820	ABS		Adapter für Bildschirm	Grafikkarte 
+
 When it says DIAGNOSTIC RAZ P, press enter.
 
 ****************************************************************************/
