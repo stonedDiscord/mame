@@ -12,6 +12,10 @@
 #pragma once
 
 #include "cpu/z80/z80.h"
+#include "machine/z80ctc.h"
+#include "machine/z80sio.h"
+#include "emupal.h"
+#include "screen.h"
 
 
 class device_k1520_card_interface;
@@ -59,13 +63,13 @@ protected:
 };
 
 
-class k1520_zre_device : public device_t, public device_k1520_card_interface
+class k1520_zre_7100_device : public device_t, public device_k1520_card_interface
 {
 public:
-	k1520_zre_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+	k1520_zre_7100_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
 
 protected:
-	k1520_zre_device(machine_config const &mconfig, device_type type, char const *tag, device_t *owner, u32 clock);
+	k1520_zre_7100_device(machine_config const &mconfig, device_type type, char const *tag, device_t *owner, u32 clock);
 
 	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 	virtual void device_start() override ATTR_COLD;
@@ -81,12 +85,14 @@ private:
 	void bus_io_w(offs_t offset, u8 data);
 
 	required_device<z80_device> m_maincpu;
+	required_device<z80ctc_device> m_ctc;
+	required_device<z80sio_device> m_sio;
 	required_region_ptr<u8> m_rom;
 	std::array<u8, 0x400> m_ram;
 };
 
 
-class k1520_zre_8786_device : public k1520_zre_device
+class k1520_zre_8786_device : public k1520_zre_7100_device
 {
 public:
 	k1520_zre_8786_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
@@ -96,6 +102,26 @@ protected:
 
 private:
 	required_region_ptr<u8> m_rom;
+};
+
+
+class k1520_abs_6820_device : public device_t, public device_k1520_card_interface
+{
+public:
+	k1520_abs_6820_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+
+protected:
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual void device_start() override ATTR_COLD;
+	virtual bool memory_r(offs_t offset, u8 &data) override;
+	virtual bool memory_w(offs_t offset, u8 data) override;
+
+private:
+	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect);
+
+	std::array<u8, 0x800> m_videoram;
+	required_region_ptr<u8> m_chargen;
+	u8 m_framecnt;
 };
 
 
@@ -109,8 +135,9 @@ protected:
 };
 
 
-DECLARE_DEVICE_TYPE(K1520_ZRE, k1520_zre_device)
+DECLARE_DEVICE_TYPE(K1520_ZRE, k1520_zre_7100_device)
 DECLARE_DEVICE_TYPE(K1520_ZRE_8786, k1520_zre_8786_device)
+DECLARE_DEVICE_TYPE(K1520_ABS, k1520_abs_6820_device)
 DECLARE_DEVICE_TYPE(K1520_PLACEHOLDER_CARD, k1520_placeholder_card_device)
 
 

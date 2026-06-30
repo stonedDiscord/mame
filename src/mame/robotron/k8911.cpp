@@ -38,10 +38,10 @@
 
 namespace {
 
-class k8911_pfs_device : public device_t, public device_k1520_card_interface
+class k1520_pfs_7040_device : public device_t, public device_k1520_card_interface
 {
 public:
-	k8911_pfs_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+	k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
 
 	void set_slot(k1520_bus_device &bus, unsigned slot);
 
@@ -71,38 +71,38 @@ public:
 
 private:
 	required_device<k1520_bus_device> m_k1520;
-	required_device<k1520_zre_device> m_zre;
-	optional_device<k8911_pfs_device> m_pfs;
-	required_device<k1520_placeholder_card_device> m_abs;
+	required_device<k1520_zre_7100_device> m_zre;
+	optional_device<k1520_pfs_7040_device> m_pfs;
+	required_device<k1520_abs_6820_device> m_abs;
 	required_device<k1520_placeholder_card_device> m_ats;
 };
 
 
-DEFINE_DEVICE_TYPE_PRIVATE(K8911_PFS, k8911_pfs_device, k8911_pfs_device, "k8911_pfs", "K8911 K3820 PFS Board")
+DEFINE_DEVICE_TYPE_PRIVATE(K8911_PFS, k1520_pfs_7040_device, k1520_pfs_7040_device, "k8911_pfs", "K8911 K3820 PFS Board")
 
 
-k8911_pfs_device::k8911_pfs_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
+k1520_pfs_7040_device::k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, K8911_PFS, tag, owner, clock),
 	device_k1520_card_interface(mconfig, *this),
 	m_rom(*this, "rom")
 {
 }
 
-void k8911_pfs_device::set_slot(k1520_bus_device &bus, unsigned slot)
+void k1520_pfs_7040_device::set_slot(k1520_bus_device &bus, unsigned slot)
 {
 	set_bus(bus, slot);
 }
 
-void k8911_pfs_device::device_start()
+void k1520_pfs_7040_device::device_start()
 {
 }
 
-bool k8911_pfs_device::memory_r(offs_t offset, u8 &data)
+bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
 {
-	if (offset < 0x1000 || offset > 0x4fff)
+	if (offset < 0x2000 || offset > 0x7fff)
 		return false;
 
-	data = m_rom[offset - 0x1000];
+	data = m_rom[offset - 0x2000];
 	return true;
 }
 
@@ -118,7 +118,7 @@ void k8911_state::k8911(machine_config &config)
 	K8911_PFS(config, m_pfs, 0);          // K3820 / 012-7040 PFS
 	m_pfs->set_slot(*m_k1520, 1);
 
-	K1520_PLACEHOLDER_CARD(config, m_abs, 0); // K7024 / 012-6820 ABS
+	K1520_ABS(config, m_abs, 0);          // K7024 / 012-6820 ABS
 	m_abs->set_slot(*m_k1520, 2);
 
 	K1520_ZRE(config, m_zre, 0);          // K2521 / 012-7100 ZRE
@@ -132,7 +132,7 @@ void k8911_state::k8911_8786(machine_config &config)
 {
 	K1520_BUS(config, m_k1520, 0);
 
-	K1520_PLACEHOLDER_CARD(config, m_abs, 0); // K7024 / 012-6820 ABS
+	K1520_ABS(config, m_abs, 0);          // K7024 / 012-6820 ABS
 	m_abs->set_slot(*m_k1520, 1);
 
 	K1520_ZRE_8786(config, m_zre, 0);     // 045-8786 ZRE
@@ -160,6 +160,10 @@ ROM_START( k8911 )
 	ROM_LOAD( "y231", 0x1c00, 0x0400, CRC(8a0afac2) SHA1(60263508a4eff4b623c6de7e5a210b717aa39328) )
 	ROM_LOAD( "y232", 0x2000, 0x0400, CRC(c229091c) SHA1(c40c2bed388997fe50d3f98cb20de9f4a3a33813) )
 	ROM_LOAD( "y233", 0x2400, 0x0400, CRC(baf3189d) SHA1(4cbbf9a06800f6ddc91a0e3dd9306aa3deba4ea3) )
+
+	/* character generator not dumped, using the one from 'c10' for now */
+	ROM_REGION( 0x2000, "abs:chargen", 0 )
+	ROM_LOAD( "c10_char.bin", 0x0000, 0x2000, BAD_DUMP CRC(cb530b6f) SHA1(95590bbb433db9c4317f535723b29516b9b9fcbf))
 ROM_END
 
 ROM_START( k8911_8786 )
