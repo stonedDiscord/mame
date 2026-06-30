@@ -138,6 +138,23 @@ protected:
 DECLARE_DEVICE_TYPE(K1520_ZRE, k1520_zre_7100_device)
 DECLARE_DEVICE_TYPE(K1520_ZRE_8786, k1520_zre_8786_device)
 DECLARE_DEVICE_TYPE(K1520_ABS, k1520_abs_6820_device)
+class k1520_pfs_7040_device : public device_t, public device_k1520_card_interface
+{
+public:
+	k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+
+	void set_slot(k1520_bus_device &bus, unsigned slot);
+
+protected:
+	virtual void device_start() override ATTR_COLD;
+	virtual bool memory_r(offs_t offset, u8 &data) override;
+
+private:
+	required_region_ptr<u8> m_rom;
+};
+
+
+DECLARE_DEVICE_TYPE(K1520_PFS, k1520_pfs_7040_device)
 DECLARE_DEVICE_TYPE(K1520_PLACEHOLDER_CARD, k1520_placeholder_card_device)
 
 

@@ -13,7 +13,8 @@
 DEFINE_DEVICE_TYPE(K1520_BUS, k1520_bus_device, "k1520_bus", "Robotron K1520 Bus")
 DEFINE_DEVICE_TYPE(K1520_ZRE, k1520_zre_7100_device, "k1520_zre", "K1520 K2521 ZRE Board")
 DEFINE_DEVICE_TYPE(K1520_ZRE_8786, k1520_zre_8786_device, "k1520_zre_8786", "K1520 045-8786 ZRE Board")
-DEFINE_DEVICE_TYPE(K1520_ABS, k1520_abs_6820_device, "k1520_abs", "K1520 K7024 ABS Board")
+DEFINE_DEVICE_TYPE(K1520_ABS, k1520_abs_6820_device, "k1520_abs", "K1520 ABS Board")
+DEFINE_DEVICE_TYPE(K1520_PFS, k1520_pfs_7040_device, "k8911_pfs", "K1520 PFS Board")
 DEFINE_DEVICE_TYPE(K1520_PLACEHOLDER_CARD, k1520_placeholder_card_device, "k1520_placeholder", "K1520 Placeholder Board")
 
 
@@ -304,6 +305,32 @@ ROM_START( k1520_abs )
 	ROM_LOAD( "c10_char.bin", 0x0000, 0x2000, BAD_DUMP CRC(cb530b6f) SHA1(95590bbb433db9c4317f535723b29516b9b9fcbf) )
 ROM_END
 
+// K1520 K3820 (012-7040) PFS ROM board
+
+k1520_pfs_7040_device::k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
+	device_t(mconfig, K1520_PFS, tag, owner, clock),
+	device_k1520_card_interface(mconfig, *this),
+	m_rom(*this, "rom")
+{
+}
+
+void k1520_pfs_7040_device::set_slot(k1520_bus_device &bus, unsigned slot)
+{
+	set_bus(bus, slot);
+}
+
+void k1520_pfs_7040_device::device_start()
+{
+}
+
+bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
+{
+	if (offset < 0x2000 || offset > 0x7fff)
+		return false;
+
+	data = m_rom[offset - 0x2000];
+	return true;
+}
 
 // K7024 (012-6820) ABS / K7028 (012-6710) ATS placeholder board
 

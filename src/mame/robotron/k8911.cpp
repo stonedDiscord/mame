@@ -38,21 +38,6 @@
 
 namespace {
 
-class k1520_pfs_7040_device : public device_t, public device_k1520_card_interface
-{
-public:
-	k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
-
-	void set_slot(k1520_bus_device &bus, unsigned slot);
-
-protected:
-	virtual void device_start() override ATTR_COLD;
-	virtual bool memory_r(offs_t offset, u8 &data) override;
-
-private:
-	required_region_ptr<u8> m_rom;
-};
-
 class k8911_state : public driver_device
 {
 public:
