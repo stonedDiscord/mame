@@ -45,6 +45,7 @@
 #include "emu.h"
 #include "cpu/z80/z80.h"
 #include "machine/z80ctc.h"
+#include "machine/z80pio.h"
 #include "machine/z80sio.h"
 #include "emupal.h"
 #include "screen.h"
@@ -101,51 +102,6 @@ protected:
 
 	k1520_bus_device *m_bus;
 	unsigned m_slot;
-};
-
-
-class k1520_zre_k2521_device : public device_t, public device_k1520_card_interface
-{
-public:
-	k1520_zre_k2521_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
-
-	void irq_line_w(int state);
-	void nmi_line_w(int state);
-
-protected:
-	k1520_zre_k2521_device(machine_config const &mconfig, device_type type, char const *tag, device_t *owner, u32 clock);
-
-	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
-	virtual void device_start() override ATTR_COLD;
-	virtual bool memory_r(offs_t offset, u8 &data) override;
-	virtual bool memory_w(offs_t offset, u8 data) override;
-
-private:
-	void mem_map(address_map &map) ATTR_COLD;
-	void io_map(address_map &map) ATTR_COLD;
-	u8 bus_memory_r(offs_t offset);
-	void bus_memory_w(offs_t offset, u8 data);
-	u8 bus_io_r(offs_t offset);
-	void bus_io_w(offs_t offset, u8 data);
-
-	required_device<z80_device> m_maincpu;
-	required_device<z80ctc_device> m_ctc;
-	required_device<z80sio_device> m_sio;
-	required_region_ptr<u8> m_rom;
-	std::array<u8, 0x400> m_ram;
-};
-
-
-class k1520_zre_8786_device : public k1520_zre_k2521_device
-{
-public:
-	k1520_zre_8786_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
-
-protected:
-	virtual bool memory_r(offs_t offset, u8 &data) override;
-
-private:
-	required_region_ptr<u8> m_rom;
 };
 
 
