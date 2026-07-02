@@ -55,9 +55,9 @@ public:
 
 private:
 	required_device<k1520_bus_device> m_k1520;
-	required_device<k1520_zre_7100_device> m_zre;
+	required_device<k1520_zre_k2521_device> m_zre;
 	optional_device<k1520_pfs_7040_device> m_pfs;
-	required_device<k1520_abs_6820_device> m_abs;
+	required_device<k1520_abs_k7024_device> m_abs;
 	required_device<k1520_placeholder_card_device> m_ats;
 };
 
@@ -69,8 +69,8 @@ INPUT_PORTS_END
 void k8911_state::k8911(machine_config &config)
 {
 	K1520_BUS(config, m_k1520, XTAL(9'830'400));
-	m_k1520->irq().set(m_zre, FUNC(k1520_zre_7100_device::irq_line_w));
-	m_k1520->nmi().set(m_zre, FUNC(k1520_zre_7100_device::nmi_line_w));
+	m_k1520->irq().set(m_zre, FUNC(k1520_zre_k2521_device::irq_line_w));
+	m_k1520->nmi().set(m_zre, FUNC(k1520_zre_k2521_device::nmi_line_w));
 
 	K1520_PFS(config, m_pfs, XTAL(9'830'400));          // K3820 / 012-7040 PFS
 	m_pfs->set_slot(*m_k1520, 1);
