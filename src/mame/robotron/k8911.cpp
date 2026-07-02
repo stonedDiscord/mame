@@ -34,6 +34,7 @@
 #include "emu.h"
 
 #include "bus/ddr/k1520.h"
+#include "bus/ddr/zre.h"
 
 
 namespace {
@@ -103,9 +104,9 @@ ROM_START( k8911 )
 	ROM_LOAD( "y232", 0x2000, 0x0400, CRC(c229091c) SHA1(c40c2bed388997fe50d3f98cb20de9f4a3a33813) )
 	ROM_LOAD( "y233", 0x2400, 0x0400, CRC(baf3189d) SHA1(4cbbf9a06800f6ddc91a0e3dd9306aa3deba4ea3) )
 
-	/* character generator not dumped, using the one from 'c10' for now */
 	ROM_REGION( 0x2000, "abs:chargen", 0 )
-	ROM_LOAD( "c10_char.bin", 0x0000, 0x2000, BAD_DUMP CRC(cb530b6f) SHA1(95590bbb433db9c4317f535723b29516b9b9fcbf))
+	ROM_LOAD( "7024zg1.bin", 0x0000, 0x400, CRC(abf8e894) SHA1(53d7909f84fa929a531260efb30393e6ef39d654))
+	ROM_LOAD( "7024zg2.bin", 0x0400, 0x400, CRC(aee4bd8d) SHA1(7d58b86fd0100dd13c70b7a10ae1347b70c1fe7f))
 ROM_END
 
 } // anonymous namespace
