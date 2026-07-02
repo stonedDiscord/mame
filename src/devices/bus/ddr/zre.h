@@ -1,3 +1,5 @@
+DECLARE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device)
+
 class k1520_zre_k2521_device : public device_t, public device_k1520_card_interface
 {
 public:
