@@ -130,8 +130,8 @@ void k1520_abs_k7024_device::device_add_mconfig(machine_config &config)
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
 	screen.set_screen_update(FUNC(k1520_abs_k7024_device::screen_update));
-	screen.set_size(640, 250);
-	screen.set_visarea(0, 639, 0, 249);
+	screen.set_size(640, 300);
+	screen.set_visarea(0, 639, 0, 299);
 	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
@@ -187,7 +187,7 @@ u32 k1520_abs_k7024_device::screen_update(screen_device &screen, bitmap_ind16 &b
 				if (ra < 8)
 					gfx = m_chargen[(chr << 3) | ra];
 				else
-					gfx = m_chargen[0x400 | (chr << 1) | (ra - 8)];
+					gfx = m_chargen[(chr << 3) | (ra - 8) | 0x400];
 
 				*p++ = BIT(gfx, 7);
 				*p++ = BIT(gfx, 6);
