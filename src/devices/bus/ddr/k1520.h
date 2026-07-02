@@ -136,7 +136,6 @@ protected:
 
 
 DECLARE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device)
-DECLARE_DEVICE_TYPE(K1520_ZRE_8786, k1520_zre_8786_device)
 DECLARE_DEVICE_TYPE(K1520_ABS, k1520_abs_k7024_device)
 class k1520_pfs_7040_device : public device_t, public device_k1520_card_interface
 {

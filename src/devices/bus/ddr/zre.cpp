@@ -4,7 +4,6 @@
 #include "zre.h"
 
 DEFINE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device, "k1520_zre", "K1520 K2521 ZRE Board")
-DEFINE_DEVICE_TYPE(K1520_ZRE_8786, k1520_zre_8786_device, "k1520_zre_8786", "K1520 045-8786 ZRE Board")
 
 // K1520 K2521 (012-7100) / 045-8786 ZRE CPU board
 
