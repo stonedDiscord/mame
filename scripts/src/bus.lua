@@ -3244,6 +3244,8 @@ if BUSES["K1520"] then
 	files {
 		MAME_DIR .. "src/devices/bus/ddr/k1520.cpp",
 		MAME_DIR .. "src/devices/bus/ddr/k1520.h",
+		MAME_DIR .. "src/devices/bus/ddr/zre.cpp",
+		MAME_DIR .. "src/devices/bus/ddr/zre.h",
 	}
 end
 
