@@ -177,17 +177,17 @@ u32 k1520_abs_k7024_device::screen_update(screen_device &screen, bitmap_ind16 &b
 			{
 				u8 gfx = 0;
 
-				if (ra < 9)
-				{
-					u8 chr = m_videoram[x];
+				u8 chr = m_videoram[x];
 
-					if ((chr & 0x80) && (m_framecnt & 0x08))
-						chr = 0x20;
+				if ((chr & 0x80) && (m_framecnt & 0x08))
+					chr = 0x20;
 
-					chr &= 0x7f;
+				chr &= 0x7f;
 
-					gfx = m_chargen[(chr << 4) | ra];
-				}
+				if (ra < 8)
+					gfx = m_chargen[(chr << 3) | ra];
+				else
+					gfx = m_chargen[0x400 | (chr << 1) | (ra - 8)];
 
 				*p++ = BIT(gfx, 7);
 				*p++ = BIT(gfx, 6);
@@ -206,7 +206,8 @@ u32 k1520_abs_k7024_device::screen_update(screen_device &screen, bitmap_ind16 &b
 
 ROM_START( k1520_abs )
 	ROM_REGION( 0x2000, "chargen", 0 )
-	ROM_LOAD( "c10_char.bin", 0x0000, 0x2000, BAD_DUMP CRC(cb530b6f) SHA1(95590bbb433db9c4317f535723b29516b9b9fcbf) )
+	ROM_LOAD( "7024zg1.bin", 0x0000, 0x400, CRC(abf8e894) SHA1(53d7909f84fa929a531260efb30393e6ef39d654))
+	ROM_LOAD( "7024zg2.bin", 0x0400, 0x400, CRC(aee4bd8d) SHA1(7d58b86fd0100dd13c70b7a10ae1347b70c1fe7f))
 ROM_END
 
 // K1520 K3820 (012-7040) PFS ROM board
