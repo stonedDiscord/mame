@@ -145,7 +145,7 @@ void k1520_abs_k7024_device::device_start()
 
 bool k1520_abs_k7024_device::memory_r(offs_t offset, u8 &data)
 {
-	if (offset < 0x1000 || offset > 0x17ff)
+	if (offset < 0x1000 || offset > 0x17ff) // bridge at x11:1 x12:1
 		return false;
 
 	data = m_videoram[offset - 0x1000];
@@ -154,7 +154,7 @@ bool k1520_abs_k7024_device::memory_r(offs_t offset, u8 &data)
 
 bool k1520_abs_k7024_device::memory_w(offs_t offset, u8 data)
 {
-	if (offset < 0x1000 || offset > 0x17ff)
+	if (offset < 0x1000 || offset > 0x17ff) // bridge at x11:1 x12:1
 		return false;
 
 	m_videoram[offset - 0x1000] = data;
