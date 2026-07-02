@@ -20,7 +20,9 @@ DEFINE_DEVICE_TYPE(K1520_PLACEHOLDER_CARD, k1520_placeholder_card_device, "k1520
 
 k1520_bus_device::k1520_bus_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, K1520_BUS, tag, owner, clock),
-	m_cards{ }
+	m_cards{ },
+	m_out_irq_cb(*this),
+	m_out_nmi_cb(*this)
 {
 }
 
@@ -44,14 +46,19 @@ u8 k1520_bus_device::memory_r(offs_t offset)
 		if (card && card->memory_r(offset, data))
 			return data;
 
+	logerror("unmapped memory read from %04X\n", offset);
 	return data;
 }
 
 void k1520_bus_device::memory_w(offs_t offset, u8 data)
 {
+	bool handled = false;
 	for (device_k1520_card_interface *card : m_cards)
-		if (card)
-			card->memory_w(offset, data);
+		if (card && card->memory_w(offset, data))
+			handled = true;
+
+	if (!handled)
+		logerror("unmapped memory write to %04X = %02X\n", offset, data);
 }
 
 u8 k1520_bus_device::io_r(offs_t offset)
@@ -62,14 +69,29 @@ u8 k1520_bus_device::io_r(offs_t offset)
 		if (card && card->io_r(offset, data))
 			return data;
 
+	logerror("unmapped io read from %02X\n", offset);
 	return data;
 }
 
 void k1520_bus_device::io_w(offs_t offset, u8 data)
 {
+	bool handled = false;
 	for (device_k1520_card_interface *card : m_cards)
-		if (card)
-			card->io_w(offset, data);
+		if (card && card->io_w(offset, data))
+			handled = true;
+
+	if (!handled)
+		logerror("unmapped io write to %02X = %02X\n", offset, data);
+}
+
+void k1520_bus_device::irq_w(int state)
+{
+	m_out_irq_cb(state);
+}
+
+void k1520_bus_device::nmi_w(int state)
+{
+	m_out_nmi_cb(state);
 }
 
 
@@ -131,6 +153,16 @@ void k1520_zre_7100_device::device_start()
 	save_item(NAME(m_ram));
 }
 
+void k1520_zre_7100_device::irq_line_w(int state)
+{
+	m_maincpu->set_input_line(INPUT_LINE_IRQ0, state ? ASSERT_LINE : CLEAR_LINE);
+}
+
+void k1520_zre_7100_device::nmi_line_w(int state)
+{
+	m_maincpu->set_input_line(INPUT_LINE_NMI, state ? ASSERT_LINE : CLEAR_LINE);
+}
+
 void k1520_zre_7100_device::mem_map(address_map &map)
 {
 	map(0x0000, 0xffff).rw(FUNC(k1520_zre_7100_device::bus_memory_r), FUNC(k1520_zre_7100_device::bus_memory_w));
@@ -141,7 +173,7 @@ void k1520_zre_7100_device::io_map(address_map &map)
 	map.global_mask(0xff);
 	map(0x00, 0xff).rw(FUNC(k1520_zre_7100_device::bus_io_r), FUNC(k1520_zre_7100_device::bus_io_w));
 	map(0x50, 0x53).rw(m_sio, FUNC(z80sio_device::ba_cd_r), FUNC(z80sio_device::ba_cd_w));
-	map(0x80, 0x83).rw(m_ctc, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
+	map(0xe0, 0xe7).rw(m_ctc, FUNC(z80ctc_device::read), FUNC(z80ctc_device::write));
 }
 
 u8 k1520_zre_7100_device::bus_memory_r(offs_t offset)

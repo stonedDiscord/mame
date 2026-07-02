@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "emu.h"
 #include "cpu/z80/z80.h"
 #include "machine/z80ctc.h"
 #include "machine/z80sio.h"
@@ -25,6 +26,9 @@ class k1520_bus_device : public device_t
 public:
 	k1520_bus_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock = 0);
 
+	auto irq() { return m_out_irq_cb.bind(); }
+	auto nmi() { return m_out_nmi_cb.bind(); }
+
 	void add_card(unsigned slot, device_k1520_card_interface &card);
 
 	u8 memory_r(offs_t offset);
@@ -32,11 +36,17 @@ public:
 	u8 io_r(offs_t offset);
 	void io_w(offs_t offset, u8 data);
 
+	void irq_w(int state);
+	void nmi_w(int state);
+
 protected:
 	virtual void device_start() override ATTR_COLD;
 
 private:
 	std::array<device_k1520_card_interface *, 12> m_cards;
+
+	devcb_write_line m_out_irq_cb;
+	devcb_write_line m_out_nmi_cb;
 };
 
 DECLARE_DEVICE_TYPE(K1520_BUS, k1520_bus_device)
@@ -67,6 +77,9 @@ class k1520_zre_7100_device : public device_t, public device_k1520_card_interfac
 {
 public:
 	k1520_zre_7100_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+
+	void irq_line_w(int state);
+	void nmi_line_w(int state);
 
 protected:
 	k1520_zre_7100_device(machine_config const &mconfig, device_type type, char const *tag, device_t *owner, u32 clock);
