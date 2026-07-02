@@ -1,3 +1,9 @@
+#include "emu.h"
+#include "cpu/z80/z80.h"
+#include "machine/z80ctc.h"
+#include "machine/z80pio.h"
+#include "k1520.h"
+
 DECLARE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device)
 
 class k1520_zre_k2521_device : public device_t, public device_k1520_card_interface
