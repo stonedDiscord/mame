@@ -5,7 +5,7 @@
 
 DEFINE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device, "k1520_zre", "K1520 K2521 ZRE Board")
 
-// K1520 K2521 (012-7100) / 045-8786 ZRE CPU board
+// K1520 K2521 (012-7100)
 
 k1520_zre_k2521_device::k1520_zre_k2521_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
 	k1520_zre_k2521_device(mconfig, K1520_ZRE, tag, owner, clock)
