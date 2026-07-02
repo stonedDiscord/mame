@@ -52,7 +52,6 @@ public:
 	}
 
 	void k8911(machine_config &config) ATTR_COLD;
-	void k8911_8786(machine_config &config) ATTR_COLD;
 
 private:
 	required_device<k1520_bus_device> m_k1520;
@@ -86,20 +85,6 @@ void k8911_state::k8911(machine_config &config)
 	m_ats->set_slot(*m_k1520, 4);
 }
 
-void k8911_state::k8911_8786(machine_config &config)
-{
-	K1520_BUS(config, m_k1520, XTAL(9'830'400));
-
-	K1520_ABS(config, m_abs, XTAL(9'830'400));          // K7024 / 012-6820 ABS
-	m_abs->set_slot(*m_k1520, 1);
-	K1520_ZRE_8786(config, m_zre, XTAL(9'830'400));     // 045-8786 ZRE
-	m_zre->set_slot(*m_k1520, 2);
-
-	K1520_PLACEHOLDER_CARD(config, m_ats, XTAL(9'830'400)); // K7028 / 012-6710 ATS
-	m_ats->set_slot(*m_k1520, 3);
-}
-
-
 ROM_START( k8911 )
 	ROM_REGION( 0x0c00, "zre:rom", ROMREGION_ERASEFF )
 	ROM_LOAD( "y221",  0x0000, 0x0400, CRC(20664820) SHA1(04126771312c86d4cce2b5529364893ebd798342) )
@@ -123,14 +108,8 @@ ROM_START( k8911 )
 	ROM_LOAD( "c10_char.bin", 0x0000, 0x2000, BAD_DUMP CRC(cb530b6f) SHA1(95590bbb433db9c4317f535723b29516b9b9fcbf))
 ROM_END
 
-ROM_START( k8911_8786 )
-	ROM_REGION( 0x5000, "zre:rom", ROMREGION_ERASEFF )
-	ROM_LOAD( "k8911_zre_045-8786.bin", 0x0000, 0x5000, NO_DUMP )
-ROM_END
-
 } // anonymous namespace
 
 
 //    YEAR  NAME        PARENT  COMPAT  MACHINE     INPUT  CLASS        INIT        COMPANY         FULLNAME                                FLAGS
 COMP( 198?, k8911,      0,      0,      k8911,      k8911, k8911_state, empty_init, "VEB Robotron", "K8911 Bildschirmterminal",            MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
-COMP( 198?, k8911_8786, k8911,  0,      k8911_8786, k8911, k8911_state, empty_init, "VEB Robotron", "K8911 Bildschirmterminal (045-8786)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
