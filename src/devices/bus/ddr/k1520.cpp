@@ -15,6 +15,7 @@ DEFINE_DEVICE_TYPE(K1520_BUS, k1520_bus_device, "k1520_bus", "Robotron K1520 Bus
 DEFINE_DEVICE_TYPE(K1520_ABS, k1520_abs_k7024_device, "k1520_abs", "K1520 ABS Board")
 DEFINE_DEVICE_TYPE(K1520_PFS, k1520_pfs_7040_device, "k8911_pfs", "K1520 PFS Board")
 DEFINE_DEVICE_TYPE(K1520_PLACEHOLDER_CARD, k1520_placeholder_card_device, "k1520_placeholder", "K1520 Placeholder Board")
+DEFINE_DEVICE_TYPE(K1520_K7028, k1520_ats_k7028_device, "k1520_k7028", "K1520 K7028 ATS Board")
 
 
 k1520_bus_device::k1520_bus_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
@@ -237,7 +238,60 @@ bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
 	return true;
 }
 
-// K7024 (012-6820) ABS / K7028 (012-6710) ATS placeholder board
+// K1520 K7028 (012-6710) ATS keyboard interface board
+
+k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
+    device_t(mconfig, K1520_K7028, tag, owner, clock),
+    device_k1520_card_interface(mconfig, *this),
+    m_sio(*this, "sio"),
+    m_ctc(*this, "ctc")
+{
+}
+
+void k1520_ats_k7028_device::device_add_mconfig(machine_config &config)
+{
+    Z80CTC(config, m_ctc, XTAL(4'915'200));
+    Z80SIO(config, m_sio, XTAL(4'915'200));
+}
+
+void k1520_ats_k7028_device::device_start()
+{
+}
+
+bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)
+{
+    if ((offset & 0xfc) == 0x8c)
+    {
+        data = m_ctc->read(offset & 0x03);
+        return true;
+    }
+
+    if ((offset & 0xfc) == 0xe8)
+    {
+        data = m_sio->ba_cd_r(offset & 0x03);
+        return true;
+    }
+
+    return false;
+}
+
+bool k1520_ats_k7028_device::io_w(offs_t offset, u8 data)
+{
+    if ((offset & 0xfc) == 0x8c)
+    {
+        m_ctc->write(offset & 0x03, data);
+        return true;
+    }
+
+    if ((offset & 0xfc) == 0xe8)
+    {
+        m_sio->ba_cd_w(offset & 0x03, data);
+        return true;
+    }
+
+    return false;
+}
+
 
 k1520_placeholder_card_device::k1520_placeholder_card_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
 	device_t(mconfig, K1520_PLACEHOLDER_CARD, tag, owner, clock),
