@@ -108,7 +108,7 @@ protected:
 class k1520_abs_k7024_device : public device_t, public device_k1520_card_interface
 {
 public:
-	k1520_abs_k7024_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+	k1520_abs_k7024_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u16 base_addr = 0x1000);
 
 protected:
 	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
@@ -121,6 +121,7 @@ private:
 
 	std::array<u8, 0x800> m_videoram;
 	required_region_ptr<u8> m_chargen;
+	u16 m_base_addr;
 	u8 m_framecnt;
 };
 
@@ -158,7 +159,7 @@ DECLARE_DEVICE_TYPE(K1520_K7028, k1520_ats_k7028_device)
 class k1520_pfs_7040_device : public device_t, public device_k1520_card_interface
 {
 public:
-	k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+	k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u16 base_addr = 0x2000);
 
 	void set_slot(k1520_bus_device &bus, unsigned slot);
 
@@ -168,6 +169,7 @@ protected:
 
 private:
 	required_region_ptr<u8> m_rom;
+	u16 m_base_addr;
 };
 
 

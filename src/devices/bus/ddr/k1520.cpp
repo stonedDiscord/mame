@@ -116,13 +116,14 @@ void device_k1520_card_interface::set_bus(k1520_bus_device &bus, unsigned slot)
 
 // K1520 K7024 (012-6820) ABS display board
 
-k1520_abs_k7024_device::k1520_abs_k7024_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
+k1520_abs_k7024_device::k1520_abs_k7024_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u16 base_addr) :
 	device_t(mconfig, K1520_ABS, tag, owner, clock),
 	device_k1520_card_interface(mconfig, *this),
 	m_videoram{ },
 	m_chargen(*this, "chargen"),
 	m_framecnt(0)
 {
+	m_base_addr = base_addr;
 }
 
 void k1520_abs_k7024_device::device_add_mconfig(machine_config &config)
@@ -146,19 +147,19 @@ void k1520_abs_k7024_device::device_start()
 
 bool k1520_abs_k7024_device::memory_r(offs_t offset, u8 &data)
 {
-	if (offset < 0x1000 || offset > 0x17ff) // bridge at x11:1 x12:1
+	if (offset < m_base_addr || offset > m_base_addr + 0x7ff) // bridge at x11:1 x12:1
 		return false;
 
-	data = m_videoram[offset - 0x1000];
+	data = m_videoram[offset - m_base_addr];
 	return true;
 }
 
 bool k1520_abs_k7024_device::memory_w(offs_t offset, u8 data)
 {
-	if (offset < 0x1000 || offset > 0x17ff) // bridge at x11:1 x12:1
+	if (offset < m_base_addr || offset > m_base_addr + 0x7ff) // bridge at x11:1 x12:1
 		return false;
 
-	m_videoram[offset - 0x1000] = data;
+	m_videoram[offset - m_base_addr] = data;
 	return true;
 }
 
@@ -213,11 +214,12 @@ ROM_END
 
 // K1520 K3820 (012-7040) PFS ROM board
 
-k1520_pfs_7040_device::k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
+k1520_pfs_7040_device::k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u16 base_addr) :
 	device_t(mconfig, K1520_PFS, tag, owner, clock),
 	device_k1520_card_interface(mconfig, *this),
 	m_rom(*this, "rom")
 {
+	m_base_addr = base_addr;
 }
 
 void k1520_pfs_7040_device::set_slot(k1520_bus_device &bus, unsigned slot)
@@ -231,10 +233,10 @@ void k1520_pfs_7040_device::device_start()
 
 bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
 {
-	if (offset < 0x2000 || offset > 0x7fff)
+	if (offset < m_base_addr || offset > m_base_addr + 0x3fff)
 		return false;
 
-	data = m_rom[offset - 0x2000];
+	data = m_rom[offset - m_base_addr];
 	return true;
 }
 
