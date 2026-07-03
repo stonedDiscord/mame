@@ -132,7 +132,7 @@ DECLARE_DEVICE_TYPE(K1520_ABS, k1520_abs_k7024_device)
 class k1520_ats_k7028_device : public device_t, public device_k1520_card_interface
 {
 public:
-    k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+    k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr);
 
 protected:
     virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
@@ -143,6 +143,7 @@ protected:
 private:
     required_device<z80sio_device> m_sio;
     required_device<z80ctc_device> m_ctc;
+	u8 m_base_addr;
 };
 
 

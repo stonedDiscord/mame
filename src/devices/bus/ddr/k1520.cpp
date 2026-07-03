@@ -242,7 +242,7 @@ bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
 
 // K1520 K7028 (012-6710) ATS keyboard interface board
 
-k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr) :
+k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr = 0xf0) :
     device_t(mconfig, K1520_K7028, tag, owner, clock),
     device_k1520_card_interface(mconfig, *this),
     m_sio(*this, "sio"),
@@ -263,35 +263,39 @@ void k1520_ats_k7028_device::device_start()
 
 bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)
 {
-    if ((offset & 0xfc) == 0x8c)
-    {
-        data = m_ctc->read(offset & 0x03);
-        return true;
-    }
+	if ((offset & 0xf0) == m_base_addr)
+	{
+		if ((offset & 0x0f) == 0x0c)
+		{
+			data = m_ctc->read(offset & 0x03);
+			return true;
+		}
 
-    if ((offset & 0xfc) == 0xe8)
-    {
-        data = m_sio->ba_cd_r(offset & 0x03);
-        return true;
-    }
-
+		if ((offset & 0x0f) == 0x08)
+		{
+			data = m_sio->ba_cd_r(offset & 0x03);
+			return true;
+		}
+	}
     return false;
 }
 
 bool k1520_ats_k7028_device::io_w(offs_t offset, u8 data)
 {
-    if ((offset & 0xfc) == 0x8c)
-    {
-        m_ctc->write(offset & 0x03, data);
-        return true;
-    }
+	if ((offset & 0xf0) == m_base_addr)
+	{
+		if ((offset & 0x0f) == 0x0c)
+		{
+			m_ctc->write(offset & 0x03, data);
+			return true;
+		}
 
-    if ((offset & 0xfc) == 0xe8)
-    {
-        m_sio->ba_cd_w(offset & 0x03, data);
-        return true;
-    }
-
+		if ((offset & 0x0f) == 0x08)
+		{
+			m_sio->ba_cd_w(offset & 0x03, data);
+			return true;
+		}
+	}
     return false;
 }
 
