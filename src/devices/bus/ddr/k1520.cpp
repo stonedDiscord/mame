@@ -242,12 +242,13 @@ bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
 
 // K1520 K7028 (012-6710) ATS keyboard interface board
 
-k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
+k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr) :
     device_t(mconfig, K1520_K7028, tag, owner, clock),
     device_k1520_card_interface(mconfig, *this),
     m_sio(*this, "sio"),
     m_ctc(*this, "ctc")
 {
+	m_base_addr = base_addr;
 }
 
 void k1520_ats_k7028_device::device_add_mconfig(machine_config &config)
