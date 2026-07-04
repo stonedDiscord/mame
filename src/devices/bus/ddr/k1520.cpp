@@ -263,17 +263,16 @@ void k1520_ats_k7028_device::device_start()
 
 bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)
 {
-	if ((offset & 0xf0) == m_base_addr)
+	if ((offset & 0xe0) == m_base_addr)
 	{
-		if ((offset & 0x0f) == 0x0c)
-		{
-			data = m_ctc->read(offset & 0x03);
-			return true;
-		}
-
-		if ((offset & 0x0f) == 0x08)
+		if ((offset & 0x18) == 0x10)
 		{
 			data = m_sio->ba_cd_r(offset & 0x03);
+			return true;
+		}
+		if ((offset & 0x18) == 0x18)
+		{
+			data = m_ctc->read(offset & 0x03);
 			return true;
 		}
 	}
@@ -282,17 +281,16 @@ bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)
 
 bool k1520_ats_k7028_device::io_w(offs_t offset, u8 data)
 {
-	if ((offset & 0xf0) == m_base_addr)
+	if ((offset & 0xe0) == m_base_addr)
 	{
-		if ((offset & 0x0f) == 0x0c)
-		{
-			m_ctc->write(offset & 0x03, data);
-			return true;
-		}
-
-		if ((offset & 0x0f) == 0x08)
+		if ((offset & 0x18) == 0x10)
 		{
 			m_sio->ba_cd_w(offset & 0x03, data);
+			return true;
+		}
+		if ((offset & 0x18) == 0x18)
+		{
+			m_ctc->write(offset & 0x03, data);
 			return true;
 		}
 	}
