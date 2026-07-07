@@ -178,6 +178,7 @@ public:
 protected:
 	virtual void device_start() override ATTR_COLD;
 	virtual bool memory_r(offs_t offset, u8 &data) override;
+	virtual bool memory_w(offs_t offset, u8 data) override;
 
 private:
 	required_region_ptr<u8> m_rom;

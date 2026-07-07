@@ -242,6 +242,11 @@ bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
 	return true;
 }
 
+bool k1520_pfs_7040_device::memory_w(offs_t offset, u8 data)
+{
+	return offset >= m_base_addr && offset <= m_base_addr + 0x3fff;
+}
+
 // K1520 K7028 (012-6710) ATS keyboard interface board
 
 k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr = 0xe0) :
@@ -268,7 +273,10 @@ INPUT_PORTS_START( k7028_ats )
 	PORT_INCLUDE(generic_keyboard)
 
 	PORT_START("SPECIAL")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Setup") PORT_CODE(KEYCODE_F5) PORT_CHAR(UCHAR_MAMEKEY(F5)) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(k1520_ats_k7028_device::special_key), 0x1f)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("K8911 Raw 1f") PORT_CODE(KEYCODE_F5) PORT_CHAR(UCHAR_MAMEKEY(F5)) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(k1520_ats_k7028_device::special_key), 0x1f)
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("K8911 Raw 8f") PORT_CODE(KEYCODE_F6) PORT_CHAR(UCHAR_MAMEKEY(F6)) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(k1520_ats_k7028_device::special_key), 0x8f)
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("K8911 Raw 91") PORT_CODE(KEYCODE_F7) PORT_CHAR(UCHAR_MAMEKEY(F7)) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(k1520_ats_k7028_device::special_key), 0x91)
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("K8911 Raw 95") PORT_CODE(KEYCODE_F8) PORT_CHAR(UCHAR_MAMEKEY(F8)) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(k1520_ats_k7028_device::special_key), 0x95)
 INPUT_PORTS_END
 
 } // anonymous namespace
@@ -358,6 +366,10 @@ bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)
 				return true;
 
 			case 3:
+				data = 0xff;
+				return true;
+
+			case 4:
 				data = 0xff;
 				return true;
 			}
