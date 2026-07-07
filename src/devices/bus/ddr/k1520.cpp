@@ -249,7 +249,9 @@ k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, ch
     m_ctc(*this, "ctc"),
 	m_keyboard(*this, "keyboard"),
 	m_keyboard_status_pending(false),
-	m_keyboard_status(0)
+	m_keyboard_status(0),
+	m_sio_loopback_data{ },
+	m_sio_loopback_pending{ }
 {
 	m_base_addr = base_addr;
 }
@@ -277,12 +279,16 @@ void k1520_ats_k7028_device::device_start()
 {
 	save_item(NAME(m_keyboard_status_pending));
 	save_item(NAME(m_keyboard_status));
+	save_item(NAME(m_sio_loopback_data));
+	save_item(NAME(m_sio_loopback_pending));
 }
 
 void k1520_ats_k7028_device::device_reset()
 {
 	m_keyboard_status_pending = false;
 	m_keyboard_status = 0xa0;
+	m_sio_loopback_data = { 0, 0 };
+	m_sio_loopback_pending = { false, false };
 }
 
 void k1520_ats_k7028_device::irq_w(int state)
@@ -323,6 +329,17 @@ bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)
 
 		if ((offset & 0x1c) == 0x14)
 		{
+			if ((offset & 0x01) == 0)
+			{
+				unsigned const channel = BIT(offset, 1);
+				if (m_sio_loopback_pending[channel])
+				{
+					m_sio_loopback_pending[channel] = false;
+					data = m_sio_loopback_data[channel];
+					return true;
+				}
+			}
+
 			data = m_sio->ba_cd_r(offset & 0x03);
 			return true;
 		}
@@ -362,6 +379,17 @@ bool k1520_ats_k7028_device::io_w(offs_t offset, u8 data)
 
 		if ((offset & 0x1c) == 0x14)
 		{
+			unsigned const channel = BIT(offset, 1);
+			if ((offset & 0x01) == 0)
+			{
+				m_sio_loopback_data[channel] = data;
+				m_sio_loopback_pending[channel] = true;
+			}
+			else
+			{
+				m_sio_loopback_pending[channel] = false;
+			}
+
 			m_sio->ba_cd_w(offset & 0x03, data);
 			return true;
 		}

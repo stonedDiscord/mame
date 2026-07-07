@@ -51,6 +51,8 @@
 #include "emupal.h"
 #include "screen.h"
 
+#include <array>
+
 
 class device_k1520_card_interface;
 
@@ -151,6 +153,8 @@ private:
 	u8 m_base_addr;
 	bool m_keyboard_status_pending;
 	u8 m_keyboard_status;
+	std::array<u8, 2> m_sio_loopback_data;
+	std::array<bool, 2> m_sio_loopback_pending;
 };
 
 
