@@ -7,6 +7,12 @@ DEFINE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device, "k1520_zre", "K1520 K2521 
 
 // K1520 K2521 (012-7100)
 
+static const z80_daisy_config k2521_daisy_chain[] =
+{
+	{ "ctc" },
+	{ nullptr }
+};
+
 k1520_zre_k2521_device::k1520_zre_k2521_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
 	k1520_zre_k2521_device(mconfig, K1520_ZRE, tag, owner, clock)
 {
@@ -28,8 +34,14 @@ void k1520_zre_k2521_device::device_add_mconfig(machine_config &config)
 	Z80(config, m_maincpu, XTAL(9'830'400) / 4);
 	m_maincpu->set_addrmap(AS_PROGRAM, &k1520_zre_k2521_device::mem_map);
 	m_maincpu->set_addrmap(AS_IO, &k1520_zre_k2521_device::io_map);
+	m_maincpu->set_daisy_config(k2521_daisy_chain);
 
 	Z80CTC(config, m_ctc, XTAL(9'830'400) / 4);
+	m_ctc->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+	m_ctc->set_clk<0>(XTAL(9'830'400) / 64);
+	m_ctc->set_clk<1>(XTAL(9'830'400) / 64);
+	m_ctc->set_clk<2>(XTAL(9'830'400) / 64);
+	m_ctc->set_clk<3>(XTAL(9'830'400) / 64);
 
 	Z80PIO(config, m_pio, XTAL(9'830'400) / 4);
 }
