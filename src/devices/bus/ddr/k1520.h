@@ -155,6 +155,10 @@ private:
 	u8 m_keyboard_status;
 	std::array<u8, 2> m_sio_loopback_data;
 	std::array<bool, 2> m_sio_loopback_pending;
+	std::array<std::array<u8, 16>, 2> m_printer_loopback_data;
+	std::array<u8, 2> m_printer_loopback_head;
+	std::array<u8, 2> m_printer_loopback_tail;
+	std::array<u8, 2> m_printer_loopback_count;
 };
 
 

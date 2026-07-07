@@ -245,13 +245,17 @@ bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
 k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr = 0xe0) :
     device_t(mconfig, K1520_ATS, tag, owner, clock),
     device_k1520_card_interface(mconfig, *this),
-    m_sio(*this, "sio"),
-    m_ctc(*this, "ctc"),
+	m_sio(*this, "sio"),
+	m_ctc(*this, "ctc"),
 	m_keyboard(*this, "keyboard"),
 	m_keyboard_status_pending(false),
 	m_keyboard_status(0),
 	m_sio_loopback_data{ },
-	m_sio_loopback_pending{ }
+	m_sio_loopback_pending{ },
+	m_printer_loopback_data{ },
+	m_printer_loopback_head{ },
+	m_printer_loopback_tail{ },
+	m_printer_loopback_count{ }
 {
 	m_base_addr = base_addr;
 }
@@ -281,6 +285,10 @@ void k1520_ats_k7028_device::device_start()
 	save_item(NAME(m_keyboard_status));
 	save_item(NAME(m_sio_loopback_data));
 	save_item(NAME(m_sio_loopback_pending));
+	save_item(NAME(m_printer_loopback_data));
+	save_item(NAME(m_printer_loopback_head));
+	save_item(NAME(m_printer_loopback_tail));
+	save_item(NAME(m_printer_loopback_count));
 }
 
 void k1520_ats_k7028_device::device_reset()
@@ -289,6 +297,9 @@ void k1520_ats_k7028_device::device_reset()
 	m_keyboard_status = 0xa0;
 	m_sio_loopback_data = { 0, 0 };
 	m_sio_loopback_pending = { false, false };
+	m_printer_loopback_head = { 0, 0 };
+	m_printer_loopback_tail = { 0, 0 };
+	m_printer_loopback_count = { 0, 0 };
 }
 
 void k1520_ats_k7028_device::irq_w(int state)
@@ -323,6 +334,30 @@ bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)
 
 			case 3:
 				data = 0xff;
+				return true;
+			}
+		}
+
+		if ((offset & 0x1c) == 0x10)
+		{
+			unsigned const channel = BIT(offset, 1);
+			if ((offset & 0x01) == 0)
+			{
+				if (m_printer_loopback_count[channel] != 0)
+				{
+					data = m_printer_loopback_data[channel][m_printer_loopback_head[channel]];
+					m_printer_loopback_head[channel] = (m_printer_loopback_head[channel] + 1) & 0x0f;
+					m_printer_loopback_count[channel]--;
+				}
+				else
+				{
+					data = 0xff;
+				}
+				return true;
+			}
+			else
+			{
+				data = 0x04 | (m_printer_loopback_count[channel] != 0 ? 0x01 : 0x00);
 				return true;
 			}
 		}
@@ -375,6 +410,27 @@ bool k1520_ats_k7028_device::io_w(offs_t offset, u8 data)
 			case 4:
 				return true;
 			}
+		}
+
+		if ((offset & 0x1c) == 0x10)
+		{
+			unsigned const channel = BIT(offset, 1);
+			if ((offset & 0x01) == 0)
+			{
+				if (m_printer_loopback_count[channel] < m_printer_loopback_data[channel].size())
+				{
+					m_printer_loopback_data[channel][m_printer_loopback_tail[channel]] = data;
+					m_printer_loopback_tail[channel] = (m_printer_loopback_tail[channel] + 1) & 0x0f;
+					m_printer_loopback_count[channel]++;
+				}
+			}
+			else
+			{
+				m_printer_loopback_head[channel] = 0;
+				m_printer_loopback_tail[channel] = 0;
+				m_printer_loopback_count[channel] = 0;
+			}
+			return true;
 		}
 
 		if ((offset & 0x1c) == 0x14)
