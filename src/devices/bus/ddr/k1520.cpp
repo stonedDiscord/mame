@@ -246,7 +246,10 @@ k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, ch
     device_t(mconfig, K1520_ATS, tag, owner, clock),
     device_k1520_card_interface(mconfig, *this),
     m_sio(*this, "sio"),
-    m_ctc(*this, "ctc")
+    m_ctc(*this, "ctc"),
+	m_keyboard(*this, "keyboard"),
+	m_keyboard_status_pending(false),
+	m_keyboard_status(0)
 {
 	m_base_addr = base_addr;
 }
@@ -254,18 +257,71 @@ k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, ch
 void k1520_ats_k7028_device::device_add_mconfig(machine_config &config)
 {
     Z80CTC(config, m_ctc, XTAL(4'915'200));
+	m_ctc->intr_callback().set(FUNC(k1520_ats_k7028_device::irq_w));
+	m_ctc->zc_callback<0>().set(m_sio, FUNC(z80sio_device::rxca_w));
+	m_ctc->zc_callback<0>().append(m_sio, FUNC(z80sio_device::txca_w));
+
     Z80SIO(config, m_sio, XTAL(4'915'200));
+	m_sio->out_int_callback().set(FUNC(k1520_ats_k7028_device::irq_w));
+	m_sio->out_txda_callback().set(m_keyboard, FUNC(rs232_port_device::write_txd));
+	m_sio->out_dtra_callback().set(m_keyboard, FUNC(rs232_port_device::write_dtr));
+	m_sio->out_rtsa_callback().set(m_keyboard, FUNC(rs232_port_device::write_rts));
+
+	RS232_PORT(config, m_keyboard, default_rs232_devices, "keyboard");
+	m_keyboard->rxd_handler().set(m_sio, FUNC(z80sio_device::rxa_w));
+	m_keyboard->dcd_handler().set(m_sio, FUNC(z80sio_device::dcda_w));
+	m_keyboard->cts_handler().set(m_sio, FUNC(z80sio_device::ctsa_w));
 }
 
 void k1520_ats_k7028_device::device_start()
 {
+	save_item(NAME(m_keyboard_status_pending));
+	save_item(NAME(m_keyboard_status));
+}
+
+void k1520_ats_k7028_device::device_reset()
+{
+	m_keyboard_status_pending = false;
+	m_keyboard_status = 0xa0;
+}
+
+void k1520_ats_k7028_device::irq_w(int state)
+{
+	if (m_bus)
+		m_bus->irq_w(state);
 }
 
 bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)
 {
 	if ((offset & 0xe0) == m_base_addr)
 	{
-		if ((offset & 0x18) == 0x10)
+		if ((offset & 0x1c) == 0x00)
+		{
+			switch (offset & 0x07)
+			{
+			case 0:
+				if (m_keyboard_status_pending)
+				{
+					m_keyboard_status_pending = false;
+					data = m_keyboard_status;
+				}
+				else
+				{
+					data = 0xff;
+				}
+				return true;
+
+			case 1:
+				data = m_keyboard_status_pending ? 0xf7 : 0xff;
+				return true;
+
+			case 3:
+				data = 0xff;
+				return true;
+			}
+		}
+
+		if ((offset & 0x1c) == 0x14)
 		{
 			data = m_sio->ba_cd_r(offset & 0x03);
 			return true;
@@ -283,7 +339,28 @@ bool k1520_ats_k7028_device::io_w(offs_t offset, u8 data)
 {
 	if ((offset & 0xe0) == m_base_addr)
 	{
-		if ((offset & 0x18) == 0x10)
+		if ((offset & 0x1c) == 0x00)
+		{
+			switch (offset & 0x07)
+			{
+			case 2:
+				if (data == 0xfb)
+				{
+					m_keyboard_status_pending = true;
+					m_keyboard_status = 0xa0;
+				}
+				else if (data == 0x00)
+				{
+					m_keyboard_status_pending = false;
+				}
+				return true;
+
+			case 4:
+				return true;
+			}
+		}
+
+		if ((offset & 0x1c) == 0x14)
 		{
 			m_sio->ba_cd_w(offset & 0x03, data);
 			return true;

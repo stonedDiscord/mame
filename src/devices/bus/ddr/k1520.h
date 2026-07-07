@@ -47,6 +47,7 @@
 #include "machine/z80ctc.h"
 #include "machine/z80pio.h"
 #include "machine/z80sio.h"
+#include "bus/rs232/rs232.h"
 #include "emupal.h"
 #include "screen.h"
 
@@ -137,13 +138,19 @@ public:
 protected:
     virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
     virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
     virtual bool io_r(offs_t offset, u8 &data) override;
     virtual bool io_w(offs_t offset, u8 data) override;
 
 private:
+	void irq_w(int state);
+
     required_device<z80sio_device> m_sio;
     required_device<z80ctc_device> m_ctc;
+	required_device<rs232_port_device> m_keyboard;
 	u8 m_base_addr;
+	bool m_keyboard_status_pending;
+	u8 m_keyboard_status;
 };
 
 
