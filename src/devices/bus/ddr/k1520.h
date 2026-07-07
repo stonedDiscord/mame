@@ -147,7 +147,7 @@ private:
 };
 
 
-DECLARE_DEVICE_TYPE(K1520_K7028, k1520_ats_k7028_device)
+DECLARE_DEVICE_TYPE(K1520_ATS, k1520_ats_k7028_device)
 
 class k1520_pfs_7040_device : public device_t, public device_k1520_card_interface
 {

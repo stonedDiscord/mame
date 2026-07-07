@@ -13,9 +13,9 @@
 
 DEFINE_DEVICE_TYPE(K1520_BUS, k1520_bus_device, "k1520_bus", "Robotron K1520 Bus")
 DEFINE_DEVICE_TYPE(K1520_ABS, k1520_abs_k7024_device, "k1520_abs", "K1520 ABS Board")
-DEFINE_DEVICE_TYPE(K1520_PFS, k1520_pfs_7040_device, "k8911_pfs", "K1520 PFS Board")
+DEFINE_DEVICE_TYPE(K1520_PFS, k1520_pfs_7040_device, "k8911_pfs", "K8911 PFS Board")
 DEFINE_DEVICE_TYPE(K1520_PLACEHOLDER_CARD, k1520_placeholder_card_device, "k1520_placeholder", "K1520 Placeholder Board")
-DEFINE_DEVICE_TYPE(K1520_K7028, k1520_ats_k7028_device, "k1520_k7028", "K1520 K7028 ATS Board")
+DEFINE_DEVICE_TYPE(K1520_ATS, k1520_ats_k7028_device, "k7028_ats", "K7028 ATS Board")
 
 
 k1520_bus_device::k1520_bus_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
@@ -242,8 +242,8 @@ bool k1520_pfs_7040_device::memory_r(offs_t offset, u8 &data)
 
 // K1520 K7028 (012-6710) ATS keyboard interface board
 
-k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr = 0xf0) :
-    device_t(mconfig, K1520_K7028, tag, owner, clock),
+k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr = 0xe0) :
+    device_t(mconfig, K1520_ATS, tag, owner, clock),
     device_k1520_card_interface(mconfig, *this),
     m_sio(*this, "sio"),
     m_ctc(*this, "ctc")
