@@ -11,6 +11,8 @@
 
 #include "zre.h"
 
+#include "machine/keyboard.ipp"
+
 DEFINE_DEVICE_TYPE(K1520_BUS, k1520_bus_device, "k1520_bus", "Robotron K1520 Bus")
 DEFINE_DEVICE_TYPE(K1520_ABS, k1520_abs_k7024_device, "k1520_abs", "K1520 ABS Board")
 DEFINE_DEVICE_TYPE(K1520_PFS, k1520_pfs_7040_device, "k8911_pfs", "K8911 PFS Board")
@@ -260,6 +262,22 @@ k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, ch
 	m_base_addr = base_addr;
 }
 
+namespace {
+
+INPUT_PORTS_START( k7028_ats )
+	PORT_INCLUDE(generic_keyboard)
+
+	PORT_START("SPECIAL")
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD ) PORT_NAME("Setup") PORT_CODE(KEYCODE_F5) PORT_CHAR(UCHAR_MAMEKEY(F5)) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(k1520_ats_k7028_device::special_key), 0x1f)
+INPUT_PORTS_END
+
+} // anonymous namespace
+
+ioport_constructor k1520_ats_k7028_device::device_input_ports() const
+{
+	return INPUT_PORTS_NAME(k7028_ats);
+}
+
 void k1520_ats_k7028_device::device_add_mconfig(machine_config &config)
 {
     Z80CTC(config, m_ctc, XTAL(4'915'200));
@@ -269,14 +287,9 @@ void k1520_ats_k7028_device::device_add_mconfig(machine_config &config)
 
     Z80SIO(config, m_sio, XTAL(4'915'200));
 	m_sio->out_int_callback().set(FUNC(k1520_ats_k7028_device::irq_w));
-	m_sio->out_txda_callback().set(m_keyboard, FUNC(rs232_port_device::write_txd));
-	m_sio->out_dtra_callback().set(m_keyboard, FUNC(rs232_port_device::write_dtr));
-	m_sio->out_rtsa_callback().set(m_keyboard, FUNC(rs232_port_device::write_rts));
 
-	RS232_PORT(config, m_keyboard, default_rs232_devices, "keyboard");
-	m_keyboard->rxd_handler().set(m_sio, FUNC(z80sio_device::rxa_w));
-	m_keyboard->dcd_handler().set(m_sio, FUNC(z80sio_device::dcda_w));
-	m_keyboard->cts_handler().set(m_sio, FUNC(z80sio_device::ctsa_w));
+	GENERIC_KEYBOARD(config, m_keyboard);
+	m_keyboard->set_keyboard_callback(FUNC(k1520_ats_k7028_device::keyboard_put));
 }
 
 void k1520_ats_k7028_device::device_start()
@@ -306,6 +319,18 @@ void k1520_ats_k7028_device::irq_w(int state)
 {
 	if (m_bus)
 		m_bus->irq_w(state);
+}
+
+void k1520_ats_k7028_device::keyboard_put(u8 data)
+{
+	m_keyboard_status_pending = true;
+	m_keyboard_status = data;
+}
+
+INPUT_CHANGED_MEMBER(k1520_ats_k7028_device::special_key)
+{
+	if (newval)
+		keyboard_put(u8(param));
 }
 
 bool k1520_ats_k7028_device::io_r(offs_t offset, u8 &data)

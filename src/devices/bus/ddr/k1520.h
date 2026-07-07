@@ -44,10 +44,10 @@
 
 #include "emu.h"
 #include "cpu/z80/z80.h"
+#include "machine/keyboard.h"
 #include "machine/z80ctc.h"
 #include "machine/z80pio.h"
 #include "machine/z80sio.h"
-#include "bus/rs232/rs232.h"
 #include "emupal.h"
 #include "screen.h"
 
@@ -137,8 +137,11 @@ class k1520_ats_k7028_device : public device_t, public device_k1520_card_interfa
 public:
     k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr);
 
+	INPUT_CHANGED_MEMBER(special_key);
+
 protected:
     virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
     virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
     virtual bool io_r(offs_t offset, u8 &data) override;
@@ -146,10 +149,11 @@ protected:
 
 private:
 	void irq_w(int state);
+	void keyboard_put(u8 data);
 
     required_device<z80sio_device> m_sio;
     required_device<z80ctc_device> m_ctc;
-	required_device<rs232_port_device> m_keyboard;
+	required_device<generic_keyboard_device> m_keyboard;
 	u8 m_base_addr;
 	bool m_keyboard_status_pending;
 	u8 m_keyboard_status;
