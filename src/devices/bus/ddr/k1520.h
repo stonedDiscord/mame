@@ -48,6 +48,7 @@
 #include "machine/z80ctc.h"
 #include "machine/z80pio.h"
 #include "machine/z80sio.h"
+#include "drawgfx.h"
 #include "emupal.h"
 #include "screen.h"
 
@@ -123,7 +124,7 @@ private:
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect);
 
 	std::array<u8, 0x800> m_videoram;
-	required_region_ptr<u8> m_chargen;
+	required_device<gfxdecode_device> m_gfxdecode;
 	u16 m_base_addr;
 	u8 m_framecnt;
 };

@@ -122,11 +122,26 @@ k1520_abs_k7024_device::k1520_abs_k7024_device(machine_config const &mconfig, ch
 	device_t(mconfig, K1520_ABS, tag, owner, clock),
 	device_k1520_card_interface(mconfig, *this),
 	m_videoram{ },
-	m_chargen(*this, "chargen"),
+	m_gfxdecode(*this, "gfxdecode"),
 	m_framecnt(0)
 {
 	m_base_addr = base_addr;
 }
+
+static const gfx_layout k7024_charlayout =
+{
+	8, 10,
+	128,
+	1,
+	{ 0 },
+	{ 0, 1, 2, 3, 4, 5, 6, 7 },
+	{ 0*8, 1*8, 2*8, 3*8, 4*8, 5*8, 6*8, 7*8, 0x400*8, 0x401*8 },
+	8*8
+};
+
+static GFXDECODE_START( gfx_k7024 )
+	GFXDECODE_ENTRY( "chargen", 0, k7024_charlayout, 0, 1 )
+GFXDECODE_END
 
 void k1520_abs_k7024_device::device_add_mconfig(machine_config &config)
 {
@@ -139,6 +154,7 @@ void k1520_abs_k7024_device::device_add_mconfig(machine_config &config)
 	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::MONOCHROME);
+	GFXDECODE(config, m_gfxdecode, "palette", gfx_k7024);
 }
 
 void k1520_abs_k7024_device::device_start()
@@ -167,6 +183,8 @@ bool k1520_abs_k7024_device::memory_w(offs_t offset, u8 data)
 
 u32 k1520_abs_k7024_device::screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect)
 {
+	gfx_element *const gfx = m_gfxdecode->gfx(0);
+	u32 const rowbytes = gfx->rowbytes();
 	u16 sy = 0, ma = 0;
 
 	m_framecnt++;
@@ -179,8 +197,6 @@ u32 k1520_abs_k7024_device::screen_update(screen_device &screen, bitmap_ind16 &b
 
 			for (u16 x = ma; x < ma + 80; x++)
 			{
-				u8 gfx = 0;
-
 				u8 chr = m_videoram[x];
 
 				if ((chr & 0x80) && (m_framecnt & 0x08))
@@ -188,19 +204,17 @@ u32 k1520_abs_k7024_device::screen_update(screen_device &screen, bitmap_ind16 &b
 
 				chr &= 0x7f;
 
-				if (ra < 8)
-					gfx = m_chargen[(chr << 3) | ra];
-				else
-					gfx = m_chargen[(chr << 3) | (ra - 8) | 0x400];
+				u8 const *const data = gfx->get_data(chr);
+				u32 const row = ra * rowbytes;
 
-				*p++ = BIT(gfx, 7);
-				*p++ = BIT(gfx, 6);
-				*p++ = BIT(gfx, 5);
-				*p++ = BIT(gfx, 4);
-				*p++ = BIT(gfx, 3);
-				*p++ = BIT(gfx, 2);
-				*p++ = BIT(gfx, 1);
-				*p++ = BIT(gfx, 0);
+				*p++ = data[row + 0];
+				*p++ = data[row + 1];
+				*p++ = data[row + 2];
+				*p++ = data[row + 3];
+				*p++ = data[row + 4];
+				*p++ = data[row + 5];
+				*p++ = data[row + 6];
+				*p++ = data[row + 7];
 			}
 		}
 		ma += 80;
