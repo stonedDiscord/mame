@@ -121,9 +121,11 @@ protected:
 	virtual bool memory_w(offs_t offset, u8 data) override;
 
 private:
+	void palette_init(palette_device &palette) const;
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect);
 
 	std::array<u8, 0x800> m_videoram;
+	std::array<u8, 0x800> m_attribram;
 	required_device<gfxdecode_device> m_gfxdecode;
 	u16 m_base_addr;
 	u8 m_framecnt;

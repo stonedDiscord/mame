@@ -122,6 +122,7 @@ k1520_abs_k7024_device::k1520_abs_k7024_device(machine_config const &mconfig, ch
 	device_t(mconfig, K1520_ABS, tag, owner, clock),
 	device_k1520_card_interface(mconfig, *this),
 	m_videoram{ },
+	m_attribram{ },
 	m_gfxdecode(*this, "gfxdecode"),
 	m_framecnt(0)
 {
@@ -130,12 +131,12 @@ k1520_abs_k7024_device::k1520_abs_k7024_device(machine_config const &mconfig, ch
 
 static const gfx_layout k7024_charlayout =
 {
-	8, 10,
+	8, 12,
 	128,
 	1,
 	{ 0 },
 	{ 0, 1, 2, 3, 4, 5, 6, 7 },
-	{ 0*8, 1*8, 2*8, 3*8, 4*8, 5*8, 6*8, 7*8, 0x400*8, 0x401*8 },
+	{ 0*8, 1*8, 2*8, 3*8, 4*8, 5*8, 6*8, 7*8, 0x400*8, 0x401*8, 0x402*8, 0x403*8 },
 	8*8
 };
 
@@ -149,35 +150,50 @@ void k1520_abs_k7024_device::device_add_mconfig(machine_config &config)
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
 	screen.set_screen_update(FUNC(k1520_abs_k7024_device::screen_update));
-	screen.set_size(640, 300);
-	screen.set_visarea(0, 639, 0, 299);
+	screen.set_size(640, 288);
+	screen.set_visarea(0, 639, 0, 287);
 	screen.set_palette("palette");
 
-	PALETTE(config, "palette", palette_device::MONOCHROME);
+	PALETTE(config, "palette", FUNC(k1520_abs_k7024_device::palette_init), 4);
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_k7024);
+}
+
+void k1520_abs_k7024_device::palette_init(palette_device &palette) const
+{
+	palette.set_pen_color(0, rgb_t::black());
+	palette.set_pen_color(1, rgb_t(0x00, 0xa0, 0x00));
+	palette.set_pen_color(2, rgb_t::black());
+	palette.set_pen_color(3, rgb_t(0x00, 0xff, 0x00));
 }
 
 void k1520_abs_k7024_device::device_start()
 {
 	save_item(NAME(m_videoram));
+	save_item(NAME(m_attribram));
 	save_item(NAME(m_framecnt));
 }
 
 bool k1520_abs_k7024_device::memory_r(offs_t offset, u8 &data)
 {
-	if (offset < m_base_addr || offset > m_base_addr + 0x7ff) // bridge at x11:1 x12:1
+	if (offset < m_base_addr || offset > m_base_addr + 0xfff) // bridge at x11:1 x12:1
 		return false;
 
-	data = m_videoram[offset - m_base_addr];
+	offs_t const ram_offset = offset - m_base_addr;
+	data = BIT(ram_offset, 11) ? m_attribram[ram_offset & 0x7ff] : m_videoram[ram_offset];
 	return true;
 }
 
 bool k1520_abs_k7024_device::memory_w(offs_t offset, u8 data)
 {
-	if (offset < m_base_addr || offset > m_base_addr + 0x7ff) // bridge at x11:1 x12:1
+	if (offset < m_base_addr || offset > m_base_addr + 0xfff) // bridge at x11:1 x12:1
 		return false;
 
-	m_videoram[offset - m_base_addr] = data;
+	offs_t const ram_offset = offset - m_base_addr;
+	if (BIT(ram_offset, 11))
+		m_attribram[ram_offset & 0x7ff] = data;
+	else
+		m_videoram[ram_offset] = data;
+
 	return true;
 }
 
@@ -189,32 +205,30 @@ u32 k1520_abs_k7024_device::screen_update(screen_device &screen, bitmap_ind16 &b
 
 	m_framecnt++;
 
-	for (u8 y = 0; y < 25; y++)
+	for (u8 y = 0; y < 24; y++)
 	{
-		for (u8 ra = 0; ra < 10; ra++)
+		for (u8 ra = 0; ra < 12; ra++)
 		{
 			u16 *p = &bitmap.pix(sy++);
 
 			for (u16 x = ma; x < ma + 80; x++)
 			{
-				u8 chr = m_videoram[x];
-
-				if ((chr & 0x80) && (m_framecnt & 0x08))
-					chr = 0x20;
-
-				chr &= 0x7f;
+				u8 const chr = m_videoram[x] & 0x7f;
+				u8 const attr = m_attribram[x];
+				u8 const inverse = BIT(attr, 0);
+				u8 const intensity = BIT(attr, 1) << 1;
 
 				u8 const *const data = gfx->get_data(chr);
 				u32 const row = ra * rowbytes;
 
-				*p++ = data[row + 0];
-				*p++ = data[row + 1];
-				*p++ = data[row + 2];
-				*p++ = data[row + 3];
-				*p++ = data[row + 4];
-				*p++ = data[row + 5];
-				*p++ = data[row + 6];
-				*p++ = data[row + 7];
+				*p++ = (data[row + 0] ^ inverse) | intensity;
+				*p++ = (data[row + 1] ^ inverse) | intensity;
+				*p++ = (data[row + 2] ^ inverse) | intensity;
+				*p++ = (data[row + 3] ^ inverse) | intensity;
+				*p++ = (data[row + 4] ^ inverse) | intensity;
+				*p++ = (data[row + 5] ^ inverse) | intensity;
+				*p++ = (data[row + 6] ^ inverse) | intensity;
+				*p++ = (data[row + 7] ^ inverse) | intensity;
 			}
 		}
 		ma += 80;
