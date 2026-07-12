@@ -4143,6 +4143,30 @@ end
 
 ---------------------------------------------------
 --
+--@src/devices/machine/wd1002_hd0.h,MACHINES["WD1002_HD0"] = true
+---------------------------------------------------
+
+if MACHINES["WD1002_HD0"] then
+	files {
+		MAME_DIR .. "src/devices/machine/wd1002_hd0.cpp",
+		MAME_DIR .. "src/devices/machine/wd1002_hd0.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/machine/wd1002_05.h,MACHINES["WD1002_05"] = true
+---------------------------------------------------
+
+if MACHINES["WD1002_05"] then
+	files {
+		MAME_DIR .. "src/devices/machine/wd1002_05.cpp",
+		MAME_DIR .. "src/devices/machine/wd1002_05.h",
+	}
+end
+
+---------------------------------------------------
+--
 --@src/devices/machine/wd11c00_17.h,MACHINES["WD11C00_17"] = true
 ---------------------------------------------------
 
@@ -4331,6 +4355,18 @@ if MACHINES["Z80STI"] then
 	files {
 		MAME_DIR .. "src/devices/machine/z80sti.cpp",
 		MAME_DIR .. "src/devices/machine/z80sti.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/machine/z8010.h,MACHINES["Z8010"] = true
+---------------------------------------------------
+
+if (MACHINES["Z8010"]~=null) then
+	files {
+		MAME_DIR .. "src/devices/machine/z8010.cpp",
+		MAME_DIR .. "src/devices/machine/z8010.h",
 	}
 end
 

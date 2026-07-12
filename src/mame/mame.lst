@@ -18713,6 +18713,7 @@ pwrflip
 fever13
 goldstrk
 lastbank
+lastbank130j
 lpierrot
 mir7hg
 mir7hgt
@@ -29932,8 +29933,8 @@ amspdwya
 
 @source:misc/amstarz80.cpp
 holddraw
-unkamst
-unkamsta
+holddrawa
+holddrawb
 
 @source:misc/amusco.cpp
 amusco
@@ -32098,6 +32099,7 @@ frtgenieb
 frtgeniec
 frtgenied
 jungleyo
+jungleyoa
 kingfrt
 magjack
 magjacka
@@ -34176,6 +34178,7 @@ zelost
 @source:namco/namconb1.cpp
 gslgr94j
 gslgr94u
+gslgr94ua
 gslugrsj
 gunbuletj
 gunbuletw
@@ -36122,6 +36125,7 @@ powerinsc
 powerinsj
 powerinspj
 powerinspu
+puzlwrld
 raphero
 rapheroa
 redfoxwp2
@@ -43461,6 +43465,9 @@ caramball
 @source:skeleton/cardinal.cpp
 cardinal
 
+@source:skeleton/carnival37.cpp
+carniv37
+
 @source:skeleton/cbnt2039.cpp
 cbnt2039
 
@@ -43509,6 +43516,9 @@ cortex
 
 @source:skeleton/cosmicos.cpp
 cosmicos
+
+@source:skeleton/cosmo68k.cpp
+exfever
 
 @source:skeleton/cp1.cpp
 cp1
@@ -44155,6 +44165,32 @@ sols5e
 
 @source:skeleton/squale.cpp
 squale
+
+@source:skeleton/st25.cpp
+alphar
+amarillo
+arenau
+avanti
+ballermn
+bgaction
+bigkick
+blizzard
+boosters
+colossos
+cttower
+galaktca
+jamaica
+macaor
+majesto
+matrixx
+mtclssic
+purpurr
+robin
+spasch
+stakeoff
+tango
+tobago
+xeno
 
 @source:skeleton/sterz80.cpp
 tongzi
@@ -48758,6 +48794,7 @@ spinlbrku
 spinlbrkup
 svolly91
 turbofrc
+turbofrcj
 turbofrco
 turbofrcu
 turbofrcua
@@ -49428,8 +49465,14 @@ mk82
 mk83
 mojmikro
 x168
+x1685
+x168em
+x168s
 x820
 x820ii
+x820iilp
+x820ii5
+x820iis
 
 @source:yachiyo/atamanot.cpp
 atamanot
@@ -49667,6 +49710,11 @@ jackrabts
 monymony
 monymony2
 monymony3
+
+@source:zilog/s8k.cpp
+s8000
+s8000v1
+s8000s2
 
 @source:zpa/iq151.cpp
 iq151
