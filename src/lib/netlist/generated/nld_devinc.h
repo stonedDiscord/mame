@@ -446,8 +446,9 @@
 
 // usage       : TTL_74390(name, A, B, MR)
 // auto connect: VCC, GND
-#define TTL_74390(...)                                                   \
-	NET_REGISTER_DEVEXT(TTL_74390, __VA_ARGS__)
+#define TTL_74390(name, ...) \
+	__VA_OPT__(NET_CHECK_PARAM_COUNT(TTL_74390, PNARGS(__VA_ARGS__), 3)) \
+	NET_REGISTER_DEV(TTL_74390, name __VA_OPT__(,) __VA_ARGS__)
 
 // ---------------------------------------------------------------------
 // Source: ../devices/nld_74393.cpp
@@ -1421,12 +1422,13 @@ NETLIST_EXTERNAL(roms_lib)
 	NET_REGISTER_DEV(TTL_74279B, name)
 
 // usage       : TTL_74368_GATE(name, )
-#define TTL_74368_GATE(...)                                                   \
-	NET_REGISTER_DEVEXT(TTL_74368_GATE, __VA_ARGS__)
+#define TTL_74368_GATE(name, ...) \
+	NET_REGISTER_DEV(TTL_74368_GATE, name __VA_OPT__(,) __VA_ARGS__)
 
 // usage       : TTL_9312(name, )
-#define TTL_9312(...)                                                   \
-	NET_REGISTER_DEVEXT(TTL_9312, __VA_ARGS__)
+#define TTL_9312(name, ...) \
+	__VA_OPT__(NET_CHECK_PARAM_COUNT(TTL_9312, PNARGS(__VA_ARGS__), 12)) \
+	NET_REGISTER_DEV(TTL_9312, name __VA_OPT__(,) __VA_ARGS__)
 
 NETLIST_EXTERNAL(ttl74xx_lib)
 // usage       : TTL_7400_DIP(name)
@@ -1806,4 +1808,3 @@ NETLIST_EXTERNAL(ttl74xx_lib)
 #endif // __PLIB_PREPROCESSOR__
 
 #endif // NLD_DEVINC_H
-
