@@ -34,7 +34,6 @@
 #include "emu.h"
 
 #include "bus/ddr/k1520.h"
-#include "bus/ddr/zre.h"
 
 
 namespace {
