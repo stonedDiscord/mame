@@ -12,19 +12,20 @@ K6001	062-8500	ASL		Adapter für Schreibleseeinheit	Controller für Magnetkarten
 ?		045-8762	ZRE		Zentrale Recheneinheit	CPU und 256k RAM
 K6022	012-7090	ADA		Adapter für Datenaustausch	SIF1000-Interface
 ?		045-8732	?		?	für Tastatur, Drucker und Fernleitung
-K7024	012-6820	ABS		Adapter für Bildschirm	Grafikkarte 
+K7024	012-6820	ABS		Adapter für Bildschirm	Grafikkarte
 
 When it says DIAGNOSTIC RAZ P, press enter.
 
 ****************************************************************************/
 
 #include "emu.h"
+
+#include "bus/ddr/k1520.h"
+
 #include "cpu/z80/z80.h"
 #include "machine/z80ctc.h"
 #include "machine/z80sio.h"
 #include "bus/rs232/rs232.h"
-#include "emupal.h"
-#include "screen.h"
 
 
 namespace {
@@ -35,31 +36,29 @@ public:
 	k8915_state(const machine_config &mconfig, device_type type, const char *tag)
 		: driver_device(mconfig, type, tag)
 		, m_maincpu(*this, "maincpu")
+		, m_k1520(*this, "k1520")
 		, m_rom(*this, "maincpu")
 		, m_ram(*this, "mainram")
 		, m_bank1(*this, "bank1")
-		, m_p_videoram(*this, "videoram")
-		, m_p_chargen(*this, "chargen")
 	{ }
 
 	void k8915(machine_config &config);
 
 private:
 	void k8915_a8_w(u8 data);
-	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	u8 abs_r(offs_t offset);
+	void abs_w(offs_t offset, u8 data);
 
 	void io_map(address_map &map) ATTR_COLD;
 	void mem_map(address_map &map) ATTR_COLD;
 
-	u8 m_framecnt = 0U;
 	void machine_start() override ATTR_COLD;
 	void machine_reset() override ATTR_COLD;
 	required_device<cpu_device> m_maincpu;
+	required_device<k1520_bus_device> m_k1520;
 	required_region_ptr<u8> m_rom;
 	required_shared_ptr<u8> m_ram;
 	required_memory_bank    m_bank1;
-	required_shared_ptr<u8> m_p_videoram;
-	required_region_ptr<u8> m_p_chargen;
 };
 
 
@@ -73,8 +72,18 @@ void k8915_state::mem_map(address_map &map)
 {
 	map.unmap_value_high();
 	map(0x0000, 0x0fff).ram().share("mainram").bankr("bank1");
-	map(0x1000, 0x17ff).ram().share("videoram");
-	map(0x1800, 0xffff).ram();
+	map(0x1000, 0x1fff).rw(FUNC(k8915_state::abs_r), FUNC(k8915_state::abs_w));
+	map(0x2000, 0xffff).ram();
+}
+
+u8 k8915_state::abs_r(offs_t offset)
+{
+	return m_k1520->memory_r(0x1000 + offset);
+}
+
+void k8915_state::abs_w(offs_t offset, u8 data)
+{
+	m_k1520->memory_w(0x1000 + offset, data);
 }
 
 void k8915_state::io_map(address_map &map)
@@ -98,52 +107,6 @@ void k8915_state::machine_start()
 {
 	m_bank1->configure_entry(0, m_ram);
 	m_bank1->configure_entry(1, m_rom);
-	save_item(NAME(m_framecnt));
-}
-
-u32 k8915_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
-{
-	u16 sy=0,ma=0;
-
-	m_framecnt++;
-
-	for (u8 y = 0; y < 25; y++)
-	{
-		for (u8 ra = 0; ra < 10; ra++)
-		{
-			u16 *p = &bitmap.pix(sy++);
-
-			for (u16 x = ma; x < ma + 80; x++)
-			{
-				u8 gfx = 0;
-
-				if (ra < 9)
-				{
-					u8 chr = m_p_videoram[x];
-
-					/* Take care of flashing characters */
-					if ((chr & 0x80) && (m_framecnt & 0x08))
-						chr = 0x20;
-
-					chr &= 0x7f;
-
-					gfx = m_p_chargen[(chr<<4) | ra ];
-				}
-
-				/* Display a scanline of a character */
-				*p++ = BIT(gfx, 7);
-				*p++ = BIT(gfx, 6);
-				*p++ = BIT(gfx, 5);
-				*p++ = BIT(gfx, 4);
-				*p++ = BIT(gfx, 3);
-				*p++ = BIT(gfx, 2);
-				*p++ = BIT(gfx, 1);
-				*p++ = BIT(gfx, 0);
-			}
-		}
-		ma+=80;
-	}
-	return 0;
 }
 
 
@@ -154,16 +117,9 @@ void k8915_state::k8915(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &k8915_state::mem_map);
 	m_maincpu->set_addrmap(AS_IO, &k8915_state::io_map);
 
-	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
-	screen.set_refresh_hz(60);
-	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
-	screen.set_screen_update(FUNC(k8915_state::screen_update));
-	screen.set_size(640, 250);
-	screen.set_visarea(0, 639, 0, 249);
-	screen.set_palette("palette");
-
-	PALETTE(config, "palette", palette_device::MONOCHROME);
+	K1520_BUS(config, m_k1520, XTAL(9'830'400));
+	k1520_abs_k7024_device &abs(K1520_ABS(config, "abs", XTAL(9'830'400)));
+	abs.set_slot(*m_k1520, 1);
 
 	z80ctc_device& ctc(Z80CTC(config, "ctc", XTAL(4'915'200) / 2));
 	ctc.set_clk<2>(XTAL(4'915'200) / 2);
@@ -186,9 +142,9 @@ ROM_START( k8915 )
 	ROM_REGION( 0x1000, "maincpu", 0 )
 	ROM_LOAD( "k8915.bin", 0x0000, 0x1000, CRC(ca70385f) SHA1(a34c14adae9be821678aed7f9e33932ee1f3e61c))
 
-	/* character generator not dumped, using the one from 'c10' for now */
-	ROM_REGION( 0x2000, "chargen", 0 )
-	ROM_LOAD( "c10_char.bin", 0x0000, 0x2000, BAD_DUMP CRC(cb530b6f) SHA1(95590bbb433db9c4317f535723b29516b9b9fcbf))
+	ROM_REGION( 0x2000, "abs:chargen", 0 )
+	ROM_LOAD( "v171.rom", 0x0000, 0x800, CRC(06c8c709) SHA1(35a1548398f8a8906678e48bfc15e5a5c3a106e6))
+	ROM_LOAD( "v172.rom", 0x0800, 0x800, CRC(543a4cdb) SHA1(9a57ede2c4fc734de03c5c7f6352b75625f58fd7))
 ROM_END
 
 } // anonymous namespace
