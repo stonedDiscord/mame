@@ -196,6 +196,14 @@ class k1520_zre_k2521_device : public device_t, public device_k1520_card_interfa
 public:
 	k1520_zre_k2521_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
 
+	auto ctc_zc0_callback() { return m_ctc_zc0_cb.bind(); }
+	auto ctc_zc1_callback() { return m_ctc_zc1_cb.bind(); }
+	auto pio_in_pa_callback() { return m_pio_in_pa_cb.bind(); }
+	auto pio_out_pa_callback() { return m_pio_out_pa_cb.bind(); }
+	auto pio_in_pb_callback() { return m_pio_in_pb_cb.bind(); }
+	auto pio_out_pb_callback() { return m_pio_out_pb_cb.bind(); }
+	void pio_port_a_w(u8 data) { m_pio->port_a_write(data); }
+
 	void irq_line_w(int state);
 	void nmi_line_w(int state);
 
@@ -214,12 +222,24 @@ private:
 	void bus_memory_w(offs_t offset, u8 data);
 	u8 bus_io_r(offs_t offset);
 	void bus_io_w(offs_t offset, u8 data);
+	void ctc_zc0_w(int state);
+	void ctc_zc1_w(int state);
+	u8 pio_pa_r();
+	void pio_pa_w(u8 data);
+	u8 pio_pb_r();
+	void pio_pb_w(u8 data);
 
 	required_device<z80_device> m_maincpu;
 	required_device<z80ctc_device> m_ctc;
 	required_device<z80pio_device> m_pio;
 	required_region_ptr<u8> m_rom;
 	std::array<u8, 0x400> m_ram;
+	devcb_write_line m_ctc_zc0_cb;
+	devcb_write_line m_ctc_zc1_cb;
+	devcb_read8 m_pio_in_pa_cb;
+	devcb_write8 m_pio_out_pa_cb;
+	devcb_read8 m_pio_in_pb_cb;
+	devcb_write8 m_pio_out_pb_cb;
 };
 
 DECLARE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device)

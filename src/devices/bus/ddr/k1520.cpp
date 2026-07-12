@@ -540,6 +540,7 @@ DEFINE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device, "k1520_zre", "K1520 K2521 
 static const z80_daisy_config k2521_daisy_chain[] =
 {
 	{ "ctc" },
+	{ "pio" },
 	{ nullptr }
 };
 
@@ -555,7 +556,13 @@ k1520_zre_k2521_device::k1520_zre_k2521_device(machine_config const &mconfig, de
 	m_ctc(*this, "ctc"),
 	m_pio(*this, "pio"),
 	m_rom(*this, "rom"),
-	m_ram{ }
+	m_ram{ },
+	m_ctc_zc0_cb(*this),
+	m_ctc_zc1_cb(*this),
+	m_pio_in_pa_cb(*this, 0xff),
+	m_pio_out_pa_cb(*this),
+	m_pio_in_pb_cb(*this, 0xff),
+	m_pio_out_pb_cb(*this)
 {
 }
 
@@ -572,8 +579,15 @@ void k1520_zre_k2521_device::device_add_mconfig(machine_config &config)
 	m_ctc->set_clk<1>(XTAL(9'830'400) / 64);
 	m_ctc->set_clk<2>(XTAL(9'830'400) / 64);
 	m_ctc->set_clk<3>(XTAL(9'830'400) / 64);
+	m_ctc->zc_callback<0>().set(FUNC(k1520_zre_k2521_device::ctc_zc0_w));
+	m_ctc->zc_callback<1>().set(FUNC(k1520_zre_k2521_device::ctc_zc1_w));
 
 	Z80PIO(config, m_pio, XTAL(9'830'400) / 4);
+	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+	m_pio->in_pa_callback().set(FUNC(k1520_zre_k2521_device::pio_pa_r));
+	m_pio->out_pa_callback().set(FUNC(k1520_zre_k2521_device::pio_pa_w));
+	m_pio->in_pb_callback().set(FUNC(k1520_zre_k2521_device::pio_pb_r));
+	m_pio->out_pb_callback().set(FUNC(k1520_zre_k2521_device::pio_pb_w));
 }
 
 void k1520_zre_k2521_device::device_start()
@@ -589,6 +603,36 @@ void k1520_zre_k2521_device::irq_line_w(int state)
 void k1520_zre_k2521_device::nmi_line_w(int state)
 {
 	m_maincpu->set_input_line(INPUT_LINE_NMI, state ? ASSERT_LINE : CLEAR_LINE);
+}
+
+void k1520_zre_k2521_device::ctc_zc0_w(int state)
+{
+	m_ctc_zc0_cb(state);
+}
+
+void k1520_zre_k2521_device::ctc_zc1_w(int state)
+{
+	m_ctc_zc1_cb(state);
+}
+
+u8 k1520_zre_k2521_device::pio_pa_r()
+{
+	return m_pio_in_pa_cb();
+}
+
+void k1520_zre_k2521_device::pio_pa_w(u8 data)
+{
+	m_pio_out_pa_cb(data);
+}
+
+u8 k1520_zre_k2521_device::pio_pb_r()
+{
+	return m_pio_in_pb_cb();
+}
+
+void k1520_zre_k2521_device::pio_pb_w(u8 data)
+{
+	m_pio_out_pb_cb(data);
 }
 
 void k1520_zre_k2521_device::mem_map(address_map &map)
