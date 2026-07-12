@@ -31,7 +31,11 @@ void polyplay_state::polyplay_palette(palette_device &palette) const
 
 void polyplay_state::polyplay_characterram_w(offs_t offset, uint8_t data)
 {
-	if (m_characterram[offset] != data)
+	if (m_polyplay_video)
+	{
+		m_gfxdecode->gfx(1)->mark_dirty((offset >> 3) & 0x7f);
+	}
+	else if (m_characterram[offset] != data)
 	{
 		m_gfxdecode->gfx(1)->mark_dirty((offset >> 3) & 0x7f);
 		m_characterram[offset] = data;
@@ -40,12 +44,12 @@ void polyplay_state::polyplay_characterram_w(offs_t offset, uint8_t data)
 
 void polyplay_state::video_start()
 {
-	m_gfxdecode->gfx(1)->set_source(m_characterram);
+	m_gfxdecode->gfx(1)->set_source(m_polyplay_video ? m_polyplay_video->characterram() : &m_characterram[0]);
 }
 
 uint32_t polyplay_state::screen_update_polyplay(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	uint8_t const *const videoram = m_videoram;
+	uint8_t const *const videoram = m_polyplay_video ? m_polyplay_video->videoram() : &m_videoram[0];
 
 	for (offs_t offs = 0; offs < 0x800; offs++)
 	{

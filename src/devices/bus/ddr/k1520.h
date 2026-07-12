@@ -244,6 +244,29 @@ private:
 
 DECLARE_DEVICE_TYPE(K1520_ZRE, k1520_zre_k2521_device)
 
+class k1520_polyplay_video_device : public device_t, public device_k1520_card_interface
+{
+public:
+	k1520_polyplay_video_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
+
+	u8 *videoram() { return m_videoram.data(); }
+	u8 *characterram() { return m_characterram.data(); }
+	auto characterram_w_callback() { return m_characterram_w_cb.bind(); }
+
+protected:
+	virtual void device_start() override ATTR_COLD;
+	virtual bool memory_r(offs_t offset, u8 &data) override;
+	virtual bool memory_w(offs_t offset, u8 data) override;
+
+private:
+	required_region_ptr<u8> m_chargen;
+	std::array<u8, 0x800> m_videoram;
+	std::array<u8, 0xc00> m_characterram;
+	devcb_write8 m_characterram_w_cb;
+};
+
+DECLARE_DEVICE_TYPE(K1520_POLYPLAY_VIDEO, k1520_polyplay_video_device)
+
 class k1520_placeholder_card_device : public device_t, public device_k1520_card_interface
 {
 public:

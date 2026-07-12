@@ -16,6 +16,7 @@ DEFINE_DEVICE_TYPE(K1520_ABS, k1520_abs_k7024_device, "k1520_abs", "K1520 ABS Bo
 DEFINE_DEVICE_TYPE(K1520_PFS, k1520_pfs_7040_device, "k8911_pfs", "K8911 PFS Board")
 DEFINE_DEVICE_TYPE(K1520_PLACEHOLDER_CARD, k1520_placeholder_card_device, "k1520_placeholder", "K1520 Placeholder Board")
 DEFINE_DEVICE_TYPE(K1520_ATS, k1520_ats_k7028_device, "k7028_ats", "K7028 ATS Board")
+DEFINE_DEVICE_TYPE(K1520_POLYPLAY_VIDEO, k1520_polyplay_video_device, "k1520_polyplay_video", "Poly-Play FAZ/ABS Board Set")
 
 
 k1520_bus_device::k1520_bus_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
@@ -691,5 +692,55 @@ bool k1520_zre_k2521_device::memory_w(offs_t offset, u8 data)
 		return false;
 
 	m_ram[offset & 0x3ff] = data;
+	return true;
+}
+
+
+k1520_polyplay_video_device::k1520_polyplay_video_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock) :
+	device_t(mconfig, K1520_POLYPLAY_VIDEO, tag, owner, clock),
+	device_k1520_card_interface(mconfig, *this),
+	m_chargen(*this, "^gfx1"),
+	m_videoram{ },
+	m_characterram{ },
+	m_characterram_w_cb(*this)
+{
+}
+
+void k1520_polyplay_video_device::device_start()
+{
+	save_item(NAME(m_videoram));
+	save_item(NAME(m_characterram));
+}
+
+bool k1520_polyplay_video_device::memory_r(offs_t offset, u8 &data)
+{
+	if (offset >= 0xe800 && offset <= 0xebff)
+		data = m_chargen[offset & 0x03ff];
+	else if (offset >= 0xec00 && offset <= 0xf7ff)
+		data = m_characterram[offset - 0xec00];
+	else if (offset >= 0xf800)
+		data = m_videoram[offset - 0xf800];
+	else
+		return false;
+
+	return true;
+}
+
+bool k1520_polyplay_video_device::memory_w(offs_t offset, u8 data)
+{
+	if (offset >= 0xec00 && offset <= 0xf7ff)
+	{
+		offs_t const ram_offset = offset - 0xec00;
+		if (m_characterram[ram_offset] != data)
+		{
+			m_characterram[ram_offset] = data;
+			m_characterram_w_cb(ram_offset, data);
+		}
+	}
+	else if (offset >= 0xf800)
+		m_videoram[offset - 0xf800] = data;
+	else
+		return false;
+
 	return true;
 }

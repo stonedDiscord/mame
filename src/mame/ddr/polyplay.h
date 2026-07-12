@@ -5,9 +5,11 @@
 #define MAME_DDR_POLYPLAY_H
 
 #include "cpu/z80/z80.h"
+#include "bus/ddr/k1520.h"
 #include "machine/z80ctc.h"
 #include "machine/z80pio.h"
 #include "machine/z80sio.h"
+#include "machine/timer.h"
 #include "sound/spkrdev.h"
 #include "emupal.h"
 
@@ -29,6 +31,9 @@ public:
 		m_z80ctc(*this, Z80CTC_TAG),
 		m_z80pio(*this, Z80PIO_TAG),
 		m_z80sio(*this, Z80SIO_TAG),
+		m_k1520(*this, "k1520"),
+		m_zre(*this, "zre"),
+		m_polyplay_video(*this, "video"),
 		m_in0_port(*this, "IN0"),
 		m_gfxdecode(*this, "gfxdecode"),
 		m_palette(*this, "palette"),
@@ -46,7 +51,7 @@ protected:
 	virtual void video_start() override ATTR_COLD;
 
 private:
-	INTERRUPT_GEN_MEMBER(nmi_handler);
+	TIMER_DEVICE_CALLBACK_MEMBER(nmi_handler);
 
 	/* devices */
 	void ctc_zc0_w(int state);
@@ -65,14 +70,18 @@ private:
 	void polyplay_io_zrepp(address_map &map) ATTR_COLD;
 	void polyplay_mem_zre(address_map &map) ATTR_COLD;
 	void polyplay_mem_zrepp(address_map &map) ATTR_COLD;
+	void polyplay_common(machine_config &config) ATTR_COLD;
 
-	required_shared_ptr<uint8_t> m_videoram;
-	required_shared_ptr<uint8_t> m_characterram;
+	optional_shared_ptr<uint8_t> m_videoram;
+	optional_shared_ptr<uint8_t> m_characterram;
 
-	required_device<z80_device> m_maincpu;
-	required_device<z80ctc_device> m_z80ctc;
-	required_device<z80pio_device> m_z80pio;
+	optional_device<z80_device> m_maincpu;
+	optional_device<z80ctc_device> m_z80ctc;
+	optional_device<z80pio_device> m_z80pio;
 	optional_device<z80sio_device> m_z80sio;
+	optional_device<k1520_bus_device> m_k1520;
+	optional_device<k1520_zre_k2521_device> m_zre;
+	optional_device<k1520_polyplay_video_device> m_polyplay_video;
 	required_ioport m_in0_port;
 	required_device<gfxdecode_device> m_gfxdecode;
 	required_device<palette_device> m_palette;
