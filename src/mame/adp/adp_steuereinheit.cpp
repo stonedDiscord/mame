@@ -28,7 +28,8 @@ Parts:
  TL7705ACP       - Supply Voltage Supervisor
  TC428CPA        - Dual CMOS High-speed Driver
  L4974A          - ST 3.5A Switching Regulator
- OO              - LEDs (red); "Fehlerdiagnose siehe Fehlertable"
+ OO              - LEDs (red); "Fehlerdiagnose siehe Fehlertabelle"
+					Fault diagnosis see fault table (specific to each game)
 
 Connectors:
 
