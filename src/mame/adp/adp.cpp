@@ -44,6 +44,7 @@ Quick Jack administration/service mode:
 */
 
 #include "emu.h"
+#include "adp_steuereinheit.h"
 #include "adp_sus.h"
 #include "videocontroller.h"
 #include "machine/microtch.h"

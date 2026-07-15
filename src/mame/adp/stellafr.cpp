@@ -9,6 +9,7 @@ German Fruit Machines / Gambling Machines
 
 
 #include "emu.h"
+#include "adp_steuereinheit.h"
 #include "adp_sus.h"
 
 //#define VERBOSE 1
