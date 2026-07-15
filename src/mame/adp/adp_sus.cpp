@@ -119,11 +119,13 @@ void adp_steuereinheit_device::device_add_mconfig(machine_config &config)
 	m_duart->a_tx_cb().set(FUNC(adp_steuereinheit_device::serial_a_tx_w));
 	m_duart->b_tx_cb().set(FUNC(adp_steuereinheit_device::serial_b_tx_w));
 
-	AD7224(config, m_dac, 0); // U8
-
 	SPEAKER(config, "mono").front_center();
+
+	AD7224(config, m_dac, 0); // U8
+	m_dac->add_route(ALL_OUTPUTS, "mono", 0.85); // R10 15k
+
 	YM2149(config, m_psg, 3'686'400 / 2); // U9
-	m_psg->add_route(ALL_OUTPUTS, "mono", 0.85);
+	m_psg->add_route(ALL_OUTPUTS, "mono", 0.90); // R8 10k
 }
 
 u8 adp_steuereinheit_device::irq_vector_r()
