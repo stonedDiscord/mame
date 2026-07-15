@@ -98,7 +98,7 @@ adp_steuereinheit_device::adp_steuereinheit_device(const machine_config &mconfig
 	m_duart(*this, "duart"),
 	m_psg(*this, "aysnd"),
 	m_dac(*this, "dac"),
-	m_video(*this, ":videocontroller%u", 0U),
+	m_video(*this, ":videocontroller%u", 1U),
 	m_input_cb(*this, 0xffff),
 	m_output_cb(*this),
 	m_shift_cb(*this),

@@ -59,7 +59,7 @@ public:
 		m_microtouch(*this, "microtouch"),
 		m_sus(*this, "sus"),
 		m_steuereinheit(*this, "steuereinheit"),
-		m_video(*this, "videocontroller0"),
+		m_video(*this, "videocontroller1"),
 		m_in0(*this, "IN0")
 	{ }
 
@@ -154,8 +154,8 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( skattv )
 	PORT_START("PA")
 	PORT_BIT( 0x9f, IP_ACTIVE_HIGH, IPT_UNKNOWN )
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::hblank))
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::vblank))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::hblank))
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::vblank))
 
 	PORT_START("DSW1")
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW,  IPT_COIN5    )
@@ -207,8 +207,8 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( skattva )
 	PORT_START("PA")
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN1 )
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::hblank))
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::vblank))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::hblank))
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::vblank))
 	PORT_BIT( 0x9e, IP_ACTIVE_HIGH, IPT_UNKNOWN )
 
 	PORT_START("IN0")
@@ -233,8 +233,8 @@ static INPUT_PORTS_START( fstation )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::hblank))
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::vblank))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::hblank))
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::vblank))
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("DSW1")
