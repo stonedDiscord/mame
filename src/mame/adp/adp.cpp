@@ -59,7 +59,7 @@ public:
 		m_microtouch(*this, "microtouch"),
 		m_sus(*this, "sus"),
 		m_steuereinheit(*this, "steuereinheit"),
-		m_video(*this, "videocontroller1"),
+		m_video(*this, "videocontroller0"),
 		m_in0(*this, "IN0")
 	{ }
 
@@ -154,8 +154,8 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( skattv )
 	PORT_START("PA")
 	PORT_BIT( 0x9f, IP_ACTIVE_HIGH, IPT_UNKNOWN )
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::hblank))
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::vblank))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::hblank))
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::vblank))
 
 	PORT_START("DSW1")
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW,  IPT_COIN5    )
@@ -207,8 +207,8 @@ INPUT_PORTS_END
 static INPUT_PORTS_START( skattva )
 	PORT_START("PA")
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN1 )
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::hblank))
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::vblank))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::hblank))
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::vblank))
 	PORT_BIT( 0x9e, IP_ACTIVE_HIGH, IPT_UNKNOWN )
 
 	PORT_START("IN0")
@@ -233,8 +233,8 @@ static INPUT_PORTS_START( fstation )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_COIN2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::hblank))
-	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller1:screen", FUNC(screen_device::vblank))
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::hblank))
+	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("videocontroller0:screen", FUNC(screen_device::vblank))
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("DSW1")
@@ -297,7 +297,7 @@ void adp_state::quickjac(machine_config &config)
 	adp_common(config);
 	ADP_VIDEOCONTROLLER(config, m_video, 0);
 
-	m_video->set_gfx_region(":gfx1");
+	m_video->set_gfx_region(":gfx0");
 	m_steuereinheit->input_callback().set_ioport("IN0");
 	m_steuereinheit->serial_a_tx_callback().set(m_microtouch, FUNC(microtouch_device::rx));
 	MICROTOUCH(config, m_microtouch, 9600).stx().set(m_steuereinheit, FUNC(adp_steuereinheit_device::serial_a_rx_w));
@@ -317,7 +317,7 @@ void adp_state::skattv(machine_config &config)
 	adp_common(config);
 	ADP_VIDEOCONTROLLER(config, m_video, 0);
 
-	m_video->set_gfx_region(":gfx1");
+	m_video->set_gfx_region(":gfx0");
 	m_steuereinheit->input_callback().set(FUNC(adp_state::input_r));
 	m_steuereinheit->output_callback().set(FUNC(adp_state::input_w));
 	m_steuereinheit->serial_a_tx_callback().set(m_microtouch, FUNC(microtouch_device::rx));
@@ -331,7 +331,7 @@ void adp_state::skattva(machine_config &config)
 	ADP_VIDEOCONTROLLER(config, m_video, 0);
 
 	m_sus->set_skattva_nvram_init();
-	m_video->set_gfx_region(":gfx1");
+	m_video->set_gfx_region(":gfx0");
 	m_steuereinheit->input_callback().set_ioport("IN0");
 	m_steuereinheit->serial_a_tx_callback().set(m_microtouch, FUNC(microtouch_device::rx));
 	MICROTOUCH(config, m_microtouch, 9600).stx().set(m_steuereinheit, FUNC(adp_steuereinheit_device::serial_a_rx_w));
@@ -341,7 +341,7 @@ void adp_state::fashiong(machine_config &config)
 {
 	ADP_SUS_TK(config, m_sus, 0);
 	adp_common(config);
-	ADP_VIDEOCONTROLLER(config, m_video, 0).set_gfx_region(":gfx1").set_memory_layout(adp_videocontroller_device::memory_layout::EXTENDED_ROM);
+	ADP_VIDEOCONTROLLER(config, m_video, 0).set_gfx_region(":gfx0").set_memory_layout(adp_videocontroller_device::memory_layout::EXTENDED_ROM);
 
 	m_steuereinheit->input_callback().set(FUNC(adp_state::input_r));
 	m_steuereinheit->output_callback().set(FUNC(adp_state::input_w));
@@ -353,7 +353,7 @@ void adp_state::funland(machine_config &config)
 {
 	ADP_SUS_RTC(config, m_sus, 0);
 	adp_common(config);
-	ADP_VIDEOCONTROLLER_ENCODER(config, m_video, 0).set_gfx_region(":gfx1").set_memory_layout(adp_videocontroller_device::memory_layout::ROM_THEN_RAM);
+	ADP_VIDEOCONTROLLER_ENCODER(config, m_video, 0).set_gfx_region(":gfx0").set_memory_layout(adp_videocontroller_device::memory_layout::ROM_THEN_RAM);
 
 	m_steuereinheit->input_callback().set_ioport("IN0");
 	m_steuereinheit->serial_a_tx_callback().set(m_microtouch, FUNC(microtouch_device::rx));
@@ -366,7 +366,7 @@ void adp_state::fstation(machine_config &config)
 	adp_common(config);
 	ADP_VIDEOCONTROLLER_ENCODER(config, m_video, 0);
 
-	m_video->set_gfx_region(":gfx1").set_memory_layout(adp_videocontroller_device::memory_layout::ROM_THEN_RAM).set_high_resolution(true);
+	m_video->set_gfx_region(":gfx0").set_memory_layout(adp_videocontroller_device::memory_layout::ROM_THEN_RAM).set_high_resolution(true);
 	m_steuereinheit->input_callback().set(FUNC(adp_state::input_r));
 	m_steuereinheit->output_callback().set(FUNC(adp_state::input_w));
 }
@@ -377,7 +377,7 @@ ROM_START( quickjac )
 	ROM_LOAD16_BYTE( "quick_jack_index_a.1.u2", 0x00000, 0x10000, CRC(c2fba6fe) SHA1(f79e5913f9ded1e370cc54dd55860263b9c51d61) )
 	ROM_LOAD16_BYTE( "quick_jack_index_a.2.u6", 0x00001, 0x10000, CRC(210cb89b) SHA1(8eac60d40b60e845f9c02fee6c447f125ba5d1ab) )
 
-	ROM_REGION16_BE( 0x40000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x40000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "quick_jack_video_inde_a.1.u2", 0x00000, 0x20000, CRC(73c27fc6) SHA1(12429bc0009b7754e08d2b6a5e1cd8251ab66e2d) )
 	ROM_LOAD16_BYTE( "quick_jack_video_inde_a.2.u6", 0x00001, 0x20000, CRC(61d55be2) SHA1(bc17dc91fd1ef0f862eb0d7dbbbfa354a8403eb8) )
 ROM_END
@@ -387,7 +387,7 @@ ROM_START(sbsoli)
 	ROM_LOAD16_BYTE( "skat_bierskat_solitaire_f2_i.u2", 0x00000, 0x20000, CRC(314390cf) SHA1(86c2f4e120235eba379ec54f2afea59e68c94e7e))
 	ROM_LOAD16_BYTE( "skat_bierskat_solitaire_f2_ii.u6", 0x00001, 0x20000, CRC(6e7f88cc) SHA1(07e306222cbd94ab7a39be2685941d12c82645fb))
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "skat_bier_solitaire_video_f1_i.u2", 0x00000, 0x80000, CRC(3726a21e) SHA1(63fd2f01ce6103ef9a2c585f1045091dfc4b3408))
 	ROM_LOAD16_BYTE( "skat_bier_solitaire_video_f1_ii.u5", 0x00001, 0x80000, CRC(9109774f) SHA1(480a7cd4260dc3481049b108eba749de7eeedfa3))
 ROM_END
@@ -397,7 +397,7 @@ ROM_START( skattv )
 	ROM_LOAD16_BYTE( "f2_i.u2", 0x00000, 0x20000, CRC(3cb8b431) SHA1(e7930876b6cd4cba837c3da05d6948ef9167daea) )
 	ROM_LOAD16_BYTE( "f2_ii.u6", 0x00001, 0x20000, CRC(0db1d2d5) SHA1(a29b0299352e0b2b713caf02aa7978f2a4b34e37) )
 
-	ROM_REGION16_BE( 0x40000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x40000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "f1_i.u2", 0x00000, 0x20000, CRC(4869a889) SHA1(ad9f3fcdfd3630f9ad5b93a9d2738de9fc3514d3) )
 	ROM_LOAD16_BYTE( "f1_ii.u5", 0x00001, 0x20000, CRC(17681537) SHA1(133685854b2080aaa3d0cced0287bc454d1f3bfc) )
 ROM_END
@@ -407,7 +407,7 @@ ROM_START( skattva )
 	ROM_LOAD16_BYTE( "skat_tv_version_ts3.1.u2", 0x00000, 0x20000, CRC(68f82fe8) SHA1(d5f9cb600531cdd748616d8c042b6a151ebe205a) )
 	ROM_LOAD16_BYTE( "skat_tv_version_ts3.2.u6", 0x00001, 0x20000, CRC(4f927832) SHA1(bbe013005fd00dd42d12939eab5c80ec44a54b71) )
 
-	ROM_REGION16_BE( 0x40000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x40000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "skat_tv_videoprom_t2.1.u2", 0x00000, 0x20000, CRC(de6f275b) SHA1(0c396fa4d1975c8ccc4967d330b368c0697d2124) )
 	ROM_LOAD16_BYTE( "skat_tv_videoprom_t2.2.u5", 0x00001, 0x20000, CRC(af3e60f9) SHA1(c88976ea42cf29a092fdee18377b32ffe91e9f33) )
 ROM_END
@@ -417,7 +417,7 @@ ROM_START( fashiong )
 	ROM_LOAD16_BYTE( "fashion_gambler_s6_i.u2", 0x00000, 0x80000, CRC(827a164d) SHA1(dc16380226cabdefbfd893cb50cbfca9e134be40) )
 	ROM_LOAD16_BYTE( "fashion_gambler_s6_ii.u6", 0x00001, 0x80000, CRC(5a2466d1) SHA1(c113a2295beed2011c70887a1f2fcdec00b055cb) )
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "fashion_gambler_video_s2_i.u2", 0x00000, 0x80000, CRC(d1ee9133) SHA1(e5fdfa303a3317f8f5fbdc03438ee97415afff4b) )
 	ROM_LOAD16_BYTE( "fashion_gambler_video_s2_ii.u5", 0x00001, 0x80000, CRC(07b1e722) SHA1(594cbe9edfea6b04a4e49d1c1594f1c3afeadef5) )
 
@@ -432,7 +432,7 @@ ROM_START( fashiong2 )
 	ROM_LOAD16_BYTE( "fashion_gambler_f3_i.u2", 0x00000, 0x80000, CRC(2939279a) SHA1(75798ea41dd713d294ea341cbcdb73a76d9f63f4) )
 	ROM_LOAD16_BYTE( "fashion_gambler_f3_ii.u6", 0x00001, 0x80000, CRC(7d48e9ab) SHA1(603e946b95c53ee75c9ca10751316e723242424f) )
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "fashion_gambler_video_f2_i.u2", 0x00000, 0x80000, CRC(54ea6f10) SHA1(a1284ec34e4e78acba08dc00d5ba47c3457531f8) )
 	ROM_LOAD16_BYTE( "fashion_gambler_video_f2_ii.u5", 0x00001, 0x80000, CRC(c292a278) SHA1(9f66531ae9f202d364f47c7ed3551483fc9d27b0) )
 
@@ -447,7 +447,7 @@ ROM_START( funlddlx )
 	ROM_LOAD16_BYTE( "fldl_f6_1.u2", 0x00001, 0x80000, CRC(85c74040) SHA1(24a7d3e6acbaf73ef9817379bef64c38a9ff7896) )
 	ROM_LOAD16_BYTE( "fldl_f6_2.u6", 0x00000, 0x80000, CRC(93bf1a4b) SHA1(5b4353feba1e0d4402cd26f4855e3803e6be43b9) )
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "flv_f1_i.u2", 0x00000, 0x80000, CRC(286fccdc) SHA1(dd23deda625e486a7cfe1f3268731d10053a96e9) )
 	ROM_LOAD16_BYTE( "flv_f1_ii.u5", 0x00001, 0x80000, CRC(2aa904e6) SHA1(864530b136dd488d619cc95f48e7dce8d93d88e0) )
 
@@ -462,7 +462,7 @@ ROM_START( funlddlx2 )
 	ROM_LOAD16_BYTE( "funny_land_dlx_i_w2.u2", 0x00000, 0x80000, CRC(d51abc1d) SHA1(e9c30efc36cf754fe8aa369c83ead6a8f4b300f4) )
 	ROM_LOAD16_BYTE( "funny_land_dlx_ii_w2.u6", 0x00001, 0x80000, CRC(44691005) SHA1(faf88d6e5e67a4f789f5535a1f2eb2eb93d0f9fd) )
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "flv_f1_i.u2", 0x00000, 0x80000, CRC(286fccdc) SHA1(dd23deda625e486a7cfe1f3268731d10053a96e9) )
 	ROM_LOAD16_BYTE( "flv_f1_ii.u5", 0x00001, 0x80000, CRC(2aa904e6) SHA1(864530b136dd488d619cc95f48e7dce8d93d88e0) )
 
@@ -477,7 +477,7 @@ ROM_START( funlddlx4 )
 	ROM_LOAD16_BYTE( "fldl_w4_i.u2", 0x00000, 0x80000, CRC(dc64234e) SHA1(4bdcb6b54095307939118cc479aa89db66e02757) )
 	ROM_LOAD16_BYTE( "fldl_w4_ii.u6", 0x00001, 0x80000, CRC(fde4caa0) SHA1(0db9e8c16c86d005b2f0957f0a42a947b24890a9) )
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "flv_f1_i.u2", 0x00000, 0x80000, CRC(286fccdc) SHA1(dd23deda625e486a7cfe1f3268731d10053a96e9) )
 	ROM_LOAD16_BYTE( "flv_f1_ii.u5", 0x00001, 0x80000, CRC(2aa904e6) SHA1(864530b136dd488d619cc95f48e7dce8d93d88e0) )
 
@@ -492,7 +492,7 @@ ROM_START( fstation7 )
 	ROM_LOAD16_BYTE("spielekoffer_7_sp_f1_i.u2", 0x00000, 0x80000, CRC(bbf4bbd9) SHA1(80e785cb04213f8cc2f580b523e20b4825ba45e5))
 	ROM_LOAD16_BYTE("spielekoffer_7_sp_f1_ii.u6", 0x00001, 0x80000, CRC(cd8ab9e3) SHA1(cb9206d0367f00bec278cee0a4115594ba715fcd))
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0)
+	ROM_REGION16_BE( 0x100000, "gfx0", 0)
 	ROM_LOAD16_BYTE("spielekoffer_7_sp_video_f1_i.u2", 0x00000, 0x80000, CRC(dcddb25a) SHA1(7c54bd7a368fd57e3eb995a26462b3d2d589b0db))
 	ROM_LOAD16_BYTE("spielekoffer_7_sp_video_f1_ii.u5", 0x00001, 0x80000, CRC(400f9b8f) SHA1(4c4a9f46016eee805653b5fae65680225ac71436))
 ROM_END
@@ -502,7 +502,7 @@ ROM_START( fstation8 )
 	ROM_LOAD16_BYTE("spielekoffer_8_sp_f1_i.u2", 0x00000, 0x80000, CRC(f9c792ab) SHA1(30ab7352cce22340be87ddae80e4b3c2f69ea778))
 	ROM_LOAD16_BYTE("spielekoffer_8_sp_f1_ii.u5", 0x00001, 0x80000, CRC(0cb7b719) SHA1(e87bc67da903d9514dd97a6abf2d4e2171e15dbd))
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "spielekoffer_8_sp_video_i.u2", 0x00000, 0x80000, NO_DUMP )
 	ROM_LOAD16_BYTE( "spielekoffer_8_sp_video_ii.u5", 0x00001, 0x80000, NO_DUMP )
 ROM_END
@@ -512,7 +512,7 @@ ROM_START( fstation )
 	ROM_LOAD16_BYTE( "spielekoffer_9_sp_fun_station_f1.i", 0x00000, 0x80000, CRC(4572efbd) SHA1(e0a91d32ab4096767cafb743523d038f5e0d3238) )
 	ROM_LOAD16_BYTE( "spielekoffer_9_sp_fun_station_f1.ii", 0x00001, 0x80000, CRC(a972184d) SHA1(1849e71e696039f07b7b67c4172c7999e81664c3) )
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "spielekoffer_video_9_sp_f1.i", 0x00000, 0x80000, CRC(b6eb971e) SHA1(14e3272c66a82db0f77123974eea28f308209b1b) )
 	ROM_LOAD16_BYTE( "spielekoffer_video_9_sp_f1.ii", 0x00001, 0x80000, CRC(64138dcb) SHA1(1b629915cba32f8f6164ae5075c175b522b4a323) )
 ROM_END
@@ -522,7 +522,7 @@ ROM_START( kkornf4 )
 	ROM_LOAD16_BYTE( "kimme_und_korn_f4_i.u2", 0x00000, 0x20000, CRC(eb9aca01) SHA1(d38dbe7387824a18c7ba8b70691b7313bd604e28) )
 	ROM_LOAD16_BYTE( "kimme_und_korn_f4_ii.u6", 0x00001, 0x20000, CRC(84940a33) SHA1(efe167d07199d3200915fd355e30946a09c2ed23) )
 
-	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x100000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "kimme_und_korn_video_i.u2", 0x00000, 0x80000, NO_DUMP )
 	ROM_LOAD16_BYTE( "kimme_und_korn_video_ii.u5", 0x00001, 0x80000, NO_DUMP )
 
@@ -536,7 +536,7 @@ ROM_START(trumpfas)
 	ROM_LOAD16_BYTE( "trumpf_as_dm_f2_i.u2", 0x00000, 0x20000, CRC(542b1517) SHA1(fcddb31b4b429c8d67161037d356861413567bb8))
 	ROM_LOAD16_BYTE( "trumpf_as_dm_f2_ii.u6", 0x00001, 0x20000, CRC(d39bbd88) SHA1(64f47fd0076845ed3f9f3e84aca3504c110ad8ad))
 
-	ROM_REGION16_BE( 0x40000, "gfx1", 0 )
+	ROM_REGION16_BE( 0x40000, "gfx0", 0 )
 	ROM_LOAD16_BYTE( "trumpf_as_video_i.u2", 0x00000, 0x20000, NO_DUMP )
 	ROM_LOAD16_BYTE( "trumpf_as_video_ii.u5", 0x00001, 0x20000, NO_DUMP )
 ROM_END

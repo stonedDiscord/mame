@@ -40,7 +40,7 @@ private:
 	bool m_high_resolution = false;
 	required_device<hd63484_device> m_acrtc;
 	required_device<palette_device> m_palette;
-	const char *m_gfx_region = ":gfx1";
+	const char *m_gfx_region = ":gfx0";
 };
 
 class adp_videocontroller_encoder_device : public adp_videocontroller_device
