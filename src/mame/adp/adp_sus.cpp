@@ -28,7 +28,7 @@ Parts:
  X                    - 8MHz xtal
  3V Bat             - Lithium 3V power module
 
-Sound  and I/O board:
+Sound and I/O board:
 ---------------------
 "Steuereinheit 68000"
  _________________________________________________________________________________
@@ -112,18 +112,18 @@ adp_steuereinheit_device::adp_steuereinheit_device(const machine_config &mconfig
 
 void adp_steuereinheit_device::device_add_mconfig(machine_config &config)
 {
-	MC68681(config, m_duart, 3'686'400);
+	MC68681(config, m_duart, 3'686'400); // U15
 	m_duart->irq_cb().set(FUNC(adp_steuereinheit_device::irq_w));
 	m_duart->outport_cb().set(FUNC(adp_steuereinheit_device::duart_output_w));
 	m_duart->inport_cb().set(FUNC(adp_steuereinheit_device::duart_input_r));
 	m_duart->a_tx_cb().set(FUNC(adp_steuereinheit_device::serial_a_tx_w));
 	m_duart->b_tx_cb().set(FUNC(adp_steuereinheit_device::serial_b_tx_w));
 
-	AD7224(config, m_dac, 0);
+	AD7224(config, m_dac, 0); // U8
 
 	SPEAKER(config, "mono").front_center();
-	ym2149_device &psg(YM2149(config, m_psg, 3'686'400 / 2));
-	psg.add_route(ALL_OUTPUTS, "mono", 0.85);
+	YM2149(config, m_psg, 3'686'400 / 2); // U9
+	m_psg->add_route(ALL_OUTPUTS, "mono", 0.85);
 }
 
 u8 adp_steuereinheit_device::irq_vector_r()
@@ -152,21 +152,21 @@ void adp_steuereinheit_device::irq_w(int state)
 
 u16 adp_steuereinheit_device::read(offs_t offset, u16 mem_mask)
 {
+	// U17 74HC138
 	u16 const address = offset << 1;
 	switch (address & 0x1c0)
 	{
-		case 0x000: // Y0: DAC (write only)
-		case 0x040: // Y1: unknown
 		case 0x080:
 		{
 			unsigned const slot = BIT(offset, 3);
 			return m_video[slot] ? m_video[slot]->read(offset & 7, mem_mask) : 0xffff;
 		}
-		case 0x0c0: // Y3: secondary output (write only)
-			return 0xffff;
 		case 0x100: return m_input_cb(0, mem_mask);
 		case 0x140: return 0xff00 | m_psg->data_r();
 		case 0x180: return 0xff00 | m_duart->read((address >> 1) & 0x0f);
+		case 0x000: // Y0: DAC (write only)
+		case 0x040: // Y1: unknown
+		case 0x0c0: // Y3: secondary output (write only)
 		case 0x1c0: // Y7: not connected
 		default:
 			return 0xffff;
@@ -175,6 +175,7 @@ u16 adp_steuereinheit_device::read(offs_t offset, u16 mem_mask)
 
 void adp_steuereinheit_device::write(offs_t offset, u16 data, u16 mem_mask)
 {
+	// U17 74HC138
 	if (!ACCESSING_BITS_0_7)
 		return;
 
@@ -182,7 +183,7 @@ void adp_steuereinheit_device::write(offs_t offset, u16 data, u16 mem_mask)
 	u8 const value = data;
 	switch (address & 0x1c0)
 	{
-		case 0x00: m_dac->data_w(value); break;
+		case 0x000: m_dac->data_w(value); break;
 		case 0x040: break; // Y1: unknown
 		case 0x080:
 		{
