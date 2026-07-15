@@ -22,7 +22,13 @@ public:
 	auto output_callback() { return m_output_cb.bind(); }
 	auto shift_callback() { return m_shift_cb.bind(); }
 	auto duart_output_callback() { return m_duart_output_cb.bind(); }
+	auto duart_input_callback() { return m_duart_input_cb.bind(); }
 	auto irq_callback() { return m_irq_cb.bind(); }
+	auto serial_a_tx_callback() { return m_serial_a_tx_cb.bind(); }
+	auto serial_b_tx_callback() { return m_serial_b_tx_cb.bind(); }
+
+	void serial_a_rx_w(int state) { m_duart->rx_a_w(state); }
+	void serial_b_rx_w(int state) { m_duart->rx_b_w(state); }
 
 	u16 read(offs_t offset, u16 mem_mask = ~0);
 	void write(offs_t offset, u16 data, u16 mem_mask = ~0);
@@ -36,6 +42,9 @@ protected:
 
 private:
 	void duart_output_w(u8 data);
+	u8 duart_input_r();
+	void serial_a_tx_w(int state) { m_serial_a_tx_cb(state); }
+	void serial_b_tx_w(int state) { m_serial_b_tx_cb(state); }
 	void irq_w(int state);
 	required_device<mc68681_device> m_duart;
 	required_device<ay8910_device> m_psg;
@@ -45,6 +54,9 @@ private:
 	devcb_write16 m_output_cb;
 	devcb_write8 m_shift_cb;
 	devcb_write8 m_duart_output_cb;
+	devcb_read8 m_duart_input_cb;
+	devcb_write_line m_serial_a_tx_cb;
+	devcb_write_line m_serial_b_tx_cb;
 	devcb_write_line m_irq_cb;
 };
 

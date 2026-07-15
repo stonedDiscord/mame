@@ -103,6 +103,9 @@ adp_steuereinheit_device::adp_steuereinheit_device(const machine_config &mconfig
 	m_output_cb(*this),
 	m_shift_cb(*this),
 	m_duart_output_cb(*this),
+	m_duart_input_cb(*this, 0xff),
+	m_serial_a_tx_cb(*this),
+	m_serial_b_tx_cb(*this),
 	m_irq_cb(*this)
 {
 }
@@ -112,6 +115,9 @@ void adp_steuereinheit_device::device_add_mconfig(machine_config &config)
 	MC68681(config, m_duart, 3'686'400);
 	m_duart->irq_cb().set(FUNC(adp_steuereinheit_device::irq_w));
 	m_duart->outport_cb().set(FUNC(adp_steuereinheit_device::duart_output_w));
+	m_duart->inport_cb().set(FUNC(adp_steuereinheit_device::duart_input_r));
+	m_duart->a_tx_cb().set(FUNC(adp_steuereinheit_device::serial_a_tx_w));
+	m_duart->b_tx_cb().set(FUNC(adp_steuereinheit_device::serial_b_tx_w));
 
 	AD7224(config, m_dac, 0);
 
@@ -132,6 +138,11 @@ void adp_steuereinheit_device::device_start()
 void adp_steuereinheit_device::duart_output_w(u8 data)
 {
 	m_duart_output_cb(data);
+}
+
+u8 adp_steuereinheit_device::duart_input_r()
+{
+	return m_duart_input_cb();
 }
 
 void adp_steuereinheit_device::irq_w(int state)
