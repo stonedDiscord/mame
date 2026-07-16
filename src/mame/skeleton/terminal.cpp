@@ -31,6 +31,7 @@ public:
 private:
 
 	void mem_map(address_map &map) ATTR_COLD;
+	void data_map(address_map &map) ATTR_COLD;
 	required_device<cpu_device> m_maincpu;
 };
 
@@ -40,7 +41,10 @@ void terminal_state::mem_map(address_map &map)
 	map(0x0000, 0xffff).rom();
 }
 
-
+void terminal_state::data_map(address_map &map)
+{
+	map(0x0000, 0xffff).ram();
+}
 
 /* Input ports */
 static INPUT_PORTS_START( terminal )
@@ -51,7 +55,9 @@ void terminal_state::terminal(machine_config &config)
 {
 	I8031(config, m_maincpu, 12'000'000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &terminal_state::mem_map);
+	m_maincpu->set_addrmap(AS_DATA, &terminal_state::data_map);
 }
+
 
 
 /* ROM definition */
@@ -69,7 +75,8 @@ ROM_END
 ROM_START( loewed ) // order unknown // i8031, i8051(xtal 11.000 next to it), ITT LOTTI // 64k ram + battery-backed nvram // b&w
 	ROM_REGION( 0x28000, "maincpu", 0 )
 	ROM_LOAD( "mainboard_18764_100.bin", 0x00000, 0x020000, CRC(f9ec7591) SHA1(1df7bdf33b8086166f1addb686a911a0c52dde32) )
-	ROM_LOAD( "module_19315_056.bin",    0x20000, 0x008000, CRC(b333c5ed) SHA1(93cfa95e595bea83fe1b34a1426b80ceb1755c50) )
+	ROM_REGION( 0x28000, "subcpu", 0 )
+	ROM_LOAD( "module_19315_056.bin",    0x00000, 0x008000, CRC(b333c5ed) SHA1(93cfa95e595bea83fe1b34a1426b80ceb1755c50) )
 ROM_END
 
 
