@@ -289,7 +289,7 @@ void polyplay_state::polyplay_zre(machine_config &config)
 {
 	k1520_bus_device &bus(K1520_BUS(config, "k1520", POLYPLAY_MAIN_CLOCK));
 
-	k1520_zre_k2521_device &zre(K1520_ZRE(config, m_zre, POLYPLAY_MAIN_CLOCK));
+	k1520_zre_k2521_device &zre(K1520_ZRE(config, m_zre, 0));
 	zre.set_slot(bus, 3);
 	bus.nmi().set(zre, FUNC(k1520_zre_k2521_device::nmi_line_w));
 	TIMER(config, "nmitimer").configure_periodic(FUNC(polyplay_state::nmi_handler), attotime::from_hz(100)); /* A302 - zero cross detection from AC (50Hz) */
@@ -300,11 +300,11 @@ void polyplay_state::polyplay_zre(machine_config &config)
 	zre.pio_in_pb_callback().set(FUNC(polyplay_state::pio_portb_r));
 	zre.pio_out_pb_callback().set(FUNC(polyplay_state::pio_portb_w));
 
-	k1520_pfs_7040_device &pfs1(K1520_PFS(config, "pfs1", POLYPLAY_MAIN_CLOCK, 0x5000));
+	k1520_pfs_7040_device &pfs1(K1520_PFS(config, "pfs1", 0, 0x5000));
 	pfs1.set_slot(bus, 1);
-	k1520_pfs_7040_device &pfs2(K1520_PFS(config, "pfs2", POLYPLAY_MAIN_CLOCK, 0x1000));
+	k1520_pfs_7040_device &pfs2(K1520_PFS(config, "pfs2", 0, 0x1000));
 	pfs2.set_slot(bus, 2);
-	k1520_polyplay_video_device &video(K1520_POLYPLAY_VIDEO(config, "video", POLYPLAY_MAIN_CLOCK));
+	k1520_polyplay_video_device &video(K1520_POLYPLAY_VIDEO(config, "video", 0));
 	video.set_slot(bus, 4);
 	video.characterram_w_callback().set(FUNC(polyplay_state::polyplay_characterram_w));
 

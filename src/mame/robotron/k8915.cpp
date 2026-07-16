@@ -118,7 +118,7 @@ void k8915_state::k8915(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &k8915_state::io_map);
 
 	K1520_BUS(config, m_k1520, XTAL(9'830'400));
-	k1520_abs_k7024_device &abs(K1520_ABS(config, "abs", XTAL(9'830'400)));
+	k1520_abs_k7024_device &abs(K1520_ABS(config, "abs", 0));
 	abs.set_slot(*m_k1520, 1);
 
 	z80ctc_device& ctc(Z80CTC(config, "ctc", XTAL(4'915'200) / 2));

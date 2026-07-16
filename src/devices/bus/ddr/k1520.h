@@ -138,7 +138,7 @@ DECLARE_DEVICE_TYPE(K1520_ABS, k1520_abs_k7024_device)
 class k1520_ats_k7028_device : public device_t, public device_k1520_card_interface
 {
 public:
-    k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr);
+    k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr = 0xe0);
 
 	INPUT_CHANGED_MEMBER(special_key);
 

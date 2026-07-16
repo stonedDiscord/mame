@@ -111,6 +111,7 @@ void device_k1520_card_interface::set_bus(k1520_bus_device &bus, unsigned slot)
 {
 	m_bus = &bus;
 	m_slot = slot;
+	device().set_clock(bus.clock());
 	m_bus->add_card(slot, *this);
 }
 
@@ -123,9 +124,9 @@ k1520_abs_k7024_device::k1520_abs_k7024_device(machine_config const &mconfig, ch
 	m_videoram{ },
 	m_attribram{ },
 	m_gfxdecode(*this, "gfxdecode"),
+	m_base_addr(base_addr),
 	m_framecnt(0)
 {
-	m_base_addr = base_addr;
 }
 
 static const gfx_layout k7024_charlayout =
@@ -246,9 +247,9 @@ ROM_END
 k1520_pfs_7040_device::k1520_pfs_7040_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u16 base_addr) :
 	device_t(mconfig, K1520_PFS, tag, owner, clock),
 	device_k1520_card_interface(mconfig, *this),
-	m_rom(*this, "rom")
+	m_rom(*this, "rom"),
+	m_base_addr(base_addr)
 {
-	m_base_addr = base_addr;
 }
 
 void k1520_pfs_7040_device::set_slot(k1520_bus_device &bus, unsigned slot)
@@ -276,12 +277,13 @@ bool k1520_pfs_7040_device::memory_w(offs_t offset, u8 data)
 
 // K1520 K7028 (012-6710) ATS keyboard interface board
 
-k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr = 0xe0) :
+k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock, u8 base_addr) :
     device_t(mconfig, K1520_ATS, tag, owner, clock),
     device_k1520_card_interface(mconfig, *this),
 	m_sio(*this, "sio"),
 	m_ctc(*this, "ctc"),
 	m_keyboard(*this, "keyboard"),
+	m_base_addr(base_addr),
 	m_keyboard_status_pending(false),
 	m_keyboard_status(0),
 	m_sio_loopback_data{ },
@@ -291,7 +293,6 @@ k1520_ats_k7028_device::k1520_ats_k7028_device(machine_config const &mconfig, ch
 	m_printer_loopback_tail{ },
 	m_printer_loopback_count{ }
 {
-	m_base_addr = base_addr;
 }
 
 namespace {
@@ -315,12 +316,12 @@ ioport_constructor k1520_ats_k7028_device::device_input_ports() const
 
 void k1520_ats_k7028_device::device_add_mconfig(machine_config &config)
 {
-    Z80CTC(config, m_ctc, XTAL(4'915'200));
+    Z80CTC(config, m_ctc, DERIVED_CLOCK(1, 2));
 	m_ctc->intr_callback().set(FUNC(k1520_ats_k7028_device::irq_w));
 	m_ctc->zc_callback<0>().set(m_sio, FUNC(z80sio_device::rxca_w));
 	m_ctc->zc_callback<0>().append(m_sio, FUNC(z80sio_device::txca_w));
 
-    Z80SIO(config, m_sio, XTAL(4'915'200));
+    Z80SIO(config, m_sio, DERIVED_CLOCK(1, 2));
 	m_sio->out_int_callback().set(FUNC(k1520_ats_k7028_device::irq_w));
 
 	GENERIC_KEYBOARD(config, m_keyboard);
@@ -569,21 +570,21 @@ k1520_zre_k2521_device::k1520_zre_k2521_device(machine_config const &mconfig, de
 
 void k1520_zre_k2521_device::device_add_mconfig(machine_config &config)
 {
-	Z80(config, m_maincpu, XTAL(9'830'400) / 4);
+	Z80(config, m_maincpu, DERIVED_CLOCK(1, 4));
 	m_maincpu->set_addrmap(AS_PROGRAM, &k1520_zre_k2521_device::mem_map);
 	m_maincpu->set_addrmap(AS_IO, &k1520_zre_k2521_device::io_map);
 	m_maincpu->set_daisy_config(k2521_daisy_chain);
 
-	Z80CTC(config, m_ctc, XTAL(9'830'400) / 4);
+	Z80CTC(config, m_ctc, DERIVED_CLOCK(1, 4));
 	m_ctc->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-	m_ctc->set_clk<0>(XTAL(9'830'400) / 64);
-	m_ctc->set_clk<1>(XTAL(9'830'400) / 64);
-	m_ctc->set_clk<2>(XTAL(9'830'400) / 64);
-	m_ctc->set_clk<3>(XTAL(9'830'400) / 64);
+	m_ctc->set_clk<0>(DERIVED_CLOCK(1, 64));
+	m_ctc->set_clk<1>(DERIVED_CLOCK(1, 64));
+	m_ctc->set_clk<2>(DERIVED_CLOCK(1, 64));
+	m_ctc->set_clk<3>(DERIVED_CLOCK(1, 64));
 	m_ctc->zc_callback<0>().set(FUNC(k1520_zre_k2521_device::ctc_zc0_w));
 	m_ctc->zc_callback<1>().set(FUNC(k1520_zre_k2521_device::ctc_zc1_w));
 
-	Z80PIO(config, m_pio, XTAL(9'830'400) / 4);
+	Z80PIO(config, m_pio, DERIVED_CLOCK(1, 4));
 	m_pio->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 	m_pio->in_pa_callback().set(FUNC(k1520_zre_k2521_device::pio_pa_r));
 	m_pio->out_pa_callback().set(FUNC(k1520_zre_k2521_device::pio_pa_w));

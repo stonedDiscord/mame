@@ -72,16 +72,16 @@ void k8911_state::k8911(machine_config &config)
 	m_k1520->irq().set(m_zre, FUNC(k1520_zre_k2521_device::irq_line_w));
 	m_k1520->nmi().set(m_zre, FUNC(k1520_zre_k2521_device::nmi_line_w));
 
-	K1520_ZRE(config, m_zre, XTAL(9'830'400));          // K2521 / 012-7100 ZRE
+	K1520_ZRE(config, m_zre, 0);                        // K2521 / 012-7100 ZRE
 	m_zre->set_slot(*m_k1520, 3);
 
-	K1520_PFS(config, m_pfs, XTAL(9'830'400));          // K3820 / 012-7040 PFS
+	K1520_PFS(config, m_pfs, 0);                        // K3820 / 012-7040 PFS
 	m_pfs->set_slot(*m_k1520, 1);
 
-	K1520_ABS(config, m_abs, XTAL(9'830'400));          // K7024 / 012-6820 ABS
+	K1520_ABS(config, m_abs, 0);                        // K7024 / 012-6820 ABS
 	m_abs->set_slot(*m_k1520, 2);
 
-	K1520_ATS(config, m_ats, XTAL(9'830'400));          // K7028 / 012-6710 ATS
+	K1520_ATS(config, m_ats, 0);                        // K7028 / 012-6710 ATS
 	m_ats->set_slot(*m_k1520, 4);
 }
 
