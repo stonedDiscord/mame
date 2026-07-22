@@ -251,6 +251,8 @@ files {
 	MAME_DIR .. "src/emu/debug/dvmemory.h",
 	MAME_DIR .. "src/emu/debug/dvrpoints.cpp",
 	MAME_DIR .. "src/emu/debug/dvrpoints.h",
+	MAME_DIR .. "src/emu/debug/dvstack.cpp",
+	MAME_DIR .. "src/emu/debug/dvstack.h",
 	MAME_DIR .. "src/emu/debug/dvstate.cpp",
 	MAME_DIR .. "src/emu/debug/dvstate.h",
 	MAME_DIR .. "src/emu/debug/dvtext.cpp",
@@ -344,5 +346,4 @@ pchsource(MAME_DIR .. "src/emu/drivers/empty.cpp")
 dependency {
 	{ "$(OBJDIR)/src/emu/drivers/empty.o", "$(GCH)", true  },
 }
-
 

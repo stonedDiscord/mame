@@ -22,6 +22,7 @@
 #include "qt/mainwindow.h"
 #include "qt/dasmwindow.h"
 #include "qt/memorywindow.h"
+#include "qt/stackwindow.h"
 #include "qt/breakpointswindow.h"
 #include "qt/deviceswindow.h"
 #include "qt/deviceinformationwindow.h"
@@ -227,6 +228,9 @@ void debug_qt::load_window_configurations(util::xml::data_node const &parentnode
 			break;
 		case debugger::WINDOW_TYPE_MEMORY_VIEWER:
 			win = new debugger::qt::MemoryWindow(*this);
+			break;
+		case debugger::WINDOW_TYPE_STACK_VIEWER:
+			win = new debugger::qt::StackWindow(*this);
 			break;
 		case debugger::WINDOW_TYPE_DISASSEMBLY_VIEWER:
 			win = new debugger::qt::DasmWindow(*this);

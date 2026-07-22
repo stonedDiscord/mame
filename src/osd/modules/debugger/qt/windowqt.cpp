@@ -8,6 +8,7 @@
 #include "deviceswindow.h"
 #include "logwindow.h"
 #include "memorywindow.h"
+#include "stackwindow.h"
 
 #include "debugger.h"
 #include "debug/debugcon.h"
@@ -47,6 +48,10 @@ WindowQt::WindowQt(DebuggerQt &debugger, QWidget *parent) :
 	QAction *debugActOpenDasm = new QAction("New &Disassembly Window", this);
 	debugActOpenDasm->setShortcut(QKeySequence("Ctrl+D"));
 	connect(debugActOpenDasm, &QAction::triggered, this, &WindowQt::debugActOpenDasm);
+
+	QAction *debugActOpenStack = new QAction("New &Stack Window", this);
+	debugActOpenStack->setShortcut(QKeySequence("Ctrl+K"));
+	connect(debugActOpenStack, &QAction::triggered, this, &WindowQt::debugActOpenStack);
 
 	QAction *debugActOpenLog = new QAction("New Error &Log Window", this);
 	debugActOpenLog->setShortcut(QKeySequence("Ctrl+L"));
@@ -111,6 +116,7 @@ WindowQt::WindowQt(DebuggerQt &debugger, QWidget *parent) :
 	QMenu *debugMenu = menuBar()->addMenu("&Debug");
 	debugMenu->addAction(debugActOpenMemory);
 	debugMenu->addAction(debugActOpenDasm);
+	debugMenu->addAction(debugActOpenStack);
 	debugMenu->addAction(debugActOpenLog);
 	debugMenu->addAction(debugActOpenPoints);
 	debugMenu->addAction(debugActOpenDevices);
@@ -154,6 +160,13 @@ void WindowQt::debugActOpenDasm()
 	// A valiant effort, but it just doesn't wanna' hide behind the main window & not make a new toolbar icon
 	// foo->setWindowFlags(Qt::Dialog);
 	// foo->setWindowFlags(foo->windowFlags() & ~Qt::WindowStaysOnTopHint);
+	foo->show();
+}
+
+
+void WindowQt::debugActOpenStack()
+{
+	StackWindow *foo = new StackWindow(m_debugger, this);
 	foo->show();
 }
 

@@ -458,6 +458,7 @@ void debugger_cpu::wait_for_debugger(device_t &device)
 		{
 			m_machine.debug_view().update_all(DVT_DISASSEMBLY);
 			m_machine.debug_view().update_all(DVT_STATE);
+			m_machine.debug_view().update_all(DVT_STACK);
 			m_machine.debugger().refresh_display();
 		}
 

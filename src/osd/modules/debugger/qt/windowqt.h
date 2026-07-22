@@ -53,6 +53,7 @@ public:
 
 protected slots:
 	virtual void debugActOpenMemory();
+	void debugActOpenStack();
 	virtual void debugActOpenDasm();
 	void debugActOpenLog();
 	void debugActOpenPoints();

@@ -17,6 +17,7 @@
 #include "dvepoints.h"
 #include "dvmemory.h"
 #include "dvrpoints.h"
+#include "dvstack.h"
 #include "dvstate.h"
 #include "dvtext.h"
 #include "dvwpoints.h"
@@ -357,6 +358,9 @@ debug_view *debug_view_manager::alloc_view(debug_view_type type, debug_view_osd_
 
 		case DVT_MEMORY:
 			return append(new debug_view_memory(machine(), osdupdate, osdprivate));
+
+		case DVT_STACK:
+			return append(new debug_view_stack(machine(), osdupdate, osdprivate));
 
 		case DVT_LOG:
 			return append(new debug_view_log(machine(), osdupdate, osdprivate));

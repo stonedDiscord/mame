@@ -388,6 +388,8 @@ function qtdebuggerbuild()
 			MAME_DIR .. "src/osd/modules/debugger/qt/mainwindow.h",
 			MAME_DIR .. "src/osd/modules/debugger/qt/memorywindow.cpp",
 			MAME_DIR .. "src/osd/modules/debugger/qt/memorywindow.h",
+			MAME_DIR .. "src/osd/modules/debugger/qt/stackwindow.cpp",
+			MAME_DIR .. "src/osd/modules/debugger/qt/stackwindow.h",
 			MAME_DIR .. "src/osd/modules/debugger/qt/breakpointswindow.cpp",
 			MAME_DIR .. "src/osd/modules/debugger/qt/breakpointswindow.h",
 			MAME_DIR .. "src/osd/modules/debugger/qt/deviceswindow.cpp",
