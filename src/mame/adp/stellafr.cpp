@@ -269,7 +269,7 @@ void stellafr_state::sus_common(machine_config &config)
 {
 	adp_steuereinheit_device &steuereinheit(ADP_STEUEREINHEIT(config, m_steuereinheit, 0));
 	ay8910_device &psg(*steuereinheit.subdevice<ay8910_device>("aysnd"));
-	steuereinheit.irq_callback().set_inputline("sus:maincpu", M68K_IRQ_4);
+	steuereinheit.irq_callback().set_inputline("sus:maincpu", M68K_IRQ_3);
 	steuereinheit.input_callback().set(FUNC(stellafr_state::mux_r));
 	steuereinheit.output_callback().set(FUNC(stellafr_state::mux_w));
 	steuereinheit.shift_callback().set(FUNC(stellafr_state::mux2_w));

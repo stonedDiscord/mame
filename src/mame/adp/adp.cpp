@@ -307,7 +307,7 @@ void adp_state::quickjac(machine_config &config)
 void adp_state::adp_common(machine_config &config)
 {
 	ADP_STEUEREINHEIT(config, m_steuereinheit, 0);
-	m_steuereinheit->irq_callback().set_inputline("sus:maincpu", M68K_IRQ_4);
+	m_steuereinheit->irq_callback().set_inputline("sus:maincpu", M68K_IRQ_3);
 	m_steuereinheit->subdevice<ay8910_device>("aysnd")->port_a_read_callback().set_ioport("PA");
 	m_steuereinheit->duart_input_callback().set_ioport("DSW1");
 }

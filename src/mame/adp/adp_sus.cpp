@@ -113,5 +113,5 @@ void adp_sus_device::program_map(address_map &map)
 
 void adp_sus_device::cpu_space_map(address_map &map)
 {
-	map(0xfffff9, 0xfffff9).r(m_steuereinheit, FUNC(adp_steuereinheit_device::irq_vector_r));
+	map(0xfffff7, 0xfffff7).r(m_steuereinheit, FUNC(adp_steuereinheit_device::irq_vector_r));
 }
