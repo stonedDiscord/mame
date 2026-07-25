@@ -97,7 +97,13 @@ void adp_videocontroller_device::device_start()
 void adp_videocontroller_device::palette_init(palette_device &palette) const
 {
 	for (int i = 0; i < palette.entries(); i++)
-		palette.set_pen_color(i, rgb_t(0x21 * BIT(i, 0) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 0), 0x21 * BIT(i, 1) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 1), 0x21 * BIT(i, 2) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 2)));
+	{
+		int const r = 0x21 * BIT(i, 0) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 0);
+		int const g = 0x21 * BIT(i, 1) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 1);
+		int const b = 0x21 * BIT(i, 2) + 0x47 * BIT(i, 3) + 0x97 * BIT(i, 2);
+
+		palette.set_pen_color(i, rgb_t(r, g, b));
+	}
 }
 
 void adp_videocontroller_device::hd63484_map(address_map &map)
