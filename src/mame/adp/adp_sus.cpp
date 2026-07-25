@@ -42,7 +42,6 @@ adp_sus_device::adp_sus_device(const machine_config &mconfig, device_type type, 
 	m_maincpu(*this, "maincpu"),
 	m_steuereinheit(*this, ":steuereinheit"),
 	m_nvram(*this, "nvram"),
-	m_nvram_data(*this, "nvram"),
 	m_rtc(*this, "rtc")
 {
 }
@@ -82,10 +81,6 @@ void adp_sus_device::nvram_init(nvram_device &nvram, void *base, size_t size)
 }
 
 void adp_sus_device::device_start()
-{
-}
-
-void adp_sus_device::device_reset()
 {
 }
 

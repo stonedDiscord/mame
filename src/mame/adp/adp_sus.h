@@ -21,7 +21,6 @@ protected:
 	adp_sus_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, bool rtc);
 	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 	virtual void device_start() override ATTR_COLD;
-	virtual void device_reset() override ATTR_COLD;
 
 private:
 	void nvram_init(nvram_device &nvram, void *base, size_t size);
@@ -32,7 +31,6 @@ private:
 	required_device<m68000_device> m_maincpu;
 	required_device<adp_steuereinheit_device> m_steuereinheit;
 	required_device<nvram_device> m_nvram;
-	required_shared_ptr<u16> m_nvram_data;
 	optional_device<msm6242_device> m_rtc;
 };
 
