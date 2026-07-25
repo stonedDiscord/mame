@@ -5,11 +5,11 @@ CPU Board:
 ----------
  ____________________________________________________________
  |           ______________  ______________     ___________ |
- | 74HC245N  | t1 i       |  |KM681000ALP7|     |+        | |
+ | 74HC245N  | t1 i       |  |    RAM     |     |+        | |
  | 74HC573   |____________|  |____________|     |  3V Bat | |
  |                                              |         | |
  |           ______________  ______________     |        -| |
- |           | t1 ii      |  |KM681000ALP7|     |_________| |
+ |           | t1 ii      |  |    RAM     |     |_________| |
  |     |||   |____________|  |____________| |||             |
  |     |||   ___________                    |||  M62X42B    |
  | X   |||   |         |                    |||             |
@@ -22,10 +22,11 @@ CPU Board:
 Parts:
 
  68EC000FN8         - Motorola 68k CPU
- KM681000ALP7       - 128K X 8 Bit Low Power CMOS Static RAM
- OKIM62X42B         - Real-time Clock ic With Built-in Crystal
+ RAM                - Either 2x KM681000ALP7 128K X 8 Bit Low Power CMOS Static RAM
+                      or 2x M48T08 8K x 8 non-volatile static RAM and real-time clock
+ OKIM62X42B         - Real-time Clock ic With Built-in Crystal (empty on Timekeeper boards)
  MAX691CPE          - P Reset ic With Watchdog And Battery Switchover
- X                    - 8MHz xtal
+ X                  - 8MHz xtal on Timekeeper boards, 12MHz xtal on RTC boards
  3V Bat             - Lithium 3V power module
 
  */
