@@ -132,20 +132,15 @@ void adp_videocontroller_device::palette_init(palette_device &palette) const
 
 void adp_videocontroller_device::hd63484_map(address_map &map)
 {
-	switch (m_layout)
+	if (type() == ADP_VIDEOCONTROLLER_ENCODER)
 	{
-	case memory_layout::STANDARD:
-		map(0x00000, 0x1ffff).mirror(0x60000).ram();
-		map(0x80000, 0x9ffff).mirror(0x60000).rom().region(m_gfx_region, 0);
-		break;
-	case memory_layout::EXTENDED_ROM:
-		map(0x00000, 0x1ffff).mirror(0x60000).ram();
-		map(0x80000, 0xfffff).rom().region(m_gfx_region, 0);
-		break;
-	case memory_layout::ROM_THEN_RAM:
 		map(0x00000, 0x7ffff).rom().region(m_gfx_region, 0);
 		map(0x80000, 0xfffff).ram();
-		break;
+	}
+	else
+	{
+		map(0x00000, 0x1ffff).mirror(0x60000).ram();
+		map(0x80000, 0xfffff).rom().region(m_gfx_region, 0);
 	}
 }
 

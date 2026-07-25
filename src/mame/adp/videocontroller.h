@@ -13,11 +13,8 @@
 class adp_videocontroller_device : public device_t
 {
 public:
-	enum class memory_layout { STANDARD, EXTENDED_ROM, ROM_THEN_RAM };
-
 	adp_videocontroller_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 
-	adp_videocontroller_device &set_memory_layout(memory_layout layout) { m_layout = layout; return *this; }
 	adp_videocontroller_device &set_high_resolution(bool enabled = true);
 	adp_videocontroller_device &set_gfx_region(const char *tag) { m_gfx_region = tag; return *this; }
 
@@ -36,7 +33,6 @@ protected:
 private:
 	void hd63484_map(address_map &map) ATTR_COLD;
 
-	memory_layout m_layout = memory_layout::STANDARD;
 	bool m_high_resolution = false;
 	required_device<hd63484_device> m_acrtc;
 	required_device<palette_device> m_palette;

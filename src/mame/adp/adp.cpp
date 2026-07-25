@@ -317,7 +317,7 @@ void adp_state::fashiong(machine_config &config)
 {
 	ADP_SUS_TK(config, m_sus, 0);
 	adp_common(config);
-	ADP_VIDEOCONTROLLER(config, m_video, 0).set_gfx_region(":gfx0").set_memory_layout(adp_videocontroller_device::memory_layout::EXTENDED_ROM);
+	ADP_VIDEOCONTROLLER(config, m_video, 0).set_gfx_region(":gfx0");
 
 	m_steuereinheit->input_callback().set(FUNC(adp_state::input_r));
 	m_steuereinheit->output_callback().set(FUNC(adp_state::input_w));
@@ -329,7 +329,7 @@ void adp_state::funland(machine_config &config)
 {
 	ADP_SUS_RTC(config, m_sus, 0);
 	adp_common(config);
-	ADP_VIDEOCONTROLLER_ENCODER(config, m_video, 0).set_gfx_region(":gfx0").set_memory_layout(adp_videocontroller_device::memory_layout::ROM_THEN_RAM);
+	ADP_VIDEOCONTROLLER_ENCODER(config, m_video, 0).set_gfx_region(":gfx0");
 
 	m_steuereinheit->input_callback().set_ioport("IN0");
 	m_steuereinheit->serial_a_tx_callback().set(m_microtouch, FUNC(microtouch_device::rx));
@@ -342,7 +342,7 @@ void adp_state::fstation(machine_config &config)
 	adp_common(config);
 	ADP_VIDEOCONTROLLER_ENCODER(config, m_video, 0);
 
-	m_video->set_gfx_region(":gfx0").set_memory_layout(adp_videocontroller_device::memory_layout::ROM_THEN_RAM).set_high_resolution(true);
+	m_video->set_gfx_region(":gfx0").set_high_resolution(true);
 	m_steuereinheit->input_callback().set(FUNC(adp_state::input_r));
 	m_steuereinheit->output_callback().set(FUNC(adp_state::input_w));
 }
