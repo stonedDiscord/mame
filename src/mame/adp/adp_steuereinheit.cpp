@@ -149,14 +149,14 @@ u16 adp_steuereinheit_device::read(offs_t offset, u16 mem_mask)
 void adp_steuereinheit_device::write(offs_t offset, u16 data, u16 mem_mask)
 {
 	// U17 74HC138
-	if (!ACCESSING_BITS_0_7)
-		return;
-
 	u16 const address = offset << 1;
 	u8 const value = data;
 	switch (address & 0x1c0)
 	{
-	case 0x000: m_dac->data_w(value); break;
+	case 0x000:
+		if (ACCESSING_BITS_0_7)
+			m_dac->data_w(value);
+		break;
 	case 0x040: break; // Y1: unknown
 	case 0x080:
 	{
@@ -165,12 +165,21 @@ void adp_steuereinheit_device::write(offs_t offset, u16 data, u16 mem_mask)
 			m_video[slot]->write(offset & 7, data, mem_mask);
 		break;
 	}
-	case 0x0c0: m_shift_cb(value); break;
-	case 0x100: m_output_cb(value); break;
-	case 0x140:
-		m_psg->address_data_w((address >> 1) & 1, value);
+	case 0x0c0:
+		if (ACCESSING_BITS_0_7)
+			m_shift_cb(value);
 		break;
-	case 0x180: m_duart->write((address >> 1) & 0x0f, value); break;
+	case 0x100:
+		m_output_cb(0, data, mem_mask);
+		break;
+	case 0x140:
+		if (ACCESSING_BITS_0_7)
+			m_psg->address_data_w((address >> 1) & 1, value);
+		break;
+	case 0x180:
+		if (ACCESSING_BITS_0_7)
+			m_duart->write((address >> 1) & 0x0f, value);
+		break;
 	case 0x1c0: break; // Y7: not connected
 	default:
 		break;
