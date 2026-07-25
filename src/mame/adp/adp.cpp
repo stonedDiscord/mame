@@ -26,16 +26,6 @@ Three board stack.
 
 There's also (external) JAMMA adapter - 4th board filled with resistors and diodes.
 
-Funny Land de Luxe
-------------------
-
-Video board has additional chips:
-  - Altera EPM7032 (PLD)
-  - SG-615PH (32.0000M oscillator)
-  - Bt481 (RAMDAC)
-
-
-
 Quick Jack administration/service mode:
 - hold down Start and Joker buttons at start
 - enter the default CODENUMBER 54321 using the hand buttons
@@ -94,13 +84,6 @@ private:
 };
 
 
-
-/***************************************************************************
-
-    68681 DUART <-> Microtouch touch screen controller communication
-
-***************************************************************************/
-
 void adp_state::machine_start()
 {
 	save_item(NAME(m_mux_data));
@@ -125,7 +108,6 @@ void adp_state::input_w(uint16_t data)
 	m_mux_data++;
 	m_mux_data &= 0x0f;
 }
-
 
 
 static INPUT_PORTS_START( quickjac )
@@ -284,13 +266,6 @@ static INPUT_PORTS_START( fstation )
 	PORT_BIT( 0x4000, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_COIN1 )
 INPUT_PORTS_END
-
-/*
-INTERRUPT_GEN_MEMBER(adp_state::adp_int)
-{
-    device.execute().set_input_line(1, HOLD_LINE); // ??? All irqs have the same vector, and the mask used is 0 or 7
-}
-*/
 
 void adp_state::quickjac(machine_config &config)
 {
