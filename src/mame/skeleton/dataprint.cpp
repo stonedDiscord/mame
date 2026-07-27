@@ -14,7 +14,7 @@ B                   |
 | E                 |
 | P                 |
 | R                 |
-| O   PrinterC     BTN
+| O   Connector     BTN
 | M                 |
 |     M48T18        |
 |    TMS70C02NL  Q  |
@@ -46,6 +46,7 @@ public:
 		: driver_device(mconfig, type, tag)
 		, m_maincpu(*this, "maincpu")
 		, m_nvram(*this, "nvram")
+		, m_printer(*this, "printer")
 		, m_rs232(*this, "rs232")
 		, m_leds(*this, "led%u", 0U)
 		, m_buzzer(*this, "buzzer")
@@ -59,6 +60,7 @@ private:
 
 	required_device<tms7000_device> m_maincpu;
 	required_device<timekeeper_device> m_nvram;
+	required_device<printer_image_device> m_printer;
 	required_device<rs232_port_device> m_rs232;
 	output_finder<8> m_leds;
 	required_device<beep_device> m_buzzer;
@@ -88,6 +90,8 @@ void dataprint_state::dp3000(machine_config &config)
 	m_maincpu->out_portb().set(FUNC(dataprint_state::leds_w));
 
 	M48T58(config, "nvram"); // ST M48T18
+
+	PRINTER(config, m_printer);
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 
