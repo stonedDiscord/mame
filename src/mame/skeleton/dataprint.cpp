@@ -80,6 +80,7 @@ void dataprint_state::mem_map(address_map &map)
 
 static INPUT_PORTS_START( dp3000 )
 	PORT_START("PORTA")
+	PORT_BIT(0xff, IP_ACTIVE_LOW, IPT_UNUSED)
 INPUT_PORTS_END
 
 void dataprint_state::dp3000(machine_config &config)
