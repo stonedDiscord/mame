@@ -1416,6 +1416,18 @@ end
 
 --------------------------------------------------
 --
+--@src/devices/video/saa5350.h,VIDEOS["SAA5350"] = true
+--------------------------------------------------
+
+if VIDEOS["SAA5350"] then
+	files {
+		MAME_DIR .. "src/devices/video/saa5350.cpp",
+		MAME_DIR .. "src/devices/video/saa5350.h",
+	}
+end
+
+--------------------------------------------------
+--
 --@src/devices/video/saa7110.h,VIDEOS["SAA7110"] = true
 --------------------------------------------------
 
