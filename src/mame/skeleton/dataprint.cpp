@@ -82,7 +82,7 @@ INPUT_PORTS_END
 
 void dataprint_state::dp3000(machine_config &config)
 {
-	TMS7002(config, m_maincpu, 4.194304_MHz_XTAL); // TODO: verify crystal
+	TMS70C02(config, m_maincpu, 4.194304_MHz_XTAL); // TODO: verify crystal
 	m_maincpu->set_addrmap(AS_PROGRAM, &dataprint_state::mem_map);
 	m_maincpu->in_porta().set_ioport("PORTA");
 	m_maincpu->out_portb().set(FUNC(dataprint_state::leds_w));
