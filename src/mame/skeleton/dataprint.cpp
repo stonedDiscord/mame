@@ -72,7 +72,7 @@ void dataprint_state::leds_w(u8 data)
 
 void dataprint_state::mem_map(address_map &map)
 {
-	map(0x0000, 0x1fff).ram().share("nvram");
+	map(0x0000, 0x1fff).rw(m_nvram, FUNC(timekeeper_device::read), FUNC(timekeeper_device::write));
 	map(0x2000, 0xffff).rom().nopw();
 }
 
@@ -87,7 +87,7 @@ void dataprint_state::dp3000(machine_config &config)
 	m_maincpu->in_porta().set_ioport("PORTA");
 	m_maincpu->out_portb().set(FUNC(dataprint_state::leds_w));
 
-	M48T02(config, "nvram"); // ST M48T18
+	M48T58(config, "nvram"); // ST M48T18
 
 	RS232_PORT(config, m_rs232, default_rs232_devices, nullptr);
 
