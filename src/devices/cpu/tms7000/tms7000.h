@@ -375,6 +375,20 @@ public:
 };
 
 
+class tms70c02_device : public tms7000_device
+{
+public:
+	tms70c02_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+};
+
+
+class tms70c42_device : public tms7000_device
+{
+public:
+	tms70c42_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+};
+
+
 DECLARE_DEVICE_TYPE(TMS7000,     tms7000_device)
 DECLARE_DEVICE_TYPE(TMS7020,     tms7020_device)
 DECLARE_DEVICE_TYPE(TMS7020_EXL, tms7020_exl_device)
@@ -387,5 +401,7 @@ DECLARE_DEVICE_TYPE(TMS7001,     tms7001_device)
 DECLARE_DEVICE_TYPE(TMS7041,     tms7041_device)
 DECLARE_DEVICE_TYPE(TMS7002,     tms7002_device)
 DECLARE_DEVICE_TYPE(TMS7042,     tms7042_device)
+DECLARE_DEVICE_TYPE(TMS70C02,    tms70c02_device)
+DECLARE_DEVICE_TYPE(TMS70C42,    tms70c42_device)
 
 #endif // MAME_CPU_TMS7000_TMS7000_H

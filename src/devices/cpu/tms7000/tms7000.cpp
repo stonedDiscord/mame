@@ -13,7 +13,7 @@
   - TMS70C46 external memory mode is via "E" bus instead of configuring IOCNT0
   - TMS70C46 clock divider
   - TMS70C46 INT3 on keypress
-  - when they're needed, add TMS70Cx2, TMS7742, TMS77C82, SE70xxx
+  - when they're needed, add TMS7742, TMS77C82, SE70xxx
 
 *****************************************************************************/
 
@@ -42,6 +42,9 @@ DEFINE_DEVICE_TYPE(TMS7001, tms7001_device, "tms7001", "Texas Instruments TMS700
 DEFINE_DEVICE_TYPE(TMS7041, tms7041_device, "tms7041", "Texas Instruments TMS7041")
 DEFINE_DEVICE_TYPE(TMS7002, tms7002_device, "tms7002", "Texas Instruments TMS7002")
 DEFINE_DEVICE_TYPE(TMS7042, tms7042_device, "tms7042", "Texas Instruments TMS7042")
+
+DEFINE_DEVICE_TYPE(TMS70C02, tms70c02_device, "tms70c02", "Texas Instruments TMS70C02")
+DEFINE_DEVICE_TYPE(TMS70C42, tms70c42_device, "tms70c42", "Texas Instruments TMS70C42")
 
 // TMS70C46 is literally a shell around a TMS70C40, with support for external
 // memory bus, auto external clock divider on slow memory, and wake-up on keypress.
@@ -173,6 +176,16 @@ tms7002_device::tms7002_device(const machine_config &mconfig, const char *tag, d
 
 tms7042_device::tms7042_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	tms7000_device(mconfig, TMS7042, tag, owner, clock, address_map_constructor(FUNC(tms7042_device::tms7042_mem), this), CHIP_FAMILY_70X2)
+{
+}
+
+tms70c02_device::tms70c02_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	tms7000_device(mconfig, TMS70C02, tag, owner, clock, address_map_constructor(FUNC(tms70c02_device::tms7002_mem), this), CHIP_FAMILY_70X2 | CHIP_IS_CMOS)
+{
+}
+
+tms70c42_device::tms70c42_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	tms7000_device(mconfig, TMS70C42, tag, owner, clock, address_map_constructor(FUNC(tms70c42_device::tms7042_mem), this), CHIP_FAMILY_70X2 | CHIP_IS_CMOS)
 {
 }
 
