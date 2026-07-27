@@ -573,8 +573,6 @@ void stella8085_state::io70(uint8_t data)
 	// D6 ("Short test") drives the LIA/LIG coin-barrier self-test; kbd_rl_r reads it back.
 	m_short_test = D6;
 
-	if (PA7)
-		LOG("PA7 high\n");
 }
 
 void stella8085_state::io71(uint8_t data)
