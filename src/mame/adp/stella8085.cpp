@@ -184,7 +184,7 @@ static constexpr int SND_PERIOD_US[4] = { 60000, 120000, 240000, 480000 };
 // S50240 (ICG9) top-octave-synthesizer master clock, folding in the octave-0
 // divider so per-octave pitch is SOUND_CLOCK >> octave (÷239 = C9, ÷478 = C8).
 // TODO: ~2 MHz is the MK50240 nominal; adjust to match the real board.
-static constexpr int SOUND_CLOCK = (6.144_MHz_XTAL / 4).value();
+static constexpr int SOUND_CLOCK = (6.144_MHz_XTAL / 16).value();
 
 void stella8085_state::machine_start()
 {
@@ -606,7 +606,7 @@ void stella8085_state::io71(uint8_t data)
 	// G/M/S up-down counters, shown on the bahia layout's three simplecounters.
 	// Each register has a separate up and down coil: a rising edge on the up coil
 	// increments it, on the down coil decrements it (clamped to the counter range).
-	//   counter0 = G (UG/DG) -> pf_counter
+	//   counter0 = G (UG/DG) -> ten_pf_counter (0.10 DM per count)
 	//   counter1 = M (UM/DM) -> dm_counter (Munzspeicher)
 	//   counter2 = S (US/DS) -> sp_counter (Sonderspiele)
 	static const struct { uint8_t up_bit, down_bit; uint16_t max; } s_coils[3] =
@@ -626,7 +626,9 @@ void stella8085_state::io71(uint8_t data)
 			m_count[i]++;
 		if (BIT(rising, s_coils[i].down_bit) && m_count[i] > 0)
 			m_count[i]--;
-		m_counters[i] = m_count[i];
+		// The two-digit Geldspeicher display advances in 10 Pfennig steps and
+		// rolls over after 90 Pfennig, independently of its stored value.
+		m_counters[i] = (i == 0) ? ((m_count[i] * 10) % 100) : m_count[i];
 
 		// the wheel advances one step on any coil pulse (up or down); the slotted disc
 		// flips the barrier each step so the self-test sees it move.
