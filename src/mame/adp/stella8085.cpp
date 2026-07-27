@@ -108,6 +108,16 @@ private:
 	uint16_t m_count[3] = { 0, 0, 0 };  // G/M/S up-down counter values (excellent layout)
 	uint8_t m_io71_last = 0;            // previous io71 value, for counter coil edge detection
 
+	// Counter light barriers LiZG/LiZM/LiZS (Foul display pos7 "ZÄHLWERKE"). Each G/M/S
+	// counter wheel carries a slotted disc on an optical barrier; the Foul self-test
+	// pulses the counter coil and flags the counter faulty unless its barrier toggles.
+	// The barriers read back on i8279 sensor row 0 (TZ0) bits 6/2/5 (test routines
+	// 1AD0/0500/02F0). Modelled as a wheel phase that advances one step per coil pulse.
+	// TODO: bit↔counter order, polarity and pulses-per-transition are first guesses to
+	// be confirmed by trial-and-error against the real Foul readout.
+	uint8_t m_counter_phase[3] = { 0, 0, 0 }; // counter wheel phase (advances per coil pulse)
+	uint8_t m_counter_lb = 0x00;              // synthesised TZ0 light-barrier bits (2/5/6)
+
 	required_device<i8085a_cpu_device> m_maincpu;
 	required_device<i8256_device> m_uart;
 	required_device<rs232_port_device> m_rs232;
@@ -206,6 +216,8 @@ void stella8085_state::machine_start()
 	save_item(NAME(m_lia_bit));
 	save_item(NAME(m_count));
 	save_item(NAME(m_io71_last));
+	save_item(NAME(m_counter_phase));
+	save_item(NAME(m_counter_lb));
 }
 
 void stella8085_state::large_program_map(address_map &map)
@@ -362,6 +374,13 @@ uint8_t stella8085_state::kbd_rl_r()
 	//
 	// m_short_test (port-A D6) is the coin-barrier self-test: when set, every checked
 	// barrier reads blocked (low). The firmware toggles it and verifies high then low.
+
+	// NOTE: TZ0 bits 6/2/5 carry the counter light barriers LiZG/LiZM/LiZS. Feeding the
+	// (coil-driven) wheel phase here makes the firmware count up + beep forever at init:
+	// it homes each counter against its barrier and the toggle-per-pulse model never
+	// satisfies the stop condition. Injection disabled until the homing expectation is
+	// known (m_counter_lb is still maintained in io71 for the next attempt).
+	//   if (row == 0) data = (data & ~0x64) | (m_counter_lb & 0x64);
 
 	// Row 1 = coin acceptor (LIM1-4 bits 0-3, LIG bit 7). IPT_COIN keys only trigger
 	// the sequencer; the line levels are replayed (see coin_seq_tick). Lines idle HIGH;
@@ -598,6 +617,9 @@ void stella8085_state::io71(uint8_t data)
 		{ 7, 6, 999 }, // M
 		{ 5, 4,  99 }, // S
 	};
+	// TZ0 sensor-row bit each counter's light barrier reads back on (LiZG/LiZM/LiZS),
+	// matching the order the Foul test polls them (1AD0->bit6, 0500->bit2, 02F0->bit5).
+	static const uint8_t s_lb_bit[3] = { 6, 2, 5 }; // G, M, S  (tunable)
 	const uint8_t rising = data & ~m_io71_last;
 	m_io71_last = data;
 	for (int i = 0; i < 3; i++)
@@ -607,6 +629,15 @@ void stella8085_state::io71(uint8_t data)
 		if (BIT(rising, s_coils[i].down_bit) && m_count[i] > 0)
 			m_count[i]--;
 		m_counters[i] = m_count[i];
+
+		// the wheel advances one step on any coil pulse (up or down); the slotted disc
+		// flips the barrier each step so the self-test sees it move.
+		if (BIT(rising, s_coils[i].up_bit) || BIT(rising, s_coils[i].down_bit))
+			m_counter_phase[i]++;
+		if (m_counter_phase[i] & 1)
+			m_counter_lb |= (1 << s_lb_bit[i]);
+		else
+			m_counter_lb &= ~(1 << s_lb_bit[i]);
 	}
 }
 
