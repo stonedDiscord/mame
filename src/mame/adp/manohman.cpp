@@ -317,19 +317,19 @@ void manohman_state::duart_out_w(uint8_t data)
 uint32_t manohman_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	bitmap.fill(0, cliprect);
-	const int display_width = 120;
-	const int display_height = 7;
-	const offs_t base = 0x111a;
+	constexpr unsigned display_width = 120;
+	constexpr unsigned display_height = 7;
+	constexpr offs_t base = 0x111a;
 
-	for (int x = 0; x < display_width; x++)
+	for (unsigned x = 0; x < display_width; x++)
 	{
-		offs_t addr = base + x;
-		offs_t index = addr >> 1;
-		uint16_t word = m_workram[index];
-		uint8_t column = (addr & 1) ? (word & 0xff) : (word >> 8);
-		for (int y = 0; y < display_height; y++)
+		const offs_t address = base + x;
+		const u16 word = m_workram[address >> 1];
+		const u8 column = BIT(address, 0) ? u8(word) : u8(word >> 8);
+
+		for (unsigned y = 0; y < display_height; y++)
 		{
-			if (column & (1 << y))
+			if (BIT(column, y))
 				bitmap.pix(y, x) = 1;
 		}
 	}
@@ -475,7 +475,7 @@ void manohman_state::manohman(machine_config &config)
 	screen.set_palette("palette");
 	screen.set_screen_update(FUNC(manohman_state::screen_update));
 
-	PALETTE(config, "palette", palette_device::MONOCHROME_INVERTED);
+	PALETTE(config, "palette", palette_device::MONOCHROME);
 	SPEAKER(config, "mono").front_center();
 	SAA1099(config, "saa", XTAL(8'000'000) / 2).add_route(ALL_OUTPUTS, "mono", 0.10); // clock not verified
 }
