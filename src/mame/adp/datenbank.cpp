@@ -218,7 +218,7 @@ public:
         m_rtc(*this, "rtc"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
-		m_lamps(*this, "lamp%u%u", 0U),
+		m_lamps(*this, "lamp%u%u", 0U, 0U),
 		m_leds(*this, "led%u", 0U),
 		m_in0(*this, "IN0")
 	{ }
@@ -341,7 +341,7 @@ void datenbank_state::mux_w(uint8_t data)
 	aw_w(false, aw1);
 	aw_w(true, aw2);
 
-	if (enanz1) 
+	if (enanz1)
 	{
 		anz_w(false, m_out_anz1);
 		st_w(m_out_ma1);
@@ -417,7 +417,6 @@ void datenbank_state::ay8910_portb_w(uint8_t data)
 void datenbank_state::funland_mem(address_map &map)
 {
 	map(0x000000, 0x0fffff).ram().share("nvram");
-	map(0x000000, 0x0003ff).rom().region("nvram",0x1100);
 	// controlled by U17 74HC138
 	map(0x800080, 0x800083).rw("acrtc", FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0x800089, 0x800089).w("ramdac", FUNC(ramdac_device::index_w));
@@ -457,10 +456,6 @@ void datenbank_state::fc7_map(address_map &map)
 
 void datenbank_state::machine_start()
 {
-	m_digits.resolve();
-	m_lamps.resolve();
-	m_leds.resolve();
-
 	// write 0x494e4954 INIT to 0xfffd00
 }
 
@@ -527,7 +522,7 @@ void datenbank_state::funland(machine_config &config)
 	screen.set_palette("palette");
 
 	PALETTE(config, "palette", palette_device::BLACK, 0x100);
-	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, "palette"));
+	ramdac_device &ramdac(RAMDAC(config, "ramdac", "palette"));
 	ramdac.set_addrmap(0, &datenbank_state::ramdac_map);
 
 	hd63484_device &acrtc(HD63484(config, "acrtc", 0));
@@ -537,9 +532,7 @@ void datenbank_state::funland(machine_config &config)
 
 ROM_START(asiasun)
     ROM_REGION16_BE( 0x100000, "nvram", ROMREGION_ERASE00 )
-	ROM_LOAD("loader_uhg.bin", 0x00400, 0x00bc0, CRC(5f65e60c) SHA1(a671f849e628c8950eacf51eba652583d47bbd4e))
-	ROM_LOAD("eeprom_1mb_at90s120.bin", 0x00fc0, 0x00040, CRC(900fa426) SHA1(386b562b827665273fbc251f7c212651fff8c315))
-    ROM_LOAD("asian_sun_d_c5_dec.bin", 0x01000, 0x8a404, CRC(cca31ee3) SHA1(279645ff76a85a9d3111e473dae9fbc42bd25144))
+	ROM_LOAD("asiasun.bin", 0x00000, 0x100000, CRC(449c5104) SHA1(991a71dbb54547bab6f86263d81f597fabda4964))
 
 	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
 	ROM_LOAD("asian_sun_deutsch_video_f1_speicher_1_m27c4001.bin", 0x00000, 0x80000, CRC(048bb5f4) SHA1(f0d12c9bc3cc4dd26e16e8271ea96b609e5801e2))
