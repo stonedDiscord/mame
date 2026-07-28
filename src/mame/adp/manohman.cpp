@@ -155,14 +155,14 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
-    m_rs232(*this, "rs232"),
+	m_rs232(*this, "rs232"),
 		m_pit(*this, "pit"),
-    m_watchdog(*this, "watchdog"),
-    m_screen(*this, "screen"),
-    m_palette(*this, "palette"),
-    m_workram(*this, "nvram"),
-    m_sw1(*this, "SW1"),
-    m_sw2(*this, "SW2")
+	m_watchdog(*this, "watchdog"),
+	m_screen(*this, "screen"),
+	m_palette(*this, "palette"),
+	m_workram(*this, "nvram"),
+	m_sw1(*this, "SW1"),
+	m_sw2(*this, "SW2")
 	{ }
 
 	void manohman(machine_config &config);
@@ -284,9 +284,9 @@ void manohman_state::pit_pa_w(uint8_t data)
 uint8_t manohman_state::pit_pb_r()
 {
   if ((m_latch >> 4) == 4)
-    return m_sw1->read();
+	return m_sw1->read();
   else if ((m_latch >> 4) == 5)
-    return m_sw2->read();
+	return m_sw2->read();
   return 0x00;
 }
 
@@ -305,7 +305,7 @@ void manohman_state::pit_pc_w(uint8_t data)
 {
   logerror("%06x: PIT PC write %02x\n", m_maincpu->pc(), data);
   if (BIT(data,6))
-    m_watchdog->watchdog_reset();
+	m_watchdog->watchdog_reset();
 }
 
 uint8_t manohman_state::duart_in_r()
