@@ -62,16 +62,26 @@ public:
 
 	void b2(machine_config &config);
 	void b4(machine_config &config);
+	void init_gloriasls5();
 
 private:
 	virtual void machine_start() override;
 	void mem_map(address_map &map) ATTR_COLD;
 
 	void mux1_w(uint8_t data);
+	uint8_t ulc_status_r();
+	uint16_t board_identity_r(offs_t offset);
+	uint16_t board_checksum_r(offs_t offset);
 	INTERRUPT_GEN_MEMBER(watchdog_interrupt);
 
 	void watchdog_clear(int);
+	void watchdog_tick(int);
+	void seed_rng(int);
 	emu_timer *m_watchdog_clear_timer = nullptr;
+	emu_timer *m_watchdog_timer = nullptr;
+	emu_timer *m_rng_seed_timer = nullptr;
+	std::array<char, 17> m_vfd_log{};
+	unsigned m_vfd_log_pos = 0;
 
 	// devices
 	required_device<cpu_device> m_maincpu;
@@ -84,26 +94,92 @@ void ballyw_state::mux1_w(uint8_t data)
 	// The ULC presents the serial display output inverted.  The firmware's
 	// level 1 handler takes bytes from its transmit ring and writes their
 	// complement to this register.
-	m_vfd->write_char(~data);
+	data = ~data;
+	m_vfd->write_char(data);
+
+	if (!(data & 0x80))
+	{
+		uint8_t const code = data & 0x3f;
+		m_vfd_log[m_vfd_log_pos++] = (code >= 1 && code <= 26) ? ('A' + code - 1) : char(code);
+		if (m_vfd_log_pos == 16)
+		{
+			m_vfd_log[16] = 0;
+			logerror("VFD: \"%s\"\n", m_vfd_log.data());
+			m_vfd_log_pos = 0;
+		}
+	}
+}
+
+uint8_t ballyw_state::ulc_status_r()
+{
+	// The ULC transmit FIFO is effectively always ready in this emulation.
+	// Returning all status bits set also satisfies the firmware's busy/ready
+	// polling while the display bytes are consumed synchronously by mux1_w.
+	return 0xff;
+}
+
+uint16_t ballyw_state::board_identity_r(offs_t offset)
+{
+	static constexpr uint16_t identity[] = { 0x5220, 0x352c, 0x3000, 0x2031, 0x3233 };
+	return identity[offset];
+}
+
+uint16_t ballyw_state::board_checksum_r(offs_t offset)
+{
+	return offset ? 0x86cc : 0x534b;
 }
 
 void ballyw_state::mem_map(address_map &map)
 {
 	map(0x000000, 0x07ffff).rom();
 	map(0x080000, 0x0fffff).ram();
-	map(0x100000, 0x1fffff).ram();
+	map(0x100000, 0x108b51).ram();
+	map(0x108b52, 0x108b5b).r(FUNC(ballyw_state::board_identity_r)).nopw();
+	map(0x108b5c, 0x108b67).ram();
+	map(0x108b68, 0x108b6b).r(FUNC(ballyw_state::board_checksum_r)).nopw();
+	map(0x108b6c, 0x1fffff).ram();
 	map(0x1006ac, 0x1006ac).w(FUNC(ballyw_state::mux1_w));
 	map(0x800000, 0x8007ff).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
 	//map(0x800000, 0x8007ff).rom().region("ident",0); //?
 	map(0x900000, 0x90021b).ram(); //ulc?
-	map(0x90021c, 0x90021d).w(FUNC(ballyw_state::mux1_w)).umask16(0xff00); // serial display data
+	map(0x90021c, 0x90021d).w(FUNC(ballyw_state::mux1_w)).umask16(0xffff); // serial display data (either bus lane)
 	map(0x90021e, 0x9002ff).ram();
+	// Keep the FIFO/status register out of the backing RAM range above.
+	map(0x900233, 0x900233).r(FUNC(ballyw_state::ulc_status_r)); // ULC serial status
 	map(0x90f000, 0x90ffff).ram();
 }
 
 void ballyw_state::machine_start()
 {
 	m_watchdog_clear_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(ballyw_state::watchdog_clear), this));
+	m_watchdog_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(ballyw_state::watchdog_tick), this));
+	m_rng_seed_timer = machine().scheduler().timer_alloc(timer_expired_delegate(FUNC(ballyw_state::seed_rng), this));
+	m_rng_seed_timer->adjust(attotime::from_msec(1));
+	save_item(NAME(m_vfd_log));
+	save_item(NAME(m_vfd_log_pos));
+}
+
+void ballyw_state::seed_rng(int)
+{
+	address_space &space = m_maincpu->space(AS_PROGRAM);
+	space.write_dword(0x107fe0, 1);
+	space.write_dword(0x107fe4, 1);
+	m_watchdog_timer->adjust(attotime::from_msec(1), 0, attotime::from_hz(100));
+}
+
+void ballyw_state::watchdog_tick(int)
+{
+	m_maincpu->set_input_line(M68K_IRQ_3, ASSERT_LINE);
+	m_watchdog_clear_timer->adjust(attotime::from_usec(10));
+}
+
+void ballyw_state::init_gloriasls5()
+{
+	// Diagnostic aid while the board identity device is being modelled.
+	// The compared bytes are supplied by board_identity_r above.
+	uint8_t *const rom = memregion("maincpu")->base();
+	rom[0x0f94] = 0x71;
+	rom[0x0f95] = 0x4e;
 }
 
 static INPUT_PORTS_START( ballyw )
@@ -129,9 +205,7 @@ void ballyw_state::b2(machine_config &config)
 
 	config.set_default_layout(layout_proconn);
 
-	// Set up watchdog timer to generate periodic interrupts
-	// This prevents the firmware from getting stuck in busy-wait loops
-	m_maincpu->set_periodic_int(FUNC(ballyw_state::watchdog_interrupt), attotime::from_hz(100));
+	// No synthetic periodic IRQ: it enters the ROM diagnostic guard loop.
 }
 
 INTERRUPT_GEN_MEMBER(ballyw_state::watchdog_interrupt)
@@ -143,7 +217,7 @@ INTERRUPT_GEN_MEMBER(ballyw_state::watchdog_interrupt)
 
 void ballyw_state::watchdog_clear(int)
 {
-	m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
+	m_maincpu->set_input_line(M68K_IRQ_3, CLEAR_LINE);
 }
 
 void ballyw_state::b4(machine_config &config)
@@ -544,7 +618,7 @@ GAMEL(2003, winplay,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Ball
 GAMEL(2003, belami,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Bel Ami",                MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, firegame,       0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Fire Game",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, gloriasls4,     0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S4)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
-GAMEL(2003, gloriasls5,     0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
+GAMEL(2003, gloriasls5,     0, b2, ballyw, ballyw_state, init_gloriasls5, ROT0, "Bally Wulff", "Gloria SL (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, kingcs2,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S2)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, kingcs3,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S3)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2004, b493,           0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "493",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
