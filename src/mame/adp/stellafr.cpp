@@ -429,7 +429,6 @@ void stellafr_state::fc7_map(address_map &map)
 
 void stellafr_state::machine_start()
 {
-	save_item(NAME(m_mux1));
 	save_item(NAME(m_out_ma1));
 	save_item(NAME(m_out_ma2));
 	save_item(NAME(m_out_me));
