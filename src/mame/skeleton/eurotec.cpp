@@ -82,6 +82,7 @@ private:
 	emu_timer *m_rng_seed_timer = nullptr;
 	std::array<char, 17> m_vfd_log{};
 	unsigned m_vfd_log_pos = 0;
+	unsigned m_tick_log_count = 0;
 
 	// devices
 	required_device<cpu_device> m_maincpu;
@@ -157,6 +158,7 @@ void ballyw_state::machine_start()
 	m_rng_seed_timer->adjust(attotime::from_msec(1));
 	save_item(NAME(m_vfd_log));
 	save_item(NAME(m_vfd_log_pos));
+	save_item(NAME(m_tick_log_count));
 }
 
 void ballyw_state::seed_rng(int)
@@ -164,13 +166,10 @@ void ballyw_state::seed_rng(int)
 	address_space &space = m_maincpu->space(AS_PROGRAM);
 	space.write_dword(0x107fe0, 1);
 	space.write_dword(0x107fe4, 1);
-	m_watchdog_timer->adjust(attotime::from_msec(1), 0, attotime::from_hz(100));
 }
 
 void ballyw_state::watchdog_tick(int)
 {
-	m_maincpu->set_input_line(M68K_IRQ_3, ASSERT_LINE);
-	m_watchdog_clear_timer->adjust(attotime::from_usec(10));
 }
 
 void ballyw_state::init_gloriasls5()
@@ -205,19 +204,25 @@ void ballyw_state::b2(machine_config &config)
 
 	config.set_default_layout(layout_proconn);
 
-	// No synthetic periodic IRQ: it enters the ROM diagnostic guard loop.
+	m_maincpu->set_periodic_int(FUNC(ballyw_state::watchdog_interrupt), attotime::from_hz(100));
 }
 
 INTERRUPT_GEN_MEMBER(ballyw_state::watchdog_interrupt)
 {
-	device.execute().set_input_line(M68K_IRQ_1, ASSERT_LINE);
-
-	m_watchdog_clear_timer->adjust(attotime::from_usec(10));
+	if (m_maincpu->space(AS_PROGRAM).read_dword(0x10303a) == 0x3579acdf)
+	{
+		address_space &space = m_maincpu->space(AS_PROGRAM);
+		uint32_t const ticks = space.read_dword(0x1084e0) + 1;
+		space.write_dword(0x1084e0, ticks);
+		if (ticks == 600)
+			space.write_dword(0x10840e, 0);
+		device.execute().pulse_input_line(M68K_IRQ_1, attotime::from_msec(1));
+	}
 }
 
 void ballyw_state::watchdog_clear(int)
 {
-	m_maincpu->set_input_line(M68K_IRQ_3, CLEAR_LINE);
+	m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
 }
 
 void ballyw_state::b4(machine_config &config)
