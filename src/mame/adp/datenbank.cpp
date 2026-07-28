@@ -424,7 +424,6 @@ void datenbank_state::funland_mem(address_map &map)
 	map(0x80008c, 0x80008d).rw("ramdac", FUNC(ramdac_device::mask_r), FUNC(ramdac_device::mask_w));
 	map(0x8000c1, 0x8000c1).w(FUNC(datenbank_state::mux2_w)); // Y3 SP/ME II out
 	map(0x800100, 0x800101).rw(FUNC(datenbank_state::mux_r), FUNC(datenbank_state::mux_w)); // Y4 SP/ME I out / Inputs
-	map(0x800100, 0x800101).nopw();
 	map(0x800141, 0x800141).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_w)); // Y5
 	map(0x800143, 0x800143).w("aysnd", FUNC(ay8910_device::data_w)); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
@@ -461,8 +460,9 @@ void datenbank_state::machine_start()
 
 void datenbank_state::machine_reset()
 {
-	// The application distinguishes a cold start by this stack pointer value.
-	m_maincpu->set_state_int(M68K_SP, 0x000ffffe);
+	// The application distinguishes a cold start by the initial stack pointer.
+	// Patch the writable vector because the CPU fetches it after machine_reset.
+	m_maincpu->space(AS_PROGRAM).write_dword(0x000000, 0x000ffffe);
 
 	// The boot ROM checks this marker in the CPU board's local work RAM.
 	m_maincpu->space(AS_PROGRAM).write_dword(0xfffd00, 0x494e4954);
