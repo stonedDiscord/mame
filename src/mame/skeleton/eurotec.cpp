@@ -21,7 +21,7 @@ ULC 1240 V2.0
 Bally Wulff
 YYWW
 
-which seems to be an Ultimate Logic Conversion from an FPGA
+which seems to be an Ultimate Logic Conversion from an Actel FPGA
 
 older boards are labelled
 002.600.002       002.600.11B2
@@ -81,7 +81,10 @@ private:
 
 void ballyw_state::mux1_w(uint8_t data)
 {
-	m_vfd->write_char(data);
+	// The ULC presents the serial display output inverted.  The firmware's
+	// level 1 handler takes bytes from its transmit ring and writes their
+	// complement to this register.
+	m_vfd->write_char(~data);
 }
 
 void ballyw_state::mem_map(address_map &map)
@@ -92,7 +95,9 @@ void ballyw_state::mem_map(address_map &map)
 	map(0x1006ac, 0x1006ac).w(FUNC(ballyw_state::mux1_w));
 	map(0x800000, 0x8007ff).rw("rtc", FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
 	//map(0x800000, 0x8007ff).rom().region("ident",0); //?
-	map(0x900000, 0x9002ff).ram(); //ulc?
+	map(0x900000, 0x90021b).ram(); //ulc?
+	map(0x90021c, 0x90021d).w(FUNC(ballyw_state::mux1_w)).umask16(0xff00); // serial display data
+	map(0x90021e, 0x9002ff).ram();
 	map(0x90f000, 0x90ffff).ram();
 }
 
@@ -291,8 +296,8 @@ ROM_END
 
 ROM_START( gloriasls5 )
 	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD("gloriasl_s5_27c4001.ic10", 0x00001, 0x80000, CRC(a8371c7c) SHA1(da226a605ef438e6cf18273b3caed2713d4baf5c))
-	ROM_LOAD("gloriasl_s5_27c4001.ic15", 0x00000, 0x80000, CRC(167e4772) SHA1(5aba5a12a12e098bce2bdd3b68461ce16960c112))
+	ROM_LOAD16_BYTE("gloriasl_s5_27c4001.ic10", 0x00001, 0x80000, CRC(a8371c7c) SHA1(da226a605ef438e6cf18273b3caed2713d4baf5c))
+	ROM_LOAD16_BYTE("gloriasl_s5_27c4001.ic15", 0x00000, 0x80000, CRC(167e4772) SHA1(5aba5a12a12e098bce2bdd3b68461ce16960c112))
 ROM_END
 
 ROM_START( graffity )
@@ -589,5 +594,3 @@ GAMEL(2007, rave,           0, b2, ballyw, ballyw_state, empty_init, ROT0, "Ball
 GAMEL(2007, xcross,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "X-Cross",                MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2008, b18plus,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "B18 Plus",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2008, freegames,      0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Freegames",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
-
-
