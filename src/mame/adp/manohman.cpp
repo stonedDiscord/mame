@@ -212,6 +212,11 @@ void manohman_state::machine_start()
   save_item(NAME(m_data));
   save_item(NAME(m_zeilen));
   save_item(NAME(m_spalten));
+
+	m_palette->set_pen_color(0, rgb_t(0x20, 0x00, 0x00));
+	m_palette->set_pen_color(1, rgb_t(0xff, 0x00, 0x00));
+	m_palette->set_pen_color(2, rgb_t(0x00, 0x20, 0x00));
+	m_palette->set_pen_color(3, rgb_t(0x00, 0xff, 0x00));
 }
 
 
@@ -316,7 +321,6 @@ void manohman_state::duart_out_w(uint8_t data)
 
 uint32_t manohman_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	bitmap.fill(0, cliprect);
 	constexpr unsigned display_width = 120;
 	constexpr unsigned display_height = 7;
 	constexpr offs_t base = 0x111a;
@@ -329,8 +333,10 @@ uint32_t manohman_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 
 		for (unsigned y = 0; y < display_height; y++)
 		{
-			if (BIT(column, y))
-				bitmap.pix(y, x) = 1;
+			if (x < (display_width / 2))
+				bitmap.pix(y, x) = BIT(column, y) ? 1 : 0;
+			else
+				bitmap.pix(y, x) = BIT(column, y) ? 3 : 2;
 		}
 	}
 
@@ -446,7 +452,7 @@ void manohman_state::manohman(machine_config &config)
 
   m_pit->pa_in_callback().set(FUNC(manohman_state::pit_pa_r)); // buttons
   m_pit->pa_out_callback().set(FUNC(manohman_state::pit_pa_w)); // lamps
-  
+
   m_pit->pb_in_callback().set(FUNC(manohman_state::pit_pb_r)); // reserved
   m_pit->pb_out_callback().set(FUNC(manohman_state::pit_pb_w)); // reserved
 
@@ -471,11 +477,12 @@ void manohman_state::manohman(machine_config &config)
 	screen.set_refresh_hz(50);
 	screen.set_size(120, 7);
 	screen.set_visarea_full();
-	screen.set_color(rgb_t::green());
+	screen.set_physical_aspect(120, 7);
+	screen.set_color(rgb_t::white());
 	screen.set_palette("palette");
 	screen.set_screen_update(FUNC(manohman_state::screen_update));
 
-	PALETTE(config, "palette", palette_device::MONOCHROME);
+	PALETTE(config, "palette").set_entries(4);
 	SPEAKER(config, "mono").front_center();
 	SAA1099(config, "saa", XTAL(8'000'000) / 2).add_route(ALL_OUTPUTS, "mono", 0.10); // clock not verified
 }
@@ -488,7 +495,7 @@ void manohman_state::manohman(machine_config &config)
 ROM_START( manohman )
 	ROM_REGION( 0x20000, "maincpu", 0 )
   ROM_LOAD16_BYTE( "mom_austria_vorserie_i.bin",  0x00001, 0x10000, CRC(3c9507f9) SHA1(489a6aadfb7d61be0873bf48d428e9d915268f95) )
-	ROM_LOAD16_BYTE( "mom_austria_vorserie_ii.bin", 0x00000, 0x10000, CRC(4b57409c) SHA1(0438f5d52f4de2ece8fb684cf2d82bdea0eacf0b) )	
+	ROM_LOAD16_BYTE( "mom_austria_vorserie_ii.bin", 0x00000, 0x10000, CRC(4b57409c) SHA1(0438f5d52f4de2ece8fb684cf2d82bdea0eacf0b) )
 ROM_END
 
 ROM_START( backgamn )
