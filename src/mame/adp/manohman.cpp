@@ -166,6 +166,7 @@ public:
 	{ }
 
 	void manohman(machine_config &config);
+	void backgamn(machine_config &config);
 
 private:
 	virtual void machine_start() override ATTR_COLD;
@@ -177,8 +178,8 @@ private:
 	required_device<rs232_port_device> m_rs232;
 	required_device<pit68230_device> m_pit;
   required_device<watchdog_timer_device> m_watchdog;
-  required_device<screen_device> m_screen;
-  required_device<palette_device> m_palette;
+	optional_device<screen_device> m_screen;
+	optional_device<palette_device> m_palette;
   required_shared_ptr<uint16_t> m_workram;
   required_ioport m_sw1;
   required_ioport m_sw2;
@@ -213,10 +214,13 @@ void manohman_state::machine_start()
   save_item(NAME(m_zeilen));
   save_item(NAME(m_spalten));
 
-	m_palette->set_pen_color(0, rgb_t(0x20, 0x00, 0x00));
-	m_palette->set_pen_color(1, rgb_t(0xff, 0x00, 0x00));
-	m_palette->set_pen_color(2, rgb_t(0x00, 0x20, 0x00));
-	m_palette->set_pen_color(3, rgb_t(0x00, 0xff, 0x00));
+	if (m_palette)
+	{
+		m_palette->set_pen_color(0, rgb_t(0x20, 0x00, 0x00));
+		m_palette->set_pen_color(1, rgb_t(0xff, 0x00, 0x00));
+		m_palette->set_pen_color(2, rgb_t(0x00, 0x20, 0x00));
+		m_palette->set_pen_color(3, rgb_t(0x00, 0xff, 0x00));
+	}
 }
 
 
@@ -473,6 +477,13 @@ void manohman_state::manohman(machine_config &config)
   WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_msec(160000));   // MAX696
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_NONE); // KM6264BL-10 x2 + MAX696CFL + battery
+	SPEAKER(config, "mono").front_center();
+	SAA1099(config, "saa", XTAL(8'000'000) / 2).add_route(ALL_OUTPUTS, "mono", 0.10); // clock not verified
+}
+
+void manohman_state::backgamn(machine_config &config)
+{
+	manohman(config);
 	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
 	screen.set_refresh_hz(50);
 	screen.set_size(120, 7);
@@ -483,8 +494,6 @@ void manohman_state::manohman(machine_config &config)
 	screen.set_screen_update(FUNC(manohman_state::screen_update));
 
 	PALETTE(config, "palette").set_entries(4);
-	SPEAKER(config, "mono").front_center();
-	SAA1099(config, "saa", XTAL(8'000'000) / 2).add_route(ALL_OUTPUTS, "mono", 0.10); // clock not verified
 }
 
 
@@ -525,5 +534,5 @@ ROM_END
 
 //    YEAR  NAME       PARENT    MACHINE   INPUT     STATE           INIT        ROT   COMPANY   FULLNAME                FLAGS
 GAME( 199?, manohman,  0,        manohman, manohman, manohman_state, empty_init, ROT0, "Merkur", "Mann, oh-Mann",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
-GAME( 1990, backgamn,  0,        manohman, backgamn, manohman_state, empty_init, ROT0, "Merkur", "Backgammon",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
-GAME( 1990, backgamnw, backgamn, manohman, backgamn, manohman_state, empty_init, ROT0, "Merkur", "Backgammon (Wand)",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
+GAME( 1990, backgamn,  0,        backgamn, backgamn, manohman_state, empty_init, ROT0, "Merkur", "Backgammon",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
+GAME( 1990, backgamnw, backgamn, backgamn, backgamn, manohman_state, empty_init, ROT0, "Merkur", "Backgammon (Wand)",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
