@@ -449,12 +449,6 @@ ROM_START( rexe )
 	ROM_LOAD("rex_27c4001.ic15", 0x00000, 0x80000, CRC(4afca1e3) SHA1(97a7dc44702589cfd03978f318399b7e97af6831))
 ROM_END
 
-ROM_START( sky )
-	ROM_REGION( 0x100000, "maincpu", 0 )
-	ROM_LOAD("27c4001_s6_27c4001.ic10", 0x00001, 0x80000, CRC(8bf3fd6d) SHA1(c95a3651e025e9d2c99c708e643fe3a2982a39ad))
-	ROM_LOAD("27c4001_s6_27c4001.ic15", 0x00000, 0x80000, CRC(0ce4f9d7) SHA1(d4cea08466cf86de7c27ffdfead456f796e4a0af))
-ROM_END
-
 ROM_START( speedruns3 )
 	ROM_REGION( 0x100000, "maincpu", 0 )
 	ROM_LOAD("speedrun_s3_27c4001.ic10", 0x00001, 0x80000, CRC(07099a7a) SHA1(2b6d451e0ef0513d2438b93fce4984c2e35bc5bf))
@@ -542,7 +536,6 @@ GAMEL(2001, limbo,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Ball
 GAMEL(2002, gbsky,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sky",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2002, quickrisc,      0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Quick Risc",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2002, tropical,       0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Tropical",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
-GAMEL(2002, sky,            0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sky",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, action4u,       0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Action 4U",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, sunfun,         0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sun Fun",                MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
 GAMEL(2003, m200,           0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "M 200",                  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_proconn )
