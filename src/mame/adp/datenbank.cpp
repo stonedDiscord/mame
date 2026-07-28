@@ -461,6 +461,9 @@ void datenbank_state::machine_start()
 
 void datenbank_state::machine_reset()
 {
+	// The boot ROM checks this marker in the CPU board's local work RAM.
+	m_maincpu->space(AS_PROGRAM).write_dword(0xfffd00, 0x494e4954);
+
 	m_out_mux1 = 0;
 }
 
