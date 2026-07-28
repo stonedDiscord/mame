@@ -626,7 +626,7 @@ void pit68230_device::wr_pitreg_tcr(uint8_t data)
 
 	if (m_tcr & REG_TCR_ENABLE)
 	{
-		m_cntr = 0;
+		m_cntr = m_cpr;
 		if (pen == 1)
 		{
 			LOG("PC2 enable/disable TBD\n");
@@ -674,9 +674,10 @@ void pit68230_device::wr_pitreg_cprl(uint8_t data)
 void pit68230_device::wr_pitreg_tsr(uint8_t data)
 {
 	LOG("pit68230_device::wr_pitreg_tsr(%02x) \"%s\": \n", data, tag());
-	if (data & 1)
+	// Status bits are cleared by writing zero; writing one leaves them unchanged.
+	if (!BIT(data, 0))
 	{
-		m_tsr = 0; // A write resets the TSR;
+		m_tsr = 0;
 		m_tirq_out_cb(CLEAR_LINE);
 	}
 }
