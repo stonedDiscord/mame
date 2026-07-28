@@ -461,6 +461,9 @@ void datenbank_state::machine_start()
 
 void datenbank_state::machine_reset()
 {
+	// The application distinguishes a cold start by this stack pointer value.
+	m_maincpu->set_state_int(M68K_SP, 0x000ffffe);
+
 	// The boot ROM checks this marker in the CPU board's local work RAM.
 	m_maincpu->space(AS_PROGRAM).write_dword(0xfffd00, 0x494e4954);
 
@@ -539,7 +542,7 @@ ROM_START(asiasun)
 
 	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
 	ROM_LOAD("asian_sun_deutsch_video_f1_speicher_1_m27c4001.bin", 0x00000, 0x80000, CRC(048bb5f4) SHA1(f0d12c9bc3cc4dd26e16e8271ea96b609e5801e2))
-    ROM_LOAD("asian_sun_deutsch_video_f1_speicher_2_m27c4001.bin", 0x00000, 0x80000, CRC(f0bb1263) SHA1(2bc58bda6375b4291cfb04919f6b6bc21109096d))
+    ROM_LOAD("asian_sun_deutsch_video_f1_speicher_2_m27c4001.bin", 0x00001, 0x80000, CRC(f0bb1263) SHA1(2bc58bda6375b4291cfb04919f6b6bc21109096d))
 ROM_END
 
 ROM_START( brisant )
