@@ -90,6 +90,7 @@ Connectors:
 
 
 #include "emu.h"
+#include "servicetastatur.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/mc68681.h"
 #include "machine/msm6242.h"
@@ -196,6 +197,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
+		m_servicet(*this, "servicet"),
 		m_nvram(*this, "nvram"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
@@ -217,6 +219,7 @@ protected:
 private:
 	required_device<cpu_device> m_maincpu;
 	required_device<mc68681_device> m_duart;
+	required_device<servicetastatur_device> m_servicet;
 	required_device<nvram_device> m_nvram;
 	required_device<ad7224_device> m_dac;
 	output_finder<8> m_digits;   // the 8 in-machine digits (Sonderspiele + Münzspeicher)
@@ -229,7 +232,7 @@ private:
 
 	// 74HC4094 serial shift-register chains (U1).  One bit per chain is
 	// clocked in on every write to the data port (0x800101 / mux_w).
-	uint8_t m_ma1;
+	uint16_t m_ma1;
 	uint8_t m_ma2;
 	uint8_t m_me;
 	uint8_t m_data3;
@@ -266,7 +269,7 @@ uint8_t stellafr_state::mux_r()
 	bool li = false;
 	bool emp = false;
 	bool ma = false;
-	bool st = false;
+	bool const st = m_servicet->output_r();
 	bool t = false; // main buttons in
 	bool t2 = false;
 	bool emp2 = false;
@@ -313,6 +316,7 @@ void stellafr_state::mux_w(uint8_t data)
 	m_mux1  = (m_mux1  << 1) | BIT(data, U1_MUX1);
 	m_anz2  = (m_anz2  << 1) | BIT(data, U1_ANZ2);
 	m_mux2  = (m_mux2  << 1) | BIT(data, U1_MUX2);
+	m_servicet->clock_w();
 }
 
 uint8_t stellafr_state::seg_remap(int field, uint8_t s)
@@ -428,7 +432,15 @@ void stellafr_state::mux2_w(uint8_t data)
 		m_anz_bank = 0;
 
 	if (BIT(data, 4) && !BIT(m_strobe, 4))
+	{
+		m_servicet->input_w(m_ma1);
+		m_servicet->enable_w(1);
 		anz_strobe();
+	}
+	else if (!BIT(data, 4) && BIT(m_strobe, 4))
+	{
+		m_servicet->enable_w(0);
+	}
 
 	if (BIT(data, 5) && !BIT(m_strobe, 5))
 		lamps_w((m_mux1 >> 12) & 0x07, m_mux1 & 0x0FFF); //main lamps out
@@ -555,6 +567,9 @@ void stellafr_state::common(machine_config &config)
 	m_duart->outport_cb().set(FUNC(stellafr_state::duart_output_w));
 
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
+
+	// P6 service connector: U1_1MA data out, U5_ENANZ1 enable, and U10_OUTST data in.
+	SERVICETASTATUR(config, m_servicet, 0);
 
 	AD7224(config, m_dac, 0);
 

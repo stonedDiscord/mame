@@ -42,10 +42,15 @@ license:CC0-1.0
 	</element>
 
 	<view name="Internal Layout">
-		<bounds left="0" right="132" top="0" bottom="60" />
+		<bounds left="0" right="132" top="0" bottom="70" />
 		<element ref="static_black">
-			<bounds left="0" right="132" top="0" bottom="60" />
+			<bounds left="0" right="132" top="0" bottom="70" />
 		</element>
+
+		<!-- Profitech 3000 service keyboard LCD on P6 -->
+		<screen tag="servicet:screen">
+			<bounds x="2" y="62" width="80" height="6" />
+		</screen>
 
 <!-- ===== in-machine panel (per Fehlertabelle + cabinet) =====
      8 digits: Sonderspiele/Serien (digit5..7) + Münzspeicher (digit0..4).
