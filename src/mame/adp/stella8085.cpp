@@ -140,7 +140,7 @@ void stella8085_state::program_map(address_map &map)
 void stella8085_state::program_4040_map(address_map &map)
 {
 	map(0x0000, 0x4fff).rom();
-	map(0x5000, 0x5fff).ram();
+	map(0x5000, 0x53ff).ram(); // 2 × TC5514, 1 KiB × 4 each
 	map(0x6000, 0x633f).rw("rtc", FUNC(mc146818_device::read_direct), FUNC(mc146818_device::write_direct));
 	map(0x7000, 0x7fff).rom();
 }
