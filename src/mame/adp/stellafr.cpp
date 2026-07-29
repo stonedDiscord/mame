@@ -255,7 +255,9 @@ private:
 
 	void mem_map_tk(address_map &map) ATTR_COLD;
 	void mem_map_rtc(address_map &map) ATTR_COLD;
+	void peripherals_map(address_map &map) ATTR_COLD;
 	void fc7_map(address_map &map) ATTR_COLD;
+	void common(machine_config &config) ATTR_COLD;
 };
 
 
@@ -286,11 +288,11 @@ uint8_t stellafr_state::mux_r()
 
 void stellafr_state::lamps_w(uint8_t row, uint16_t data)
 {
-	LOG("Row %d\n",row);
+	LOG("Row %d\n", row);
 	for (int i = 0; i < 8; i++)
 	{
-		uint8_t lamp_index = (row * 10) + i;
-		bool lamp_value = BIT(data, i);
+		uint8_t const lamp_index = (row * 10) + i;
+		bool const lamp_value = BIT(data, i);
 		m_lamps[lamp_index] = lamp_value;
 	}
 }
@@ -303,14 +305,14 @@ void stellafr_state::mux_w(uint8_t data)
 	// and committed to the outputs by the strobe lines on mux2_w.
 	// anz goes into one 74hc4094
 	// mux has 2 chained for lamp cols 0 - 11, 3 bits for lz encoded and EnSDAp
-	m_ma1   = (m_ma1   << 1) | BIT(data,U1_1MA);
-	m_ma2   = (m_ma2   << 1) | BIT(data,U1_2MA);
-	m_me    = (m_me    << 1) | BIT(data,U1_ME);
-	m_data3 = (m_data3 << 1) | BIT(data,U1_D3OUT);
-	m_anz1  = (m_anz1  << 1) | BIT(data,U1_ANZ1);
-	m_mux1  = (m_mux1  << 1) | BIT(data,U1_MUX1);
-	m_anz2  = (m_anz2  << 1) | BIT(data,U1_ANZ2);
-	m_mux2  = (m_mux2  << 1) | BIT(data,U1_MUX2);
+	m_ma1   = (m_ma1   << 1) | BIT(data, U1_1MA);
+	m_ma2   = (m_ma2   << 1) | BIT(data, U1_2MA);
+	m_me    = (m_me    << 1) | BIT(data, U1_ME);
+	m_data3 = (m_data3 << 1) | BIT(data, U1_D3OUT);
+	m_anz1  = (m_anz1  << 1) | BIT(data, U1_ANZ1);
+	m_mux1  = (m_mux1  << 1) | BIT(data, U1_MUX1);
+	m_anz2  = (m_anz2  << 1) | BIT(data, U1_ANZ2);
+	m_mux2  = (m_mux2  << 1) | BIT(data, U1_MUX2);
 }
 
 uint8_t stellafr_state::seg_remap(int field, uint8_t s)
@@ -377,7 +379,12 @@ void stellafr_state::anz_strobe()
 	// offset) / DAT_0001c725 (buffer-field selector 0/0x40/0x80/0xc0 ->
 	// field 0/1/2/3); text is stored right-aligned so the position index runs
 	// high->low across the characters.
-	static constexpr struct { uint8_t field, pos; } panel[8] =
+	struct panel_digit
+	{
+		uint8_t field;
+		uint8_t position;
+	};
+	static constexpr panel_digit panel[8] =
 	{
 		// Münzspeicher field (logical field 0): "FOUL"/"F_AA" right-aligned
 		{ 2, 4 }, // digit0  Anz0 (rightmost, blank/units)
@@ -391,7 +398,7 @@ void stellafr_state::anz_strobe()
 		{ 0, 4 }, // digit7  Anz7 (left)
 	};
 	for (int i = 0; i < 8; i++)
-		m_digits[i] = seg_remap(panel[i].field, m_seg[panel[i].field][panel[i].pos]) & 0x7f;
+		m_digits[i] = seg_remap(panel[i].field, m_seg[panel[i].field][panel[i].position]) & 0x7f;
 
 	// A further 74HC4094 sits in the same ANZ (bit 4) chain at buffer offset 3
 	// (not a digit - it never appears in the DAT_0001c724 position table).  Its
@@ -442,16 +449,7 @@ void stellafr_state::ay8910_portb_w(uint8_t data)
 void stellafr_state::mem_map_tk(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
-	// controlled by U17 74HC138
-	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)); // Y0
-	// Y1 device on cpu board
-	// Y2 device on cpu board
-	map(0x8000c1, 0x8000c1).w(FUNC(stellafr_state::mux2_w)); // Y3 SP/ME II out
-	map(0x800100, 0x800101).rw(FUNC(stellafr_state::mux_r), FUNC(stellafr_state::mux_w)); // Y4 SP/ME I out / Inputs
-	map(0x800141, 0x800141).rw("aysnd", FUNC(ay8910_device::data_r), FUNC(ay8910_device::address_w)); // Y5
-	map(0x800143, 0x800143).w("aysnd", FUNC(ay8910_device::data_w)); // Y5
-	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff); // Y6
-	// Y7 NC
+	peripherals_map(map);
 	map(0xff0000, 0xffffff).ram().share("nvram");
 }
 
@@ -459,6 +457,12 @@ void stellafr_state::mem_map_rtc(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
+	peripherals_map(map);
+	map(0xfc0000, 0xffffff).ram().share("nvram");
+}
+
+void stellafr_state::peripherals_map(address_map &map)
+{
 	// controlled by U17 74HC138
 	map(0x800001, 0x800001).w(m_dac, FUNC(dac_byte_interface::data_w)); // Y0
 	// Y1 device on cpu board
@@ -469,7 +473,6 @@ void stellafr_state::mem_map_rtc(address_map &map)
 	map(0x800143, 0x800143).w("aysnd", FUNC(ay8910_device::data_w)); // Y5
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff); // Y6
 	// Y7 NC
-	map(0xfc0000, 0xffffff).ram().share("nvram");
 }
 
 void stellafr_state::fc7_map(address_map &map)
@@ -529,29 +532,22 @@ INPUT_PORTS_END
 
 void stellafr_state::sus_tk(machine_config &config)
 {
-	M68000(config, m_maincpu, 8'000'000 ); //?
+	M68000(config, m_maincpu, 8'000'000); // ?
 	m_maincpu->set_addrmap(AS_PROGRAM, &stellafr_state::mem_map_tk);
-	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &stellafr_state::fc7_map);
-
-	MC68681(config, m_duart, 3'686'400);
-	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_2); // ?
-	m_duart->outport_cb().set(FUNC(stellafr_state::duart_output_w));
-
-	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
-
-	AD7224(config, m_dac, 0);
-
-	SPEAKER(config, "mono").front_center();
-	ay8910_device &aysnd(AY8910(config, "aysnd", 1'000'000));
-	aysnd.add_route(ALL_OUTPUTS, "mono", 0.85);
-	aysnd.port_a_read_callback().set_ioport("IN0");
-	aysnd.port_b_write_callback().set(FUNC(stellafr_state::ay8910_portb_w));
+	common(config);
 }
 
 void stellafr_state::sus_rtc(machine_config &config)
 {
-	M68000(config, m_maincpu, 12'000'000 ); //?
+	M68000(config, m_maincpu, 12'000'000); // ?
 	m_maincpu->set_addrmap(AS_PROGRAM, &stellafr_state::mem_map_rtc);
+	common(config);
+
+	MSM6242(config, "rtc", XTAL(32'768));
+}
+
+void stellafr_state::common(machine_config &config)
+{
 	m_maincpu->set_addrmap(m68000_device::AS_CPU_SPACE, &stellafr_state::fc7_map);
 
 	MC68681(config, m_duart, 3'686'400);
@@ -559,8 +555,6 @@ void stellafr_state::sus_rtc(machine_config &config)
 	m_duart->outport_cb().set(FUNC(stellafr_state::duart_output_w));
 
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
-
-	MSM6242(config, "rtc", XTAL(32'768));
 
 	AD7224(config, m_dac, 0);
 
