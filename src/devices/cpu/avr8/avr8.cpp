@@ -719,7 +719,7 @@ void attiny15_device::attiny15_internal_map(address_map &map)
 //-------------------------------------------------
 
 atmega48_device::atmega48_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: avr8_device<3>(mconfig, tag, owner, clock, ATMEGA48, 0x0fff, address_map_constructor(FUNC(atmega48_device::atmega48_internal_map), this))
+	: avr8_device<3>(mconfig, tag, owner, clock, ATMEGA48, 0x07ff, address_map_constructor(FUNC(atmega48_device::atmega48_internal_map), this))
 {
 }
 
