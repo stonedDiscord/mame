@@ -529,6 +529,7 @@ enum
 //  DEVICE INTERFACE
 //**************************************************************************
 
+DEFINE_DEVICE_TYPE(ATMEGA48,   atmega48_device,   "atmega48",   "Atmel ATmega48")
 DEFINE_DEVICE_TYPE(ATMEGA88,   atmega88_device,   "atmega88",   "Atmel ATmega88")
 DEFINE_DEVICE_TYPE(ATMEGA168,  atmega168_device,  "atmega168",  "Atmel ATmega168")
 DEFINE_DEVICE_TYPE(ATMEGA328,  atmega328_device,  "atmega328",  "Atmel ATmega328")
@@ -653,6 +654,11 @@ void avr8_device<NumTimers>::base_internal_map(address_map &map)
 	map(0x00c2, 0x00c2).w(FUNC(avr8_device::ucsr0c_w));
 }
 
+void atmega48_device::atmega48_internal_map(address_map &map)
+{
+	avr8_device::base_internal_map(map);
+}
+
 void atmega88_device::atmega88_internal_map(address_map &map)
 {
 	avr8_device::base_internal_map(map);
@@ -706,6 +712,15 @@ void atmega2560_device::atmega2560_internal_map(address_map &map)
 void attiny15_device::attiny15_internal_map(address_map &map)
 {
 	avr8_device::base_internal_map(map);
+}
+
+//-------------------------------------------------
+//  atmega48_device - constructor
+//-------------------------------------------------
+
+atmega48_device::atmega48_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: avr8_device<3>(mconfig, tag, owner, clock, ATMEGA48, 0x0fff, address_map_constructor(FUNC(atmega48_device::atmega48_internal_map), this))
+{
 }
 
 //-------------------------------------------------

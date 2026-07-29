@@ -1086,6 +1086,7 @@ protected:
 };
 
 // device type definition
+DECLARE_DEVICE_TYPE(ATMEGA48,   atmega48_device)
 DECLARE_DEVICE_TYPE(ATMEGA88,   atmega88_device)
 DECLARE_DEVICE_TYPE(ATMEGA168,  atmega168_device)
 DECLARE_DEVICE_TYPE(ATMEGA328,  atmega328_device)
@@ -1093,6 +1094,16 @@ DECLARE_DEVICE_TYPE(ATMEGA644,  atmega644_device)
 DECLARE_DEVICE_TYPE(ATMEGA1280, atmega1280_device)
 DECLARE_DEVICE_TYPE(ATMEGA2560, atmega2560_device)
 DECLARE_DEVICE_TYPE(ATTINY15,   attiny15_device)
+
+// ======================> atmega48_device
+
+class atmega48_device : public avr8_device<3>
+{
+public:
+	// construction/destruction
+	atmega48_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	void atmega48_internal_map(address_map &map) ATTR_COLD;
+};
 
 // ======================> atmega88_device
 
