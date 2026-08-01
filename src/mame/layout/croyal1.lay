@@ -203,10 +203,10 @@ license:CC0-1.0
 		</element>
 		<element name="lamp55" ref="button_red" inputtag="T6" inputmask="0x20"> <!-- Ausspielung wiederholen -->
 			<bounds x="240" y="625" width="40" height="40" />
-		</element>	
-		<element name="lamp56" ref="button_red" inputtag="T6" inputmask="0x40"> <!-- Stop rechts+mitte	-->
+		</element>
+		<element name="lamp56" ref="button_red" inputtag="T6" inputmask="0x40"> <!-- Stop rechts+mitte  -->
 			<bounds x="330" y="625" width="40" height="40" />
-		</element>	
+		</element>
 		<element name="lamp57" ref="button_yellow" inputtag="T6" inputmask="0x80"> <!-- Risiko rechts -->
 			<bounds x="420" y="625" width="40" height="40" />
 		</element>
