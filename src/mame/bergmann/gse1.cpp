@@ -241,15 +241,11 @@ uint8_t gse1_state::pio1_pa_r()
 uint8_t gse1_state::pio1_pb_r()
 {
 	// Steckerleiste 15
-	uint8_t data = m_pio1_pb;
-
-	data |= ioport("RETURN")->read();
-	return data;
+	return ioport("RETURN")->read();
 }
 
 void gse1_state::pio1_pb_w(uint8_t data)
 {
-	m_pio1_pb = data;
 	// Steckerleiste 15
 	//coins out
 	machine().bookkeeping().coin_counter_w(3,BIT(data,0)); // 0.10DM
