@@ -101,16 +101,11 @@ private:
 
 void gse1_state::machine_start()
 {
-	m_led.resolve();
-    m_digits.resolve();
-    m_lamps.resolve();
-
     save_item(NAME(m_adresse));
     save_item(NAME(m_battery));
     save_item(NAME(m_pio1_pb));
     save_item(NAME(m_pio2_pa));
     save_item(NAME(m_pio2_pb));
-
 }
 
 void gse1_state::mem_map(address_map &map)
