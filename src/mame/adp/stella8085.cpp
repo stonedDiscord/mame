@@ -62,6 +62,7 @@ public:
 		m_beep(*this, "beeper")
 	{ }
 
+	void boards_common(machine_config &config, XTAL main_crystal) ATTR_COLD;
 	void dicemstr(machine_config &config) ATTR_COLD;
 	void doppelpot(machine_config &config) ATTR_COLD;
 	void excellent(machine_config &config) ATTR_COLD;
@@ -141,7 +142,6 @@ void stella8085_state::program_4040_map(address_map &map)
 {
 	map(0x0000, 0x4fff).rom();
 	map(0x5000, 0x53ff).ram(); // 2 × TC5514, 1 KiB × 4 each
-	map(0x6000, 0x633f).rw("rtc", FUNC(mc146818_device::read_direct), FUNC(mc146818_device::write_direct));
 	map(0x7000, 0x7fff).rom();
 }
 
@@ -550,39 +550,35 @@ INPUT_PORTS_END
 
 void stella8085_state::dicemstr(machine_config &config)
 {
-	I8085A(config, m_maincpu, 10.240_MHz_XTAL / 2); // divider not verified
+	boards_common(config, 10.240_MHz_XTAL);
+
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::large_program_map);
 	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
 
-	I8256(config, m_uart, 10.240_MHz_XTAL / 2); // divider not verified
-	m_uart->int_callback().set_inputline(m_maincpu, I8085_INTR_LINE);
-
-	I8279(config, m_kdc, 10.240_MHz_XTAL / 4); // divider not verified
-	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
-	m_kdc->out_disp_callback().set(FUNC(stella8085_state::disp_w));
-	m_kdc->in_rl_callback().set(FUNC(stella8085_state::kbd_rl_r));
-	m_kdc->out_irq_callback().set(FUNC(stella8085_state::rst65_w));
-
 	RTC62421(config, "rtc", 32.768_kHz_XTAL);
-
-	SPEAKER(config, "mono").front_center();
-	BEEP(config, m_beep)
-		.add_route(ALL_OUTPUTS, "mono", 0.50);
 }
 
 void stella8085_state::doppelpot(machine_config &config)
 {
-	I8085A(config, m_maincpu, 6.144_MHz_XTAL);
+	boards_common(config, 6.144_MHz_XTAL);
+
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
 	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
 
-	I8256(config, m_uart, 6.144_MHz_XTAL / 2);
+	MC146818(config, "rtc", 32.768_kHz_XTAL);
+}
+
+void stella8085_state::boards_common(machine_config &config, XTAL main_crystal)
+{
+	I8085A(config, m_maincpu, main_crystal);
+
+	I8256(config, m_uart, main_crystal / 2);
 	m_uart->int_callback().set_inputline(m_maincpu, I8085_INTR_LINE);
 	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
 	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
 	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
 
-	I8279(config, m_kdc, 6.144_MHz_XTAL / 2);
+	I8279(config, m_kdc, main_crystal / 2);
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
 	m_kdc->out_bd_callback().set(FUNC(stella8085_state::kbd_bd_w));
 	m_kdc->out_disp_callback().set(FUNC(stella8085_state::disp_w));
@@ -591,8 +587,6 @@ void stella8085_state::doppelpot(machine_config &config)
 
 	config.set_default_layout(layout_adpservice);
 
-	MC146818(config, "rtc", 32.768_kHz_XTAL);
-
 	SPEAKER(config, "mono").front_center();
 	BEEP(config, m_beep)
 		.add_route(ALL_OUTPUTS, "mono", 0.50);
@@ -600,7 +594,7 @@ void stella8085_state::doppelpot(machine_config &config)
 
 void stella8085_state::excellent(machine_config &config)
 {
-	doppelpot(config);
+	boards_common(config, 6.144_MHz_XTAL);
 
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_4040_map);
 	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_4040_map);
