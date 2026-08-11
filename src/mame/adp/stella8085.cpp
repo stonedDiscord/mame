@@ -283,11 +283,6 @@ TIMER_CALLBACK_MEMBER(stella8085_state::sound_stop)
 	m_beep->set_state(0);
 }
 
-void stella8085_state::rst65_w(uint8_t state)
-{
-	m_maincpu->set_input_line(I8085_RST55_LINE, state ? ASSERT_LINE : CLEAR_LINE);
-}
-
 void stella8085_state::io00(uint8_t data)
 {
 	//old boards
@@ -583,7 +578,7 @@ void stella8085_state::boards_common(machine_config &config, XTAL main_crystal)
 	m_kdc->out_bd_callback().set(FUNC(stella8085_state::kbd_bd_w));
 	m_kdc->out_disp_callback().set(FUNC(stella8085_state::disp_w));
 	m_kdc->in_rl_callback().set(FUNC(stella8085_state::kbd_rl_r));
-	m_kdc->out_irq_callback().set(FUNC(stella8085_state::rst65_w));
+	m_kdc->out_irq_callback().set_inputline(m_maincpu, I8085_RST65_LINE);
 
 	config.set_default_layout(layout_adpservice);
 
