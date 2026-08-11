@@ -543,26 +543,6 @@ static INPUT_PORTS_START( disc )
 	PORT_INCLUDE(stella8085_service)
 INPUT_PORTS_END
 
-void stella8085_state::dicemstr(machine_config &config)
-{
-	boards_common(config, 10.240_MHz_XTAL);
-
-	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::large_program_map);
-	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
-
-	RTC62421(config, "rtc", 32.768_kHz_XTAL);
-}
-
-void stella8085_state::doppelpot(machine_config &config)
-{
-	boards_common(config, 6.144_MHz_XTAL);
-
-	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
-	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
-
-	MC146818(config, "rtc", 32.768_kHz_XTAL);
-}
-
 void stella8085_state::boards_common(machine_config &config, XTAL main_crystal)
 {
 	I8085A(config, m_maincpu, main_crystal);
@@ -585,6 +565,26 @@ void stella8085_state::boards_common(machine_config &config, XTAL main_crystal)
 	SPEAKER(config, "mono").front_center();
 	BEEP(config, m_beep)
 		.add_route(ALL_OUTPUTS, "mono", 0.50);
+}
+
+void stella8085_state::dicemstr(machine_config &config)
+{
+	boards_common(config, 10.240_MHz_XTAL);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::large_program_map);
+	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
+
+	RTC62421(config, "rtc", 32.768_kHz_XTAL);
+}
+
+void stella8085_state::doppelpot(machine_config &config)
+{
+	boards_common(config, 6.144_MHz_XTAL);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
+	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
+
+	MC146818(config, "rtc", 32.768_kHz_XTAL);
 }
 
 void stella8085_state::excellent(machine_config &config)
