@@ -73,9 +73,12 @@ DS1985 serial number chip
 #include "cpu/m68000/m68000.h"
 #include "machine/msm6242.h"
 #include "machine/nvram.h"
+#include "machine/timer.h"
 #include "sound/okim6376.h"
-
+#include "video/roc10937.h"
 #include "speaker.h"
+
+#include "eurotec.lh"
 
 namespace {
 
@@ -85,7 +88,8 @@ public:
 	ballyw_state(const machine_config &mconfig, device_type type, const char *tag) :
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
-		m_rtc(*this, "rtc")
+		m_rtc(*this, "rtc"),
+		m_vfd(*this, "vfd")
 	{ }
 
 	void b2(machine_config &config) ATTR_COLD;
@@ -93,22 +97,187 @@ public:
 
 private:
 	void mem_map(address_map &map) ATTR_COLD;
+	u8 ulc_r(offs_t offset);
+	void ulc_w(offs_t offset, u8 data);
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	// devices
 	required_device<cpu_device> m_maincpu;
 	required_device<rtc72421_device> m_rtc;
+	required_device<roc10937_device> m_vfd;
+
+	// The ULC has separate input/status readback and output latches even when
+	// they share a CPU address.  A single backing array would make a firmware
+	// output write (notably the status byte at 0x90020d) feed straight back as
+	// an input and falsely report an ULC fault.
+	u8 m_ulc_input[0x400]{};
+	u8 m_ulc_output[0x400]{};
+	u8 m_ulc_serial_ack_reads = 0;
+	bool m_ulc_scan_ready = false;
+
+	void rtc_irq(int state);
+	TIMER_DEVICE_CALLBACK_MEMBER(system_tick);
+	IRQ_CALLBACK_MEMBER(irq_ack);
+	TIMER_CALLBACK_MEMBER(ulc_scan_complete);
+	emu_timer *m_ulc_scan_timer = nullptr;
 };
+
+void ballyw_state::rtc_irq(int state)
+{
+	// The level-3 handler acknowledges the RTC at control register D.
+	m_maincpu->set_input_line(M68K_IRQ_3, state ? ASSERT_LINE : CLEAR_LINE);
+}
+
+TIMER_DEVICE_CALLBACK_MEMBER(ballyw_state::system_tick)
+{
+	// The onboard timer is a pulse source.  The level-1 handler at 0x1f1e
+	// owns the elapsed counter in RAM; the timer only raises the interrupt.
+	// Pulse width is provisional; keep it shorter than the handler to avoid
+	// taking the same tick again after RTE.
+	m_maincpu->pulse_input_line(M68K_IRQ_1, attotime::from_usec(10));
+}
+
+TIMER_CALLBACK_MEMBER(ballyw_state::ulc_scan_complete)
+{
+	// The level-4 handler consumes the next input bank and clears the
+	// software busy flag set by the level-1 scheduler.
+	m_ulc_scan_ready = true;
+	m_maincpu->set_input_line(M68K_IRQ_4, ASSERT_LINE);
+}
+
+IRQ_CALLBACK_MEMBER(ballyw_state::irq_ack)
+{
+	return m68000_device::autovector(irqline);
+}
 
 void ballyw_state::mem_map(address_map &map)
 {
 	// IC5 74HC139
 	map(0x000000, 0x0fffff).rom();
 	map(0x100000, 0x17ffff).ram().share("nvram");
-	map(0x800000, 0x80003f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
-	map(0x900000, 0x9000ff).noprw();
-	map(0x900100, 0x9001ff).noprw();
-	map(0x900200, 0x9002ff).noprw();
-	map(0x900300, 0x9003ff).noprw();
+	map(0x800000, 0x80003f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write)).umask16(0x00ff); // RTC A0-A3 CPU A1-A4
+	map(0x900000, 0x9003ff).rw(FUNC(ballyw_state::ulc_r), FUNC(ballyw_state::ulc_w)).umask16(0x00ff);
+}
+
+u8 ballyw_state::ulc_r(offs_t offset)
+{
+	offset &= 0x3ff;
+	// These registers are ULC input/status pins.  Their values are supplied by
+	// the external cabinet; leave them inactive until the corresponding input
+	// devices are emulated.  Writes to the same addresses are output latches.
+	switch (offset)
+	{
+	case 0x100: // 0x900201
+	case 0x102: // 0x900205
+	case 0x103: // 0x900207
+	case 0x104: // 0x900209
+	case 0x105: // 0x90020b
+	case 0x10a: // 0x900215
+		return m_ulc_output[offset];
+	case 0x106: // 0x90020d ULC ready/status
+		{
+			u32 const pc = m_maincpu->pc();
+			if (m_ulc_scan_ready && pc >= 0x1e36 && pc < 0x1efc)
+			{
+				m_ulc_scan_ready = false;
+				m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
+			}
+			return m_ulc_output[offset];
+		}
+	case 0x10c: // 0x900219 serial input/status
+		// The ULC probe observes a four-sample ready handshake after 0xc0
+		// -> 0x40: high, low, high, low.  Consume one sample per poll.
+		{
+			u8 result = m_ulc_input[offset] & ~0x08;
+			// The four-sample sequence belongs to FUN_0000666c.  The
+			// serial receive helper at 0x677e samples the external ULC
+			// stream independently after its own clock pair.
+			u32 const pc = m_maincpu->pc();
+			if (pc >= 0x669c && pc < 0x6718 && m_ulc_serial_ack_reads)
+			{
+				if (m_ulc_serial_ack_reads == 4 || m_ulc_serial_ack_reads == 2)
+					result |= 0x08;
+				m_ulc_serial_ack_reads--;
+			}
+			else if (pc >= 0x677e && pc < 0x67e0)
+			{
+				// Serial receive clocks the ULC data-in pin after driving
+				// each bit on serial-out.  The cabinet controller loops that
+				// bit back during the ROM's self-test and status reads.
+				result |= BIT(m_ulc_output[0x119], 7) ? 0x08 : 0x00;
+			}
+			return result;
+		}
+	default:
+		return m_ulc_output[offset];
+	}
+}
+
+void ballyw_state::ulc_w(offs_t offset, u8 data)
+{
+	offset &= 0x3ff;
+	u8 const old_data = m_ulc_output[offset];
+	m_ulc_output[offset] = data;
+
+	// The ULC presents the ROC10937 serial interface on the two high bits
+	// written by the firmware: 0x900231 is data and 0x900233 is clock.
+	if (offset == 0x118)
+		m_vfd->data(BIT(data, 7));
+	else if (offset == 0x119)
+		m_vfd->sclk(BIT(data, 7));
+	if (offset == 0x119)
+	{
+		// 0xc0 -> 0x40 is the ULC reset/ready handshake used by the ROM.
+		// Present one input pulse for the firmware's first poll, then clear it.
+		if ((old_data & 0xc0) == 0xc0 && (data & 0xc0) == 0x40)
+		{
+			m_ulc_input[0x10c] &= ~0x08;
+			m_ulc_serial_ack_reads = 4;
+		}
+		else if (data & 0x80)
+		{
+			m_ulc_input[0x10c] &= ~0x08;
+			m_ulc_serial_ack_reads = 0;
+		}
+	}
+
+	// CPU A1 is ULC A0: the control byte at 0x900213 is register 0x109.
+	// Bit 4 starts a scan; clearing it acknowledges scan completion.
+	if (offset == 0x109)
+	{
+		if (!BIT(data, 4))
+		{
+			m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
+			m_ulc_scan_timer->adjust(attotime::never);
+		}
+		else if (!BIT(old_data, 4))
+		{
+			// Provisional transfer time until the ULC clock is known.
+			m_ulc_scan_timer->adjust(attotime::from_usec(100));
+		}
+	}
+
+}
+
+void ballyw_state::machine_start()
+{
+	save_item(NAME(m_ulc_input));
+	save_item(NAME(m_ulc_output));
+	save_item(NAME(m_ulc_serial_ack_reads));
+	save_item(NAME(m_ulc_scan_ready));
+	m_ulc_scan_timer = timer_alloc(FUNC(ballyw_state::ulc_scan_complete), this);
+}
+
+void ballyw_state::machine_reset()
+{
+	m_ulc_scan_timer->adjust(attotime::never);
+	m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
+	m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
+	std::fill(std::begin(m_ulc_input), std::end(m_ulc_input), 0);
+	std::fill(std::begin(m_ulc_output), std::end(m_ulc_output), 0);
+	m_ulc_serial_ack_reads = 0;
+	m_ulc_scan_ready = false;
 }
 
 static INPUT_PORTS_START( ballyw )
@@ -120,10 +289,17 @@ void ballyw_state::b2(machine_config &config)
 {
 	M68000(config, m_maincpu, 16_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &ballyw_state::mem_map);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(ballyw_state::irq_ack));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // battery backed
 
-	RTC72421(config, m_rtc, XTAL(32'768)); // internal oscillator
+	RTC72421(config, m_rtc, XTAL(32'768));
+	m_rtc->out_int_handler().set(FUNC(ballyw_state::rtc_irq));
+
+	config.set_default_layout(layout_eurotec);
+	ROC10937(config, m_vfd);
+
+	TIMER(config, "system_tick").configure_periodic(FUNC(ballyw_state::system_tick), attotime::from_hz(100));
 
 	SPEAKER(config, "mono").front_center();
 }

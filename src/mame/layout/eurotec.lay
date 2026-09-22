@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!-- license:CC0-1.0 -->
+<mamelayout version="2">
+	<element name="vfd">
+		<led16segsc>
+			<color red="0.0" green="1.0" blue="0.75" />
+		</led16segsc>
+	</element>
+	<view name="default">
+		<element ref="vfd" name="vfd0"><bounds x="0" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd1"><bounds x="20" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd2"><bounds x="40" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd3"><bounds x="60" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd4"><bounds x="80" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd5"><bounds x="100" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd6"><bounds x="120" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd7"><bounds x="140" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd8"><bounds x="160" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd9"><bounds x="180" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd10"><bounds x="200" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd11"><bounds x="220" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd12"><bounds x="240" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd13"><bounds x="260" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd14"><bounds x="280" y="0" width="20" height="32" /></element>
+		<element ref="vfd" name="vfd15"><bounds x="300" y="0" width="20" height="32" /></element>
+	</view>
+</mamelayout>
