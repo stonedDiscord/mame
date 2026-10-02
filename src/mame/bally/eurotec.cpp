@@ -61,6 +61,10 @@ older boards are labelled
 newer with OKI sound
 0B01.0600.1100B4
 
+Display:
+itron FGF169H6
+10937P50
+
 TODO:
 the ULC/FPGA contains some kind of protection and handles most IO
 DS1985 serial number chip
@@ -115,6 +119,9 @@ private:
 	u8 m_ulc_output[0x400]{};
 	u8 m_ulc_serial_ack_reads = 0;
 	bool m_ulc_scan_ready = false;
+	u8 m_vfd_low_writes = 0;
+	attotime m_vfd_high_time;
+	bool m_vfd_early_low = false;
 
 	void rtc_irq(int state);
 	TIMER_DEVICE_CALLBACK_MEMBER(system_tick);
@@ -220,12 +227,27 @@ void ballyw_state::ulc_w(offs_t offset, u8 data)
 	u8 const old_data = m_ulc_output[offset];
 	m_ulc_output[offset] = data;
 
-	// The ULC presents the ROC10937 serial interface on the two high bits
-	// written by the firmware: 0x900231 is data and 0x900233 is clock.
-	if (offset == 0x118)
-		m_vfd->data(BIT(data, 7));
-	else if (offset == 0x119)
-		m_vfd->sclk(BIT(data, 7));
+	if (offset == 0x119)
+	{
+		if (BIT(data, 7))
+		{
+			if (m_vfd_low_writes)
+			{
+				m_vfd->data(m_vfd_early_low);
+				m_vfd->sclk(1);
+				m_vfd->sclk(0);
+			}
+			m_vfd_low_writes = 0;
+			m_vfd_high_time = machine().time();
+			m_vfd_early_low = false;
+		}
+		else
+		{
+			m_vfd_low_writes++;
+			if (m_vfd_low_writes == 1)
+				m_vfd_early_low = (machine().time() - m_vfd_high_time) < attotime::from_usec(20);
+		}
+	}
 	if (offset == 0x119)
 	{
 		// 0xc0 -> 0x40 is the ULC reset/ready handshake used by the ROM.
@@ -266,6 +288,9 @@ void ballyw_state::machine_start()
 	save_item(NAME(m_ulc_output));
 	save_item(NAME(m_ulc_serial_ack_reads));
 	save_item(NAME(m_ulc_scan_ready));
+	save_item(NAME(m_vfd_low_writes));
+	save_item(NAME(m_vfd_high_time));
+	save_item(NAME(m_vfd_early_low));
 	m_ulc_scan_timer = timer_alloc(FUNC(ballyw_state::ulc_scan_complete), this);
 }
 
@@ -274,10 +299,19 @@ void ballyw_state::machine_reset()
 	m_ulc_scan_timer->adjust(attotime::never);
 	m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
 	m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
+	// The display reset line is released by the ULC during board reset.  The
+	// ROM then drives the ROC10937 through the serial data/clock latches.
+	// Keep the controller out of reset so those clocks are accepted.
+	m_vfd->por(1);
+	// The ULC supplies the display power duty externally on this board.
+	m_vfd->write_char(0xff);
 	std::fill(std::begin(m_ulc_input), std::end(m_ulc_input), 0);
 	std::fill(std::begin(m_ulc_output), std::end(m_ulc_output), 0);
 	m_ulc_serial_ack_reads = 0;
 	m_ulc_scan_ready = false;
+	m_vfd_low_writes = 0;
+	m_vfd_high_time = attotime::zero;
+	m_vfd_early_low = false;
 }
 
 static INPUT_PORTS_START( ballyw )
