@@ -311,6 +311,7 @@ u8 ballyw_state::ulc_r(offs_t offset)
 	case 0x104: // 0x900209
 	case 0x105: // 0x90020b
 	case 0x10a: // 0x900215
+	case 0x11a: // 0x900235 ULC status inputs
 		// These are cabinet input banks.  The ULC drives the row scan from its
 		// output latches, but the returned value comes from the external input
 		// pins; with no cabinet switch asserted the idle level is zero.
@@ -478,6 +479,9 @@ void ballyw_state::machine_reset()
 	m_vfd->por(0);
 	std::fill(std::begin(m_ulc_input), std::end(m_ulc_input), 0);
 	std::fill(std::begin(m_ulc_output), std::end(m_ulc_output), 0);
+	// ULC status bit 1 reports the backup battery-present/healthy input.
+	// The ROM's trap-13 operation 1 treats a clear bit as BATTERIE LEER.
+	m_ulc_input[0x11a] = 0x02;
 	m_ulc_serial_ack_reads = 0;
 	m_ulc_serial_status_pattern = 0;
 	m_ulc_serial_pulse_start = attotime::zero;
