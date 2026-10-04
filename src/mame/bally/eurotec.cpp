@@ -118,15 +118,28 @@ private:
 	u8 m_ulc_input[0x400]{};
 	u8 m_ulc_output[0x400]{};
 	u8 m_ulc_serial_ack_reads = 0;
+	u8 m_ulc_serial_status_pattern = 0;
+	attotime m_ulc_serial_pulse_start;
+	u8 m_ulc_serial_rx_byte = 0;
+	u8 m_ulc_serial_rx_bits = 0;
+	u8 m_ulc_serial_command[8]{};
+	u8 m_ulc_serial_command_length = 0;
+	u8 m_ulc_serial_command_expected = 0;
+	u8 m_ulc_serial_response[64]{};
+	u16 m_ulc_serial_response_length = 0;
+	u16 m_ulc_serial_response_bit = 0;
+	bool m_ulc_serial_sample_ready = false;
+	bool m_ulc_serial_pulse_high = false;
 	bool m_ulc_scan_ready = false;
-	u8 m_vfd_low_writes = 0;
-	attotime m_vfd_high_time;
-	bool m_vfd_early_low = false;
 
 	void rtc_irq(int state);
 	TIMER_DEVICE_CALLBACK_MEMBER(system_tick);
 	IRQ_CALLBACK_MEMBER(irq_ack);
 	TIMER_CALLBACK_MEMBER(ulc_scan_complete);
+	void ulc_serial_reset();
+	void ulc_serial_command_byte(u8 data);
+	void ulc_serial_prepare_response();
+	static u16 ulc_crc16_update(u16 crc, u8 data);
 	emu_timer *m_ulc_scan_timer = nullptr;
 };
 
@@ -158,6 +171,123 @@ IRQ_CALLBACK_MEMBER(ballyw_state::irq_ack)
 	return m68000_device::autovector(irqline);
 }
 
+void ballyw_state::ulc_serial_reset()
+{
+	m_ulc_serial_rx_byte = 0;
+	m_ulc_serial_rx_bits = 0;
+	m_ulc_serial_command_length = 0;
+	m_ulc_serial_command_expected = 0;
+	m_ulc_serial_response_length = 0;
+	m_ulc_serial_response_bit = 0;
+	m_ulc_serial_sample_ready = false;
+}
+
+u16 ballyw_state::ulc_crc16_update(u16 crc, u8 data)
+{
+	// The ROM indexes by (high CRC byte xor data), then stores the low
+	// standard CRC lane in ad1 and the high lane in ad0.
+	u16 index = u16(u8(crc >> 8) ^ data);
+	u16 table = index;
+	for (int bit = 0; bit < 8; bit++)
+		table = (table & 1) ? (table >> 1) ^ 0xa001 : table >> 1;
+	return u16((u8(crc) ^ u8(table)) << 8) | u8(table >> 8);
+}
+
+void ballyw_state::ulc_serial_prepare_response()
+{
+	m_ulc_serial_response_length = 0;
+	m_ulc_serial_response_bit = 0;
+	if (m_ulc_serial_command_length == 1 && m_ulc_serial_command[0] == 0x33)
+	{
+		// Startup status read: the ROM clocks eight status bytes after 0x33.
+		m_ulc_serial_response_length = 8;
+		std::fill_n(m_ulc_serial_response, m_ulc_serial_response_length, 0);
+		// Idle ULC status lines are high; the final byte is the ROM's CRC-8
+		// over the seven status bytes.
+		std::fill_n(m_ulc_serial_response, 7, 0xff);
+		m_ulc_serial_response[7] = 0x14;
+	}
+	else if (m_ulc_serial_command_length >= 2 && m_ulc_serial_command[1] == 0xf0)
+	{
+		// F0 reads the ULC's byte image.  The ROM's first read asks for the
+		// identification bytes at 0030; later reads use the same stream as a
+		// CRC-protected zero-filled image.
+		u16 const address = u16(m_ulc_serial_command[2]) | (u16(m_ulc_serial_command[3]) << 8);
+		if (address == 0x0030)
+		{
+			// The identification probe receives six image bytes.  The two
+			// preceding clocks in the ROM are its command CRC, not response
+			// bytes.
+			m_ulc_serial_response_length = 6;
+			std::fill_n(m_ulc_serial_response, m_ulc_serial_response_length, 0);
+			m_ulc_serial_response[0] = 'T';
+			m_ulc_serial_response[1] = 'E';
+			m_ulc_serial_response[2] = 'S';
+			m_ulc_serial_response[3] = 'T';
+		}
+		else
+		{
+			// The ROM's following read requests a 20-byte image block, then
+			// clocks the two complemented CRC bytes.
+			m_ulc_serial_response_length = 22;
+			std::fill_n(m_ulc_serial_response, m_ulc_serial_response_length, 0);
+		}
+		if (m_ulc_serial_response_length == 22)
+		{
+			u16 crc = 0;
+			for (int i = 0; i < 20; i++)
+				crc = ulc_crc16_update(crc, m_ulc_serial_response[i]);
+			m_ulc_serial_response[20] = ~u8(crc >> 8);
+			m_ulc_serial_response[21] = ~u8(crc);
+		}
+	}
+	else if (m_ulc_serial_command_length >= 5 && m_ulc_serial_command[1] != 0xf0)
+	{
+		u16 crc = 0;
+		for (int i = 1; i < 5; i++)
+			crc = ulc_crc16_update(crc, m_ulc_serial_command[i]);
+		// The ROM stores the table's high state byte in ad1 and its low
+		// state byte in ad0; the reflected C++ CRC word has those lanes
+		// reversed.
+		m_ulc_serial_response[0] = ~u8(crc >> 8);
+		m_ulc_serial_response[1] = ~u8(crc);
+		// The command response is only the complemented CRC pair.  The ROM
+		// clocks the CRC pair followed by the ULC data-latch readback.
+		m_ulc_serial_response[2] = m_ulc_serial_command[4];
+		m_ulc_serial_response_length = 3;
+	}
+
+}
+
+void ballyw_state::ulc_serial_command_byte(u8 data)
+{
+	if (m_ulc_serial_command_length < std::size(m_ulc_serial_command))
+		m_ulc_serial_command[m_ulc_serial_command_length++] = data;
+
+	if (m_ulc_serial_command_length == 1)
+	{
+		if (data == 0x33)
+			m_ulc_serial_command_expected = 1;
+		else if (data == 0xcc)
+			m_ulc_serial_command_expected = 2;
+		else
+		{
+			// This is ordinary serial output from the startup probe, not a
+			// framed ULC command.  Keep the receive shifter idle until the
+			// command prefix is observed.
+			m_ulc_serial_command_length = 0;
+			m_ulc_serial_command_expected = 0;
+		}
+	}
+	else if (m_ulc_serial_command_length == 2)
+	{
+		m_ulc_serial_command_expected = (data == 0xf0) ? 4 : 5;
+	}
+
+	if (m_ulc_serial_command_expected && m_ulc_serial_command_length >= m_ulc_serial_command_expected)
+		ulc_serial_prepare_response();
+}
+
 void ballyw_state::mem_map(address_map &map)
 {
 	// IC5 74HC139
@@ -181,39 +311,56 @@ u8 ballyw_state::ulc_r(offs_t offset)
 	case 0x104: // 0x900209
 	case 0x105: // 0x90020b
 	case 0x10a: // 0x900215
-		return m_ulc_output[offset];
+		// These are cabinet input banks.  The ULC drives the row scan from its
+		// output latches, but the returned value comes from the external input
+		// pins; with no cabinet switch asserted the idle level is zero.
+		return m_ulc_input[offset];
 	case 0x106: // 0x90020d ULC ready/status
 		{
-			u32 const pc = m_maincpu->pc();
-			if (m_ulc_scan_ready && pc >= 0x1e36 && pc < 0x1efc)
+			if (m_ulc_scan_ready)
 			{
 				m_ulc_scan_ready = false;
 				m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
 			}
-			return m_ulc_output[offset];
+			return m_ulc_input[offset];
 		}
 	case 0x10c: // 0x900219 serial input/status
 		// The ULC probe observes a four-sample ready handshake after 0xc0
 		// -> 0x40: high, low, high, low.  Consume one sample per poll.
 		{
 			u8 result = m_ulc_input[offset] & ~0x08;
+			if (m_ulc_serial_response_bit < (m_ulc_serial_response_length * 8) && m_ulc_serial_sample_ready)
+			{
+				u16 const bit = m_ulc_serial_response_bit++;
+				m_ulc_serial_sample_ready = false;
+				// The 68k receive helper shifts right before inserting the
+				// sampled bit at bit 7, so the wire order is LSB first.
+				if (BIT(m_ulc_serial_response[bit >> 3], bit & 7))
+					result |= 0x08;
+				if (m_ulc_serial_response_bit == (m_ulc_serial_response_length * 8))
+				{
+					// A response terminates the current framed exchange.  The ROM
+					// starts its next command without an additional reset pulse.
+					m_ulc_serial_command_length = 0;
+					m_ulc_serial_command_expected = 0;
+					m_ulc_serial_rx_byte = 0;
+					m_ulc_serial_rx_bits = 0;
+					m_ulc_serial_response_length = 0;
+				}
+				return result;
+			}
 			// The four-sample sequence belongs to FUN_0000666c.  The
 			// serial receive helper at 0x677e samples the external ULC
 			// stream independently after its own clock pair.
-			u32 const pc = m_maincpu->pc();
-			if (pc >= 0x669c && pc < 0x6718 && m_ulc_serial_ack_reads)
+			if (m_ulc_serial_ack_reads)
 			{
-				if (m_ulc_serial_ack_reads == 4 || m_ulc_serial_ack_reads == 2)
+				if (BIT(m_ulc_serial_status_pattern, 0))
 					result |= 0x08;
+				m_ulc_serial_status_pattern >>= 1;
 				m_ulc_serial_ack_reads--;
 			}
-			else if (pc >= 0x677e && pc < 0x67e0)
-			{
-				// Serial receive clocks the ULC data-in pin after driving
-				// each bit on serial-out.  The cabinet controller loops that
-				// bit back during the ROM's self-test and status reads.
+			else
 				result |= BIT(m_ulc_output[0x119], 7) ? 0x08 : 0x00;
-			}
 			return result;
 		}
 	default:
@@ -229,52 +376,72 @@ void ballyw_state::ulc_w(offs_t offset, u8 data)
 
 	if (offset == 0x119)
 	{
-		if (BIT(data, 7))
+		if (BIT(data ^ old_data, 4))
+			m_vfd->por(BIT(data, 4));
+		// Bit 7 drives the inverted one-wire line to the DS1985.  A short
+		// pulse writes one, a longer pulse writes zero, and a reset pulse
+		// starts a new exchange.  This line is independent of the VFD.
+		bool const line = BIT(data, 7);
+		if (line && !m_ulc_serial_pulse_high)
 		{
-			if (m_vfd_low_writes)
+			m_ulc_serial_pulse_start = machine().time();
+			m_ulc_serial_pulse_high = true;
+			m_ulc_serial_ack_reads = 1;
+			m_ulc_serial_status_pattern = 0;
+		}
+		else if (!line && m_ulc_serial_pulse_high)
+		{
+			attotime const width = machine().time() - m_ulc_serial_pulse_start;
+			m_ulc_serial_pulse_high = false;
+			if (width > attotime::from_usec(100))
 			{
-				m_vfd->data(m_vfd_early_low);
-				m_vfd->sclk(1);
-				m_vfd->sclk(0);
+				ulc_serial_reset();
+				m_ulc_serial_sample_ready = false;
+				m_ulc_serial_ack_reads = 3;
+				m_ulc_serial_status_pattern = 0x05;
 			}
-			m_vfd_low_writes = 0;
-			m_vfd_high_time = machine().time();
-			m_vfd_early_low = false;
-		}
-		else
-		{
-			m_vfd_low_writes++;
-			if (m_vfd_low_writes == 1)
-				m_vfd_early_low = (machine().time() - m_vfd_high_time) < attotime::from_usec(20);
-		}
-	}
-	if (offset == 0x119)
-	{
-		// 0xc0 -> 0x40 is the ULC reset/ready handshake used by the ROM.
-		// Present one input pulse for the firmware's first poll, then clear it.
-		if ((old_data & 0xc0) == 0xc0 && (data & 0xc0) == 0x40)
-		{
-			m_ulc_input[0x10c] &= ~0x08;
-			m_ulc_serial_ack_reads = 4;
-		}
-		else if (data & 0x80)
-		{
-			m_ulc_input[0x10c] &= ~0x08;
-			m_ulc_serial_ack_reads = 0;
+			else
+			{
+				m_ulc_serial_sample_ready = true;
+				if (!m_ulc_serial_response_length)
+				{
+					u8 const bit = (width < attotime::from_usec(20)) ? 1 : 0;
+					m_ulc_serial_rx_byte |= bit << m_ulc_serial_rx_bits;
+					if (++m_ulc_serial_rx_bits == 8)
+					{
+						ulc_serial_command_byte(m_ulc_serial_rx_byte);
+						m_ulc_serial_rx_byte = 0;
+						m_ulc_serial_rx_bits = 0;
+					}
+				}
+			}
 		}
 	}
 
 	// CPU A1 is ULC A0: the control byte at 0x900213 is register 0x109.
-	// Bit 4 starts a scan; clearing it acknowledges scan completion.
+	// Bit 4 starts a scan transfer; the firmware clears it while servicing
+	// the resulting level-four interrupt.
 	if (offset == 0x109)
 	{
 		if (!BIT(data, 4))
 		{
 			m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
-			m_ulc_scan_timer->adjust(attotime::never);
 		}
 		else if (!BIT(old_data, 4))
 		{
+			// Bank zero shares its data latch with the VFD serializer.  Bit 1
+			// enables one byte transfer; the cabinet data bus is inverted.
+			// Serialize exactly eight bits, MSB first, per scan transfer.
+			if ((m_ulc_output[0x11e] & 3) == 0 && BIT(m_ulc_output[0x108], 1))
+			{
+				u8 const display_data = ~m_ulc_output[0x100];
+				for (int bit = 7; bit >= 0; --bit)
+				{
+					m_vfd->data(BIT(display_data, bit));
+					m_vfd->sclk(1);
+					m_vfd->sclk(0);
+				}
+			}
 			// Provisional transfer time until the ULC clock is known.
 			m_ulc_scan_timer->adjust(attotime::from_usec(100));
 		}
@@ -287,10 +454,19 @@ void ballyw_state::machine_start()
 	save_item(NAME(m_ulc_input));
 	save_item(NAME(m_ulc_output));
 	save_item(NAME(m_ulc_serial_ack_reads));
+	save_item(NAME(m_ulc_serial_status_pattern));
+	save_item(NAME(m_ulc_serial_pulse_start));
+	save_item(NAME(m_ulc_serial_rx_byte));
+	save_item(NAME(m_ulc_serial_rx_bits));
+	save_item(NAME(m_ulc_serial_command));
+	save_item(NAME(m_ulc_serial_command_length));
+	save_item(NAME(m_ulc_serial_command_expected));
+	save_item(NAME(m_ulc_serial_response));
+	save_item(NAME(m_ulc_serial_response_length));
+	save_item(NAME(m_ulc_serial_response_bit));
+	save_item(NAME(m_ulc_serial_sample_ready));
+	save_item(NAME(m_ulc_serial_pulse_high));
 	save_item(NAME(m_ulc_scan_ready));
-	save_item(NAME(m_vfd_low_writes));
-	save_item(NAME(m_vfd_high_time));
-	save_item(NAME(m_vfd_early_low));
 	m_ulc_scan_timer = timer_alloc(FUNC(ballyw_state::ulc_scan_complete), this);
 }
 
@@ -299,19 +475,15 @@ void ballyw_state::machine_reset()
 	m_ulc_scan_timer->adjust(attotime::never);
 	m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
 	m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
-	// The display reset line is released by the ULC during board reset.  The
-	// ROM then drives the ROC10937 through the serial data/clock latches.
-	// Keep the controller out of reset so those clocks are accepted.
-	m_vfd->por(1);
-	// The ULC supplies the display power duty externally on this board.
-	m_vfd->write_char(0xff);
+	m_vfd->por(0);
 	std::fill(std::begin(m_ulc_input), std::end(m_ulc_input), 0);
 	std::fill(std::begin(m_ulc_output), std::end(m_ulc_output), 0);
 	m_ulc_serial_ack_reads = 0;
+	m_ulc_serial_status_pattern = 0;
+	m_ulc_serial_pulse_start = attotime::zero;
+	ulc_serial_reset();
+	m_ulc_serial_pulse_high = false;
 	m_ulc_scan_ready = false;
-	m_vfd_low_writes = 0;
-	m_vfd_high_time = attotime::zero;
-	m_vfd_early_low = false;
 }
 
 static INPUT_PORTS_START( ballyw )
