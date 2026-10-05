@@ -225,10 +225,13 @@ protected:
 
 	attotime m_revolution_start_time, m_rev_time;
 	uint32_t m_revolution_count;
+	uint32_t m_stopped_position;
 	int m_cyl, m_subcyl;
 	/* Current floppy zone cache */
 	attotime m_cache_start_time, m_cache_end_time, m_cache_weak_start;
 	attotime m_amplifier_freakout_time;
+	// Read-chain bounce filter threshold; zero disables it
+	attotime m_glitch_threshold;
 	int m_cache_index;
 	u32 m_cache_entry;
 	bool m_cache_weak;
@@ -274,7 +277,7 @@ protected:
 	void cache_clear();
 	void cache_fill_index(const std::vector<uint32_t> &buf, int &index, attotime &base);
 	void cache_fill(const attotime &when);
-	void cache_weakness_setup();
+	void cache_weakness_setup(const std::vector<uint32_t> &buf, attotime base);
 
 	// Sound support
 	bool m_make_sound;

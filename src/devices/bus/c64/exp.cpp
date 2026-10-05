@@ -112,7 +112,7 @@ std::pair<std::error_condition, std::string> c64_expansion_slot_device::call_loa
 
 		if (!loaded_through_softlist())
 		{
-			util::core_file &file = image_core_file();
+			util::random_read &file = image_core_file();
 			size = length();
 
 			if (is_filetype("80"))
@@ -410,6 +410,7 @@ void c64_expansion_cards(device_slot_interface &device)
 	device.option_add("turbo232", C64_TURBO232);
 	device.option_add("buscard", C64_BUSCARD);
 	device.option_add("buscard2", C64_BUSCARD2);
+	device.option_add("multiscreen", C64_MULTISCREEN);
 
 	// the following need ROMs from the software list
 	device.option_add_internal("standard", C64_STD);
@@ -435,7 +436,6 @@ void c64_expansion_cards(device_slot_interface &device)
 	device.option_add_internal("magic_formel", C64_MAGIC_FORMEL);
 	device.option_add_internal("magic_voice", C64_MAGIC_VOICE);
 	device.option_add_internal("mikroasm", C64_MIKRO_ASSEMBLER);
-	device.option_add_internal("multiscreen", C64_MULTISCREEN);
 	device.option_add_internal("ocean", C64_OCEAN);
 	device.option_add_internal("pagefox", C64_PAGEFOX);
 	device.option_add_internal("partner", C64_PARTNER);

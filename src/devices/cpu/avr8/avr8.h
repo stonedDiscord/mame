@@ -468,6 +468,13 @@ protected:
 		INTIDX_OCF2A,
 		INTIDX_TOV2,
 
+		INTIDX_PCINT0,
+		INTIDX_PCINT1,
+		INTIDX_PCINT2,
+
+		INTIDX_INT0,
+		INTIDX_INT1,
+
 	//------ TODO: review this --------
 		INTIDX_OCF3B,
 		INTIDX_OCF3A,
@@ -515,6 +522,53 @@ protected:
 		ATMEGA644_INT_ANALOG_COMP,
 		ATMEGA644_INT_TWI,
 		ATMEGA644_INT_SPM_RDY
+	};
+
+	enum : uint8_t
+	{
+		ATMEGA32U4_INT_RESET = 0,
+		ATMEGA32U4_INT_INT0,
+		ATMEGA32U4_INT_INT1,
+		ATMEGA32U4_INT_INT2,
+		ATMEGA32U4_INT_INT3,
+		ATMEGA32U4_INT_RESERVED_0,
+		ATMEGA32U4_INT_RESERVED_1,
+		ATMEGA32U4_INT_INT6,
+		ATMEGA32U4_INT_RESERVED_2,
+		ATMEGA32U4_INT_PCINT0,
+		ATMEGA32U4_INT_USB_GENERAL,
+		ATMEGA32U4_INT_USB_ENDPOINT,
+		ATMEGA32U4_INT_WDT,
+		ATMEGA32U4_INT_RESERVED_3,
+		ATMEGA32U4_INT_RESERVED_4,
+		ATMEGA32U4_INT_RESERVED_5,
+		ATMEGA32U4_INT_T1CAPT,
+		ATMEGA32U4_INT_T1COMPA,
+		ATMEGA32U4_INT_T1COMPB,
+		ATMEGA32U4_INT_T1COMPC,
+		ATMEGA32U4_INT_T1OVF,
+		ATMEGA32U4_INT_T0COMPA,
+		ATMEGA32U4_INT_T0COMPB,
+		ATMEGA32U4_INT_T0OVF,
+		ATMEGA32U4_INT_SPI_STC,
+		ATMEGA32U4_INT_USART_RX,
+		ATMEGA32U4_INT_USART_UDRE,
+		ATMEGA32U4_INT_USART_TX,
+		ATMEGA32U4_INT_ANALOG_COMP,
+		ATMEGA32U4_INT_ADC,
+		ATMEGA32U4_INT_EE_RDY,
+		ATMEGA32U4_INT_T3CAPT,
+		ATMEGA32U4_INT_T3COMPA,
+		ATMEGA32U4_INT_T3COMPB,
+		ATMEGA32U4_INT_T3COMPC,
+		ATMEGA32U4_INT_T3OVF,
+		ATMEGA32U4_INT_TWI,
+		ATMEGA32U4_INT_SPM_RDY,
+		ATMEGA32U4_INT_T4COMPA,
+		ATMEGA32U4_INT_T4COMPB,
+		ATMEGA32U4_INT_T4COMPD,
+		ATMEGA32U4_INT_T4OVF,
+		ATMEGA32U4_INT_T4FPF,
 	};
 
 	// lock bit masks
@@ -588,6 +642,24 @@ protected:
 		uint8_t m_regmask;
 	};
 
+	// maps a GPIO port to its pin-change interrupt group, if it has one:
+	// pcmsk_reg is the PCMSKn register gating which pins in the port raise the interrupt,
+	// group is the bit position shared by PCICR/PCIFR for that group (also INTIDX's implicit ordering),
+	// intidx is the INTIDX_PCINTn value to pass to update_interrupt()
+	virtual bool pcint_group(gpio_t port, uint8_t &pcmsk_reg, int &group) const { return false; }
+
+	// PORTB bit masks for the hardware SPI pins (default: ATmega88/168/328 mapping)
+	virtual void spi_pins(uint8_t &mosi_mask, uint8_t &miso_mask, uint8_t &sck_mask) const
+	{
+		mosi_mask = 0x08; // PB3
+		miso_mask = 0x10; // PB4
+		sck_mask  = 0x20; // PB5
+	}
+
+	// valid bits of EEARH, which depend on how large this chip's EEPROM is
+	// (default: 512-byte EEPROM, e.g. ATmega88/168)
+	virtual uint8_t eearh_mask() const { return EEARH_MASK; }
+
 	op_func m_op_funcs[0x10000];
 	int m_op_cycles[0x10000];
 	int m_opcycles;
@@ -636,6 +708,7 @@ protected:
 	// internal CPU state
 	uint32_t m_addr_mask;
 	bool m_interrupt_pending;
+	bool m_sleeping;
 
 	// other internal states
 	int m_icount;
@@ -759,6 +832,7 @@ protected:
 
 	static const interrupt_condition s_int_conditions[INTIDX_COUNT];
 	static const interrupt_condition s_mega644_int_conditions[INTIDX_COUNT];
+	static const interrupt_condition s_mega32u4_int_conditions[INTIDX_COUNT];
 };
 
 // ======================> avr8_device
@@ -772,7 +846,26 @@ public:
 	template <gpio_t Port> auto gpio_in() { return m_gpio_in_cb[Port].bind(); }
 	template <int Port> uint8_t pin_r();
 	template <int Port> void port_w(uint8_t data);
+	template <int Port> void ddr_w(uint8_t data);
 	template <int Port> uint8_t gpio_r();
+
+	// call when an external device pin changes: updates that bit of the port's internal input shadow
+	// (used verbatim if no gpio_in callback is bound, ignored as a value but still triggering a resample
+	// otherwise) and raises the port's pin-change/external interrupt if enabled
+	template <int Port> void pin_w(int bit, int state);
+
+	// single-pin form, e.g. FUNC(atmega1284_device::pin_w<atmega1284_device::GPIOC, 0>) as a write-line target
+	template <gpio_t Port, int Bit> void pin_w(int state) { pin_w<Port>(Bit, state); }
+	template <int Bit> void pa_w(int state) { pin_w<GPIOA, Bit>(state); }
+	template <int Bit> void pb_w(int state) { pin_w<GPIOB, Bit>(state); }
+	template <int Bit> void pc_w(int state) { pin_w<GPIOC, Bit>(state); }
+	template <int Bit> void pd_w(int state) { pin_w<GPIOD, Bit>(state); }
+	template <int Bit> void pe_w(int state) { pin_w<GPIOE, Bit>(state); }
+	template <int Bit> void pf_w(int state) { pin_w<GPIOF, Bit>(state); }
+	template <int Bit> void pg_w(int state) { pin_w<GPIOG, Bit>(state); }
+
+	// checks INT0 (line 0, PD2) or INT1 (line 1, PD3) against EICRA's sense-control bits
+	void check_extint(int line, uint8_t prev, uint8_t state);
 
 	// ADC
 	template<uint8_t Pin> auto adc_in() { return m_adc_in_cb[Pin].bind(); }
@@ -781,6 +874,7 @@ protected:
 	avr8_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock, const device_type type, uint32_t address_mask, address_map_constructor internal_map);
 
 	typedef delegate<void (void)> timer_func;
+
 
 	// device-level overrides
 	virtual void device_start() override ATTR_COLD;
@@ -799,7 +893,9 @@ protected:
 	void prr1_w(uint8_t data);
 	void osccal_w(uint8_t data);
 	void pcicr_w(uint8_t data);
+	void pcifr_w(uint8_t data);
 	void eicra_w(uint8_t data);
+	void eifr_w(uint8_t data);
 	void eicrb_w(uint8_t data);
 	void pcmsk0_w(uint8_t data);
 	void pcmsk1_w(uint8_t data);
@@ -830,6 +926,14 @@ protected:
 
 	devcb_write8::array<11> m_gpio_out_cb;
 	devcb_read8::array<11> m_gpio_in_cb;
+	uint8_t m_gpio_in[GPIO_COUNT]{};
+	uint8_t m_pcint_last[11]{};
+
+	// returns the port's current sampled level: the bound gpio_in callback if set, else the internal input shadow
+	template <int Port> uint8_t sample_port();
+
+	// diffs a freshly-sampled port level against the last-known one, raising PCINT/INT0/INT1 as needed
+	template <int Port> void latch_pin_change(uint8_t state);
 
 	// ADC
 	uint8_t adcl_r();
@@ -870,6 +974,7 @@ protected:
 	uint8_t m_spi_prescale;
 	uint8_t m_spi_prescale_count;
 	int8_t m_spi_prescale_countdown;
+	uint8_t m_spi_rx_shift;
 
 	// timers
 	void gtccr_w(uint8_t data);
@@ -1089,7 +1194,9 @@ protected:
 DECLARE_DEVICE_TYPE(ATMEGA88,   atmega88_device)
 DECLARE_DEVICE_TYPE(ATMEGA168,  atmega168_device)
 DECLARE_DEVICE_TYPE(ATMEGA328,  atmega328_device)
+DECLARE_DEVICE_TYPE(ATMEGA32U4, atmega32u4_device)
 DECLARE_DEVICE_TYPE(ATMEGA644,  atmega644_device)
+DECLARE_DEVICE_TYPE(ATMEGA1284, atmega1284_device)
 DECLARE_DEVICE_TYPE(ATMEGA1280, atmega1280_device)
 DECLARE_DEVICE_TYPE(ATMEGA2560, atmega2560_device)
 DECLARE_DEVICE_TYPE(ATTINY15,   attiny15_device)
@@ -1102,6 +1209,9 @@ public:
 	// construction/destruction
 	atmega88_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 	void atmega88_internal_map(address_map &map) ATTR_COLD;
+
+protected:
+	virtual bool pcint_group(gpio_t port, uint8_t &pcmsk_reg, int &group) const override;
 };
 
 // ======================> atmega168_device
@@ -1114,6 +1224,9 @@ public:
 
 	virtual void update_interrupt(int source) override;
 	void atmega168_internal_map(address_map &map) ATTR_COLD;
+
+protected:
+	virtual bool pcint_group(gpio_t port, uint8_t &pcmsk_reg, int &group) const override;
 };
 
 // ======================> atmega328_device
@@ -1126,6 +1239,32 @@ public:
 
 	virtual void update_interrupt(int source) override;
 	void atmega328_internal_map(address_map &map) ATTR_COLD;
+
+protected:
+	virtual bool pcint_group(gpio_t port, uint8_t &pcmsk_reg, int &group) const override;
+	virtual uint8_t eearh_mask() const override { return 0x03; } // 1024-byte EEPROM
+};
+
+// ======================> atmega32u4_device
+
+class atmega32u4_device : public avr8_device<4>
+{
+public:
+	// construction/destruction
+	atmega32u4_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+	virtual void update_interrupt(int source) override;
+	void atmega32u4_internal_map(address_map &map) ATTR_COLD;
+
+protected:
+	virtual bool pcint_group(gpio_t port, uint8_t &pcmsk_reg, int &group) const override;
+	virtual void spi_pins(uint8_t &mosi_mask, uint8_t &miso_mask, uint8_t &sck_mask) const override
+	{
+		sck_mask  = 0x02; // PB1
+		mosi_mask = 0x04; // PB2
+		miso_mask = 0x08; // PB3
+	}
+	virtual uint8_t eearh_mask() const override { return 0x03; } // 1024-byte EEPROM
 };
 
 // ======================> atmega644_device
@@ -1138,6 +1277,38 @@ public:
 
 	virtual void update_interrupt(int source) override;
 	void atmega644_internal_map(address_map &map) ATTR_COLD;
+
+protected:
+	virtual bool pcint_group(gpio_t port, uint8_t &pcmsk_reg, int &group) const override;
+	virtual void spi_pins(uint8_t &mosi_mask, uint8_t &miso_mask, uint8_t &sck_mask) const override
+	{
+		mosi_mask = 0x20; // PB5
+		miso_mask = 0x40; // PB6
+		sck_mask  = 0x80; // PB7
+	}
+	virtual uint8_t eearh_mask() const override { return 0x07; } // 2048-byte EEPROM
+};
+
+// ======================> atmega1284_device
+
+class atmega1284_device : public avr8_device<3>
+{
+public:
+	// construction/destruction
+	atmega1284_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+	virtual void update_interrupt(int source) override;
+	void atmega1284_internal_map(address_map &map) ATTR_COLD;
+
+protected:
+	virtual bool pcint_group(gpio_t port, uint8_t &pcmsk_reg, int &group) const override;
+	virtual void spi_pins(uint8_t &mosi_mask, uint8_t &miso_mask, uint8_t &sck_mask) const override
+	{
+		mosi_mask = 0x20; // PB5
+		miso_mask = 0x40; // PB6
+		sck_mask  = 0x80; // PB7
+	}
+	virtual uint8_t eearh_mask() const override { return 0x0f; } // 4096-byte EEPROM
 };
 
 // ======================> atmega1280_device
@@ -1150,6 +1321,15 @@ public:
 
 	virtual void update_interrupt(int source) override;
 	void atmega1280_internal_map(address_map &map) ATTR_COLD;
+
+protected:
+	virtual void spi_pins(uint8_t &mosi_mask, uint8_t &miso_mask, uint8_t &sck_mask) const override
+	{
+		mosi_mask = 0x04; // PB2
+		miso_mask = 0x08; // PB3
+		sck_mask  = 0x02; // PB1
+	}
+	virtual uint8_t eearh_mask() const override { return 0x0f; } // 4096-byte EEPROM
 };
 
 // ======================> atmega2560_device
@@ -1162,6 +1342,15 @@ public:
 
 	virtual void update_interrupt(int source) override;
 	void atmega2560_internal_map(address_map &map) ATTR_COLD;
+
+protected:
+	virtual void spi_pins(uint8_t &mosi_mask, uint8_t &miso_mask, uint8_t &sck_mask) const override
+	{
+		mosi_mask = 0x04; // PB2
+		miso_mask = 0x08; // PB3
+		sck_mask  = 0x02; // PB1
+	}
+	virtual uint8_t eearh_mask() const override { return 0x0f; } // 4096-byte EEPROM
 };
 
 // ======================> attiny15_device

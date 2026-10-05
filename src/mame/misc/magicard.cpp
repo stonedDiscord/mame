@@ -1102,7 +1102,6 @@ void hotslots_state::magicle(machine_config &config)
 	hotslots_base(config);
 
 	pic16f84_device &pic(PIC16F84(config, "pic16f84", 4000000));
-	pic.set_config(0x3ffa); // No protect - No Watchdog - HS Clock
 	pic.read_b().set(FUNC(hotslots_state::pic_portb_r));
 	pic.write_b().set(FUNC(hotslots_state::pic_portb_w));
 
@@ -1312,9 +1311,9 @@ ROM_START( magicrdja )
 	ROM_FILL( 0x4005, 0x01, 0x3f )
 	ROM_FILL( 0x4006, 0x01, 0x88 )
 	ROM_FILL( 0x4007, 0x01, 0x3f )
-	// configuration word: all 0
-	ROM_FILL( 0x400e, 0x01, 0x00 )
-	ROM_FILL( 0x400f, 0x01, 0x00 )
+	// configuration word: all 0 - can't be right, might have been unreadable. set to 0x3ffa for now.
+	ROM_FILL( 0x400e, 0x01, 0xfa )
+	ROM_FILL( 0x400f, 0x01, 0x3f )
 	ROM_LOAD("magicardj_4.01_pic16f84_data.bin",   0x4200, 0x0080, CRC(40961fef) SHA1(8617ef78d50842ea89d81d4db3728b3f799d7530) )
 
 	ROM_REGION( 0x200000, "other", 0 )  // unknown contents
@@ -1538,9 +1537,9 @@ ROM_START( magicle )
 	ROM_FILL( 0x4005, 0x01, 0x3f )
 	ROM_FILL( 0x4006, 0x01, 0x89 )
 	ROM_FILL( 0x4007, 0x01, 0x3f )
-	// configuration word: all 0
-	ROM_FILL( 0x400e, 0x01, 0x00 )
-	ROM_FILL( 0x400f, 0x01, 0x00 )
+	// configuration word: all 0 - can't be right, might have been unreadable. set to 0x3ffa for now.
+	ROM_FILL( 0x400e, 0x01, 0xfa )
+	ROM_FILL( 0x400f, 0x01, 0x3f )
 	ROM_LOAD("magicle_5.03_pic16f84_data.bin",   0x4200, 0x0080, CRC(b3cdf90f) SHA1(0afec6f78320e5fe653073769cdeb32918da061b) )
 
 	ROM_REGION( 0x200000, "other", 0 )  // unknown contents
@@ -1909,6 +1908,20 @@ ROM_START( puzzleme )
 
 	ROM_REGION( 0x0100, "sereeprom", 0 )  // Serial EPROM
 	ROM_LOAD("x24c02p.ic26",    0x0000, 0x0100, CRC(bc940f53) SHA1(6b870019752ba5c446a5ad5155e4a81dfbf6e523) )
+ROM_END
+
+ROM_START( libertyc ) // seems the same PCB as puzzleme
+	ROM_REGION( 0x80000, "maincpu", 0 )  // 68070 Code & GFX
+	ROM_LOAD16_WORD_SWAP( "liberty_card_export_94_v1.02.ic21", 0x00000, 0x80000, CRC(f5bb5dd0) SHA1(9c49ef4b5f42ddc689993d5129653efbfc57bce6) )
+
+	ROM_REGION( 0x1fff, "pic16c54", 0 )
+	ROM_LOAD( "pic16c54.ic29", 0x0000, 0x1fff, CRC(6dd2bd8e) SHA1(380f6b952ddd3183e9ab5404866c30be015b3773) BAD_DUMP ) // from puzzleme, seems to work, but a dump is needed
+
+	ROM_REGION( 0x0100, "sereeprom", 0 )  // Serial EPROM
+	ROM_LOAD( "x24c02p.ic26", 0x0000, 0x0100, CRC(54145712) SHA1(e2ddeb155c4422c54b621fd5acf4c2b8a4808c62) )
+
+	ROM_REGION( 0x10000, "nvram", 0 ) // pre-initialized
+	ROM_LOAD( "nvram", 0x00000, 0x10000, CRC(7b8150f8) SHA1(58a56401843f9b27ed1b6a4c2f786c20ecc0e3ab) )
 ROM_END
 
 
@@ -2447,8 +2460,7 @@ ROM_END
 
 void magicard_state::init_dallaspk()
 {
-//  Dallas Poker...
-//  NOP'ing to avoid the 68070 UART stuck...
+	// HACK: NOP'ing to avoid the 68070 UART stuck...
 	uint8_t *rom = memregion("maincpu")->base();
 
 	rom[0x00482e] = 0x18;
@@ -2482,6 +2494,7 @@ GAME(  1999, quingo,     0,        magicle,        hotslots,  hotslots_state, em
 GAME(  1999, belslots,   0,        magicle,        hotslots,  hotslots_state, empty_init,    ROT0,  "Impera",               "Bel Slots Export (5.01)",                    MACHINE_SUPPORTS_SAVE | MACHINE_NOT_WORKING )
 GAME(  2001, bigdeal0,   0,        magicle,        magicard,  hotslots_state, empty_init,    ROT0,  "Impera",               "Big Deal Belgien (5.04)",                    MACHINE_SUPPORTS_SAVE | MACHINE_NOT_WORKING )
 GAME(  199?, puzzleme,   0,        puzzleme,       puzzleme,  hotslots_state, empty_init,    ROT0,  "Impera",               "Puzzle Me!",                                 MACHINE_SUPPORTS_SAVE )
+GAME(  1994, libertyc,   0,        puzzleme,       magicrde,  hotslots_state, empty_init,    ROT0,  "NovoPlay",             "Liberty Card (v1.02)",                       MACHINE_SUPPORTS_SAVE | MACHINE_NOT_WORKING )
 
 GAME(  1991, lucky7i,    0,        magicard,       lucky7i,   magicard_state, empty_init,    ROT0,  "Impera",               "Lucky 7 (Impera, V04/91a, set 1)",           MACHINE_SUPPORTS_SAVE )
 GAME(  1991, lucky7x,    lucky7i,  magicard,       lucky7i,   magicard_state, empty_init,    ROT0,  "Impera",               "Lucky 7 (Impera, V04/91a, set 2)",           MACHINE_SUPPORTS_SAVE )
