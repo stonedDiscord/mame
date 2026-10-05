@@ -64,6 +64,10 @@ private:
 	void ptm_irq(int state);
 	void acia_irq(int state);
 	void rtc_irq(int state);
+	u8 ay_porta_r() const { return m_ay_porta; }
+	u8 ay_portb_r() const { return m_ay_portb; }
+	void ay_porta_w(u8 data) { m_ay_porta = data; }
+	void ay_portb_w(u8 data) { m_ay_portb = data; }
 	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
 	IRQ_CALLBACK_MEMBER(irq_ack);
@@ -85,6 +89,8 @@ private:
 	bool m_acia_irq = false;
 	bool m_rtc_irq = false;
 	u8 m_irq_vector = 0x40;
+	u8 m_ay_porta = 0xff;
+	u8 m_ay_portb = 0xff;
 };
 
 u8 t2000_state::ptm_r(offs_t offset)
@@ -132,7 +138,7 @@ void t2000_state::rtc_irq(int state)
 
 IRQ_CALLBACK_MEMBER(t2000_state::irq_ack)
 {
-	// The ULC supplies a vector for each PTM status source.  Timer 3 drives
+	// Board glue supplies a vector for each interrupt source.  Timer 3 drives
 	// the display ISR (vector 0x46); timer 1 drives the scheduler (0x40).
 	u8 const status = m_ptm->status_reg();
 	if (m_acia_irq)
@@ -155,7 +161,9 @@ void t2000_state::mem_map(address_map &map)
 	map(0x80000, 0x8000f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
 	map(0xc0000, 0xc0007).rw(FUNC(t2000_state::ptm_r), FUNC(t2000_state::ptm_w));
 	map(0xc0010, 0xc0010).w(m_aysnd, FUNC(ym2149_device::address_w));
+	map(0xc0011, 0xc0011).w(m_aysnd, FUNC(ym2149_device::address_w));
 	map(0xc0012, 0xc0012).rw(m_aysnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::data_w));
+	map(0xc0013, 0xc0013).rw(m_aysnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::data_w));
 	map(0xc0020, 0xc0020).rw(m_acia, FUNC(acia6850_device::status_r), FUNC(acia6850_device::control_w));
 	map(0xc0022, 0xc0022).rw(m_acia, FUNC(acia6850_device::data_r), FUNC(acia6850_device::data_w));
 	map(0xd0000, 0xd000f).rw(FUNC(t2000_state::display_r), FUNC(t2000_state::display_w)); // multiplexed inputs and outputs
@@ -171,7 +179,7 @@ void t2000_state::cpu_space_map(address_map &map)
 u8 t2000_state::display_r(offs_t offset)
 {
 	if ((offset & 0x0f) == 0x03)
-		// ULC power-on test: d0004 selects the input bank and d0003 loops
+		// Board input-multiplexer power-on test: d0004 selects the input bank and d0003 loops
 		// that selector back before the firmware enables normal operation.
 		return m_display_latch[0x04];
 	return m_display_latch[offset & 0x0f];
@@ -181,7 +189,7 @@ void t2000_state::display_w(offs_t offset, u8 data)
 {
 	offset &= 0x0f;
 	m_display_latch[offset] = data;
-	// The ULC presents each d0005 write as one serial byte while d0006 bit 0
+	// Board glue presents each d0005 write as one serial byte while d0006 bit 0
 	// is asserted.  ROC10937 shifts data on the falling clock edge.
 	if (offset == 0x05 && BIT(m_display_latch[0x06], 0))
 	{
@@ -202,6 +210,8 @@ void t2000_state::machine_start()
 	save_item(NAME(m_acia_irq));
 	save_item(NAME(m_rtc_irq));
 	save_item(NAME(m_irq_vector));
+	save_item(NAME(m_ay_porta));
+	save_item(NAME(m_ay_portb));
 }
 
 void t2000_state::machine_reset()
@@ -211,6 +221,8 @@ void t2000_state::machine_reset()
 	m_acia_irq = false;
 	m_rtc_irq = false;
 	m_irq_vector = 0x40;
+	m_ay_porta = 0xff;
+	m_ay_portb = 0xff;
 	m_vfd->por(1);
 }
 
@@ -229,6 +241,10 @@ void t2000_state::t2000(machine_config &config)
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // battery backed
 
 	YM2149(config, m_aysnd, 16_MHz_XTAL / 8); // guess
+	m_aysnd->port_a_read_callback().set(FUNC(t2000_state::ay_porta_r));
+	m_aysnd->port_b_read_callback().set(FUNC(t2000_state::ay_portb_r));
+	m_aysnd->port_a_write_callback().set(FUNC(t2000_state::ay_porta_w));
+	m_aysnd->port_b_write_callback().set(FUNC(t2000_state::ay_portb_w));
 	m_aysnd->add_route(ALL_OUTPUTS, "mono", 1);
 
 	SPEAKER(config, "mono").front_center();
