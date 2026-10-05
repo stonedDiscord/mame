@@ -509,7 +509,7 @@ void ballyw_state::b2(machine_config &config)
 	config.set_default_layout(layout_eurotec);
 	ROC10937(config, m_vfd);
 
-	TIMER(config, "system_tick").configure_periodic(FUNC(ballyw_state::system_tick), attotime::from_hz(100));
+	TIMER(config, "system_tick").configure_periodic(FUNC(ballyw_state::system_tick), attotime::from_hz(500));
 
 	SPEAKER(config, "mono").front_center();
 }
