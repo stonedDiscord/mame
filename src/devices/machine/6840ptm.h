@@ -34,6 +34,7 @@ public:
 	auto irq_callback() { return m_irq_cb.bind(); }
 
 	int status(int idx) const { return m_enabled[idx]; }            // get whether timer is enabled
+	uint8_t status_reg() const { return m_status_reg; }             // get pending status flags
 	int irq_state() const { return m_irq; }                         // get IRQ state
 	int count(int idx) const { return compute_counter(idx); }       // get counter value
 	void set_ext_clock(int counter, double clock);                  // set clock frequency

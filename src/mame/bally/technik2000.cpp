@@ -26,10 +26,13 @@ Trace the lamp outs.
 #include "cpu/m68000/m68008.h"
 #include "machine/6840ptm.h"
 #include "machine/6850acia.h"
+#include "machine/clock.h"
 #include "machine/msm6242.h"
 #include "machine/nvram.h"
 #include "sound/ay8910.h"
 #include "video/roc10937.h"
+
+#include "eurotec.lh"
 
 #include "speaker.h"
 
@@ -45,13 +48,25 @@ public:
 		m_aysnd(*this, "aysnd"),
 		m_ptm(*this, "ptm"),
 		m_acia(*this, "acia"),
-		m_rtc(*this, "rtc")
+		m_rtc(*this, "rtc"),
+		m_vfd(*this, "vfd")
 	{ }
 
 	void t2000(machine_config &config) ATTR_COLD;
 
 private:
 	void mem_map(address_map &map) ATTR_COLD;
+	void cpu_space_map(address_map &map) ATTR_COLD;
+	u8 display_r(offs_t offset);
+	void display_w(offs_t offset, u8 data);
+	u8 ptm_r(offs_t offset);
+	void ptm_w(offs_t offset, u8 data);
+	void ptm_irq(int state);
+	void acia_irq(int state);
+	void rtc_irq(int state);
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	IRQ_CALLBACK_MEMBER(irq_ack);
 
 	// devices
 	required_device<m68008_device> m_maincpu;
@@ -60,19 +75,143 @@ private:
 	required_device<ptm6840_device> m_ptm;
 	required_device<acia6850_device> m_acia;
 	required_device<rtc72421_device> m_rtc;
+	required_device<roc10937_device> m_vfd;
+
+	// The Technik display board is driven through the sixteen-byte I/O window.
+	// Keep the latches separate: the firmware multiplexes segment data and the
+	// digit/strobe lines independently.
+	u8 m_display_latch[0x10]{};
+	bool m_display_data_pending = false;
+	bool m_acia_irq = false;
+	bool m_rtc_irq = false;
+	u8 m_irq_vector = 0x40;
 };
+
+u8 t2000_state::ptm_r(offs_t offset)
+{
+	u8 const data = m_ptm->read(offset);
+	if (offset == 1)
+	{
+		// The board presents timer 3's interrupt to the firmware's timer-1
+		// status input.  The common ISR acknowledges that input by reading
+		// c0002 (timer 1 in the generic PTM map), so acknowledge timer 3 here
+		// as well when that is the source being reported.
+		if (data & 0x04)
+			m_ptm->read(6);
+
+		// The board routes the PTM channel-3 flag to the firmware's timer-1
+		// status input.  The ROM polls bit 0 while the 6840 reports bit 2.
+		return (data & ~0x04) | ((data & 0x04) >> 2);
+	}
+	return data;
+}
+
+void t2000_state::ptm_w(offs_t offset, u8 data)
+{
+	if (offset == 0)
+		data |= 0x40;
+	m_ptm->write(offset, data);
+}
+
+void t2000_state::acia_irq(int state)
+{
+	m_acia_irq = bool(state);
+	m_maincpu->set_input_line(M68K_IRQ_4, (m_acia_irq || m_ptm->irq_state()) ? ASSERT_LINE : CLEAR_LINE);
+}
+
+void t2000_state::ptm_irq(int state)
+{
+	m_maincpu->set_input_line(M68K_IRQ_4, (state || m_acia_irq || m_rtc_irq) ? ASSERT_LINE : CLEAR_LINE);
+}
+
+void t2000_state::rtc_irq(int state)
+{
+	m_rtc_irq = bool(state);
+	m_maincpu->set_input_line(M68K_IRQ_4, (m_rtc_irq || m_acia_irq || m_ptm->irq_state()) ? ASSERT_LINE : CLEAR_LINE);
+}
+
+IRQ_CALLBACK_MEMBER(t2000_state::irq_ack)
+{
+	// The ULC supplies a vector for each PTM status source.  Timer 3 drives
+	// the display ISR (vector 0x46); timer 1 drives the scheduler (0x40).
+	u8 const status = m_ptm->status_reg();
+	if (m_acia_irq)
+		m_irq_vector = 0x42;
+	else if (m_rtc_irq)
+		m_irq_vector = 0x43;
+	else if (status & 0x01)
+		m_irq_vector = 0x40;
+	else if (status & 0x04)
+		m_irq_vector = 0x46;
+	else if (status & 0x02)
+		m_irq_vector = 0x43;
+	return m_irq_vector;
+}
 
 void t2000_state::mem_map(address_map &map)
 {
 	map(0x00000, 0x3ffff).rom();
 	map(0x40000, 0x47fff).ram().share("nvram"); //84256A
 	map(0x80000, 0x8000f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write));
-	map(0xc0000, 0xc0007).rw(m_ptm, FUNC(ptm6840_device::read), FUNC(ptm6840_device::write));
+	map(0xc0000, 0xc0007).rw(FUNC(t2000_state::ptm_r), FUNC(t2000_state::ptm_w));
 	map(0xc0010, 0xc0010).w(m_aysnd, FUNC(ym2149_device::address_w));
 	map(0xc0012, 0xc0012).rw(m_aysnd, FUNC(ym2149_device::data_r), FUNC(ym2149_device::data_w));
 	map(0xc0020, 0xc0020).rw(m_acia, FUNC(acia6850_device::status_r), FUNC(acia6850_device::control_w));
 	map(0xc0022, 0xc0022).rw(m_acia, FUNC(acia6850_device::data_r), FUNC(acia6850_device::data_w));
-	map(0xd0000, 0xd000f).noprw(); // multiplexed inputs and outputs
+	map(0xd0000, 0xd000f).rw(FUNC(t2000_state::display_r), FUNC(t2000_state::display_w)); // multiplexed inputs and outputs
+}
+
+void t2000_state::cpu_space_map(address_map &map)
+{
+	// IRQ4 is a vectored PTM interrupt.  The acknowledge callback selects the
+	// source-specific vector before the CPU reads this CPU-space location.
+	map(0xffff9, 0xffff9).lr8(NAME([this]() { return m_irq_vector; }));
+}
+
+u8 t2000_state::display_r(offs_t offset)
+{
+	if ((offset & 0x0f) == 0x03)
+		// ULC power-on test: d0004 selects the input bank and d0003 loops
+		// that selector back before the firmware enables normal operation.
+		return m_display_latch[0x04];
+	return m_display_latch[offset & 0x0f];
+}
+
+void t2000_state::display_w(offs_t offset, u8 data)
+{
+	offset &= 0x0f;
+	m_display_latch[offset] = data;
+	// The ULC presents each d0005 write as one serial byte while d0006 bit 0
+	// is asserted.  ROC10937 shifts data on the falling clock edge.
+	if (offset == 0x05 && BIT(m_display_latch[0x06], 0))
+	{
+		for (int bit = 7; bit >= 0; bit--)
+		{
+			m_vfd->data(BIT(data, bit));
+			m_vfd->sclk(1);
+			m_vfd->sclk(0);
+		}
+		m_display_data_pending = false;
+	}
+}
+
+void t2000_state::machine_start()
+{
+	save_item(NAME(m_display_latch));
+	save_item(NAME(m_display_data_pending));
+	save_item(NAME(m_acia_irq));
+	save_item(NAME(m_rtc_irq));
+	save_item(NAME(m_irq_vector));
+}
+
+void t2000_state::machine_reset()
+{
+	std::fill(std::begin(m_display_latch), std::end(m_display_latch), 0);
+	m_display_data_pending = false;
+	m_acia_irq = false;
+	m_rtc_irq = false;
+	m_irq_vector = 0x40;
+	m_vfd->por(1);
 }
 
 static INPUT_PORTS_START( t2000 )
@@ -84,6 +223,8 @@ void t2000_state::t2000(machine_config &config)
 {
 	M68008(config, m_maincpu, 16_MHz_XTAL / 2); // guess
 	m_maincpu->set_addrmap(AS_PROGRAM, &t2000_state::mem_map);
+	m_maincpu->set_addrmap(m68000_base_device::AS_CPU_SPACE, &t2000_state::cpu_space_map);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(t2000_state::irq_ack));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // battery backed
 
@@ -92,12 +233,19 @@ void t2000_state::t2000(machine_config &config)
 
 	SPEAKER(config, "mono").front_center();
 
-	PTM6840(config, m_ptm, 16_MHz_XTAL / 4); // guess
-	m_ptm->irq_callback().set_inputline("maincpu", M68K_IRQ_1);
+	PTM6840(config, m_ptm, 16_MHz_XTAL / 1024);
+	m_ptm->irq_callback().set(FUNC(t2000_state::ptm_irq));
 
 	ACIA6850(config, m_acia);
+	m_acia->irq_handler().set(FUNC(t2000_state::acia_irq));
+	CLOCK(config, "acia_clock", 16_MHz_XTAL / 1024).signal_handler().set(m_acia, FUNC(acia6850_device::write_txc));
+	CLOCK(config, "acia_clock_rxc", 16_MHz_XTAL / 1024).signal_handler().set(m_acia, FUNC(acia6850_device::write_rxc));
 
 	RTC72421(config, m_rtc, XTAL(32'768));
+	m_rtc->out_int_handler().set(FUNC(t2000_state::rtc_irq));
+
+	config.set_default_layout(layout_eurotec);
+	ROC10937(config, m_vfd);
 }
 
 ROM_START( bmonop )
