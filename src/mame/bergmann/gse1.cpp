@@ -2,6 +2,11 @@
 // copyright-holders:stonedDiscord
 
 /*
+Tech used by Bergmann Automaten GmbH from 1983-1994
+The earliest boards are called CPU-080039 in the manuals.
+In later manuals they are called GSE1.3 or GSE1.4
+GSE stands for Gerätesteuereinheit (device control unit)
+
 CPU Z0840004PSC
 RAM MB8416-20L
 PIO 2x Z0842004PSC
@@ -407,17 +412,20 @@ void gse1_state::gse1(machine_config &config)
 	m_pio1->out_pb_callback().set(FUNC(gse1_state::pio1_pb_w));
 	m_pio1->in_pb_callback().set( FUNC(gse1_state::pio1_pb_r));
 	m_pio1->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+
 	Z80PIO(config, m_pio2, 4_MHz_XTAL/2);
 	m_pio2->out_pa_callback().set(FUNC(gse1_state::pio2_pa_w));
 	m_pio2->in_pa_callback().set( FUNC(gse1_state::pio2_pa_r));
 	m_pio2->out_pb_callback().set(FUNC(gse1_state::pio2_pb_w));
 	m_pio2->in_pb_callback().set( FUNC(gse1_state::pio2_pb_r));
 	m_pio2->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+
 	Z80CTC(config, m_ctc1, 4_MHz_XTAL/2);
 	m_ctc1->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 	m_ctc1->zc_callback<0>().set(FUNC(gse1_state::ctc1_zc0_w));
 	m_ctc1->zc_callback<1>().set(FUNC(gse1_state::ctc1_zc1_w));
 	m_ctc1->zc_callback<2>().set(FUNC(gse1_state::ctc1_zc2_w));
+
 	Z80CTC(config, m_ctc2, 4_MHz_XTAL/2);
 	m_ctc2->zc_callback<0>().set(FUNC(gse1_state::ctc2_zc0_w));
 	m_ctc2->intr_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
