@@ -80,6 +80,7 @@ private:
 	output_finder<> m_led;
 	output_finder<8> m_digits;
 	output_finder<8, 8> m_lamps;
+	output_finder<8> m_money_led;
 
 	uint8_t m_adresse = 0;
 	bool m_battery = false;
@@ -211,7 +212,12 @@ void gse1_state::daten_w(uint8_t data)
 			m_digits[6] = cd4511[data & 0x0f];
 			break;
 		case 0x14:
-			//m_lamps = data;
+			// Münzeinwurf/Sonderspiele
+			for (int i = 0; i < 8; i++)
+			{
+				bool lamp_value = BIT(data, i);
+				m_money_led[i] = lamp_value;
+			}
 			break;
 		default:
 			LOG("Write %02x to address %02x\n", data, m_adresse);
