@@ -266,7 +266,7 @@ void gse1_state::pio1_pb_w(uint8_t data)
 	machine().bookkeeping().coin_counter_w(1,BIT(m_pio1_pb,2)); // 2DM
 	machine().bookkeeping().coin_counter_w(0,BIT(m_pio1_pb,3)); // 5DM
 
-	machine().bookkeeping().coin_lockout_global_w(BIT(m_pio1_pb,4)); // coin magnet
+	machine().bookkeeping().coin_lockout_global_w(!BIT(m_pio1_pb,4)); // coin magnet
 }
 
 //PIO2
@@ -357,6 +357,7 @@ static INPUT_PORTS_START( gse1 )
 	PORT_DIPNAME( 0x02, 0x02, "Pegelschalter 1,-" )
 	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
+	// TODO: These next 2 light barriers are triggered by the coin.
 	PORT_DIPNAME( 0x04, 0x04, "Fadenfalle-Lichtschranke" )
 	PORT_DIPSETTING(    0x04, DEF_STR( On ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
