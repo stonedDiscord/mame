@@ -386,20 +386,20 @@ static INPUT_PORTS_START( gse1 )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
 
 	PORT_START("T7") // active low
-	PORT_DIPNAME( 0x0f, 0x0f, "Serviceschalter" )
-	PORT_DIPSETTING(    0x0f, "Normalstellung" ) // 0
-	PORT_DIPSETTING(    0x0e, "Manko-Zähler anzeigen" ) // 1
-	PORT_DIPSETTING(    0x0c, "Vorlage- und Serienzähler löschen" ) // 3
-	PORT_DIPSETTING(    0x0a, "Spielsimulation" ) // 5
-	PORT_DIPSETTING(    0x08, "Fehlerzähler anzeigen" ) // 7
-	PORT_DIPSETTING(    0x07, "Ein- und Ausgänge testen" ) // 8
-	PORT_DIPSETTING(    0x06, "Münzeinheit testen" ) // 9
-	PORT_DIPNAME( 0x30, 0x30, "Spielsimulation" ) PORT_DIPLOCATION("SW1:2,3")
-	PORT_DIPSETTING(    0x30, "Normalfall" )
-	PORT_DIPSETTING(    0x00, "Spielsimulation" )
-	PORT_DIPNAME( 0x40, 0x40, "Kredit" ) PORT_DIPLOCATION("SW1:4")
-	PORT_DIPSETTING(    0x40, "Normalfall" )
-	PORT_DIPSETTING(    0x00, "Am Münzaggregat ist der Taster aktiv" )
+	PORT_DIPNAME( 0x0f, 0x0f, "Service switch" ) // Serviceschalter
+	PORT_DIPSETTING(    0x0f, "Regular" ) // 0 Normalstellung
+	PORT_DIPSETTING(    0x0e, "Show malfunction counter" ) // 1 Manko-Zähler anzeigen
+	PORT_DIPSETTING(    0x0c, "Erase series counters" ) // 3 Vorlage- und Serienzähler löschen
+	PORT_DIPSETTING(    0x0a, "Game simulation" ) // 5 Spielsimulation
+	PORT_DIPSETTING(    0x08, "Show error counter" ) // 7 Fehlerzähler anzeigen
+	PORT_DIPSETTING(    0x07, "Test input/output" ) // 8 Ein- und Ausgänge testen
+	PORT_DIPSETTING(    0x06, "Test coin mechanism" ) // 9 Münzeinheit testen
+	PORT_DIPNAME( 0x30, 0x30, "Game simulation" ) PORT_DIPLOCATION("SW1:2,3") // Spielsimulation
+	PORT_DIPSETTING(    0x30, "Normal" ) // Normalfall
+	PORT_DIPSETTING(    0x00, "Game simulation" ) // Spielsimulation
+	PORT_DIPNAME( 0x40, 0x40, "Credit" ) PORT_DIPLOCATION("SW1:4") // Kredit
+	PORT_DIPSETTING(    0x40, "Normal" ) // Normalfall
+	PORT_DIPSETTING(    0x00, "The coin mechanism button is active" ) // Am Münzaggregat ist der Taster aktiv
 	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unused ) )   PORT_DIPLOCATION("SW1:5")
 	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
