@@ -342,26 +342,26 @@ void gse1_state::ctc2_zc0_w(int state)
 static INPUT_PORTS_START( gse1 )
 	PORT_START("RETURN")
 	PORT_BIT( 0x1f, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_DIPNAME( 0x20, 0x20, "Pegelschalter 2,-" )
+	PORT_DIPNAME( 0x20, 0x20, "Level switch 2DM" ) // Pegelschalter 2,-
 	PORT_DIPSETTING(    0x20, DEF_STR( On ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPNAME( 0x40, 0x40, "Pegelschalter 5,-" )
+	PORT_DIPNAME( 0x40, 0x40, "Level switch 5DM" ) // Pegelschalter 5,-
 	PORT_DIPSETTING(    0x40, DEF_STR( On ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_PAYOUT ) PORT_NAME("Return")
 
 	PORT_START("COIN")
-	PORT_DIPNAME( 0x01, 0x01, "Pegelschalter -,10" )
+	PORT_DIPNAME( 0x01, 0x01, "Level switch 10Pf" ) // Pegelschalter -,10
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPNAME( 0x02, 0x02, "Pegelschalter 1,-" )
+	PORT_DIPNAME( 0x02, 0x02, "Level switch 1DM" ) // Pegelschalter 1,-
 	PORT_DIPSETTING(    0x02, DEF_STR( On ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	// TODO: These next 2 light barriers are triggered by the coin.
-	PORT_DIPNAME( 0x04, 0x04, "Fadenfalle-Lichtschranke" )
+	PORT_DIPNAME( 0x04, 0x04, "String light barrier" ) // Fadenfalle-Lichtschranke
 	PORT_DIPSETTING(    0x04, DEF_STR( On ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
-	PORT_DIPNAME( 0x08, 0x08, "Sicherheits-Lichtschranke" )
+	PORT_DIPNAME( 0x08, 0x08, "Safety light barrier" ) // Sicherheits-Lichtschranke
 	PORT_DIPSETTING(    0x08, DEF_STR( On ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN1 ) // 5DM
@@ -370,17 +370,17 @@ static INPUT_PORTS_START( gse1 )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN4 ) // 0.10 DM
 
 	PORT_START("T6") // active low
-	PORT_DIPNAME( 0x01, 0x01, "Programmstart" ) PORT_DIPLOCATION("SW1:6")
-	PORT_DIPSETTING(    0x01, "Normalfall" )
-	PORT_DIPSETTING(    0x00, "60 Sekunden nach Einschalten, bzw. Reset." )
-	PORT_DIPNAME( 0x02, 0x02, "Fadenlichtschranke" ) PORT_DIPLOCATION("SW1:7")
-	PORT_DIPSETTING(    0x02, "Normalfall" )
-	PORT_DIPSETTING(    0x00, "außer Betrieb" )
-	PORT_DIPNAME( 0x04, 0x04, "Einwurfbegrenzung" ) PORT_DIPLOCATION("SW1:8")
-	PORT_DIPSETTING(    0x04, "Normalfall" )
+	PORT_DIPNAME( 0x01, 0x01, "Program start" ) PORT_DIPLOCATION("SW1:6") // Programmstart
+	PORT_DIPSETTING(    0x01, "Normal" ) // Normalfall
+	PORT_DIPSETTING(    0x00, "60 seconds after power-up or reset" ) // 60 Sekunden nach Einschalten, bzw. Reset.
+	PORT_DIPNAME( 0x02, 0x02, "String light barrier" ) PORT_DIPLOCATION("SW1:7") // Fadenlichtschranke
+	PORT_DIPSETTING(    0x02, "Normal" ) // Normalfall
+	PORT_DIPSETTING(    0x00, "Unused" ) // außer Betrieb
+	PORT_DIPNAME( 0x04, 0x04, "Coin limit" ) PORT_DIPLOCATION("SW1:8") // Einwurfbegrenzung
+	PORT_DIPSETTING(    0x04, "Normal" ) // Normalfall
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_LOW ) PORT_NAME("Risiko links")
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_START1 ) PORT_NAME("Start")
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_START )
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_NAME("Aussp.Wiedh.")
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
