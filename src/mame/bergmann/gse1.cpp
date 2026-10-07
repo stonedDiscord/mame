@@ -53,6 +53,7 @@ public:
 		, m_led(*this, "led_error")
 		, m_digits(*this, "digit%u", 0U)
 		, m_lamps(*this, "lamp%u%u", 0U, 0U)
+		, m_money_led(*this, "money_led%u", 0U)
 	{
 	}
 
