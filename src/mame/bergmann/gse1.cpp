@@ -3,7 +3,6 @@
 
 /*
 Tech used by Bergmann Automaten GmbH from 1983-1994
-The earliest boards are called CPU-080039 in the manuals.
 In later manuals they are called GSE1.3 or GSE1.4
 GSE stands for Gerätesteuereinheit (device control unit)
 
@@ -13,8 +12,8 @@ PIO 2x Z0842004PSC
 CTC 2x Z0843004PSC
 
 TODO:
-coin sequencing
-spinning discs
+Coin sequencing (string and security sensors)
+Spinning discs (both position detection and layout)
 */
 
 #include "emu.h"
@@ -319,17 +318,17 @@ void gse1_state::pio2_pb_w(uint8_t data)
 //CTC
 void gse1_state::ctc1_zc0_w(int state)
 {
-	LOG("CTC1 ZC0: %d\n", state);
+	LOG("Left motor: %d\n", state);
 }
 
 void gse1_state::ctc1_zc1_w(int state)
 {
-	LOG("CTC1 ZC1: %d\n", state);
+	LOG("Right motor: %d\n", state);
 }
 
 void gse1_state::ctc1_zc2_w(int state)
 {
-	LOG("CTC1 ZC2: %d\n", state);
+	LOG("Middle motor: %d\n", state);
 }
 
 void gse1_state::ctc2_zc0_w(int state)
@@ -369,7 +368,7 @@ static INPUT_PORTS_START( gse1 )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_COIN3 ) // 1DM
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_COIN4 ) // 0.10 DM
 
-	PORT_START("T6") // active low
+	PORT_START("T6")
 	PORT_DIPNAME( 0x01, 0x01, "Program start" ) PORT_DIPLOCATION("SW1:6") // Programmstart
 	PORT_DIPSETTING(    0x01, "Normal" ) // Normalfall
 	PORT_DIPSETTING(    0x00, "60 seconds after power-up or reset" ) // 60 Sekunden nach Einschalten, bzw. Reset.
@@ -385,7 +384,7 @@ static INPUT_PORTS_START( gse1 )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_SLOT_STOP1 ) PORT_NAME("Stop rechts+mitte")
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_GAMBLE_HIGH ) PORT_NAME("Risiko rechts")
 
-	PORT_START("T7") // active low
+	PORT_START("T7")
 	PORT_DIPNAME( 0x0f, 0x0f, "Service switch" ) // Serviceschalter
 	PORT_DIPSETTING(    0x0f, "Regular" ) // 0 Normalstellung
 	PORT_DIPSETTING(    0x0e, "Show malfunction counter" ) // 1 Manko-Zähler anzeigen
