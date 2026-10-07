@@ -299,9 +299,7 @@ uint8_t gse1_state::pio2_pa_r()
 {
 	// Steckerleiste 17
 	uint8_t data = m_pio2_pa;
-
-	data = m_battery ? data | 0x80 : data & ~0x80; //PA6
-
+	data = m_battery ? data | 0x80 : data & ~0x80; //PA7
 	return data;
 }
 
@@ -315,7 +313,7 @@ void gse1_state::pio2_pa_w(uint8_t data)
 	m_dac_alarm_r->write(BIT(data, 3));
 	m_dac_r->write(BIT(data, 4));
 	m_dac_l->write(BIT(data, 5));
-	m_battery = !BIT(data, 6);
+	m_battery = BIT(data, 6);
 }
 
 //CTC
