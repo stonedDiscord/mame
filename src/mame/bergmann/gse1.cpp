@@ -270,6 +270,27 @@ void gse1_state::pio1_pb_w(uint8_t data)
 }
 
 //PIO2
+uint8_t gse1_state::pio2_pa_r()
+{
+	// Steckerleiste 17
+	uint8_t data = m_pio2_pa;
+	data = m_battery ? data | 0x80 : data & ~0x80; //PA7
+	return data;
+}
+
+void gse1_state::pio2_pa_w(uint8_t data)
+{
+	m_pio2_pa = data;
+	// Steckerleiste 17
+	m_led = BIT(data, 0);
+	// 1 NC
+	m_dac_alarm_l->write(BIT(data, 2));
+	m_dac_alarm_r->write(BIT(data, 3));
+	m_dac_r->write(BIT(data, 4));
+	m_dac_l->write(BIT(data, 5));
+	m_battery = BIT(data, 6);
+}
+
 uint8_t gse1_state::pio2_pb_r()
 {
 	// Steckerleiste 16
@@ -293,27 +314,6 @@ void gse1_state::pio2_pb_w(uint8_t data)
 	bool motor_switch = BIT(data, 7);
 	LOG("MOTOR reset: %02x, switch: %02x\n", motor_reset, motor_switch);
 	// Steckerleiste 16
-}
-
-uint8_t gse1_state::pio2_pa_r()
-{
-	// Steckerleiste 17
-	uint8_t data = m_pio2_pa;
-	data = m_battery ? data | 0x80 : data & ~0x80; //PA7
-	return data;
-}
-
-void gse1_state::pio2_pa_w(uint8_t data)
-{
-	m_pio2_pa = data;
-	// Steckerleiste 17
-	m_led = BIT(data, 0);
-	// 1 NC
-	m_dac_alarm_l->write(BIT(data, 2));
-	m_dac_alarm_r->write(BIT(data, 3));
-	m_dac_r->write(BIT(data, 4));
-	m_dac_l->write(BIT(data, 5));
-	m_battery = BIT(data, 6);
 }
 
 //CTC
