@@ -258,26 +258,39 @@ uint8_t gse1_state::pio1_pb_r()
 void gse1_state::pio1_pb_w(uint8_t data)
 {
 	// Steckerleiste 15
+	m_pio1_pb = data;
 	//coins out
-	machine().bookkeeping().coin_counter_w(3,BIT(data,0)); // 0.10DM
-	machine().bookkeeping().coin_counter_w(2,BIT(data,1)); // 1DM
-	machine().bookkeeping().coin_counter_w(1,BIT(data,2)); // 2DM
-	machine().bookkeeping().coin_counter_w(0,BIT(data,3)); // 5DM
+	machine().bookkeeping().coin_counter_w(3,BIT(m_pio1_pb,0)); // 0.10DM
+	machine().bookkeeping().coin_counter_w(2,BIT(m_pio1_pb,1)); // 1DM
+	machine().bookkeeping().coin_counter_w(1,BIT(m_pio1_pb,2)); // 2DM
+	machine().bookkeeping().coin_counter_w(0,BIT(m_pio1_pb,3)); // 5DM
 
-	machine().bookkeeping().coin_lockout_global_w(BIT(data,4)); // coin magnet
+	machine().bookkeeping().coin_lockout_global_w(BIT(m_pio1_pb,4)); // coin magnet
 }
 
 //PIO2
 uint8_t gse1_state::pio2_pb_r()
 {
 	// Steckerleiste 16
-	return m_pio2_pb;
+	uint8_t data = m_pio2_pb;
+	// Motor sync
+	bool motor_right = false;
+	bool motor_middle = false;
+	bool motor_left = false;
+
+	data = motor_right ? data | 0x08 : data & ~0x08; //PB3
+	data = motor_middle ? data | 0x10 : data & ~0x10; //PB4
+	data = motor_left ? data | 0x20 : data & ~0x20; //PB5
+
+	return data;
 }
 
 void gse1_state::pio2_pb_w(uint8_t data)
 {
 	m_pio2_pb = data;
-	LOG("MOTOR w: %02x\n", data);
+	bool motor_reset = BIT(data, 6);
+	bool motor_switch = BIT(data, 7);
+	LOG("MOTOR reset: %02x, switch: %02x\n", motor_reset, motor_switch);
 	// Steckerleiste 16
 }
 
@@ -285,8 +298,8 @@ uint8_t gse1_state::pio2_pa_r()
 {
 	// Steckerleiste 17
 	uint8_t data = m_pio2_pa;
-	if (m_battery)
-		data = 0x7f;
+
+	data = m_battery ? data | 0x80 : data & ~0x80; //PA6
 
 	return data;
 }
