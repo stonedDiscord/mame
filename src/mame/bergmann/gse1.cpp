@@ -261,7 +261,6 @@ void gse1_state::pio1_pb_w(uint8_t data)
 	machine().bookkeeping().coin_lockout_global_w(BIT(data,4)); // coin magnet
 }
 
-
 //PIO2
 uint8_t gse1_state::pio2_pb_r()
 {
@@ -299,6 +298,7 @@ void gse1_state::pio2_pa_w(uint8_t data)
 	m_battery = !BIT(data, 6);
 }
 
+//CTC
 void gse1_state::ctc1_zc0_w(int state)
 {
 	LOG("CTC1 ZC0: %d\n", state);
