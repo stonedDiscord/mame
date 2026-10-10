@@ -96,11 +96,13 @@ public:
 		m_vfd(*this, "vfd")
 	{ }
 
-	void b2(machine_config &config) ATTR_COLD;
-	void b4(machine_config &config) ATTR_COLD;
+	void eurotec_1rom(machine_config &config) ATTR_COLD;
+	void eurotec_2rom(machine_config &config) ATTR_COLD;
+	void okisndd_2rom(machine_config &config) ATTR_COLD;
 
 private:
-	void mem_map(address_map &map) ATTR_COLD;
+	void mem_map_1rom(address_map &map) ATTR_COLD;
+	void mem_map_2rom(address_map &map) ATTR_COLD;
 	u8 ulc_r(offs_t offset);
 	void ulc_w(offs_t offset, u8 data);
 	virtual void machine_start() override ATTR_COLD;
@@ -288,7 +290,16 @@ void ballyw_state::ulc_serial_command_byte(u8 data)
 		ulc_serial_prepare_response();
 }
 
-void ballyw_state::mem_map(address_map &map)
+void ballyw_state::mem_map_1rom(address_map &map)
+{
+	// IC5 74HC139
+	map(0x000000, 0x07ffff).rom();
+	map(0x100000, 0x13ffff).ram().share("nvram");
+	map(0x800000, 0x80003f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write)).umask16(0x00ff); // RTC A0-A3 CPU A1-A4
+	map(0x900000, 0x9003ff).rw(FUNC(ballyw_state::ulc_r), FUNC(ballyw_state::ulc_w)).umask16(0x00ff);
+}
+
+void ballyw_state::mem_map_2rom(address_map &map)
 {
 	// IC5 74HC139
 	map(0x000000, 0x0fffff).rom();
@@ -495,10 +506,10 @@ static INPUT_PORTS_START( ballyw )
 INPUT_PORTS_END
 
 
-void ballyw_state::b2(machine_config &config)
+void ballyw_state::eurotec_2rom(machine_config &config)
 {
 	M68000(config, m_maincpu, 16_MHz_XTAL);
-	m_maincpu->set_addrmap(AS_PROGRAM, &ballyw_state::mem_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &ballyw_state::mem_map_2rom);
 	m_maincpu->set_irq_acknowledge_callback(FUNC(ballyw_state::irq_ack));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // battery backed
@@ -514,9 +525,15 @@ void ballyw_state::b2(machine_config &config)
 	SPEAKER(config, "mono").front_center();
 }
 
-void ballyw_state::b4(machine_config &config)
+void ballyw_state::eurotec_1rom(machine_config &config)
 {
-	b2(config);
+	eurotec_2rom(config);
+	m_maincpu->set_addrmap(AS_PROGRAM, &ballyw_state::mem_map_1rom);
+}
+
+void ballyw_state::okisndd_2rom(machine_config &config)
+{
+	eurotec_2rom(config);
 
 	OKIM6376(config, "snd", 4_MHz_XTAL).add_route(ALL_OUTPUTS, "mono", 1.0);
 }
@@ -561,7 +578,7 @@ ROM_START( b493 )
 ROM_END
 
 ROM_START( barons5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("114-s5.0_baron_cc.ic10", 0x00000, 0x80000, CRC(5f51c6f1) SHA1(b4c4da400f03ca240e52780fc47ae106430eb232))
 ROM_END
 
@@ -572,7 +589,7 @@ ROM_START( bbust )
 ROM_END
 
 ROM_START( bclubs4 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("115-s4.0_beach_club.ic10", 0x00000, 0x80000, CRC(c12c324b) SHA1(aefd88280b296668c11e04e56343d68376dab559))
 ROM_END
 
@@ -589,12 +606,12 @@ ROM_START( bheroe )
 ROM_END
 
 ROM_START( briscs5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("066-s5.0_big_risc.ic10", 0x00000, 0x80000, CRC(51d2943d) SHA1(39662514516600aa6e9783d809725d70e665993d))
 ROM_END
 
 ROM_START( briscs6 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("066-s6.0_big_risc.ic10", 0x00000, 0x80000, CRC(145d8242) SHA1(14b92aa1a5ef660b9fbaa2a757dd75bf325a73da))
 ROM_END
 
@@ -623,12 +640,12 @@ ROM_START( caipis7 )
 ROM_END
 
 ROM_START( carats5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("110-s5.0_carat.ic10", 0x00000, 0x80000, CRC(25a29153) SHA1(ff1d06f59b424475e8906212c46910988eea7efb))
 ROM_END
 
 ROM_START( coloss3 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("809-s3.0_colosseum.ic10", 0x00000, 0x80000, CRC(3530c4dd) SHA1(4986657f1bb47dbfb088755db9963cae05d243f7))
 ROM_END
 
@@ -645,12 +662,12 @@ ROM_START( daxxs8 )
 ROM_END
 
 ROM_START( diakp2 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("087-p2.0_diamant_krone.ic10", 0x00000, 0x80000, CRC(e6895563) SHA1(ce583d3808792c8db2f060bcabaab5f4e724eeaf))
 ROM_END
 
 ROM_START( diaks5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("087-s5.0_diamant_krone.ic10", 0x00000, 0x80000, CRC(589f77b9) SHA1(6e4286b747666bbccddaabc65e67d312f90b3e39))
 ROM_END
 
@@ -691,7 +708,7 @@ ROM_START( foxxs5 )
 ROM_END
 
 ROM_START( gigas5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("116-s5.0_giga_cc.ic10", 0x00000, 0x80000, CRC(de5c0f82) SHA1(b9fb1414f7f723d578ec8e147d14d57337ceeb7a))
 ROM_END
 
@@ -726,7 +743,7 @@ ROM_START( hardrock )
 ROM_END
 
 ROM_START( heroldp5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("017-p5.0_herold.ic10", 0x00000, 0x80000, CRC(4b4bbb1d) SHA1(210af251cce21314118edc14462c98adbe40d9e1))
 ROM_END
 
@@ -743,7 +760,7 @@ ROM_START( hxntanz )
 ROM_END
 
 ROM_START( jetsets5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("002-s5.0_jet_set.ic10", 0x00000, 0x80000, CRC(70550802) SHA1(dcbc29b02f406c371cc38387f2fb683ab95f2ca0))
 ROM_END
 
@@ -769,17 +786,17 @@ ROM_START( kingcs3 )
 ROM_END
 
 ROM_START( kingpp5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("004-p5.0_king_play.ic10", 0x00000, 0x80000, CRC(11e939f9) SHA1(cbacb4af6039e5526802138af1b93bb7e3b0bd72))
 ROM_END
 
 ROM_START( kingrp1 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("010-p1.0_king_royal.ic10", 0x00000, 0x80000, CRC(26ff62d6) SHA1(01ec80217f9f5e9a7138bb9067df598d3ab521f8))
 ROM_END
 
 ROM_START( lanzes5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("075_s5.0_lanzelot.ic10", 0x00000, 0x80000, CRC(1c84c158) SHA1(a4abda98a106a051d6f7ed358a32da2ea417a96f))
 ROM_END
 
@@ -790,17 +807,17 @@ ROM_START( limbos3 )
 ROM_END
 
 ROM_START( lordp5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("072-p5.0_lord_cd.ic10", 0x00000, 0x80000, CRC(eedcadc2) SHA1(014658ba26768848f20f9a043b6bf01aabd8d6c9))
 ROM_END
 
 ROM_START( lords2 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("072-s2.0_lord_cd.ic10", 0x00000, 0x80000, CRC(c0f7088d) SHA1(ba60abae37319d814e73ba088f55f3a3e6e7fb46))
 ROM_END
 
 ROM_START( lords5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("072-s5.0_lord_cd.ic10", 0x00000, 0x80000, CRC(c1edf488) SHA1(f08fd0d6598df510afff7ab860ce7b2794596cc2))
 ROM_END
 
@@ -826,17 +843,17 @@ ROM_START( machmehr )
 ROM_END
 
 ROM_START( mnrchp1 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("073-p1.0_monarch.ic10", 0x00000, 0x80000, CRC(272319ab) SHA1(767a2b76726221e9e5d11b82c98d13af84e4df87))
 ROM_END
 
 ROM_START( mnrchp5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("073-p5.0_monarch.ic10", 0x00000, 0x80000, CRC(0e5a1c92) SHA1(c6280cf60c1ccfde95485054cb8750832848af3f))
 ROM_END
 
 ROM_START( mnrchs6 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("073-s6.0_monarch.ic10", 0x00000, 0x80000, CRC(80d926bd) SHA1(875fb82657fa7417059ad3143fab34bac3e2b1ad))
 ROM_END
 
@@ -895,32 +912,32 @@ ROM_START( rexe )
 ROM_END
 
 ROM_START( rexsp5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("012-p5.0_rex_super.ic10", 0x00000, 0x80000, CRC(be851587) SHA1(e3c319addb774a3d647cb95e51fd13236bf592e6))
 ROM_END
 
 ROM_START( roys4 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("112-s4.0_roy_cc.ic10", 0x00000, 0x80000, CRC(be851587) SHA1(e3c319addb774a3d647cb95e51fd13236bf592e6))
 ROM_END
 
 ROM_START( rrunp1 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("018-p1.0_round_runner.ic10", 0x00000, 0x80000, CRC(98c80a3a) SHA1(cfacef4461221f78179d9f39e4ab9aba680fea68))
 ROM_END
 
 ROM_START( scoots2 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("083-s2.0_scooter.ic10", 0x00000, 0x80000, CRC(c26c559d) SHA1(6044080d69b1cf84f86ec6149e093cac06bccfbb))
 ROM_END
 
 ROM_START( sfires5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("035-s5.0_sunfire.ic10", 0x00000, 0x80000, CRC(40c63bd1) SHA1(080f1ef7c37477c4b470ffaa642053c3b882b984))
 ROM_END
 
 ROM_START( sjumpe6 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("001-e6.0_super_jump.ic10", 0x00000, 0x80000, CRC(547b8981) SHA1(8c2607d60bdf43a345c11b7624414357313b64fa))
 ROM_END
 
@@ -949,7 +966,7 @@ ROM_START( spdruns4 )
 ROM_END
 
 ROM_START( smacs5 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("053-s5.0_super_mac.ic10", 0x00000, 0x80000, CRC(a4a7f756) SHA1(f04492ccd4f0d875170911a9d084e35bb763d2de))
 ROM_END
 
@@ -984,7 +1001,7 @@ ROM_START( ttanpro )
 ROM_END
 
 ROM_START( twstiis3 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("126-s3.0_twister_ii.ic10", 0x00000, 0x80000, CRC(b57b2492) SHA1(307b6bb77d5cf3f72622cd1022ab79c8b9e57143))
 ROM_END
 
@@ -995,7 +1012,7 @@ ROM_START( victoria )
 ROM_END
 
 ROM_START( winds2 )
-	ROM_REGION( 0x100000, "maincpu", 0 )
+	ROM_REGION( 0x80000, "maincpu", 0 )
     ROM_LOAD16_WORD_SWAP("041-s2.0_windsor_041.ic10", 0x00000, 0x80000, CRC(e0b14dff) SHA1(71d7ae88cb58364fb7ca0a1f6f1729ed6b433f4a))
 ROM_END
 
@@ -1013,87 +1030,87 @@ ROM_END
 
 } // anonymous namespace
 
-GAME(1997, sjumpe6, 		0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Super Jump (E6)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(1998, kingpp5, 		0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Play (P5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(1998, kingrp1, 		0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Royal (P1)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(1998, rexsp5, 		    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Rex Super (P5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(1999, rrunp1, 		    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Round Runner (P1)",      MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2000, heroldp5, 	    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Herold (P5)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2000, jetsets5,	    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Jet Set (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2000, sfires5,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sunfire (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, carats5,		    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Carat (S5)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, diakp2,	   diaks5, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Diamant Krone (P2)",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, diaks5,		    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Diamant Krone (S5)",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, lanzes5,		    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lanzelot (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, limbos3,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Limbo (S3)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, lordp5,     lords5, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lord CD (P5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, lords2,     lords5, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lord CD (S2)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, lords5,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lord CD (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, mnrchp1,   mnrchs6, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Monarch (P1)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, mnrchp5,   mnrchs6, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Monarch (P5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, mnrchs6,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Monarch (S6)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, scoots2,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Scooter (S2)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, smacs5,		    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Super Mac (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, winds2,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Windsor (S2)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, barons5,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Baron CC (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, bclubs4,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Beach Club (S4)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, briscs5,   briscs6, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Big Risc (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, briscs6,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Big Risc (S6)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, coloss3,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Colosseum (S3)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, gigas5,		    0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Giga CC (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, machmehr,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Mach Mehr",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, qriscs4,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Quick Risc (S4)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, roys4,           0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Roy CC (S4)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, skys6,           0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sky (S6)",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, trpcals3,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Tropical (S3)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2002, twstiis3,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Twister II (S3)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, action4u,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Action 4U SL",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, m200s5,          0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "M 200 (S5)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, jjacksl,         0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Jumpin Jack SL",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, winplay,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Winplay SL",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, belamis3,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Bel Ami (S3)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, figame3,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Fire Game (S3)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, glriasl4, glriasl5, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S4)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, glriasl5,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, kingcs2,   kingcs3, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S2)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, kingcs3,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S3)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2004, b493,            0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "493",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2004, actnts7,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Action Total (S7)",      MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2004, arcon,           0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Arcon",                  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2004, bheroe,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "HERO",                   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2004, rexe,            0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Rex",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2004, snfairx2,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sunfair XL (S2)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2004, tscool,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "That's Cool",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, boss,            0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Boss",                   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, bullys11,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Bully (S11)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, elevens3,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Eleven (S3)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, foxxs5,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Foxx (S5)",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, luxxpro,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Luxx Pro",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, spdruns3, spdruns4, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Speed Run (S3)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, spdruns4,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Speed Run (S4)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, texmex,          0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Tex Mex",                MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, ttanpro,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Titan Pro",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2005, victoria,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Victoria",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, atlntis6,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Atlantis (S6)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, bbust,           0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Block Buster",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, caipis7,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Caipi (S7)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, daxxs4,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Daxx (S4)",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, daxxs8,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Daxx (S8)",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, duo,             0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Duo",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, endsp9,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Endspiel (S9)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, graffity,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Graffity",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, neons12,   neons13, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Neon (S12)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, neons13,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Neon (S13)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, ptimes11,        0, b4, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Play Time (S11)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2006, tgnias11,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Total Genial (S11)",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, bjagas17,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Baba Jaga (S17)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, hardrock,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Hard Rock",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, hxntanz,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Hexen Tanz",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, hslots5,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Hot Slot (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, oxigens7,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Oxigen (S7)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, phntoms7,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Phantom (S7)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, pratngs4, pratngs5, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Piratengold (S4)",       MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, pratngs5,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Piratengold (S5)",       MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2007, xcross,          0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "X-Cross",                MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2008, b18plus,         0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "18+",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2008, fgames11,        0, b2, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Freegames (S11)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1997, sjumpe6, 		0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Super Jump (E6)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1998, kingpp5, 		0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Play (P5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1998, kingrp1, 		0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Royal (P1)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1998, rexsp5, 		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Rex Super (P5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1999, rrunp1, 		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Round Runner (P1)",      MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2000, heroldp5, 	    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Herold (P5)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2000, jetsets5,	    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Jet Set (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2000, sfires5,         0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sunfire (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, carats5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Carat (S5)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, diakp2,	   diaks5, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Diamant Krone (P2)",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, diaks5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Diamant Krone (S5)",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, lanzes5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lanzelot (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, limbos3,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Limbo (S3)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, lordp5,     lords5, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lord CD (P5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, lords2,     lords5, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lord CD (S2)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, lords5,          0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lord CD (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, mnrchp1,   mnrchs6, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Monarch (P1)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, mnrchp5,   mnrchs6, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Monarch (P5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, mnrchs6,         0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Monarch (S6)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, scoots2,         0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Scooter (S2)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, smacs5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Super Mac (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, winds2,          0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Windsor (S2)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, barons5,         0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Baron CC (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, bclubs4,         0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Beach Club (S4)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, briscs5,   briscs6, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Big Risc (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, briscs6,         0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Big Risc (S6)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, coloss3,         0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Colosseum (S3)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, gigas5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Giga CC (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, machmehr,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Mach Mehr",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, qriscs4,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Quick Risc (S4)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, roys4,           0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Roy CC (S4)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, skys6,           0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sky (S6)",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, trpcals3,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Tropical (S3)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2002, twstiis3,        0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Twister II (S3)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, action4u,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Action 4U SL",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, m200s5,          0, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "M 200 (S5)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, jjacksl,         0, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Jumpin Jack SL",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, winplay,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Winplay SL",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, belamis3,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Bel Ami (S3)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, figame3,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Fire Game (S3)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, glriasl4, glriasl5, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S4)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, glriasl5,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, kingcs2,   kingcs3, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S2)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, kingcs3,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S3)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2004, b493,            0, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "493",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2004, actnts7,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Action Total (S7)",      MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2004, arcon,           0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Arcon",                  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2004, bheroe,          0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "HERO",                   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2004, rexe,            0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Rex",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2004, snfairx2,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sunfair XL (S2)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2004, tscool,          0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "That's Cool",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, boss,            0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Boss",                   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, bullys11,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Bully (S11)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, elevens3,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Eleven (S3)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, foxxs5,          0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Foxx (S5)",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, luxxpro,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Luxx Pro",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, spdruns3, spdruns4, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Speed Run (S3)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, spdruns4,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Speed Run (S4)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, texmex,          0, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Tex Mex",                MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, ttanpro,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Titan Pro",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2005, victoria,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Victoria",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, atlntis6,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Atlantis (S6)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, bbust,           0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Block Buster",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, caipis7,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Caipi (S7)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, daxxs4,          0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Daxx (S4)",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, daxxs8,          0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Daxx (S8)",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, duo,             0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Duo",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, endsp9,          0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Endspiel (S9)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, graffity,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Graffity",               MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, neons12,   neons13, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Neon (S12)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, neons13,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Neon (S13)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, ptimes11,        0, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Play Time (S11)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2006, tgnias11,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Total Genial (S11)",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, bjagas17,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Baba Jaga (S17)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, hardrock,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Hard Rock",              MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, hxntanz,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Hexen Tanz",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, hslots5,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Hot Slot (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, oxigens7,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Oxigen (S7)",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, phntoms7,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Phantom (S7)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, pratngs4, pratngs5, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Piratengold (S4)",       MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, pratngs5,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Piratengold (S5)",       MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2007, xcross,          0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "X-Cross",                MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2008, b18plus,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "18+",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2008, fgames11,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Freegames (S11)",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
