@@ -78,6 +78,7 @@ DS1985 serial number chip
 #include "machine/msm6242.h"
 #include "machine/nvram.h"
 #include "machine/timer.h"
+#include "machine/watchdog.h"
 #include "sound/okim6376.h"
 #include "video/roc10937.h"
 #include "speaker.h"
@@ -93,6 +94,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_rtc(*this, "rtc"),
+		m_watchdog(*this, "watchdog"),
 		m_vfd(*this, "vfd")
 	{ }
 
@@ -111,6 +113,7 @@ private:
 	// devices
 	required_device<cpu_device> m_maincpu;
 	required_device<rtc72421_device> m_rtc;
+	required_device<watchdog_timer_device> m_watchdog;
 	required_device<roc10937_device> m_vfd;
 
 	// The ULC has separate input/status readback and output latches even when
@@ -386,6 +389,12 @@ void ballyw_state::ulc_w(offs_t offset, u8 data)
 	u8 const old_data = m_ulc_output[offset];
 	m_ulc_output[offset] = data;
 
+	// The firmware strobes 0x90020f throughout normal execution.  On cold
+	// startup, the random seed check deliberately stops servicing it while
+	// cycling seed values in battery-backed RAM, then relies on a reset.
+	if (offset == 0x107)
+		m_watchdog->watchdog_reset();
+
 	if (offset == 0x119)
 	{
 		if (BIT(data ^ old_data, 4))
@@ -444,7 +453,10 @@ void ballyw_state::ulc_w(offs_t offset, u8 data)
 			// Bank zero shares its data latch with the VFD serializer.  Bit 1
 			// enables one byte transfer; the cabinet data bus is inverted.
 			// Serialize exactly eight bits, MSB first, per scan transfer.
-			if ((m_ulc_output[0x11e] & 3) == 0 && BIT(m_ulc_output[0x108], 1))
+			// Register 0x109 is the ULC transfer strobe.  The data and bank
+			// latches are valid on its rising edge; the enable bits are part of
+			// the ULC's internal scan state and are not exposed as CPU latches.
+			if ((m_ulc_output[0x11e] & 3) == 0)
 			{
 				u8 const display_data = ~m_ulc_output[0x100];
 				for (int bit = 7; bit >= 0; --bit)
@@ -513,6 +525,9 @@ void ballyw_state::eurotec_2rom(machine_config &config)
 	m_maincpu->set_irq_acknowledge_callback(FUNC(ballyw_state::irq_ack));
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // battery backed
+
+	// Provisional timeout pending measurement of the CPU board watchdog.
+	WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_seconds(1));
 
 	RTC72421(config, m_rtc, XTAL(32'768));
 	m_rtc->out_int_handler().set(FUNC(ballyw_state::rtc_irq));
