@@ -95,7 +95,9 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_rtc(*this, "rtc"),
 		m_watchdog(*this, "watchdog"),
-		m_vfd(*this, "vfd")
+		m_vfd(*this, "vfd"),
+		m_switches(*this, "SWITCHES"),
+		m_cabinet(*this, "CABINET")
 	{ }
 
 	void eurotec_1rom(machine_config &config) ATTR_COLD;
@@ -115,6 +117,8 @@ private:
 	required_device<rtc72421_device> m_rtc;
 	required_device<watchdog_timer_device> m_watchdog;
 	required_device<roc10937_device> m_vfd;
+	required_ioport m_switches;
+	required_ioport m_cabinet;
 
 	// The ULC has separate input/status readback and output latches even when
 	// they share a CPU address.  A single backing array would make a firmware
@@ -141,12 +145,23 @@ private:
 	TIMER_DEVICE_CALLBACK_MEMBER(system_tick);
 	IRQ_CALLBACK_MEMBER(irq_ack);
 	TIMER_CALLBACK_MEMBER(ulc_scan_complete);
+	TIMER_CALLBACK_MEMBER(money_serial_tick);
+	void ulc_transfer();
 	void ulc_serial_reset();
 	void ulc_serial_command_byte(u8 data);
 	void ulc_serial_prepare_response();
 	static u16 ulc_crc16_update(u16 crc, u8 data);
 	emu_timer *m_ulc_scan_timer = nullptr;
+	emu_timer *m_money_serial_timer = nullptr;
 };
+
+TIMER_CALLBACK_MEMBER(ballyw_state::money_serial_tick)
+{
+	// The transmitter completes even with no banknote acceptor connected.
+	// Level 5 requests the next byte; an absent receiver supplies no replies.
+	if (BIT(m_ulc_output[0x109], 1))
+		m_maincpu->set_input_line(M68K_IRQ_5, ASSERT_LINE);
+}
 
 void ballyw_state::rtc_irq(int state)
 {
@@ -163,8 +178,28 @@ TIMER_DEVICE_CALLBACK_MEMBER(ballyw_state::system_tick)
 	m_maincpu->pulse_input_line(M68K_IRQ_1, attotime::from_usec(10));
 }
 
+void ballyw_state::ulc_transfer()
+{
+	// Input bytes are latched by the same four-bank scan as the outputs.
+	u8 const bank = m_ulc_output[0x11e] & 3;
+	m_ulc_input[0x104] = m_switches->read() >> (24 - bank * 8);
+	// Bank zero's bit 1 enables the VFD serializer; other scans carry
+	// cabinet data on the same output latch.
+	if ((m_ulc_output[0x11e] & 3) == 0 && BIT(m_ulc_output[0x108], 1))
+	{
+		u8 const display_data = ~m_ulc_output[0x100];
+		for (int bit = 7; bit >= 0; --bit)
+		{
+			m_vfd->data(BIT(display_data, bit));
+			m_vfd->sclk(1);
+			m_vfd->sclk(0);
+		}
+	}
+}
+
 TIMER_CALLBACK_MEMBER(ballyw_state::ulc_scan_complete)
 {
+	ulc_transfer();
 	// The level-4 handler consumes the next input bank and clears the
 	// software busy flag set by the level-1 scheduler.
 	m_ulc_scan_ready = true;
@@ -319,39 +354,47 @@ u8 ballyw_state::ulc_r(offs_t offset)
 	// devices are emulated.  Writes to the same addresses are output latches.
 	switch (offset)
 	{
+	case 0x101: // 0x900203 money serial receive data
+		if (!machine().side_effects_disabled())
+			m_maincpu->set_input_line(M68K_IRQ_5, CLEAR_LINE);
+		return m_ulc_input[offset];
 	case 0x100: // 0x900201
 	case 0x102: // 0x900205
 	case 0x103: // 0x900207
 	case 0x104: // 0x900209
 	case 0x105: // 0x90020b
 	case 0x10a: // 0x900215
-	case 0x11a: // 0x900235 ULC status inputs
 		// These are cabinet input banks.  The ULC drives the row scan from its
 		// output latches, but the returned value comes from the external input
 		// pins; with no cabinet switch asserted the idle level is zero.
 		return m_ulc_input[offset];
+	case 0x11a: // 0x900235 ULC status inputs
+		return m_cabinet->read();
 	case 0x106: // 0x90020d ULC ready/status
 		{
-			if (m_ulc_scan_ready)
+			if (m_ulc_scan_ready && !machine().side_effects_disabled())
 			{
 				m_ulc_scan_ready = false;
 				m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
 			}
-			return m_ulc_input[offset];
+			return m_ulc_input[offset] | 0x3f;
 		}
 	case 0x10c: // 0x900219 serial input/status
 		// The ULC probe observes a four-sample ready handshake after 0xc0
 		// -> 0x40: high, low, high, low.  Consume one sample per poll.
 		{
-			u8 result = m_ulc_input[offset] & ~0x08;
+			u8 result = m_ulc_input[offset] & ~0x0c;
 			if (m_ulc_serial_response_bit < (m_ulc_serial_response_length * 8) && m_ulc_serial_sample_ready)
 			{
-				u16 const bit = m_ulc_serial_response_bit++;
-				m_ulc_serial_sample_ready = false;
+				u16 const bit = m_ulc_serial_response_bit;
 				// The 68k receive helper shifts right before inserting the
 				// sampled bit at bit 7, so the wire order is LSB first.
 				if (BIT(m_ulc_serial_response[bit >> 3], bit & 7))
 					result |= 0x08;
+				if (machine().side_effects_disabled())
+					return result;
+				m_ulc_serial_response_bit++;
+				m_ulc_serial_sample_ready = false;
 				if (m_ulc_serial_response_bit == (m_ulc_serial_response_length * 8))
 				{
 					// A response terminates the current framed exchange.  The ROM
@@ -371,8 +414,11 @@ u8 ballyw_state::ulc_r(offs_t offset)
 			{
 				if (BIT(m_ulc_serial_status_pattern, 0))
 					result |= 0x08;
-				m_ulc_serial_status_pattern >>= 1;
-				m_ulc_serial_ack_reads--;
+				if (!machine().side_effects_disabled())
+				{
+					m_ulc_serial_status_pattern >>= 1;
+					m_ulc_serial_ack_reads--;
+				}
 			}
 			else
 				result |= BIT(m_ulc_output[0x119], 7) ? 0x08 : 0x00;
@@ -444,28 +490,18 @@ void ballyw_state::ulc_w(offs_t offset, u8 data)
 	// the resulting level-four interrupt.
 	if (offset == 0x109)
 	{
+		// The level-four handler loads the next bank and strobes bit 3.
+		// This transfer completes without another interrupt; the level-one
+		// handler collects its inputs on the following tick.
+		if (BIT(data, 3) && !BIT(old_data, 3))
+			ulc_transfer();
+
 		if (!BIT(data, 4))
 		{
 			m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
 		}
 		else if (!BIT(old_data, 4))
 		{
-			// Bank zero shares its data latch with the VFD serializer.  Bit 1
-			// enables one byte transfer; the cabinet data bus is inverted.
-			// Serialize exactly eight bits, MSB first, per scan transfer.
-			// Register 0x109 is the ULC transfer strobe.  The data and bank
-			// latches are valid on its rising edge; the enable bits are part of
-			// the ULC's internal scan state and are not exposed as CPU latches.
-			if ((m_ulc_output[0x11e] & 3) == 0)
-			{
-				u8 const display_data = ~m_ulc_output[0x100];
-				for (int bit = 7; bit >= 0; --bit)
-				{
-					m_vfd->data(BIT(display_data, bit));
-					m_vfd->sclk(1);
-					m_vfd->sclk(0);
-				}
-			}
 			// Provisional transfer time until the ULC clock is known.
 			m_ulc_scan_timer->adjust(attotime::from_usec(100));
 		}
@@ -492,19 +528,19 @@ void ballyw_state::machine_start()
 	save_item(NAME(m_ulc_serial_pulse_high));
 	save_item(NAME(m_ulc_scan_ready));
 	m_ulc_scan_timer = timer_alloc(FUNC(ballyw_state::ulc_scan_complete), this);
+	m_money_serial_timer = timer_alloc(FUNC(ballyw_state::money_serial_tick), this);
 }
 
 void ballyw_state::machine_reset()
 {
 	m_ulc_scan_timer->adjust(attotime::never);
+	m_money_serial_timer->adjust(attotime::from_msec(2), 0, attotime::from_msec(2));
+	m_maincpu->set_input_line(M68K_IRQ_5, CLEAR_LINE);
 	m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE);
 	m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
 	m_vfd->por(0);
 	std::fill(std::begin(m_ulc_input), std::end(m_ulc_input), 0);
 	std::fill(std::begin(m_ulc_output), std::end(m_ulc_output), 0);
-	// ULC status bit 1 reports the backup battery-present/healthy input.
-	// The ROM's trap-13 operation 1 treats a clear bit as BATTERIE LEER.
-	m_ulc_input[0x11a] = 0x02;
 	m_ulc_serial_ack_reads = 0;
 	m_ulc_serial_status_pattern = 0;
 	m_ulc_serial_pulse_start = attotime::zero;
@@ -514,7 +550,17 @@ void ballyw_state::machine_reset()
 }
 
 static INPUT_PORTS_START( ballyw )
-	PORT_START("IN0")
+	PORT_START("CABINET")
+	PORT_CONFNAME(0x02, 0x02, "Backup Battery")
+	PORT_CONFSETTING(0x00, "Empty")
+	PORT_CONFSETTING(0x02, "Healthy")
+	PORT_DIPNAME(0x80, 0x00, "Cabinet Door")
+	PORT_DIPSETTING(0x00, "Closed")
+	PORT_DIPSETTING(0x80, "Open")
+	PORT_BIT(0x7d, IP_ACTIVE_HIGH, IPT_UNUSED)
+
+	PORT_START("SWITCHES")
+	PORT_BIT(0xffffffff, IP_ACTIVE_HIGH, IPT_UNUSED)
 INPUT_PORTS_END
 
 
@@ -526,8 +572,8 @@ void ballyw_state::eurotec_2rom(machine_config &config)
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // battery backed
 
-	// Provisional timeout pending measurement of the CPU board watchdog.
-	WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_seconds(1));
+	// Temporarily disable expiry while tracing startup and the ULC.
+	WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::never);
 
 	RTC72421(config, m_rtc, XTAL(32'768));
 	m_rtc->out_int_handler().set(FUNC(ballyw_state::rtc_irq));
