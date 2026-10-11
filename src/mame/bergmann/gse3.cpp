@@ -13,7 +13,12 @@ Game module:
 NVRAM M48T35
 
 TODO:
-everything
+- Identify cabinet inputs and the remaining serial bus peripherals.
+- Emulate the peripheral on bus address 0xf: CR7A12 sends parity-protected
+  serial commands using the data latch line and halts at 0x5911 when no reply
+  is received (error 0x0241).
+- Verify the sound clock and remaining sound control lines.
+- Reel motors, payout hardware and cabinet lamp assignments.
 */
 
 #include "emu.h"
@@ -67,6 +72,7 @@ private:
 	u16 m_input_shift = 0xffff;
 
 	void control_w(u8 data);
+	void sound_w(u8 data);
 	u8 status_r();
 
 	void mem_map(address_map &map);
@@ -94,8 +100,17 @@ void gse3_state::machine_reset()
 
 u8 gse3_state::status_r()
 {
-	// Bit 7 is the serial bus return line.  Other status inputs are not yet identified.
-	return (BIT(m_input_shift, 15) << 7) | 0x7f;
+	// Bit 5 is the active-low sound busy signal (polled at 0x2041/0x2054).
+	// Bit 7 is the serial bus return line.  Other inputs are not yet identified.
+	return (BIT(m_input_shift, 15) << 7) | (m_oki->busy_r() << 5) | 0x5f;
+}
+
+void gse3_state::sound_w(u8 data)
+{
+	// Seven-bit phrase number and active-low ST.  The firmware writes the
+	// phrase with bit 7 high, pulses it low, then restores it high.
+	m_oki->write(data & 0x7f);
+	m_oki->st_w(BIT(data, 7));
 }
 
 void gse3_state::control_w(u8 data)
@@ -158,6 +173,7 @@ void gse3_state::io_map(address_map &map)
 	map(0x81, 0x81).r(FUNC(gse3_state::status_r));
 	map(0x82, 0x82).w(FUNC(gse3_state::control_w));
 	map(0x84, 0x84).nopw(); // unknown
+	map(0x85, 0x85).w(FUNC(gse3_state::sound_w));
 }
 
 static INPUT_PORTS_START( gse3 )
@@ -184,7 +200,7 @@ void gse3_state::gse3(machine_config &config)
 
 	M48T35(config, m_timekeeper, 0);
 
-	OKIM6376(config, m_oki, 4_MHz_XTAL).add_route(ALL_OUTPUTS, "mono", 1.0);
+	OKIM6376(config, m_oki, 128'000).add_route(ALL_OUTPUTS, "mono", 1.0); // provisional 16 kHz sample rate, clock unverified
 
 	SPEAKER(config, "mono").front_center();
 }
