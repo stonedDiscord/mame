@@ -158,6 +158,7 @@ private:
 	u8 m_coin_rx[128]{};
 	u8 m_coin_rx_length = 0;
 	u8 m_coin_rx_pos = 0;
+	u8 m_coin_rx_break = 0;
 	u8 m_coin_delay = 0;
 	bool m_coin_rx_ready = false;
 	bool m_coin_request = false;
@@ -211,6 +212,54 @@ void ballyw_state::coin_prepare_response()
 	// A half-duplex unit echoes the host frame before returning its reply.
 	std::copy_n(m_coin_tx, m_coin_tx_length, m_coin_rx);
 	m_coin_rx_length = m_coin_tx_length;
+	m_coin_rx_break = m_coin_tx_length;
+	// TODO: replace the GSP protocol responder with the coin-unit controller.
+	// GSP frames use opposite source/destination addresses for the reply.
+	// The transmitter's echo and the device reply are separate frames.
+	if (m_coin_tx_length >= 4 && m_coin_tx[0] == 0x01 && m_coin_tx[1] == 0x21 && m_coin_tx[2] >= 0x20)
+	{
+		auto append = [this] (u8 data) { m_coin_rx[m_coin_rx_length++] = data; };
+		append(0x21);
+		append(0x01);
+		if (m_coin_tx[2] == 0x24 && m_coin_tx[3] == 0xcf)
+		{
+			// Euro configuration: six denomination channels.
+			append(0x44);
+			append(0xd8);
+			append(0);
+			append(6);
+		}
+		else if (m_coin_tx[2] == 0x24 && m_coin_tx[3] == 0xc8)
+		{
+			// Provisional Euro-capable controller version (1.00).
+			append(0x44);
+			append(0xcf);
+			append(0xe8);
+			append(0x03);
+		}
+		else if (m_coin_tx[2] == 0x24 && m_coin_tx[3] == 0xd9 && m_coin_tx_length >= 6)
+		{
+			static constexpr u16 VALUES[6] = { 5, 10, 20, 50, 100, 200 };
+			u16 const value = VALUES[m_coin_tx[4] % std::size(VALUES)];
+			append(0x44);
+			append(0xd9);
+			append(u8(value));
+			append(u8(value >> 8));
+			append(0);
+			append(0);
+		}
+		else if (m_coin_tx[2] == 0x24 && m_coin_tx[3] == 0x01)
+		{
+			append(0x24);
+			append(0x02);
+		}
+		else
+			append(0x04);
+		u8 checksum = 0;
+		for (unsigned i = m_coin_rx_break; i < m_coin_rx_length; ++i)
+			checksum -= m_coin_rx[i];
+		append(checksum);
+	}
 	m_coin_rx_pos = 0;
 	m_coin_rx_ready = false;
 	m_coin_tx_length = 0;
@@ -478,6 +527,8 @@ u8 ballyw_state::ulc_r(offs_t offset)
 			{
 				m_coin_rx_pos++;
 				m_coin_rx_ready = false;
+				if (m_coin_rx_pos == m_coin_rx_break)
+					m_coin_delay = 32;
 			}
 			return result;
 		}
@@ -500,7 +551,16 @@ u8 ballyw_state::ulc_r(offs_t offset)
 				m_ulc_scan_ready = false;
 				m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
 			}
-			return (m_ulc_input[offset] | 0x3f) & (m_coin_rx_ready ? ~0x05 : 0xff);
+			// Bit zero marks the last byte of a received GSP frame.
+			// The echo and reply have independent frame boundaries.
+			u8 result = m_ulc_input[offset] | 0x3f;
+			if (m_coin_rx_ready)
+			{
+				result &= ~0x04;
+				if (m_coin_rx_pos + 1 != m_coin_rx_break && m_coin_rx_pos + 1 != m_coin_rx_length)
+					result &= ~0x01;
+			}
+			return result;
 		}
 	case 0x10c: // 0x900219 serial input/status
 		// The ULC probe observes a four-sample ready handshake after 0xc0
@@ -671,6 +731,7 @@ void ballyw_state::machine_start()
 	save_item(NAME(m_coin_rx));
 	save_item(NAME(m_coin_rx_length));
 	save_item(NAME(m_coin_rx_pos));
+	save_item(NAME(m_coin_rx_break));
 	save_item(NAME(m_coin_delay));
 	save_item(NAME(m_coin_rx_ready));
 	save_item(NAME(m_coin_request));
@@ -688,6 +749,7 @@ void ballyw_state::machine_reset()
 	m_coin_tx_length = 0;
 	m_coin_rx_length = 0;
 	m_coin_rx_pos = 0;
+	m_coin_rx_break = 0;
 	m_coin_delay = 0;
 	m_coin_rx_ready = false;
 	m_coin_tx_time = attotime::zero;
