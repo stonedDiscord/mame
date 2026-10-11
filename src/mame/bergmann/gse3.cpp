@@ -12,11 +12,28 @@ RAM CY62256LL
 Game module:
 NVRAM M48T35
 
+Coin unit processor (MZ):
+The Crown service manual, Ausgabe 4.0 (2004), describes the MZ-SER board
+on page 4-9.  It controls the coin validator, tube level sensors, payout
+motors/end-position sensors and optional banknote reader.  CR7A12 uses
+the same functional interface; the exact earlier coin board is unverified.
+
+CR7A12's coin processor link is bit-banged through the cabinet bus:
+- Select address 0xf, then transmit on control bit 4 (idle high).
+- Commands are LSB first, seven data bits, odd parity and one stop bit.
+- Deselect to address 0 before receiving; control bit 3 requests a reply
+  byte, with the return line read on status bit 7.
+- Replies are LSB first, eight data bits, even parity and one stop bit.
+  Reply bit 7 marks the final byte; the first byte echoes the command.
+- The firmware acknowledges each valid reply byte by pulsing control bit 3.
+Transmit routine: 0x5948; receive routine: 0x5991; transaction: 0x58a3.
+The first boot command is 0x10.  With no reply, the firmware reports
+message 0x0393 and halts at 0x5911.  DE=0x0241 is the message handler's
+control flags, not the error number.
+
 TODO:
 - Identify cabinet inputs and the remaining serial bus peripherals.
-- Emulate the peripheral on bus address 0xf: CR7A12 sends parity-protected
-  serial commands using the data latch line and halts at 0x5911 when no reply
-  is received (error 0x0241).
+- Emulate the coin unit processor and its serial protocol.
 - Verify the sound clock and remaining sound control lines.
 - Reel motors, payout hardware and cabinet lamp assignments.
 */
@@ -46,6 +63,7 @@ public:
 		, m_timekeeper(*this, "m48t35")
 		, m_oki(*this, "oki")
 		, m_digits(*this, "digit%u", 0U)
+		, m_ifc_digits(*this, "ifc_digit%u", 0U)
 		, m_lamps(*this, "lamp%u%u", 0U, 0U)
 		, m_led(*this, "led_error")
 	{
@@ -62,6 +80,7 @@ private:
 	required_device<m48t35_device> m_timekeeper;
 	required_device<okim6376_device> m_oki;
 	output_finder<6> m_digits;
+	output_finder<5> m_ifc_digits;
 	output_finder<22, 8> m_lamps;
 	output_finder<> m_led;
 
@@ -134,11 +153,14 @@ void gse3_state::control_w(u8 data)
 		switch (m_bus_address)
 		{
 		case 0x8:
-			// Six seven-segment digits, sent inverted by the firmware.
+			// IFC: five segment bytes at EB80-EB84, followed by a control byte.
+			// Keep the existing diagnostic outputs for the complete chain.
 			for (unsigned i = 0; i < 6; ++i)
 			{
 				u8 const segments = m_output_shift[15 - i] ^ 0xff;
 				m_digits[i] = bitswap<8>(segments, 3, 1, 5, 4, 2, 7, 6, 0);
+				if (i < 5)
+					m_ifc_digits[i] = bitswap<8>(segments, 3, 1, 5, 4, 2, 7, 6, 0);
 			}
 			break;
 		case 0x6:
@@ -172,11 +194,19 @@ void gse3_state::io_map(address_map &map)
 	map(0x80, 0x80).portr("DSW2");
 	map(0x81, 0x81).r(FUNC(gse3_state::status_r));
 	map(0x82, 0x82).w(FUNC(gse3_state::control_w));
+	map(0x83, 0x83).portr("SELFTEST");
 	map(0x84, 0x84).nopw(); // unknown
 	map(0x85, 0x85).w(FUNC(gse3_state::sound_w));
 }
 
 static INPUT_PORTS_START( gse3 )
+	PORT_START("SELFTEST")
+	// The boot code at 0x0083 skips the hardware tests when bit 7 is high.
+	PORT_BIT(0x7f, IP_ACTIVE_LOW, IPT_UNUSED)
+	PORT_CONFNAME(0x80, 0x00, "Power-on Self-test")
+	PORT_CONFSETTING(0x00, DEF_STR(On))
+	PORT_CONFSETTING(0x80, DEF_STR(Off))
+
 	PORT_START("DSW2")
 	PORT_DIPNAME(0x01, 0x01, "Currency") PORT_DIPLOCATION("SW2:1")
 	PORT_DIPSETTING(   0x01, "Euro")
