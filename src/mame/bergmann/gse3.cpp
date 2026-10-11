@@ -40,6 +40,9 @@ public:
 		, m_maincpu(*this, "maincpu")
 		, m_timekeeper(*this, "m48t35")
 		, m_oki(*this, "oki")
+		, m_digits(*this, "digit%u", 0U)
+		, m_lamps(*this, "lamp%u%u", 0U, 0U)
+		, m_led(*this, "led_error")
 	{
 	}
 
@@ -53,6 +56,18 @@ private:
 	required_device<z8s180_device> m_maincpu;
 	required_device<m48t35_device> m_timekeeper;
 	required_device<okim6376_device> m_oki;
+	output_finder<6> m_digits;
+	output_finder<22, 8> m_lamps;
+	output_finder<> m_led;
+
+	u8 m_control = 0xff;
+	u8 m_bus_address = 0;
+	u8 m_address_shift = 0;
+	u8 m_output_shift[16] = {};
+	u16 m_input_shift = 0xffff;
+
+	void control_w(u8 data);
+	u8 status_r();
 
 	void mem_map(address_map &map);
 	void io_map(address_map &map);
@@ -61,12 +76,71 @@ private:
 
 void gse3_state::machine_start()
 {
-
+	save_item(NAME(m_control));
+	save_item(NAME(m_bus_address));
+	save_item(NAME(m_address_shift));
+	save_item(NAME(m_output_shift));
+	save_item(NAME(m_input_shift));
 }
 
 void gse3_state::machine_reset()
 {
+	m_control = 0xff;
+	m_bus_address = 0;
+	m_address_shift = 0;
+	std::fill(std::begin(m_output_shift), std::end(m_output_shift), 0);
+	m_input_shift = 0xffff;
+}
 
+u8 gse3_state::status_r()
+{
+	// Bit 7 is the serial bus return line.  Other status inputs are not yet identified.
+	return (BIT(m_input_shift, 15) << 7) | 0x7f;
+}
+
+void gse3_state::control_w(u8 data)
+{
+	// The firmware sends a four-bit address followed by up to 128 data bits.
+	// Data is inverted on bit 3; clock, data latch and address latch are active low.
+	if (BIT(m_control, 5) && !BIT(data, 5))
+	{
+		m_address_shift = ((m_address_shift << 1) | !BIT(data, 3)) & 0x0f;
+		for (unsigned i = 0; i < std::size(m_output_shift) - 1; ++i)
+			m_output_shift[i] = (m_output_shift[i] << 1) | BIT(m_output_shift[i + 1], 7);
+		m_output_shift[15] = (m_output_shift[15] << 1) | !BIT(data, 3);
+		m_input_shift = (m_input_shift << 1) | 1;
+	}
+
+	if (BIT(m_control, 6) && !BIT(data, 6))
+		m_bus_address = m_address_shift;
+
+	if (BIT(m_control, 4) && !BIT(data, 4))
+	{
+		switch (m_bus_address)
+		{
+		case 0x8:
+			// Six seven-segment digits, sent inverted by the firmware.
+			for (unsigned i = 0; i < 6; ++i)
+			{
+				u8 const segments = m_output_shift[15 - i] ^ 0xff;
+				m_digits[i] = bitswap<8>(segments, 3, 1, 5, 4, 2, 7, 6, 0);
+			}
+			break;
+		case 0x6:
+		case 0xb:
+			// Cabinet assignment is provisional; keep the complete chains visible.
+			for (unsigned i = 0; i < ((m_bus_address == 6) ? 16 : 6); ++i)
+				for (unsigned bit = 0; bit < 8; ++bit)
+					m_lamps[i + ((m_bus_address == 6) ? 0 : 16)][bit] = BIT(m_output_shift[15 - i], bit) ^ (m_bus_address == 6);
+			break;
+		default:
+			m_input_shift = 0xffff;
+			break;
+		}
+	}
+
+	m_led = BIT(data, 7);
+	m_control = data;
 }
 
 void gse3_state::mem_map(address_map &map)
@@ -81,6 +155,8 @@ void gse3_state::io_map(address_map &map)
 	map.global_mask(0xff);
 	map.unmap_value_high();
 	map(0x80, 0x80).portr("DSW2");
+	map(0x81, 0x81).r(FUNC(gse3_state::status_r));
+	map(0x82, 0x82).w(FUNC(gse3_state::control_w));
 	map(0x84, 0x84).nopw(); // unknown
 }
 
@@ -100,7 +176,7 @@ void gse3_state::gse3(machine_config &config)
 	m_maincpu->txa0_wr_callback().set("rs232a", FUNC(rs232_port_device::write_txd));
 	m_maincpu->txa1_wr_callback().set("rs232b", FUNC(rs232_port_device::write_txd));
 
-	rs232_port_device &rs232a(RS232_PORT(config, "rs232a", default_rs232_devices, "terminal"));
+	rs232_port_device &rs232a(RS232_PORT(config, "rs232a", default_rs232_devices, nullptr));
 	rs232a.rxd_handler().set(m_maincpu, FUNC(z180_device::rxa0_w));
 
 	rs232_port_device &rs232b(RS232_PORT(config, "rs232b", default_rs232_devices, nullptr));
@@ -148,7 +224,7 @@ ROM_START( cr7aplus )
 	ROM_LOAD( "M27C4001.ic5", 0x00000, 0x80000, CRC(139dada6) SHA1(1885cf3fc76805e942ce8644f4d0d42d7302c98e) )
 ROM_END
 
-ROM_START( cr7aplus84 )
+ROM_START( cr7apl84 )
 	ROM_REGION( 0x20000, "maincpu", 0 )
 	ROM_LOAD( "Crown 7 A Plus Ablauf 01.2084", 0x00000, 0x20000, CRC(1dfa8096) SHA1(f9fa772c3b9624ab19eefc51f5b04af569beecdb) )
 
@@ -164,7 +240,7 @@ ROM_START( cr7aroy )
 	ROM_LOAD( "M27C4001.ic5", 0x00000, 0x80000, CRC(139dada6) SHA1(1885cf3fc76805e942ce8644f4d0d42d7302c98e) )
 ROM_END
 
-ROM_START( crclassic )
+ROM_START( crclssic )
 	ROM_REGION( 0x40000, "maincpu", 0 )
 	ROM_LOAD( "M27C2001 V1.20.ic4", 0x00000, 0x40000, CRC(ae31d847) SHA1(dc9ced0f8b4ec6eaf57d6e9e34cc596f22c5b19a) )
 
@@ -188,7 +264,7 @@ ROM_START( crdpower )
 	ROM_LOAD( "NM27C040 V1.0.ic5", 0x00000, 0x80000, CRC(139dada6) SHA1(1885cf3fc76805e942ce8644f4d0d42d7302c98e) )
 ROM_END
 
-ROM_START( crdpowers )
+ROM_START( crdpwers )
 	ROM_REGION( 0x40000, "maincpu", 0 )
 	ROM_LOAD( "M27C2001 V1.30 20.02.06.ic4", 0x00000, 0x40000, CRC(df9e3206) SHA1(6ceb011291d127babf54c41a8d720460e2433557) )
 
@@ -228,7 +304,7 @@ ROM_START( crmamba )
 	ROM_LOAD( "M27C4001 V1.0.ic5", 0x00000, 0x80000, CRC(139dada6) SHA1(1885cf3fc76805e942ce8644f4d0d42d7302c98e) )
 ROM_END
 
-ROM_START( crmaxact2 )
+ROM_START( crmaxa2 )
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "M27C512.ic4", 0x00000, 0x10000, CRC(9a9ea176) SHA1(62d28ee2b570d8ec84e3dac73460b8807ee5084e) )
 
@@ -244,7 +320,7 @@ ROM_START( crmumm )
 	ROM_LOAD( "M27C4001.ic5", 0x00000, 0x80000, CRC(c1bcb2ef) SHA1(e1297ddd93fad2a7b2a97725fa866d6de2072afa) )
 ROM_END
 
-ROM_START( crpioneer )
+ROM_START( crpneer )
 	ROM_REGION( 0x40000, "maincpu", 0 )
 	ROM_LOAD( "M27C2001.ic4", 0x00000, 0x40000, CRC(7570eaaf) SHA1(5e890bcf58695b6a487913817345aa51e5562d88) )
 
@@ -276,7 +352,7 @@ ROM_START( crpacta )
 	ROM_LOAD( "M27C4001 V1.0.ic5", 0x00000, 0x80000, CRC(139dada6) SHA1(1885cf3fc76805e942ce8644f4d0d42d7302c98e) )
 ROM_END
 
-ROM_START( crquattro )
+ROM_START( crqttro )
 	ROM_REGION( 0x40000, "maincpu", 0 )
 	ROM_LOAD( "M27C2001 V1.20-24.03.05.ic4", 0x00000, 0x40000, CRC(85e9179d) SHA1(7cc9ef140931f72c63f5572ba77c468061b65e2e) )
 
@@ -318,4 +394,28 @@ ROM_END
 
 } // anonymous namespace
 
-GAMEL( 2000,   cr7a12,  0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown 7A",    MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2002,   cr1000, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown 1000",               MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2000,   cr7a12, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown 7A (12Sek)",         MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2000,   cr7a15, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown 7A (15Sek)",         MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2002, cr7aplus, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown 7A Plus",            MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2002, cr7apl84, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown 7A Plus (b)",        MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2003,  cr7aroy, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown 7A Royal",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2005, crclssic, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Classic",            MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )	
+GAMEL( 2003,  crcobra, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Cobra",              MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2001, crdpower, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Double Power",       MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2006, crdpwers, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Double Power Super", MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2003, creldora, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Eldorado",           MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2005,     crla, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown L.A.",               MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2004,     crmm, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown MM",                 MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2004,  crmamba, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Mamba",              MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2000,  crmaxa2, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Maxi Action II",     MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )	
+GAMEL( 2006,   crmumm, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Mumm",               MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 200?,  crpneer, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Pioneer",            MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2003,   crpact, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Power Action",	      MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2001,   crpmax, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Power Maxi",         MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2003,  crpacta, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Power Action (b)",   MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2005,  crqttro, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Quattro",	          MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2004,  crroyal, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Royal",              MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2005,     crtt, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown TT",                 MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2004,   crtopt, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Top Ten",            MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )
+GAMEL( 2003,  crviper, 0, gse3, gse3, gse3_state, empty_init, ROT0, "Bergmann Automaten", "Crown Viper",              MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_cr7a )	
