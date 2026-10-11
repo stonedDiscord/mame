@@ -77,6 +77,7 @@ DS1985 serial number chip
 #include "cpu/m68000/m68000.h"
 #include "machine/msm6242.h"
 #include "machine/nvram.h"
+#include "machine/steppers.h"
 #include "machine/timer.h"
 #include "machine/watchdog.h"
 #include "sound/okim6376.h"
@@ -96,6 +97,7 @@ public:
 		m_rtc(*this, "rtc"),
 		m_watchdog(*this, "watchdog"),
 		m_vfd(*this, "vfd"),
+		m_reels(*this, "reel%u", 0U),
 		m_switches(*this, "SWITCHES"),
 		m_cabinet(*this, "CABINET")
 	{ }
@@ -117,6 +119,7 @@ private:
 	required_device<rtc72421_device> m_rtc;
 	required_device<watchdog_timer_device> m_watchdog;
 	required_device<roc10937_device> m_vfd;
+	required_device_array<stepper_device, 3> m_reels;
 	required_ioport m_switches;
 	required_ioport m_cabinet;
 
@@ -140,17 +143,30 @@ private:
 	bool m_ulc_serial_sample_ready = false;
 	bool m_ulc_serial_pulse_high = false;
 	bool m_ulc_scan_ready = false;
+	u8 m_coin_tx[32]{};
+	u8 m_coin_tx_length = 0;
+	u8 m_coin_rx[128]{};
+	u8 m_coin_rx_length = 0;
+	u8 m_coin_rx_pos = 0;
+	u8 m_coin_delay = 0;
+	bool m_coin_rx_ready = false;
+	attotime m_coin_tx_time;
+	u16 m_reel_drive = 0;
+	u8 m_reel_optics = 0;
 
 	void rtc_irq(int state);
 	TIMER_DEVICE_CALLBACK_MEMBER(system_tick);
 	IRQ_CALLBACK_MEMBER(irq_ack);
 	TIMER_CALLBACK_MEMBER(ulc_scan_complete);
 	TIMER_CALLBACK_MEMBER(money_serial_tick);
+	TIMER_CALLBACK_MEMBER(coin_serial_tick);
+	void coin_prepare_response();
 	void ulc_transfer();
 	void ulc_serial_reset();
 	void ulc_serial_command_byte(u8 data);
 	void ulc_serial_prepare_response();
 	static u16 ulc_crc16_update(u16 crc, u8 data);
+	emu_timer *m_coin_serial_timer = nullptr;
 	emu_timer *m_ulc_scan_timer = nullptr;
 	emu_timer *m_money_serial_timer = nullptr;
 };
@@ -158,9 +174,36 @@ private:
 TIMER_CALLBACK_MEMBER(ballyw_state::money_serial_tick)
 {
 	// The transmitter completes even with no banknote acceptor connected.
-	// Level 5 requests the next byte; an absent receiver supplies no replies.
+	// Level 5 requests the next byte and is cleared on interrupt acknowledge;
+	// the transmit handler does not read the receive-data register.
 	if (BIT(m_ulc_output[0x109], 1))
-		m_maincpu->set_input_line(M68K_IRQ_5, ASSERT_LINE);
+		m_maincpu->set_input_line(M68K_IRQ_5, HOLD_LINE);
+}
+
+// The coin unit shares the ULC level-five receive interrupt with the other
+// serial channels.  Frames are separated by an idle interval.
+TIMER_CALLBACK_MEMBER(ballyw_state::coin_serial_tick)
+{
+	if (m_coin_tx_length && (machine().time() - m_coin_tx_time) >= attotime::from_msec(12))
+		coin_prepare_response();
+	if (m_coin_delay)
+		m_coin_delay--;
+	else if (m_coin_rx_pos < m_coin_rx_length && !m_coin_rx_ready)
+	{
+		m_coin_rx_ready = true;
+		m_maincpu->set_input_line(M68K_IRQ_5, HOLD_LINE);
+	}
+}
+
+void ballyw_state::coin_prepare_response()
+{
+	// A half-duplex unit echoes the host frame before returning its reply.
+	std::copy_n(m_coin_tx, m_coin_tx_length, m_coin_rx);
+	m_coin_rx_length = m_coin_tx_length;
+	m_coin_rx_pos = 0;
+	m_coin_rx_ready = false;
+	m_coin_tx_length = 0;
+	m_coin_delay = 1;
 }
 
 void ballyw_state::rtc_irq(int state)
@@ -183,6 +226,27 @@ void ballyw_state::ulc_transfer()
 	// Input bytes are latched by the same four-bank scan as the outputs.
 	u8 const bank = m_ulc_output[0x11e] & 3;
 	m_ulc_input[0x104] = m_switches->read() >> (24 - bank * 8);
+
+	// Three bipolar motors occupy three bits each: two phase selects and
+	// a winding enable.  Banks 2/3 of 0x90020b carry the motor latch;
+	// bank zero returns the three index sensors at the same address.
+	if (bank == 2)
+	{
+		m_reel_drive = (m_reel_drive & 0x00ff) | (u16(m_ulc_output[0x105]) << 8);
+	}
+	else if (bank == 3)
+	{
+		m_reel_drive = (m_reel_drive & 0xff00) | m_ulc_output[0x105];
+		static constexpr u8 MOTOR_PATTERNS[4] = { 0x0a, 0x09, 0x06, 0x05 };
+		for (unsigned reel = 0; reel < m_reels.size(); ++reel)
+		{
+			u8 const drive = (m_reel_drive >> (reel * 3)) & 7;
+			m_reels[reel]->update(BIT(drive, 2) ? MOTOR_PATTERNS[drive & 3] : 0);
+			m_reels[reel]->draw();
+		}
+	}
+	m_ulc_input[0x105] = bank == 0 ? m_reel_optics : 0;
+
 	// Bank zero's bit 1 enables the VFD serializer; other scans carry
 	// cabinet data on the same output latch.
 	if ((m_ulc_output[0x11e] & 3) == 0 && BIT(m_ulc_output[0x108], 1))
@@ -358,6 +422,16 @@ u8 ballyw_state::ulc_r(offs_t offset)
 		if (!machine().side_effects_disabled())
 			m_maincpu->set_input_line(M68K_IRQ_5, CLEAR_LINE);
 		return m_ulc_input[offset];
+	case 0x108: // 0x900211 coin serial receive data
+		{
+			u8 const result = m_coin_rx_ready ? m_coin_rx[m_coin_rx_pos] : 0;
+			if (m_coin_rx_ready && !machine().side_effects_disabled())
+			{
+				m_coin_rx_pos++;
+				m_coin_rx_ready = false;
+			}
+			return result;
+		}
 	case 0x100: // 0x900201
 	case 0x102: // 0x900205
 	case 0x103: // 0x900207
@@ -377,13 +451,13 @@ u8 ballyw_state::ulc_r(offs_t offset)
 				m_ulc_scan_ready = false;
 				m_maincpu->set_input_line(M68K_IRQ_4, CLEAR_LINE);
 			}
-			return m_ulc_input[offset] | 0x3f;
+			return (m_ulc_input[offset] | 0x3f) & (m_coin_rx_ready ? ~0x05 : 0xff);
 		}
 	case 0x10c: // 0x900219 serial input/status
 		// The ULC probe observes a four-sample ready handshake after 0xc0
 		// -> 0x40: high, low, high, low.  Consume one sample per poll.
 		{
-			u8 result = m_ulc_input[offset] & ~0x0c;
+			u8 result = (m_ulc_input[offset] & ~0x0c) | (m_coin_rx_ready ? 0x04 : 0);
 			if (m_ulc_serial_response_bit < (m_ulc_serial_response_length * 8) && m_ulc_serial_sample_ready)
 			{
 				u16 const bit = m_ulc_serial_response_bit;
@@ -432,6 +506,11 @@ u8 ballyw_state::ulc_r(offs_t offset)
 void ballyw_state::ulc_w(offs_t offset, u8 data)
 {
 	offset &= 0x3ff;
+	if (offset == 0x10a && m_coin_tx_length < std::size(m_coin_tx))
+	{
+		m_coin_tx[m_coin_tx_length++] = data;
+		m_coin_tx_time = machine().time();
+	}
 	u8 const old_data = m_ulc_output[offset];
 	m_ulc_output[offset] = data;
 
@@ -527,12 +606,30 @@ void ballyw_state::machine_start()
 	save_item(NAME(m_ulc_serial_sample_ready));
 	save_item(NAME(m_ulc_serial_pulse_high));
 	save_item(NAME(m_ulc_scan_ready));
+	save_item(NAME(m_coin_tx));
+	save_item(NAME(m_coin_tx_length));
+	save_item(NAME(m_coin_rx));
+	save_item(NAME(m_coin_rx_length));
+	save_item(NAME(m_coin_rx_pos));
+	save_item(NAME(m_coin_delay));
+	save_item(NAME(m_coin_rx_ready));
+	save_item(NAME(m_coin_tx_time));
+	save_item(NAME(m_reel_drive));
+	save_item(NAME(m_reel_optics));
+	m_coin_serial_timer = timer_alloc(FUNC(ballyw_state::coin_serial_tick), this);
 	m_ulc_scan_timer = timer_alloc(FUNC(ballyw_state::ulc_scan_complete), this);
 	m_money_serial_timer = timer_alloc(FUNC(ballyw_state::money_serial_tick), this);
 }
 
 void ballyw_state::machine_reset()
 {
+	m_coin_serial_timer->adjust(attotime::from_msec(1), 0, attotime::from_msec(1));
+	m_coin_tx_length = 0;
+	m_coin_rx_length = 0;
+	m_coin_rx_pos = 0;
+	m_coin_delay = 0;
+	m_coin_rx_ready = false;
+	m_coin_tx_time = attotime::zero;
 	m_ulc_scan_timer->adjust(attotime::never);
 	m_money_serial_timer->adjust(attotime::from_msec(2), 0, attotime::from_msec(2));
 	m_maincpu->set_input_line(M68K_IRQ_5, CLEAR_LINE);
@@ -547,6 +644,7 @@ void ballyw_state::machine_reset()
 	ulc_serial_reset();
 	m_ulc_serial_pulse_high = false;
 	m_ulc_scan_ready = false;
+	m_reel_drive = 0;
 }
 
 static INPUT_PORTS_START( ballyw )
@@ -572,14 +670,30 @@ void ballyw_state::eurotec_2rom(machine_config &config)
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // battery backed
 
-	// Temporarily disable expiry while tracing startup and the ULC.
-	WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::never);
+	// Startup deliberately waits for watchdog expiry after initializing the
+	// battery-backed random seeds.  The hardware timeout is provisional.
+	WATCHDOG_TIMER(config, m_watchdog).set_time(attotime::from_seconds(2));
 
 	RTC72421(config, m_rtc, XTAL(32'768));
 	m_rtc->out_int_handler().set(FUNC(ballyw_state::rtc_irq));
 
 	config.set_default_layout(layout_eurotec);
 	ROC10937(config, m_vfd);
+	for (unsigned reel = 0; reel < m_reels.size(); ++reel)
+	{
+		// The firmware counts 48 full steps per revolution.  Index geometry
+		// is provisional pending measurements of the reel assembly.
+		STEPPER(config, m_reels[reel]);
+		m_reels[reel]->set_max_steps(96);
+		m_reels[reel]->set_start_index(95);
+		m_reels[reel]->set_end_index(3);
+		m_reels[reel]->set_index_pattern(0);
+		m_reels[reel]->set_init_phase(0);
+		m_reels[reel]->optic_handler().set([this, reel] (int state)
+		{
+			m_reel_optics = (m_reel_optics & ~(1U << reel)) | (state ? (1U << reel) : 0);
+		});
+	}
 
 	TIMER(config, "system_tick").configure_periodic(FUNC(ballyw_state::system_tick), attotime::from_hz(500));
 
