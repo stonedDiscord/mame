@@ -101,7 +101,9 @@ public:
 		m_reels(*this, "reel%u", 0U),
 		m_switches(*this, "SWITCHES"),
 		m_navigation(*this, "NAVIGATION"),
-		m_cabinet(*this, "CABINET")
+		m_cabinet(*this, "CABINET"),
+		m_money_digits(*this, "money%u", 0U),
+		m_special_digits(*this, "special%u", 0U)
 	{ }
 
 	void eurotec_1rom(machine_config &config) ATTR_COLD;
@@ -126,6 +128,9 @@ private:
 	required_ioport m_switches;
 	required_ioport m_navigation;
 	required_ioport m_cabinet;
+
+	output_finder<5> m_money_digits;
+	output_finder<3> m_special_digits;
 
 	// The ULC has separate input/status readback and output latches even when
 	// they share a CPU address.  A single backing array would make a firmware
@@ -249,6 +254,27 @@ void ballyw_state::ulc_transfer()
 	m_ulc_input[0x100] = bank == 0 && m_coin_request ? 1 : 0;
 	if (bank == 3)
 		m_ulc_input[0x100] = m_ulc_parallel_output[2];
+
+	// The five scan rows drive the LED counters as well as the lamps.
+	// Row five corresponds to buffer row zero.  The firmware's digit
+	// lists are least significant first: money 11,10,14,13,12 and
+	// special counter 3,2,4.  Segment bits already use the standard order.
+	u8 const row_select = m_ulc_output[0x118] & 7;
+	if (row_select >= 1 && row_select <= 5)
+	{
+		u8 const row = row_select % 5;
+		if (bank == 1)
+		{
+			static constexpr u8 DIGIT_ORDER[5] = { 1, 0, 4, 3, 2 };
+			m_money_digits[DIGIT_ORDER[row]] = m_ulc_output[0x102];
+		}
+		else if (bank == 3 && (row == 0 || row >= 3))
+		{
+			// The row select advances before bank three is transferred.
+			static constexpr u8 DIGIT_ORDER[5] = { 2, 0, 0, 1, 0 };
+			m_special_digits[DIGIT_ORDER[row]] = m_ulc_output[0x102];
+		}
+	}
 
 	// Three bipolar motors occupy three bits each: two phase selects and
 	// a winding enable.  Banks 2/3 of 0x90020b carry the motor latch;
