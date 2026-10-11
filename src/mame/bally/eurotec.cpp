@@ -97,6 +97,7 @@ public:
 		m_rtc(*this, "rtc"),
 		m_watchdog(*this, "watchdog"),
 		m_vfd(*this, "vfd"),
+		m_oki(*this, "snd"),
 		m_reels(*this, "reel%u", 0U),
 		m_switches(*this, "SWITCHES"),
 		m_navigation(*this, "NAVIGATION"),
@@ -120,6 +121,7 @@ private:
 	required_device<rtc72421_device> m_rtc;
 	required_device<watchdog_timer_device> m_watchdog;
 	required_device<roc10937_device> m_vfd;
+	optional_device<okim6376_device> m_oki;
 	required_device_array<stepper_device, 3> m_reels;
 	required_ioport m_switches;
 	required_ioport m_navigation;
@@ -464,7 +466,7 @@ u8 ballyw_state::ulc_r(offs_t offset)
 		// pins; with no cabinet switch asserted the idle level is zero.
 		return m_ulc_input[offset];
 	case 0x11a: // 0x900235 ULC status inputs
-		return m_cabinet->read();
+		return m_cabinet->read() | (m_oki ? m_oki->nar_r() << 4 : 0);
 	case 0x106: // 0x90020d ULC ready/status
 		{
 			if (m_ulc_scan_ready && !machine().side_effects_disabled())
@@ -478,7 +480,7 @@ u8 ballyw_state::ulc_r(offs_t offset)
 		// The ULC probe observes a four-sample ready handshake after 0xc0
 		// -> 0x40: high, low, high, low.  Consume one sample per poll.
 		{
-			u8 result = (m_ulc_input[offset] & ~0x0c) | (m_coin_rx_ready ? 0x04 : 0);
+			u8 result = (m_ulc_input[offset] & ~0x0e) | (m_coin_rx_ready ? 0x04 : 0) | (m_oki ? m_oki->busy_r() << 1 : 0);
 			if (m_ulc_serial_response_bit < (m_ulc_serial_response_length * 8) && m_ulc_serial_sample_ready)
 			{
 				u16 const bit = m_ulc_serial_response_bit;
@@ -534,6 +536,16 @@ void ballyw_state::ulc_w(offs_t offset, u8 data)
 	}
 	u8 const old_data = m_ulc_output[offset];
 	m_ulc_output[offset] = data;
+
+	if (m_oki)
+	{
+		if (offset == 0x11b) // 0x900237 sample number
+			m_oki->write(data);
+		else if (offset == 0x119) // 0x900233 channel select
+			m_oki->ch2_w(BIT(data, 6));
+		else if (offset == 0) // 0x900001 start/attenuation pulses
+			m_oki->st_w(BIT(data, 7));
+	}
 
 	// The firmware strobes 0x90020f throughout normal execution.  On cold
 	// startup, the random seed check deliberately stops servicing it while
@@ -742,7 +754,8 @@ void ballyw_state::okisndd_2rom(machine_config &config)
 {
 	eurotec_2rom(config);
 
-	OKIM6376(config, "snd", 4_MHz_XTAL).add_route(ALL_OUTPUTS, "mono", 1.0);
+	// The device takes the divided sampling clock; the divider is provisional.
+	OKIM6376(config, m_oki, 4_MHz_XTAL / 32).add_route(ALL_OUTPUTS, "mono", 1.0);
 }
 
 ROM_START( action4u )
@@ -1277,7 +1290,7 @@ GAME(2003, jjacksl,         0, okisndd_2rom, ballyw, ballyw_state, empty_init, R
 GAME(2003, winplay,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Winplay SL",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2003, belamis3,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Bel Ami (S3)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2003, figame3,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Fire Game (S3)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, glriasl4, glriasl5, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S4)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2003, glriasl4, glriasl5, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S4)",         MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2003, glriasl5,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2003, kingcs2,   kingcs3, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S2)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2003, kingcs3,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S3)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
