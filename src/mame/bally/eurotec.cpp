@@ -136,8 +136,8 @@ private:
 	// they share a CPU address.  A single backing array would make a firmware
 	// output write (notably the status byte at 0x90020d) feed straight back as
 	// an input and falsely report an ULC fault.
-	u8 m_ulc_input[0x400]{};
-	u8 m_ulc_output[0x400]{};
+	u8 m_ulc_input[0x801]{};
+	u8 m_ulc_output[0x801]{};
 	u8 m_ulc_parallel_output[4]{};
 	u8 m_ulc_serial_ack_reads = 0;
 	u8 m_ulc_serial_status_pattern = 0;
@@ -188,7 +188,7 @@ TIMER_CALLBACK_MEMBER(ballyw_state::money_serial_tick)
 	// The transmitter completes even with no banknote acceptor connected.
 	// Level 5 requests the next byte and is cleared on interrupt acknowledge;
 	// the transmit handler does not read the receive-data register.
-	if (BIT(m_ulc_output[0x109], 1))
+	if (BIT(m_ulc_output[0x213], 1))
 		m_maincpu->set_input_line(M68K_IRQ_5, HOLD_LINE);
 }
 
@@ -284,44 +284,44 @@ TIMER_DEVICE_CALLBACK_MEMBER(ballyw_state::system_tick)
 void ballyw_state::ulc_transfer()
 {
 	// Input bytes are latched by the same four-bank scan as the outputs.
-	u8 const bank = m_ulc_output[0x11e] & 3;
-	m_ulc_parallel_output[bank] = m_ulc_output[0x100];
+	u8 const bank = m_ulc_output[0x23d] & 3;
+	m_ulc_parallel_output[bank] = m_ulc_output[0x201];
 	// The parallel serializer returns banks 2/3 on the next scan's
 	// banks 0/1.  Bank 2 is also monitored on bank 3 of 0x900201.
-	m_ulc_input[0x103] = bank < 2 ? m_ulc_parallel_output[bank + 2] : 0;
-	m_ulc_input[0x104] = m_switches->read() >> (24 - bank * 8);
+	m_ulc_input[0x207] = bank < 2 ? m_ulc_parallel_output[bank + 2] : 0;
+	m_ulc_input[0x209] = m_switches->read() >> (24 - bank * 8);
 	// The service keys use two active-low direct inputs and two
 	// active-high inputs in row four of the switch multiplexer.
 	u8 const navigation = m_navigation->read();
-	m_ulc_input[0x102] = bank == 0 ? (0xff & ~(navigation & 0x0a)) : 0xff;
-	if (bank == 0 && (m_ulc_output[0x118] & 7) == 4)
-		m_ulc_input[0x104] |= navigation & 0x60;
+	m_ulc_input[0x205] = bank == 0 ? (0xff & ~(navigation & 0x0a)) : 0xff;
+	if (bank == 0 && (m_ulc_output[0x231] & 7) == 4)
+		m_ulc_input[0x209] |= navigation & 0x60;
 	// Coin serial request is bank three bit 2; the unit acknowledges it
 	// on bank zero bit 0 before the host starts transmitting.
 	if (bank == 3)
-		m_coin_request = BIT(m_ulc_output[0x100], 2);
-	m_ulc_input[0x100] = bank == 0 && m_coin_request ? 1 : 0;
+		m_coin_request = BIT(m_ulc_output[0x201], 2);
+	m_ulc_input[0x201] = bank == 0 && m_coin_request ? 1 : 0;
 	if (bank == 3)
-		m_ulc_input[0x100] = m_ulc_parallel_output[2];
+		m_ulc_input[0x201] = m_ulc_parallel_output[2];
 
 	// The five scan rows drive the LED counters as well as the lamps.
 	// Row five corresponds to buffer row zero.  The firmware's digit
 	// lists are least significant first: money 11,10,14,13,12 and
 	// special counter 3,2,4.  Segment bits already use the standard order.
-	u8 const row_select = m_ulc_output[0x118] & 7;
+	u8 const row_select = m_ulc_output[0x231] & 7;
 	if (row_select >= 1 && row_select <= 5)
 	{
 		u8 const row = row_select % 5;
 		if (bank == 1)
 		{
 			static constexpr u8 DIGIT_ORDER[5] = { 1, 0, 4, 3, 2 };
-			m_money_digits[DIGIT_ORDER[row]] = m_ulc_output[0x102];
+			m_money_digits[DIGIT_ORDER[row]] = m_ulc_output[0x205];
 		}
 		else if (bank == 3 && (row == 0 || row >= 3))
 		{
 			// The row select advances before bank three is transferred.
 			static constexpr u8 DIGIT_ORDER[5] = { 2, 0, 0, 1, 0 };
-			m_special_digits[DIGIT_ORDER[row]] = m_ulc_output[0x102];
+			m_special_digits[DIGIT_ORDER[row]] = m_ulc_output[0x205];
 		}
 	}
 
@@ -330,11 +330,11 @@ void ballyw_state::ulc_transfer()
 	// bank zero returns the three index sensors at the same address.
 	if (bank == 2)
 	{
-		m_reel_drive = (m_reel_drive & 0x00ff) | (u16(m_ulc_output[0x105]) << 8);
+		m_reel_drive = (m_reel_drive & 0x00ff) | (u16(m_ulc_output[0x20b]) << 8);
 	}
 	else if (bank == 3)
 	{
-		m_reel_drive = (m_reel_drive & 0xff00) | m_ulc_output[0x105];
+		m_reel_drive = (m_reel_drive & 0xff00) | m_ulc_output[0x20b];
 		static constexpr u8 MOTOR_PATTERNS[4] = { 0x0a, 0x09, 0x06, 0x05 };
 		for (unsigned reel = 0; reel < m_reels.size(); ++reel)
 		{
@@ -343,13 +343,13 @@ void ballyw_state::ulc_transfer()
 			m_reels[reel]->draw();
 		}
 	}
-	m_ulc_input[0x105] = bank == 0 ? m_reel_optics : 0;
+	m_ulc_input[0x20b] = bank == 0 ? m_reel_optics : 0;
 
 	// Bank zero's bit 1 enables the VFD serializer; other scans carry
 	// cabinet data on the same output latch.
-	if ((m_ulc_output[0x11e] & 3) == 0 && BIT(m_ulc_output[0x108], 1))
+	if ((m_ulc_output[0x23d] & 3) == 0 && BIT(m_ulc_output[0x211], 1))
 	{
-		u8 const display_data = ~m_ulc_output[0x100];
+		u8 const display_data = ~m_ulc_output[0x201];
 		for (int bit = 7; bit >= 0; --bit)
 		{
 			m_vfd->data(BIT(display_data, bit));
@@ -510,17 +510,18 @@ void ballyw_state::mem_map_2rom(address_map &map)
 
 u8 ballyw_state::ulc_r(offs_t offset)
 {
-	offset &= 0x3ff;
+	// Convert the word offset to the CPU byte offset on the low byte lane.
+	offset = (offset << 1) | 1;
 	// These registers are ULC input/status pins.  Their values are supplied by
 	// the external cabinet; leave them inactive until the corresponding input
 	// devices are emulated.  Writes to the same addresses are output latches.
 	switch (offset)
 	{
-	case 0x101: // 0x900203 money serial receive data
+	case 0x203: // 0x900203 money serial receive data
 		if (!machine().side_effects_disabled())
 			m_maincpu->set_input_line(M68K_IRQ_5, CLEAR_LINE);
 		return m_ulc_input[offset];
-	case 0x108: // 0x900211 coin serial receive data
+	case 0x211: // 0x900211 coin serial receive data
 		{
 			u8 const result = m_coin_rx_ready ? m_coin_rx[m_coin_rx_pos] : 0;
 			if (m_coin_rx_ready && !machine().side_effects_disabled())
@@ -532,19 +533,19 @@ u8 ballyw_state::ulc_r(offs_t offset)
 			}
 			return result;
 		}
-	case 0x100: // 0x900201
-	case 0x102: // 0x900205
-	case 0x103: // 0x900207
-	case 0x104: // 0x900209
-	case 0x105: // 0x90020b
-	case 0x10a: // 0x900215
+	case 0x201: // 0x900201
+	case 0x205: // 0x900205
+	case 0x207: // 0x900207
+	case 0x209: // 0x900209
+	case 0x20b: // 0x90020b
+	case 0x215: // 0x900215
 		// These are cabinet input banks.  The ULC drives the row scan from its
 		// output latches, but the returned value comes from the external input
 		// pins; with no cabinet switch asserted the idle level is zero.
 		return m_ulc_input[offset];
-	case 0x11a: // 0x900235 ULC status inputs
+	case 0x235: // 0x900235 ULC status inputs
 		return m_cabinet->read() | (m_oki ? m_oki->nar_r() << 4 : 0);
-	case 0x106: // 0x90020d ULC ready/status
+	case 0x20d: // 0x90020d ULC ready/status
 		{
 			if (m_ulc_scan_ready && !machine().side_effects_disabled())
 			{
@@ -562,7 +563,7 @@ u8 ballyw_state::ulc_r(offs_t offset)
 			}
 			return result;
 		}
-	case 0x10c: // 0x900219 serial input/status
+	case 0x219: // 0x900219 serial input/status
 		// The ULC probe observes a four-sample ready handshake after 0xc0
 		// -> 0x40: high, low, high, low.  Consume one sample per poll.
 		{
@@ -604,7 +605,7 @@ u8 ballyw_state::ulc_r(offs_t offset)
 				}
 			}
 			else
-				result |= BIT(m_ulc_output[0x119], 7) ? 0x08 : 0x00;
+				result |= BIT(m_ulc_output[0x233], 7) ? 0x08 : 0x00;
 			return result;
 		}
 	default:
@@ -614,8 +615,9 @@ u8 ballyw_state::ulc_r(offs_t offset)
 
 void ballyw_state::ulc_w(offs_t offset, u8 data)
 {
-	offset &= 0x3ff;
-	if (offset == 0x10a && m_coin_tx_length < std::size(m_coin_tx))
+	// Convert the word offset to the CPU byte offset on the low byte lane.
+	offset = (offset << 1) | 1;
+	if (offset == 0x215 && m_coin_tx_length < std::size(m_coin_tx))
 	{
 		m_coin_tx[m_coin_tx_length++] = data;
 		m_coin_tx_time = machine().time();
@@ -625,21 +627,21 @@ void ballyw_state::ulc_w(offs_t offset, u8 data)
 
 	if (m_oki)
 	{
-		if (offset == 0x11b) // 0x900237 sample number
+		if (offset == 0x237) // 0x900237 sample number
 			m_oki->write(data);
-		else if (offset == 0x119) // 0x900233 channel select
+		else if (offset == 0x233) // 0x900233 channel select
 			m_oki->ch2_w(BIT(data, 6));
-		else if (offset == 0) // 0x900001 start/attenuation pulses
+		else if (offset == 0x001) // 0x900001 start/attenuation pulses
 			m_oki->st_w(BIT(data, 7));
 	}
 
 	// The firmware strobes 0x90020f throughout normal execution.  On cold
 	// startup, the random seed check deliberately stops servicing it while
 	// cycling seed values in battery-backed RAM, then relies on a reset.
-	if (offset == 0x107)
+	if (offset == 0x20f)
 		m_watchdog->watchdog_reset();
 
-	if (offset == 0x119)
+	if (offset == 0x233)
 	{
 		if (BIT(data ^ old_data, 4))
 			m_vfd->por(BIT(data, 4));
@@ -683,10 +685,10 @@ void ballyw_state::ulc_w(offs_t offset, u8 data)
 		}
 	}
 
-	// CPU A1 is ULC A0: the control byte at 0x900213 is register 0x109.
+	// The control byte is at CPU address 0x900213.
 	// Bit 4 starts a scan transfer; the firmware clears it while servicing
 	// the resulting level-four interrupt.
-	if (offset == 0x109)
+	if (offset == 0x213)
 	{
 		// The level-four handler loads the next bank and strobes bit 3.
 		// This transfer completes without another interrupt; the level-one
