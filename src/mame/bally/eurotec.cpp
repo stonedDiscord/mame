@@ -129,6 +129,7 @@ private:
 	// an input and falsely report an ULC fault.
 	u8 m_ulc_input[0x400]{};
 	u8 m_ulc_output[0x400]{};
+	u8 m_ulc_parallel_output[4]{};
 	u8 m_ulc_serial_ack_reads = 0;
 	u8 m_ulc_serial_status_pattern = 0;
 	attotime m_ulc_serial_pulse_start;
@@ -150,6 +151,7 @@ private:
 	u8 m_coin_rx_pos = 0;
 	u8 m_coin_delay = 0;
 	bool m_coin_rx_ready = false;
+	bool m_coin_request = false;
 	attotime m_coin_tx_time;
 	u16 m_reel_drive = 0;
 	u8 m_reel_optics = 0;
@@ -225,7 +227,18 @@ void ballyw_state::ulc_transfer()
 {
 	// Input bytes are latched by the same four-bank scan as the outputs.
 	u8 const bank = m_ulc_output[0x11e] & 3;
+	m_ulc_parallel_output[bank] = m_ulc_output[0x100];
+	// The parallel serializer returns banks 2/3 on the next scan's
+	// banks 0/1.  Bank 2 is also monitored on bank 3 of 0x900201.
+	m_ulc_input[0x103] = bank < 2 ? m_ulc_parallel_output[bank + 2] : 0;
 	m_ulc_input[0x104] = m_switches->read() >> (24 - bank * 8);
+	// Coin serial request is bank three bit 2; the unit acknowledges it
+	// on bank zero bit 0 before the host starts transmitting.
+	if (bank == 3)
+		m_coin_request = BIT(m_ulc_output[0x100], 2);
+	m_ulc_input[0x100] = bank == 0 && m_coin_request ? 1 : 0;
+	if (bank == 3)
+		m_ulc_input[0x100] = m_ulc_parallel_output[2];
 
 	// Three bipolar motors occupy three bits each: two phase selects and
 	// a winding enable.  Banks 2/3 of 0x90020b carry the motor latch;
@@ -592,6 +605,7 @@ void ballyw_state::machine_start()
 {
 	save_item(NAME(m_ulc_input));
 	save_item(NAME(m_ulc_output));
+	save_item(NAME(m_ulc_parallel_output));
 	save_item(NAME(m_ulc_serial_ack_reads));
 	save_item(NAME(m_ulc_serial_status_pattern));
 	save_item(NAME(m_ulc_serial_pulse_start));
@@ -613,6 +627,7 @@ void ballyw_state::machine_start()
 	save_item(NAME(m_coin_rx_pos));
 	save_item(NAME(m_coin_delay));
 	save_item(NAME(m_coin_rx_ready));
+	save_item(NAME(m_coin_request));
 	save_item(NAME(m_coin_tx_time));
 	save_item(NAME(m_reel_drive));
 	save_item(NAME(m_reel_optics));
@@ -630,6 +645,7 @@ void ballyw_state::machine_reset()
 	m_coin_delay = 0;
 	m_coin_rx_ready = false;
 	m_coin_tx_time = attotime::zero;
+	m_coin_request = false;
 	m_ulc_scan_timer->adjust(attotime::never);
 	m_money_serial_timer->adjust(attotime::from_msec(2), 0, attotime::from_msec(2));
 	m_maincpu->set_input_line(M68K_IRQ_5, CLEAR_LINE);
@@ -638,6 +654,7 @@ void ballyw_state::machine_reset()
 	m_vfd->por(0);
 	std::fill(std::begin(m_ulc_input), std::end(m_ulc_input), 0);
 	std::fill(std::begin(m_ulc_output), std::end(m_ulc_output), 0);
+	std::fill(std::begin(m_ulc_parallel_output), std::end(m_ulc_parallel_output), 0);
 	m_ulc_serial_ack_reads = 0;
 	m_ulc_serial_status_pattern = 0;
 	m_ulc_serial_pulse_start = attotime::zero;
