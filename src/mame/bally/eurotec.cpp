@@ -85,6 +85,7 @@ DS1985 serial number chip
 #include "speaker.h"
 
 #include "eurotec.lh"
+#include "gloriasl.lh"
 
 namespace {
 
@@ -102,7 +103,9 @@ public:
 		m_switches(*this, "SWMUX%u", 0U),
 		m_cabinet(*this, "CABINET"),
 		m_money_digits(*this, "money%u", 0U),
-		m_special_digits(*this, "special%u", 0U)
+		m_special_digits(*this, "special%u", 0U),
+		m_matrix(*this, "sout%u_p%u_m%u", 1U, 0U, 0U),
+		m_lamps(*this, "sout%u_p%u_m%u_b%u", 1U, 0U, 0U, 0U)
 	{ }
 
 	void eurotec_1rom(machine_config &config) ATTR_COLD;
@@ -129,6 +132,8 @@ private:
 
 	output_finder<5> m_money_digits;
 	output_finder<3> m_special_digits;
+	output_finder<3, 4, 5> m_matrix;
+	output_finder<3, 4, 5, 8> m_lamps;
 
 	// The ULC has separate input/status readback and output latches even when
 	// they share a CPU address.  A single backing array would make a firmware
@@ -310,6 +315,20 @@ void ballyw_state::ulc_transfer()
 	if (row_select >= 1 && row_select <= 5)
 	{
 		u8 const row = row_select % 5;
+		// SOUTMX1-3 each feed four eight-bit shift registers.  The ULC
+		// interleaves these serial chains across the four transfer banks.
+		// Chain assignments are inferred from Gloria's scan buffers.
+		// Bank three is latched after the power multiplexer has advanced.
+		static constexpr u8 MATRIX[4][3] = { { 0, 2, 0 }, { 0, 1, 0 }, { 1, 1, 2 }, { 2, 1, 2 } };
+		static constexpr u8 PORT[4][3] = { { 3, 2, 0 }, { 2, 1, 1 }, { 2, 3, 0 }, { 3, 0, 1 } };
+		u8 const mux = bank == 3 ? (row + 4) % 5 : row;
+		for (unsigned channel = 0; channel < 3; ++channel)
+		{
+			u8 const data = m_ulc_output[0x205 + channel * 2];
+			m_matrix[MATRIX[bank][channel]][PORT[bank][channel]][mux] = data;
+			for (unsigned bit = 0; bit < 8; ++bit)
+				m_lamps[MATRIX[bank][channel]][PORT[bank][channel]][mux][bit] = BIT(data, bit);
+		}
 		if (bank == 1)
 		{
 			static constexpr u8 DIGIT_ORDER[5] = { 1, 0, 4, 3, 2 };
@@ -745,6 +764,15 @@ void ballyw_state::machine_start()
 
 void ballyw_state::machine_reset()
 {
+	for (auto &matrix : m_matrix)
+		for (auto &port : matrix)
+			for (auto &mux : port)
+				mux = 0;
+	for (auto &matrix : m_lamps)
+		for (auto &port : matrix)
+			for (auto &mux : port)
+				for (auto &lamp : mux)
+					lamp = 0;
 	m_coin_serial_timer->adjust(attotime::from_msec(1), 0, attotime::from_msec(1));
 	m_coin_tx_length = 0;
 	m_coin_rx_length = 0;
@@ -1393,8 +1421,8 @@ GAME(2003, jjacksl,         0, okisndd_2rom, ballyw, ballyw_state, empty_init, R
 GAME(2003, winplay,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Winplay SL",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2003, belamis3,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Bel Ami (S3)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2003, figame3,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Fire Game (S3)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, glriasl4, glriasl5, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S4)",         MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2003, glriasl5,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAMEL(2003, glriasl4, glriasl5, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S4)",         MACHINE_NOT_WORKING | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_gloriasl )
+GAMEL(2003, glriasl5,        0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Gloria SL (S5)",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK, layout_gloriasl )
 GAME(2003, kingcs2,   kingcs3, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S2)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2003, kingcs3,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "King Classic SL (S3)",   MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2004, b493,            0, okisndd_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "493",                    MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )

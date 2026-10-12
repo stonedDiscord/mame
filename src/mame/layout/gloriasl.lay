@@ -1,0 +1,1256 @@
+<?xml version="1.0"?>
+<!-- license:CC0-1.0 -->
+<!-- Gloria SL: cabinet arrangement from manual PDF page 2; matrices on pages 18-20.
+     Vector approximation; numbered reels until original reel strips are available.
+     Decorative LED positions are approximate: the tables identify colours, not locations. -->
+<mamelayout version="2">
+	<element name="cabinet"><rect><color red="0.16" green="0.17" blue="0.18" /></rect></element>
+	<element name="black"><rect><color red="0.025" green="0.025" blue="0.035" /></rect></element>
+	<element name="gold"><rect><color red="0.9" green="0.65" blue="0.08" /></rect></element>
+	<element name="blue"><rect><color red="0.025" green="0.25" blue="0.48" /></rect></element>
+	<element name="red"><rect><color red="0.7" green="0.025" blue="0.05" /></rect></element>
+	<element name="led_red"><disk state="0"><color red="0.15" green="0.006" blue="0.003" /></disk><disk state="1"><color red="1" green="0.04" blue="0.02" /></disk></element>
+	<element name="led_blue"><disk state="0"><color red="0.004" green="0.075" blue="0.15" /></disk><disk state="1"><color red="0.03" green="0.5" blue="1" /></disk></element>
+	<element name="led_green"><disk state="0"><color red="0.007" green="0.15" blue="0.037" /></disk><disk state="1"><color red="0.05" green="1" blue="0.25" /></disk></element>
+	<element name="led_gold"><disk state="0"><color red="0.15" green="0.128" blue="0.012" /></disk><disk state="1"><color red="1" green="0.85" blue="0.08" /></disk></element>
+	<element name="counter"><led7seg><color red="1" green="0.08" blue="0.03" /></led7seg></element>
+	<element name="vfd"><led16segsc><color red="0.05" green="1" blue="0.8" /></led16segsc></element>
+<element name="reel_strip">
+		<rect><bounds x="0" y="0" width="60" height="960" /><color red="0.12" green="0.12" blue="0.12" /></rect>
+		<text string="00"><bounds x="4" y="0" width="52" height="20" /></text>
+		<text string="01"><bounds x="4" y="20" width="52" height="20" /></text>
+		<text string="02"><bounds x="4" y="40" width="52" height="20" /></text>
+		<text string="03"><bounds x="4" y="60" width="52" height="20" /></text>
+		<text string="04"><bounds x="4" y="80" width="52" height="20" /></text>
+		<text string="05"><bounds x="4" y="100" width="52" height="20" /></text>
+		<text string="06"><bounds x="4" y="120" width="52" height="20" /></text>
+		<text string="07"><bounds x="4" y="140" width="52" height="20" /></text>
+		<text string="08"><bounds x="4" y="160" width="52" height="20" /></text>
+		<text string="09"><bounds x="4" y="180" width="52" height="20" /></text>
+		<text string="10"><bounds x="4" y="200" width="52" height="20" /></text>
+		<text string="11"><bounds x="4" y="220" width="52" height="20" /></text>
+		<text string="12"><bounds x="4" y="240" width="52" height="20" /></text>
+		<text string="13"><bounds x="4" y="260" width="52" height="20" /></text>
+		<text string="14"><bounds x="4" y="280" width="52" height="20" /></text>
+		<text string="15"><bounds x="4" y="300" width="52" height="20" /></text>
+		<text string="16"><bounds x="4" y="320" width="52" height="20" /></text>
+		<text string="17"><bounds x="4" y="340" width="52" height="20" /></text>
+		<text string="18"><bounds x="4" y="360" width="52" height="20" /></text>
+		<text string="19"><bounds x="4" y="380" width="52" height="20" /></text>
+		<text string="20"><bounds x="4" y="400" width="52" height="20" /></text>
+		<text string="21"><bounds x="4" y="420" width="52" height="20" /></text>
+		<text string="22"><bounds x="4" y="440" width="52" height="20" /></text>
+		<text string="23"><bounds x="4" y="460" width="52" height="20" /></text>
+		<text string="24"><bounds x="4" y="480" width="52" height="20" /></text>
+		<text string="25"><bounds x="4" y="500" width="52" height="20" /></text>
+		<text string="26"><bounds x="4" y="520" width="52" height="20" /></text>
+		<text string="27"><bounds x="4" y="540" width="52" height="20" /></text>
+		<text string="28"><bounds x="4" y="560" width="52" height="20" /></text>
+		<text string="29"><bounds x="4" y="580" width="52" height="20" /></text>
+		<text string="30"><bounds x="4" y="600" width="52" height="20" /></text>
+		<text string="31"><bounds x="4" y="620" width="52" height="20" /></text>
+		<text string="32"><bounds x="4" y="640" width="52" height="20" /></text>
+		<text string="33"><bounds x="4" y="660" width="52" height="20" /></text>
+		<text string="34"><bounds x="4" y="680" width="52" height="20" /></text>
+		<text string="35"><bounds x="4" y="700" width="52" height="20" /></text>
+		<text string="36"><bounds x="4" y="720" width="52" height="20" /></text>
+		<text string="37"><bounds x="4" y="740" width="52" height="20" /></text>
+		<text string="38"><bounds x="4" y="760" width="52" height="20" /></text>
+		<text string="39"><bounds x="4" y="780" width="52" height="20" /></text>
+		<text string="40"><bounds x="4" y="800" width="52" height="20" /></text>
+		<text string="41"><bounds x="4" y="820" width="52" height="20" /></text>
+		<text string="42"><bounds x="4" y="840" width="52" height="20" /></text>
+		<text string="43"><bounds x="4" y="860" width="52" height="20" /></text>
+		<text string="44"><bounds x="4" y="880" width="52" height="20" /></text>
+		<text string="45"><bounds x="4" y="900" width="52" height="20" /></text>
+		<text string="46"><bounds x="4" y="920" width="52" height="20" /></text>
+		<text string="47"><bounds x="4" y="940" width="52" height="20" /></text>
+	</element>
+	<element name="text_1"><text string="BALLY WULFF"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_2"><text string="GLORIA SL"><color red="1" green="0.9" blue="0.8" /></text></element>
+	<element name="text_3"><text string="LAUFENDE SPIELE"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_4"><text string="SONDER- / ULTRASPIELE"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_5"><text string="MUENZSPEICHER EURO"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="lamp_6"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="S"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_7"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="U"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_8"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="FREISPIELE"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_9"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="5 EURO"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_10"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="EINWURF"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_11"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="EINWURF"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_12"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="50 EURO"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_13"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="10 EURO"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_14"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="20 EURO"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="text_15"><text string="2 EURO"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_16"><text string="1 EURO"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_17"><text string="20 / 50"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_18"><text string="10 CENT"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_19"><text string="5 CENT"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="lamp_20"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="25"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_21"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="50"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_22"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="40"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_23"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="20"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_24"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="1"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_25"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="00"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_26"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="1"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_27"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="00"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_28"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="5 BK"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_29"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="5 BK"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_30"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="4 KR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_31"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="5 KR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_32"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="5 KR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_33"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="GROS"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_34"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="SE"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_35"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="AUS"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_36"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="SPIE"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_37"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="L"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_38"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="UN"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_39"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="G"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_40"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="UL"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_41"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="TR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_42"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="A "><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_43"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="AU"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_44"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="SS"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_45"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="PI"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_46"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="EL"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_47"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="UN"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_48"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="G"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_49"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string=""><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_50"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="AUSSP."><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_51"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="50"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_52"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="25"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_53"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="12"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_54"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="6"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_55"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="3"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_56"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="1.85"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_57"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="90"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_58"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="45"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_59"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="20"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_60"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="00"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="text_61"><text string="SONDERSPIELE"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_62"><text string="CENT"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="lamp_63"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="40"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_64"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="20"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_65"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="10"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_66"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="5"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_67"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="2"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_68"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="1.55"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_69"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="73"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_70"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="35"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_71"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="15"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_72"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="00"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="text_73"><text string="SONDERSPIELE"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_74"><text string="CENT"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="lamp_75"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="RISIKO &gt;"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_76"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="&lt; RISIKO"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_77"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="3 KR / BR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_78"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="3 KR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_79"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="4 KR / BR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_80"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="PUNKTE"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_81"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="PUNKTE"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_82"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="BIG RISC"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_83"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="BIG RISC"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_84"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="BIG RISC"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_85"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="RISIKO"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_86"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="RISIKO"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_87"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="BIG RISC"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_88"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.013" green="0.125" blue="0.24" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.025" green="0.25" blue="0.48" /></rect><text string="BIG RISC"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_89"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="SUPER 15"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_90"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="SUPER 20"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="text_91"><text string="BONUS 5 KR"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_92"><text string="BONUS 3/4 KR"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_93"><text string="BONUS 5 KR + BR"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="lamp_94"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="RISIKO 1:1"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_95"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="START"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_96"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="TEILEN"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_97"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="STOP"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_98"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="RISIKO 1:1"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_99"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="SPLITTEN"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_100"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="2 KR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_101"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="1 KR"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="text_102"><text string="SPIELSYSTEM"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="lamp_103"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.45" green="0.325" blue="0.04" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.9" green="0.65" blue="0.08" /></rect><text string="MUENZEINWURF"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_104"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="AUSZAHLUNG L"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="lamp_105"><rect state="0"><bounds x="0" y="0" width="100" height="100" /><color red="0.35" green="0.013" blue="0.025" /></rect><rect state="1"><bounds x="0" y="0" width="100" height="100" /><color red="0.7" green="0.025" blue="0.05" /></rect><text string="AUSZAHLUNG R"><bounds x="2" y="2" width="96" height="96" /><color red="0.1" green="0.025" blue="0.02" /></text></element>
+	<element name="text_106"><text string="GLORIA SL"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<view name="Gloria SL">
+		<element ref="cabinet"><bounds x="0" y="0" width="620" height="890" /></element>
+		<element ref="gold"><bounds x="15" y="15" width="590" height="750" /></element>
+		<element ref="black"><bounds x="19" y="19" width="582" height="742" /></element>
+		<element ref="text_1"><bounds x="245" y="30" width="130" height="32" /></element>
+		<element ref="text_2"><bounds x="195" y="200" width="230" height="45" /></element>
+		<element ref="text_3"><bounds x="170" y="24" width="95" height="9" /></element>
+		<element ref="text_4"><bounds x="170" y="57" width="105" height="10" /></element>
+		<element ref="gold"><bounds x="170" y="69" width="94" height="34" /></element>
+		<element ref="black"><bounds x="172" y="71" width="90" height="30" /></element>
+		<element ref="counter" name="special2"><bounds x="180" y="72" width="19" height="28" /></element>
+		<element ref="counter" name="special1"><bounds x="203" y="72" width="19" height="28" /></element>
+		<element ref="counter" name="special0"><bounds x="226" y="72" width="19" height="28" /></element>
+		<element ref="text_5"><bounds x="367" y="57" width="116" height="10" /></element>
+		<element ref="gold"><bounds x="367" y="69" width="113" height="34" /></element>
+		<element ref="black"><bounds x="369" y="71" width="109" height="30" /></element>
+		<element ref="counter" name="money4"><bounds x="375" y="72" width="16" height="28" /></element>
+		<element ref="counter" name="money3"><bounds x="394" y="72" width="16" height="28" /></element>
+		<element ref="counter" name="money2"><bounds x="413" y="72" width="16" height="28" /></element>
+		<element ref="counter" name="money1"><bounds x="436" y="79" width="12" height="21" /></element>
+		<element ref="counter" name="money0"><bounds x="452" y="79" width="12" height="21" /></element>
+		<!-- LD013 bit 7: S -->
+		<element ref="lamp_6" name="sout1_p0_m3_b7"><bounds x="269" y="70" width="12" height="12" /></element>
+		<!-- LD011 bit 7: U -->
+		<element ref="lamp_7" name="sout1_p0_m1_b7"><bounds x="269" y="89" width="12" height="12" /></element>
+		<!-- LD010 bit 0: FREISPIELE -->
+		<element ref="lamp_8" name="sout1_p0_m0_b0"><bounds x="28" y="32" width="38" height="12" /></element>
+		<!-- LD010 bit 7: 5 EURO -->
+		<element ref="lamp_9" name="sout1_p0_m0_b7"><bounds x="112" y="91" width="38" height="12" /></element>
+		<!-- LD110 bit 7: EINWURF -->
+		<element ref="lamp_10" name="sout1_p1_m0_b7"><bounds x="28" y="91" width="38" height="12" /></element>
+		<!-- LD012 bit 7: EINWURF -->
+		<element ref="lamp_11" name="sout1_p0_m2_b7"><bounds x="510" y="91" width="38" height="12" /></element>
+		<!-- LD014 bit 7: 50 EURO -->
+		<element ref="lamp_12" name="sout1_p0_m4_b7"><bounds x="550" y="91" width="38" height="12" /></element>
+		<!-- LD112 bit 7: 10 EURO -->
+		<element ref="lamp_13" name="sout1_p1_m2_b7"><bounds x="510" y="73" width="38" height="12" /></element>
+		<!-- LD113 bit 7: 20 EURO -->
+		<element ref="lamp_14" name="sout1_p1_m3_b7"><bounds x="550" y="73" width="38" height="12" /></element>
+		<element ref="led_green" name="sout1_p0_m0_b2"><bounds x="507" y="45" width="5" height="5" /></element>
+		<element ref="text_15"><bounds x="504" y="32" width="19" height="8" /></element>
+		<element ref="led_green" name="sout1_p0_m0_b3"><bounds x="524" y="45" width="5" height="5" /></element>
+		<element ref="text_16"><bounds x="521" y="32" width="19" height="8" /></element>
+		<element ref="led_green" name="sout1_p0_m0_b4"><bounds x="541" y="45" width="5" height="5" /></element>
+		<element ref="text_17"><bounds x="538" y="32" width="19" height="8" /></element>
+		<element ref="led_green" name="sout1_p0_m0_b5"><bounds x="558" y="45" width="5" height="5" /></element>
+		<element ref="text_18"><bounds x="555" y="32" width="19" height="8" /></element>
+		<element ref="led_green" name="sout1_p0_m0_b6"><bounds x="575" y="45" width="5" height="5" /></element>
+		<element ref="text_19"><bounds x="572" y="32" width="19" height="8" /></element>
+		<element ref="led_green" name="sout1_p0_m0_b1"><bounds x="40" y="64" width="9" height="9" /></element>
+		<element ref="led_red" name="sout1_p1_m0_b1"><bounds x="55" y="64" width="9" height="9" /></element>
+		<element ref="led_red" name="sout1_p1_m0_b0"><bounds x="28" y="49" width="5" height="5" /></element>
+		<element ref="led_red" name="sout1_p1_m1_b7"><bounds x="285" y="90" width="5" height="5" /></element>
+		<element ref="gold"><bounds x="174" y="132" width="66" height="57" /></element>
+		<element ref="red"><bounds x="176" y="134" width="62" height="53" /></element>
+		<!-- LA62D: 25 -->
+		<element ref="lamp_20" name="sout1_p3_m2_b6"><bounds x="177" y="135" width="60" height="51" /></element>
+		<element ref="gold"><bounds x="244" y="132" width="66" height="57" /></element>
+		<element ref="red"><bounds x="246" y="134" width="62" height="53" /></element>
+		<!-- LA13D: 50 -->
+		<element ref="lamp_21" name="sout1_p3_m3_b1"><bounds x="247" y="135" width="60" height="51" /></element>
+		<element ref="gold"><bounds x="314" y="132" width="66" height="57" /></element>
+		<element ref="red"><bounds x="316" y="134" width="62" height="53" /></element>
+		<!-- LA00D: 40 -->
+		<element ref="lamp_22" name="sout1_p3_m0_b0"><bounds x="317" y="135" width="60" height="51" /></element>
+		<element ref="gold"><bounds x="384" y="132" width="66" height="57" /></element>
+		<element ref="red"><bounds x="386" y="134" width="62" height="53" /></element>
+		<!-- LA01E: 20 -->
+		<element ref="lamp_23" name="sout2_p0_m1_b0"><bounds x="387" y="135" width="60" height="51" /></element>
+		<!-- LA42D: 1 -->
+		<element ref="lamp_24" name="sout1_p3_m2_b4"><bounds x="62" y="160" width="42" height="32" /></element>
+		<!-- LA43D: 00 -->
+		<element ref="lamp_25" name="sout1_p3_m3_b4"><bounds x="105" y="160" width="42" height="32" /></element>
+		<!-- LA23E: 1 -->
+		<element ref="lamp_26" name="sout2_p0_m3_b2"><bounds x="468" y="160" width="42" height="32" /></element>
+		<!-- LA22E: 00 -->
+		<element ref="lamp_27" name="sout2_p0_m2_b2"><bounds x="511" y="160" width="42" height="32" /></element>
+		<!-- LA40D: 5 BK -->
+		<element ref="lamp_28" name="sout1_p3_m0_b4"><bounds x="176" y="120" width="29" height="12" /></element>
+		<!-- LA60D: 5 BK -->
+		<element ref="lamp_29" name="sout1_p3_m0_b6"><bounds x="206" y="120" width="29" height="12" /></element>
+		<!-- LA50D: 4 KR -->
+		<element ref="lamp_30" name="sout1_p3_m0_b5"><bounds x="236" y="120" width="29" height="12" /></element>
+		<!-- LA00E: 5 KR -->
+		<element ref="lamp_31" name="sout2_p0_m0_b0"><bounds x="406" y="120" width="29" height="12" /></element>
+		<!-- LA20E: 5 KR -->
+		<element ref="lamp_32" name="sout2_p0_m0_b2"><bounds x="436" y="120" width="29" height="12" /></element>
+		<!-- LA41D: GROS -->
+		<element ref="lamp_33" name="sout1_p3_m1_b4"><bounds x="178" y="107" width="38" height="13" /></element>
+		<!-- LA61D: SE -->
+		<element ref="lamp_34" name="sout1_p3_m1_b6"><bounds x="217" y="107" width="38" height="13" /></element>
+		<!-- LA14D: AUS -->
+		<element ref="lamp_35" name="sout1_p3_m4_b1"><bounds x="256" y="107" width="38" height="13" /></element>
+		<!-- LA01D: SPIE -->
+		<element ref="lamp_36" name="sout1_p3_m1_b0"><bounds x="295" y="107" width="38" height="13" /></element>
+		<!-- LA02D: L -->
+		<element ref="lamp_37" name="sout1_p3_m2_b0"><bounds x="334" y="107" width="38" height="13" /></element>
+		<!-- LA03D: UN -->
+		<element ref="lamp_38" name="sout1_p3_m3_b0"><bounds x="373" y="107" width="38" height="13" /></element>
+		<!-- LA04D: G -->
+		<element ref="lamp_39" name="sout1_p3_m4_b0"><bounds x="412" y="107" width="38" height="13" /></element>
+		<!-- LA64D: UL -->
+		<element ref="lamp_40" name="sout1_p3_m4_b6"><bounds x="201" y="189" width="22" height="13" /></element>
+		<!-- LA63D: TR -->
+		<element ref="lamp_41" name="sout1_p3_m3_b6"><bounds x="224" y="189" width="22" height="13" /></element>
+		<!-- LA10D: A  -->
+		<element ref="lamp_42" name="sout1_p3_m0_b1"><bounds x="247" y="189" width="22" height="13" /></element>
+		<!-- LA11D: AU -->
+		<element ref="lamp_43" name="sout1_p3_m1_b1"><bounds x="270" y="189" width="22" height="13" /></element>
+		<!-- LA12D: SS -->
+		<element ref="lamp_44" name="sout1_p3_m2_b1"><bounds x="293" y="189" width="22" height="13" /></element>
+		<!-- LA23D: PI -->
+		<element ref="lamp_45" name="sout1_p3_m3_b2"><bounds x="316" y="189" width="22" height="13" /></element>
+		<!-- LA24D: EL -->
+		<element ref="lamp_46" name="sout1_p3_m4_b2"><bounds x="339" y="189" width="22" height="13" /></element>
+		<!-- LA11E: UN -->
+		<element ref="lamp_47" name="sout2_p0_m1_b1"><bounds x="362" y="189" width="22" height="13" /></element>
+		<!-- LA12E: G -->
+		<element ref="lamp_48" name="sout2_p0_m2_b1"><bounds x="385" y="189" width="22" height="13" /></element>
+		<!-- LA13E:  -->
+		<element ref="lamp_49" name="sout2_p0_m3_b1"><bounds x="408" y="189" width="22" height="13" /></element>
+		<!-- LA24E: AUSSP. -->
+		<element ref="lamp_50" name="sout2_p0_m4_b2"><bounds x="456" y="190" width="50" height="13" /></element>
+		<element ref="gold"><bounds x="35" y="212" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="214" width="69" height="35" /></element>
+		<!-- LA51D: 50 -->
+		<element ref="lamp_51" name="sout1_p3_m1_b5"><bounds x="38" y="215" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="252" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="254" width="69" height="35" /></element>
+		<!-- LA52D: 25 -->
+		<element ref="lamp_52" name="sout1_p3_m2_b5"><bounds x="38" y="255" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="292" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="294" width="69" height="35" /></element>
+		<!-- LA53D: 12 -->
+		<element ref="lamp_53" name="sout1_p3_m3_b5"><bounds x="38" y="295" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="332" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="334" width="69" height="35" /></element>
+		<!-- LA54D: 6 -->
+		<element ref="lamp_54" name="sout1_p3_m4_b5"><bounds x="38" y="335" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="372" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="374" width="69" height="35" /></element>
+		<!-- LAF0: 3 -->
+		<element ref="lamp_55" name="sout3_p1_m0_b7"><bounds x="38" y="375" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="412" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="414" width="69" height="35" /></element>
+		<!-- LA50: 1.85 -->
+		<element ref="lamp_56" name="sout3_p0_m0_b5"><bounds x="38" y="415" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="452" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="454" width="69" height="35" /></element>
+		<!-- LA51: 90 -->
+		<element ref="lamp_57" name="sout3_p0_m1_b5"><bounds x="38" y="455" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="492" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="494" width="69" height="35" /></element>
+		<!-- LA52: 45 -->
+		<element ref="lamp_58" name="sout3_p0_m2_b5"><bounds x="38" y="495" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="532" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="534" width="69" height="35" /></element>
+		<!-- LA62: 20 -->
+		<element ref="lamp_59" name="sout3_p0_m2_b6"><bounds x="38" y="535" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="35" y="572" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="37" y="574" width="69" height="35" /></element>
+		<!-- LA63: 00 -->
+		<element ref="lamp_60" name="sout3_p0_m3_b6"><bounds x="38" y="575" width="67" height="33" /></element>
+		<element ref="text_61"><bounds x="38" y="204" width="67" height="8" /></element>
+		<element ref="text_62"><bounds x="38" y="409" width="67" height="8" /></element>
+		<element ref="gold"><bounds x="509" y="212" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="214" width="69" height="35" /></element>
+		<!-- LA31E: 40 -->
+		<element ref="lamp_63" name="sout2_p0_m1_b3"><bounds x="512" y="215" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="252" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="254" width="69" height="35" /></element>
+		<!-- LA32E: 20 -->
+		<element ref="lamp_64" name="sout2_p0_m2_b3"><bounds x="512" y="255" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="292" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="294" width="69" height="35" /></element>
+		<!-- LA33E: 10 -->
+		<element ref="lamp_65" name="sout2_p0_m3_b3"><bounds x="512" y="295" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="332" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="334" width="69" height="35" /></element>
+		<!-- LA34E: 5 -->
+		<element ref="lamp_66" name="sout2_p0_m4_b3"><bounds x="512" y="335" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="372" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="374" width="69" height="35" /></element>
+		<!-- LAD2: 2 -->
+		<element ref="lamp_67" name="sout3_p1_m2_b5"><bounds x="512" y="375" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="412" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="414" width="69" height="35" /></element>
+		<!-- LAD3: 1.55 -->
+		<element ref="lamp_68" name="sout3_p1_m3_b5"><bounds x="512" y="415" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="452" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="454" width="69" height="35" /></element>
+		<!-- LAB4: 73 -->
+		<element ref="lamp_69" name="sout3_p1_m4_b3"><bounds x="512" y="455" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="492" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="494" width="69" height="35" /></element>
+		<!-- LAB3: 35 -->
+		<element ref="lamp_70" name="sout3_p1_m3_b3"><bounds x="512" y="495" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="532" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="534" width="69" height="35" /></element>
+		<!-- LAB2: 15 -->
+		<element ref="lamp_71" name="sout3_p1_m2_b3"><bounds x="512" y="535" width="67" height="33" /></element>
+		<element ref="gold"><bounds x="509" y="572" width="73" height="39" /></element>
+		<element ref="blue"><bounds x="511" y="574" width="69" height="35" /></element>
+		<!-- LAB1: 00 -->
+		<element ref="lamp_72" name="sout3_p1_m1_b3"><bounds x="512" y="575" width="67" height="33" /></element>
+		<element ref="text_73"><bounds x="512" y="204" width="67" height="8" /></element>
+		<element ref="text_74"><bounds x="512" y="409" width="67" height="8" /></element>
+		<!-- LA44D: RISIKO &gt; -->
+		<element ref="lamp_75" name="sout1_p3_m4_b4"><bounds x="112" y="210" width="70" height="20" /></element>
+		<!-- LA14E: &lt; RISIKO -->
+		<element ref="lamp_76" name="sout2_p0_m4_b1"><bounds x="438" y="210" width="70" height="20" /></element>
+		<!-- LAD1: 3 KR / BR -->
+		<element ref="lamp_77" name="sout3_p1_m1_b5"><bounds x="28" y="178" width="40" height="28" /></element>
+		<!-- LA30E: 3 KR -->
+		<element ref="lamp_78" name="sout2_p0_m0_b3"><bounds x="552" y="178" width="40" height="28" /></element>
+		<!-- LAF1: 4 KR / BR -->
+		<element ref="lamp_79" name="sout3_p1_m1_b7"><bounds x="118" y="395" width="52" height="24" /></element>
+		<!-- LAD0: PUNKTE -->
+		<element ref="lamp_80" name="sout3_p1_m0_b5"><bounds x="183" y="386" width="70" height="20" /></element>
+		<!-- LAF2: PUNKTE -->
+		<element ref="lamp_81" name="sout3_p1_m2_b7"><bounds x="365" y="386" width="70" height="20" /></element>
+		<element ref="gold"><bounds x="177" y="253" width="266" height="123" /></element>
+		<element ref="blue"><bounds x="179" y="255" width="262" height="119" /></element>
+		<element ref="gold"><bounds x="188" y="263" width="75" height="103" /></element>
+		<element ref="black"><bounds x="190" y="265" width="71" height="99" /></element>
+		<element ref="reel_strip"><bounds x="193" y="269" width="65" height="91" /><yscroll name="reel0:scroll" size="0.0833333333" wrap="yes" min="0" max="65535" /></element>
+		<element ref="gold"><bounds x="272" y="263" width="75" height="103" /></element>
+		<element ref="black"><bounds x="274" y="265" width="71" height="99" /></element>
+		<element ref="reel_strip"><bounds x="277" y="269" width="65" height="91" /><yscroll name="reel1:scroll" size="0.0833333333" wrap="yes" min="0" max="65535" /></element>
+		<element ref="gold"><bounds x="356" y="263" width="75" height="103" /></element>
+		<element ref="black"><bounds x="358" y="265" width="71" height="99" /></element>
+		<element ref="reel_strip"><bounds x="361" y="269" width="65" height="91" /><yscroll name="reel2:scroll" size="0.0833333333" wrap="yes" min="0" max="65535" /></element>
+		<element ref="gold"><bounds x="185" y="412" width="68" height="34" /></element>
+		<element ref="black"><bounds x="187" y="414" width="64" height="30" /></element>
+		<element ref="counter" name="sout3_p3_m0"><bounds x="190" y="415" width="18" height="28" /></element>
+		<element ref="counter" name="sout3_p3_m1"><bounds x="211" y="415" width="18" height="28" /></element>
+		<element ref="counter" name="sout3_p3_m2"><bounds x="232" y="415" width="18" height="28" /></element>
+		<element ref="gold"><bounds x="366" y="412" width="68" height="34" /></element>
+		<element ref="black"><bounds x="368" y="414" width="64" height="30" /></element>
+		<element ref="counter" name="sout2_p2_m0"><bounds x="371" y="415" width="18" height="28" /></element>
+		<element ref="counter" name="sout2_p2_m1"><bounds x="392" y="415" width="18" height="28" /></element>
+		<element ref="counter" name="sout2_p2_m2"><bounds x="413" y="415" width="18" height="28" /></element>
+		<element ref="gold"><bounds x="271" y="401" width="76" height="43" /></element>
+		<element ref="blue"><bounds x="273" y="403" width="72" height="39" /></element>
+		<!-- LA71: BIG RISC -->
+		<element ref="lamp_82" name="sout3_p0_m1_b7"><bounds x="274" y="404" width="70" height="37" /></element>
+		<element ref="gold"><bounds x="232" y="458" width="76" height="43" /></element>
+		<element ref="blue"><bounds x="234" y="460" width="72" height="39" /></element>
+		<!-- LA70: BIG RISC -->
+		<element ref="lamp_83" name="sout3_p0_m0_b7"><bounds x="235" y="461" width="70" height="37" /></element>
+		<element ref="gold"><bounds x="311" y="458" width="76" height="43" /></element>
+		<element ref="blue"><bounds x="313" y="460" width="72" height="39" /></element>
+		<!-- LA72: BIG RISC -->
+		<element ref="lamp_84" name="sout3_p0_m2_b7"><bounds x="314" y="461" width="70" height="37" /></element>
+		<!-- LAE2: RISIKO -->
+		<element ref="lamp_85" name="sout3_p1_m2_b6"><bounds x="231" y="446" width="60" height="12" /></element>
+		<!-- LAE1: RISIKO -->
+		<element ref="lamp_86" name="sout3_p1_m1_b6"><bounds x="328" y="446" width="60" height="12" /></element>
+		<!-- LAE0: BIG RISC -->
+		<element ref="lamp_87" name="sout3_p1_m0_b6"><bounds x="544" y="698" width="50" height="15" /></element>
+		<!-- LAE4: BIG RISC -->
+		<element ref="lamp_88" name="sout3_p1_m4_b6"><bounds x="28" y="698" width="50" height="15" /></element>
+		<!-- LAD4: SUPER 15 -->
+		<element ref="lamp_89" name="sout3_p1_m4_b5"><bounds x="455" y="691" width="50" height="18" /></element>
+		<!-- LAE3: SUPER 20 -->
+		<element ref="lamp_90" name="sout3_p1_m3_b6"><bounds x="113" y="691" width="50" height="18" /></element>
+		<element ref="gold"><bounds x="129" y="485" width="68" height="133" /></element>
+		<element ref="blue"><bounds x="131" y="487" width="64" height="129" /></element>
+		<element ref="text_91"><bounds x="131" y="489" width="64" height="15" /></element>
+		<element ref="gold"><bounds x="433" y="485" width="68" height="133" /></element>
+		<element ref="blue"><bounds x="435" y="487" width="64" height="129" /></element>
+		<element ref="text_92"><bounds x="435" y="489" width="64" height="15" /></element>
+		<element ref="gold"><bounds x="279" y="574" width="68" height="127" /></element>
+		<element ref="blue"><bounds x="281" y="576" width="64" height="123" /></element>
+		<element ref="text_93"><bounds x="281" y="578" width="64" height="15" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b0"><bounds x="305" y="674" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b0"><bounds x="305" y="654" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b0"><bounds x="305" y="634" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b0"><bounds x="305" y="614" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b6"><bounds x="283" y="591" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b6"><bounds x="326" y="591" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b2"><bounds x="153" y="599" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b2"><bounds x="153" y="579" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b2"><bounds x="153" y="559" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b2"><bounds x="153" y="539" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b2"><bounds x="153" y="519" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b0"><bounds x="457" y="599" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b1"><bounds x="457" y="579" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b1"><bounds x="457" y="559" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b1"><bounds x="457" y="539" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b1"><bounds x="457" y="519" width="10" height="10" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b7"><bounds x="153" y="511" width="9" height="9" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b1"><bounds x="475" y="519" width="9" height="9" /></element>
+		<element ref="gold"><bounds x="208" y="532" width="204" height="28" /></element>
+		<element ref="black"><bounds x="210" y="534" width="200" height="24" /></element>
+		<element ref="vfd" name="vfd0"><bounds x="213" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd1"><bounds x="225" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd2"><bounds x="237" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd3"><bounds x="249" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd4"><bounds x="261" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd5"><bounds x="273" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd6"><bounds x="285" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd7"><bounds x="297" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd8"><bounds x="309" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd9"><bounds x="321" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd10"><bounds x="333" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd11"><bounds x="345" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd12"><bounds x="357" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd13"><bounds x="369" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd14"><bounds x="381" y="537" width="11" height="18" /></element>
+		<element ref="vfd" name="vfd15"><bounds x="393" y="537" width="11" height="18" /></element>
+		<!-- LA03: RISIKO 1:1 -->
+		<element ref="lamp_94" name="sout3_p0_m3_b0" inputtag="SWMUX0" inputmask="0x1"><bounds x="57" y="716" width="73" height="34" /></element>
+		<!-- LA13: START -->
+		<element ref="lamp_95" name="sout3_p0_m3_b1" inputtag="SWMUX0" inputmask="0x2"><bounds x="179" y="716" width="73" height="34" /></element>
+		<!-- LA23: TEILEN -->
+		<element ref="lamp_96" name="sout3_p0_m3_b2" inputtag="SWMUX0" inputmask="0x4"><bounds x="282" y="716" width="73" height="34" /></element>
+		<!-- LA33: STOP -->
+		<element ref="lamp_97" name="sout3_p0_m3_b3" inputtag="SWMUX0" inputmask="0x8"><bounds x="385" y="716" width="73" height="34" /></element>
+		<!-- LA43: RISIKO 1:1 -->
+		<element ref="lamp_98" name="sout3_p0_m3_b4" inputtag="SWMUX0" inputmask="0x10"><bounds x="491" y="716" width="73" height="34" /></element>
+		<!-- LAC0: SPLITTEN -->
+		<element ref="lamp_99" name="sout3_p1_m0_b4"><bounds x="179" y="698" width="73" height="15" /></element>
+		<!-- LAC1: 2 KR -->
+		<element ref="lamp_100" name="sout3_p1_m1_b4"><bounds x="254" y="755" width="31" height="12" /></element>
+		<!-- LAC2: 1 KR -->
+		<element ref="lamp_101" name="sout3_p1_m2_b4"><bounds x="287" y="755" width="31" height="12" /></element>
+		<element ref="led_green" name="sout1_p2_m1_b7"><bounds x="490" y="116" width="5" height="5" /></element>
+		<element ref="led_green" name="sout1_p2_m2_b7"><bounds x="510" y="116" width="5" height="5" /></element>
+		<element ref="led_green" name="sout1_p2_m3_b7"><bounds x="530" y="116" width="5" height="5" /></element>
+		<element ref="led_green" name="sout1_p2_m0_b7"><bounds x="550" y="116" width="5" height="5" /></element>
+		<element ref="text_102"><bounds x="488" y="105" width="78" height="8" /></element>
+		<!-- LA21E: MUENZEINWURF -->
+		<element ref="lamp_103" name="sout2_p0_m1_b2"><bounds x="488" y="126" width="78" height="12" /></element>
+		<!-- LA14: AUSZAHLUNG L -->
+		<element ref="lamp_104" name="sout3_p0_m4_b1" inputtag="SWMUX2" inputmask="0x10"><bounds x="185" y="800" width="110" height="27" /></element>
+		<!-- LA04: AUSZAHLUNG R -->
+		<element ref="lamp_105" name="sout3_p0_m4_b0" inputtag="SWMUX2" inputmask="0x10"><bounds x="325" y="800" width="110" height="27" /></element>
+		<element ref="led_red" name="sout2_p1_m0_b0"><bounds x="155" y="401.5" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m0_b1"><bounds x="163" y="400.7" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m0_b2"><bounds x="171" y="399.9" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m0_b3"><bounds x="179" y="399.1" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m0_b4"><bounds x="187" y="398.3" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m0_b5"><bounds x="195" y="397.5" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m0_b6"><bounds x="203" y="396.7" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m0_b7"><bounds x="211" y="395.9" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m1_b0"><bounds x="219" y="395.1" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m1_b1"><bounds x="227" y="394.3" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m1_b2"><bounds x="235" y="393.5" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m1_b3"><bounds x="243" y="392.7" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m1_b4"><bounds x="251" y="391.9" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m1_b5"><bounds x="259" y="391.1" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m1_b6"><bounds x="267" y="390.3" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m1_b7"><bounds x="275" y="389.5" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m2_b0"><bounds x="283" y="388.7" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m2_b1"><bounds x="291" y="387.9" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m2_b2"><bounds x="299" y="387.1" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m2_b3"><bounds x="307" y="386.3" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m2_b4"><bounds x="315" y="386.5" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m2_b5"><bounds x="323" y="387.3" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m2_b6"><bounds x="331" y="388.1" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p1_m2_b7"><bounds x="339" y="388.9" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m3_b0"><bounds x="347" y="389.7" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m3_b1"><bounds x="355" y="390.5" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m3_b2"><bounds x="363" y="391.3" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m3_b3"><bounds x="371" y="392.1" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m3_b4"><bounds x="379" y="392.9" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m3_b5"><bounds x="387" y="393.7" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m3_b6"><bounds x="395" y="394.5" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m3_b7"><bounds x="403" y="395.3" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m4_b0"><bounds x="411" y="396.1" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m4_b1"><bounds x="419" y="396.9" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m4_b2"><bounds x="427" y="397.7" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m4_b3"><bounds x="435" y="398.5" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m4_b4"><bounds x="443" y="399.3" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p1_m4_b5"><bounds x="451" y="400.1" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m0_b0"><bounds x="208" y="560" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m0_b1"><bounds x="213" y="566.6" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m0_b2"><bounds x="218" y="573.2" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m0_b3"><bounds x="223" y="579.8" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m0_b4"><bounds x="228" y="586.4" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m0_b5"><bounds x="233" y="593" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m0_b6"><bounds x="238" y="599.6" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m0_b7"><bounds x="243" y="606.2" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m1_b0"><bounds x="248" y="612.8" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m1_b1"><bounds x="253" y="619.4" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m1_b2"><bounds x="258" y="626" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m1_b3"><bounds x="263" y="632.6" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m1_b4"><bounds x="268" y="639.2" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m1_b5"><bounds x="273" y="645.8" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m1_b6"><bounds x="278" y="652.4" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m1_b7"><bounds x="283" y="659" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m2_b0"><bounds x="288" y="665.6" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m2_b1"><bounds x="293" y="672.2" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m2_b2"><bounds x="298" y="678.8" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m2_b3"><bounds x="303" y="685.4" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m2_b4"><bounds x="408" y="560" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m2_b5"><bounds x="403" y="566.6" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m2_b6"><bounds x="398" y="573.2" width="5" height="5" /></element>
+		<element ref="led_blue" name="sout2_p3_m2_b7"><bounds x="393" y="579.8" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m3_b0"><bounds x="388" y="586.4" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m3_b1"><bounds x="383" y="593" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m3_b2"><bounds x="378" y="599.6" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m3_b3"><bounds x="373" y="606.2" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m3_b4"><bounds x="368" y="612.8" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m3_b5"><bounds x="363" y="619.4" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m3_b6"><bounds x="358" y="626" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m3_b7"><bounds x="353" y="632.6" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m4_b0"><bounds x="348" y="639.2" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m4_b1"><bounds x="343" y="645.8" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m4_b2"><bounds x="338" y="652.4" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m4_b3"><bounds x="333" y="659" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m4_b4"><bounds x="328" y="665.6" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m4_b5"><bounds x="323" y="672.2" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m4_b6"><bounds x="318" y="678.8" width="5" height="5" /></element>
+		<element ref="led_red" name="sout2_p3_m4_b7"><bounds x="313" y="685.4" width="5" height="5" /></element>
+		<element ref="led_red" name="sout3_p3_m3_b0"><bounds x="180" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout3_p3_m3_b1"><bounds x="185" y="392" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m3_b2"><bounds x="190" y="392" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m3_b3"><bounds x="195" y="392" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m3_b4"><bounds x="200" y="392" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m3_b5"><bounds x="205" y="392" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m3_b6"><bounds x="210" y="392" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m3_b7"><bounds x="215" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout3_p3_m4_b0"><bounds x="243" y="450" width="4" height="4" /></element>
+		<element ref="led_red" name="sout3_p3_m4_b1"><bounds x="248" y="450" width="4" height="4" /></element>
+		<element ref="led_red" name="sout3_p3_m4_b2"><bounds x="253" y="450" width="4" height="4" /></element>
+		<element ref="led_red" name="sout3_p3_m4_b3"><bounds x="258" y="450" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m4_b4"><bounds x="263" y="450" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m4_b5"><bounds x="268" y="450" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m4_b6"><bounds x="273" y="450" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout3_p3_m4_b7"><bounds x="278" y="450" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m3_b0"><bounds x="366" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m3_b1"><bounds x="371" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m3_b2"><bounds x="376" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m3_b3"><bounds x="381" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m3_b4"><bounds x="386" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m3_b5"><bounds x="391" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m3_b6"><bounds x="396" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m3_b7"><bounds x="401" y="392" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m4_b0"><bounds x="431" y="450" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m4_b1"><bounds x="436" y="450" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m4_b2"><bounds x="441" y="450" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m4_b5"><bounds x="456" y="450" width="4" height="4" /></element>
+		<element ref="led_red" name="sout2_p2_m4_b6"><bounds x="461" y="450" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout2_p2_m4_b3"><bounds x="446" y="450" width="4" height="4" /></element>
+		<element ref="led_blue" name="sout2_p2_m4_b4"><bounds x="451" y="450" width="4" height="4" /></element>
+		<element ref="text_106"><bounds x="240" y="835" width="140" height="20" /></element>
+	</view>
+	<element name="text_107"><text string="SOUTMX1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_108"><text string="PORT 0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_109"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_110"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_111"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_112"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_113"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_114"><text string="PORT 1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_115"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_116"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_117"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_118"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_119"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_120"><text string="PORT 2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_121"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_122"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_123"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_124"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_125"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_126"><text string="PORT 3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_127"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_128"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_129"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_130"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_131"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_132"><text string="SOUTMX2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_133"><text string="PORT 0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_134"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_135"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_136"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_137"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_138"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_139"><text string="PORT 1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_140"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_141"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_142"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_143"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_144"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_145"><text string="PORT 2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_146"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_147"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_148"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_149"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_150"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_151"><text string="PORT 3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_152"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_153"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_154"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_155"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_156"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_157"><text string="SOUTMX3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_158"><text string="PORT 0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_159"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_160"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_161"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_162"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_163"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_164"><text string="PORT 1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_165"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_166"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_167"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_168"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_169"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_170"><text string="PORT 2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_171"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_172"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_173"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_174"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_175"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_176"><text string="PORT 3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_177"><text string="0"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_178"><text string="1"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_179"><text string="2"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_180"><text string="3"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<element name="text_181"><text string="4"><color red="1" green="0.9" blue="0.5" /></text></element>
+	<view name="Lamp matrix (columns: Power MUX; rows: bits 0-7)">
+		<element ref="text_107"><bounds x="0" y="0" width="160" height="15" /></element>
+		<element ref="text_108"><bounds x="0" y="20" width="160" height="12" /></element>
+		<element ref="text_109"><bounds x="0" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p0_m0_b0"><bounds x="0" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m0_b1"><bounds x="0" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m0_b2"><bounds x="0" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m0_b3"><bounds x="0" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m0_b4"><bounds x="0" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m0_b5"><bounds x="0" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m0_b6"><bounds x="0" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m0_b7"><bounds x="0" y="89" width="5" height="5" /></element>
+		<element ref="text_110"><bounds x="32" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p0_m1_b0"><bounds x="32" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m1_b1"><bounds x="32" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m1_b2"><bounds x="32" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m1_b3"><bounds x="32" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m1_b4"><bounds x="32" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m1_b5"><bounds x="32" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m1_b6"><bounds x="32" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m1_b7"><bounds x="32" y="89" width="5" height="5" /></element>
+		<element ref="text_111"><bounds x="64" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p0_m2_b0"><bounds x="64" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m2_b1"><bounds x="64" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m2_b2"><bounds x="64" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m2_b3"><bounds x="64" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m2_b4"><bounds x="64" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m2_b5"><bounds x="64" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m2_b6"><bounds x="64" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m2_b7"><bounds x="64" y="89" width="5" height="5" /></element>
+		<element ref="text_112"><bounds x="96" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p0_m3_b0"><bounds x="96" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m3_b1"><bounds x="96" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m3_b2"><bounds x="96" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m3_b3"><bounds x="96" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m3_b4"><bounds x="96" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m3_b5"><bounds x="96" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m3_b6"><bounds x="96" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m3_b7"><bounds x="96" y="89" width="5" height="5" /></element>
+		<element ref="text_113"><bounds x="128" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p0_m4_b0"><bounds x="128" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m4_b1"><bounds x="128" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m4_b2"><bounds x="128" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m4_b3"><bounds x="128" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m4_b4"><bounds x="128" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m4_b5"><bounds x="128" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m4_b6"><bounds x="128" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p0_m4_b7"><bounds x="128" y="89" width="5" height="5" /></element>
+		<element ref="text_114"><bounds x="0" y="120" width="160" height="12" /></element>
+		<element ref="text_115"><bounds x="0" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p1_m0_b0"><bounds x="0" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m0_b1"><bounds x="0" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m0_b2"><bounds x="0" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m0_b3"><bounds x="0" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m0_b4"><bounds x="0" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m0_b5"><bounds x="0" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m0_b6"><bounds x="0" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m0_b7"><bounds x="0" y="189" width="5" height="5" /></element>
+		<element ref="text_116"><bounds x="32" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p1_m1_b0"><bounds x="32" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m1_b1"><bounds x="32" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m1_b2"><bounds x="32" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m1_b3"><bounds x="32" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m1_b4"><bounds x="32" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m1_b5"><bounds x="32" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m1_b6"><bounds x="32" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m1_b7"><bounds x="32" y="189" width="5" height="5" /></element>
+		<element ref="text_117"><bounds x="64" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p1_m2_b0"><bounds x="64" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m2_b1"><bounds x="64" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m2_b2"><bounds x="64" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m2_b3"><bounds x="64" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m2_b4"><bounds x="64" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m2_b5"><bounds x="64" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m2_b6"><bounds x="64" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m2_b7"><bounds x="64" y="189" width="5" height="5" /></element>
+		<element ref="text_118"><bounds x="96" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p1_m3_b0"><bounds x="96" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m3_b1"><bounds x="96" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m3_b2"><bounds x="96" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m3_b3"><bounds x="96" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m3_b4"><bounds x="96" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m3_b5"><bounds x="96" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m3_b6"><bounds x="96" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m3_b7"><bounds x="96" y="189" width="5" height="5" /></element>
+		<element ref="text_119"><bounds x="128" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p1_m4_b0"><bounds x="128" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m4_b1"><bounds x="128" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m4_b2"><bounds x="128" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m4_b3"><bounds x="128" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m4_b4"><bounds x="128" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m4_b5"><bounds x="128" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m4_b6"><bounds x="128" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p1_m4_b7"><bounds x="128" y="189" width="5" height="5" /></element>
+		<element ref="text_120"><bounds x="0" y="220" width="160" height="12" /></element>
+		<element ref="text_121"><bounds x="0" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p2_m0_b0"><bounds x="0" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m0_b1"><bounds x="0" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m0_b2"><bounds x="0" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m0_b3"><bounds x="0" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m0_b4"><bounds x="0" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m0_b5"><bounds x="0" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m0_b6"><bounds x="0" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m0_b7"><bounds x="0" y="289" width="5" height="5" /></element>
+		<element ref="text_122"><bounds x="32" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p2_m1_b0"><bounds x="32" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m1_b1"><bounds x="32" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m1_b2"><bounds x="32" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m1_b3"><bounds x="32" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m1_b4"><bounds x="32" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m1_b5"><bounds x="32" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m1_b6"><bounds x="32" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m1_b7"><bounds x="32" y="289" width="5" height="5" /></element>
+		<element ref="text_123"><bounds x="64" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p2_m2_b0"><bounds x="64" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m2_b1"><bounds x="64" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m2_b2"><bounds x="64" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m2_b3"><bounds x="64" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m2_b4"><bounds x="64" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m2_b5"><bounds x="64" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m2_b6"><bounds x="64" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m2_b7"><bounds x="64" y="289" width="5" height="5" /></element>
+		<element ref="text_124"><bounds x="96" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p2_m3_b0"><bounds x="96" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m3_b1"><bounds x="96" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m3_b2"><bounds x="96" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m3_b3"><bounds x="96" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m3_b4"><bounds x="96" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m3_b5"><bounds x="96" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m3_b6"><bounds x="96" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m3_b7"><bounds x="96" y="289" width="5" height="5" /></element>
+		<element ref="text_125"><bounds x="128" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p2_m4_b0"><bounds x="128" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m4_b1"><bounds x="128" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m4_b2"><bounds x="128" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m4_b3"><bounds x="128" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m4_b4"><bounds x="128" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m4_b5"><bounds x="128" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m4_b6"><bounds x="128" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p2_m4_b7"><bounds x="128" y="289" width="5" height="5" /></element>
+		<element ref="text_126"><bounds x="0" y="320" width="160" height="12" /></element>
+		<element ref="text_127"><bounds x="0" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p3_m0_b0"><bounds x="0" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m0_b1"><bounds x="0" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m0_b2"><bounds x="0" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m0_b3"><bounds x="0" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m0_b4"><bounds x="0" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m0_b5"><bounds x="0" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m0_b6"><bounds x="0" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m0_b7"><bounds x="0" y="389" width="5" height="5" /></element>
+		<element ref="text_128"><bounds x="32" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p3_m1_b0"><bounds x="32" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m1_b1"><bounds x="32" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m1_b2"><bounds x="32" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m1_b3"><bounds x="32" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m1_b4"><bounds x="32" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m1_b5"><bounds x="32" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m1_b6"><bounds x="32" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m1_b7"><bounds x="32" y="389" width="5" height="5" /></element>
+		<element ref="text_129"><bounds x="64" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p3_m2_b0"><bounds x="64" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m2_b1"><bounds x="64" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m2_b2"><bounds x="64" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m2_b3"><bounds x="64" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m2_b4"><bounds x="64" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m2_b5"><bounds x="64" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m2_b6"><bounds x="64" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m2_b7"><bounds x="64" y="389" width="5" height="5" /></element>
+		<element ref="text_130"><bounds x="96" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p3_m3_b0"><bounds x="96" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m3_b1"><bounds x="96" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m3_b2"><bounds x="96" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m3_b3"><bounds x="96" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m3_b4"><bounds x="96" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m3_b5"><bounds x="96" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m3_b6"><bounds x="96" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m3_b7"><bounds x="96" y="389" width="5" height="5" /></element>
+		<element ref="text_131"><bounds x="128" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout1_p3_m4_b0"><bounds x="128" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m4_b1"><bounds x="128" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m4_b2"><bounds x="128" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m4_b3"><bounds x="128" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m4_b4"><bounds x="128" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m4_b5"><bounds x="128" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m4_b6"><bounds x="128" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout1_p3_m4_b7"><bounds x="128" y="389" width="5" height="5" /></element>
+		<element ref="text_132"><bounds x="180" y="0" width="160" height="15" /></element>
+		<element ref="text_133"><bounds x="180" y="20" width="160" height="12" /></element>
+		<element ref="text_134"><bounds x="180" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p0_m0_b0"><bounds x="180" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m0_b1"><bounds x="180" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m0_b2"><bounds x="180" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m0_b3"><bounds x="180" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m0_b4"><bounds x="180" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m0_b5"><bounds x="180" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m0_b6"><bounds x="180" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m0_b7"><bounds x="180" y="89" width="5" height="5" /></element>
+		<element ref="text_135"><bounds x="212" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p0_m1_b0"><bounds x="212" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m1_b1"><bounds x="212" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m1_b2"><bounds x="212" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m1_b3"><bounds x="212" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m1_b4"><bounds x="212" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m1_b5"><bounds x="212" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m1_b6"><bounds x="212" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m1_b7"><bounds x="212" y="89" width="5" height="5" /></element>
+		<element ref="text_136"><bounds x="244" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p0_m2_b0"><bounds x="244" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m2_b1"><bounds x="244" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m2_b2"><bounds x="244" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m2_b3"><bounds x="244" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m2_b4"><bounds x="244" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m2_b5"><bounds x="244" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m2_b6"><bounds x="244" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m2_b7"><bounds x="244" y="89" width="5" height="5" /></element>
+		<element ref="text_137"><bounds x="276" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p0_m3_b0"><bounds x="276" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m3_b1"><bounds x="276" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m3_b2"><bounds x="276" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m3_b3"><bounds x="276" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m3_b4"><bounds x="276" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m3_b5"><bounds x="276" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m3_b6"><bounds x="276" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m3_b7"><bounds x="276" y="89" width="5" height="5" /></element>
+		<element ref="text_138"><bounds x="308" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p0_m4_b0"><bounds x="308" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m4_b1"><bounds x="308" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m4_b2"><bounds x="308" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m4_b3"><bounds x="308" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m4_b4"><bounds x="308" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m4_b5"><bounds x="308" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m4_b6"><bounds x="308" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p0_m4_b7"><bounds x="308" y="89" width="5" height="5" /></element>
+		<element ref="text_139"><bounds x="180" y="120" width="160" height="12" /></element>
+		<element ref="text_140"><bounds x="180" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p1_m0_b0"><bounds x="180" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m0_b1"><bounds x="180" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m0_b2"><bounds x="180" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m0_b3"><bounds x="180" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m0_b4"><bounds x="180" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m0_b5"><bounds x="180" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m0_b6"><bounds x="180" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m0_b7"><bounds x="180" y="189" width="5" height="5" /></element>
+		<element ref="text_141"><bounds x="212" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p1_m1_b0"><bounds x="212" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m1_b1"><bounds x="212" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m1_b2"><bounds x="212" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m1_b3"><bounds x="212" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m1_b4"><bounds x="212" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m1_b5"><bounds x="212" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m1_b6"><bounds x="212" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m1_b7"><bounds x="212" y="189" width="5" height="5" /></element>
+		<element ref="text_142"><bounds x="244" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p1_m2_b0"><bounds x="244" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m2_b1"><bounds x="244" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m2_b2"><bounds x="244" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m2_b3"><bounds x="244" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m2_b4"><bounds x="244" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m2_b5"><bounds x="244" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m2_b6"><bounds x="244" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m2_b7"><bounds x="244" y="189" width="5" height="5" /></element>
+		<element ref="text_143"><bounds x="276" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p1_m3_b0"><bounds x="276" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m3_b1"><bounds x="276" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m3_b2"><bounds x="276" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m3_b3"><bounds x="276" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m3_b4"><bounds x="276" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m3_b5"><bounds x="276" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m3_b6"><bounds x="276" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m3_b7"><bounds x="276" y="189" width="5" height="5" /></element>
+		<element ref="text_144"><bounds x="308" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p1_m4_b0"><bounds x="308" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m4_b1"><bounds x="308" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m4_b2"><bounds x="308" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m4_b3"><bounds x="308" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m4_b4"><bounds x="308" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m4_b5"><bounds x="308" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m4_b6"><bounds x="308" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p1_m4_b7"><bounds x="308" y="189" width="5" height="5" /></element>
+		<element ref="text_145"><bounds x="180" y="220" width="160" height="12" /></element>
+		<element ref="text_146"><bounds x="180" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p2_m0_b0"><bounds x="180" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m0_b1"><bounds x="180" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m0_b2"><bounds x="180" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m0_b3"><bounds x="180" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m0_b4"><bounds x="180" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m0_b5"><bounds x="180" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m0_b6"><bounds x="180" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m0_b7"><bounds x="180" y="289" width="5" height="5" /></element>
+		<element ref="text_147"><bounds x="212" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p2_m1_b0"><bounds x="212" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m1_b1"><bounds x="212" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m1_b2"><bounds x="212" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m1_b3"><bounds x="212" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m1_b4"><bounds x="212" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m1_b5"><bounds x="212" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m1_b6"><bounds x="212" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m1_b7"><bounds x="212" y="289" width="5" height="5" /></element>
+		<element ref="text_148"><bounds x="244" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p2_m2_b0"><bounds x="244" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m2_b1"><bounds x="244" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m2_b2"><bounds x="244" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m2_b3"><bounds x="244" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m2_b4"><bounds x="244" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m2_b5"><bounds x="244" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m2_b6"><bounds x="244" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m2_b7"><bounds x="244" y="289" width="5" height="5" /></element>
+		<element ref="text_149"><bounds x="276" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p2_m3_b0"><bounds x="276" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m3_b1"><bounds x="276" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m3_b2"><bounds x="276" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m3_b3"><bounds x="276" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m3_b4"><bounds x="276" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m3_b5"><bounds x="276" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m3_b6"><bounds x="276" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m3_b7"><bounds x="276" y="289" width="5" height="5" /></element>
+		<element ref="text_150"><bounds x="308" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p2_m4_b0"><bounds x="308" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m4_b1"><bounds x="308" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m4_b2"><bounds x="308" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m4_b3"><bounds x="308" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m4_b4"><bounds x="308" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m4_b5"><bounds x="308" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m4_b6"><bounds x="308" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p2_m4_b7"><bounds x="308" y="289" width="5" height="5" /></element>
+		<element ref="text_151"><bounds x="180" y="320" width="160" height="12" /></element>
+		<element ref="text_152"><bounds x="180" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p3_m0_b0"><bounds x="180" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m0_b1"><bounds x="180" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m0_b2"><bounds x="180" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m0_b3"><bounds x="180" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m0_b4"><bounds x="180" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m0_b5"><bounds x="180" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m0_b6"><bounds x="180" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m0_b7"><bounds x="180" y="389" width="5" height="5" /></element>
+		<element ref="text_153"><bounds x="212" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p3_m1_b0"><bounds x="212" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m1_b1"><bounds x="212" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m1_b2"><bounds x="212" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m1_b3"><bounds x="212" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m1_b4"><bounds x="212" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m1_b5"><bounds x="212" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m1_b6"><bounds x="212" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m1_b7"><bounds x="212" y="389" width="5" height="5" /></element>
+		<element ref="text_154"><bounds x="244" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p3_m2_b0"><bounds x="244" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m2_b1"><bounds x="244" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m2_b2"><bounds x="244" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m2_b3"><bounds x="244" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m2_b4"><bounds x="244" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m2_b5"><bounds x="244" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m2_b6"><bounds x="244" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m2_b7"><bounds x="244" y="389" width="5" height="5" /></element>
+		<element ref="text_155"><bounds x="276" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p3_m3_b0"><bounds x="276" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m3_b1"><bounds x="276" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m3_b2"><bounds x="276" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m3_b3"><bounds x="276" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m3_b4"><bounds x="276" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m3_b5"><bounds x="276" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m3_b6"><bounds x="276" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m3_b7"><bounds x="276" y="389" width="5" height="5" /></element>
+		<element ref="text_156"><bounds x="308" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout2_p3_m4_b0"><bounds x="308" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m4_b1"><bounds x="308" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m4_b2"><bounds x="308" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m4_b3"><bounds x="308" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m4_b4"><bounds x="308" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m4_b5"><bounds x="308" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m4_b6"><bounds x="308" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout2_p3_m4_b7"><bounds x="308" y="389" width="5" height="5" /></element>
+		<element ref="text_157"><bounds x="360" y="0" width="160" height="15" /></element>
+		<element ref="text_158"><bounds x="360" y="20" width="160" height="12" /></element>
+		<element ref="text_159"><bounds x="360" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b0"><bounds x="360" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b1"><bounds x="360" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b2"><bounds x="360" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b3"><bounds x="360" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b4"><bounds x="360" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b5"><bounds x="360" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b6"><bounds x="360" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m0_b7"><bounds x="360" y="89" width="5" height="5" /></element>
+		<element ref="text_160"><bounds x="392" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b0"><bounds x="392" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b1"><bounds x="392" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b2"><bounds x="392" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b3"><bounds x="392" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b4"><bounds x="392" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b5"><bounds x="392" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b6"><bounds x="392" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m1_b7"><bounds x="392" y="89" width="5" height="5" /></element>
+		<element ref="text_161"><bounds x="424" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p0_m2_b0"><bounds x="424" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m2_b1"><bounds x="424" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m2_b2"><bounds x="424" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m2_b3"><bounds x="424" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m2_b4"><bounds x="424" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m2_b5"><bounds x="424" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m2_b6"><bounds x="424" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m2_b7"><bounds x="424" y="89" width="5" height="5" /></element>
+		<element ref="text_162"><bounds x="456" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b0"><bounds x="456" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b1"><bounds x="456" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b2"><bounds x="456" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b3"><bounds x="456" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b4"><bounds x="456" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b5"><bounds x="456" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b6"><bounds x="456" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m3_b7"><bounds x="456" y="89" width="5" height="5" /></element>
+		<element ref="text_163"><bounds x="488" y="34" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p0_m4_b0"><bounds x="488" y="47" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m4_b1"><bounds x="488" y="53" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m4_b2"><bounds x="488" y="59" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m4_b3"><bounds x="488" y="65" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m4_b4"><bounds x="488" y="71" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m4_b5"><bounds x="488" y="77" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m4_b6"><bounds x="488" y="83" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p0_m4_b7"><bounds x="488" y="89" width="5" height="5" /></element>
+		<element ref="text_164"><bounds x="360" y="120" width="160" height="12" /></element>
+		<element ref="text_165"><bounds x="360" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b0"><bounds x="360" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b1"><bounds x="360" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b2"><bounds x="360" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b3"><bounds x="360" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b4"><bounds x="360" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b5"><bounds x="360" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b6"><bounds x="360" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m0_b7"><bounds x="360" y="189" width="5" height="5" /></element>
+		<element ref="text_166"><bounds x="392" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b0"><bounds x="392" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b1"><bounds x="392" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b2"><bounds x="392" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b3"><bounds x="392" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b4"><bounds x="392" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b5"><bounds x="392" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b6"><bounds x="392" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m1_b7"><bounds x="392" y="189" width="5" height="5" /></element>
+		<element ref="text_167"><bounds x="424" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b0"><bounds x="424" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b1"><bounds x="424" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b2"><bounds x="424" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b3"><bounds x="424" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b4"><bounds x="424" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b5"><bounds x="424" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b6"><bounds x="424" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m2_b7"><bounds x="424" y="189" width="5" height="5" /></element>
+		<element ref="text_168"><bounds x="456" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b0"><bounds x="456" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b1"><bounds x="456" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b2"><bounds x="456" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b3"><bounds x="456" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b4"><bounds x="456" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b5"><bounds x="456" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b6"><bounds x="456" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m3_b7"><bounds x="456" y="189" width="5" height="5" /></element>
+		<element ref="text_169"><bounds x="488" y="134" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b0"><bounds x="488" y="147" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b1"><bounds x="488" y="153" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b2"><bounds x="488" y="159" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b3"><bounds x="488" y="165" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b4"><bounds x="488" y="171" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b5"><bounds x="488" y="177" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b6"><bounds x="488" y="183" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p1_m4_b7"><bounds x="488" y="189" width="5" height="5" /></element>
+		<element ref="text_170"><bounds x="360" y="220" width="160" height="12" /></element>
+		<element ref="text_171"><bounds x="360" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p2_m0_b0"><bounds x="360" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m0_b1"><bounds x="360" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m0_b2"><bounds x="360" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m0_b3"><bounds x="360" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m0_b4"><bounds x="360" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m0_b5"><bounds x="360" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m0_b6"><bounds x="360" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m0_b7"><bounds x="360" y="289" width="5" height="5" /></element>
+		<element ref="text_172"><bounds x="392" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p2_m1_b0"><bounds x="392" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m1_b1"><bounds x="392" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m1_b2"><bounds x="392" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m1_b3"><bounds x="392" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m1_b4"><bounds x="392" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m1_b5"><bounds x="392" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m1_b6"><bounds x="392" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m1_b7"><bounds x="392" y="289" width="5" height="5" /></element>
+		<element ref="text_173"><bounds x="424" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p2_m2_b0"><bounds x="424" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m2_b1"><bounds x="424" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m2_b2"><bounds x="424" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m2_b3"><bounds x="424" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m2_b4"><bounds x="424" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m2_b5"><bounds x="424" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m2_b6"><bounds x="424" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m2_b7"><bounds x="424" y="289" width="5" height="5" /></element>
+		<element ref="text_174"><bounds x="456" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p2_m3_b0"><bounds x="456" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m3_b1"><bounds x="456" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m3_b2"><bounds x="456" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m3_b3"><bounds x="456" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m3_b4"><bounds x="456" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m3_b5"><bounds x="456" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m3_b6"><bounds x="456" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m3_b7"><bounds x="456" y="289" width="5" height="5" /></element>
+		<element ref="text_175"><bounds x="488" y="234" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p2_m4_b0"><bounds x="488" y="247" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m4_b1"><bounds x="488" y="253" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m4_b2"><bounds x="488" y="259" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m4_b3"><bounds x="488" y="265" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m4_b4"><bounds x="488" y="271" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m4_b5"><bounds x="488" y="277" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m4_b6"><bounds x="488" y="283" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p2_m4_b7"><bounds x="488" y="289" width="5" height="5" /></element>
+		<element ref="text_176"><bounds x="360" y="320" width="160" height="12" /></element>
+		<element ref="text_177"><bounds x="360" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p3_m0_b0"><bounds x="360" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m0_b1"><bounds x="360" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m0_b2"><bounds x="360" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m0_b3"><bounds x="360" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m0_b4"><bounds x="360" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m0_b5"><bounds x="360" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m0_b6"><bounds x="360" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m0_b7"><bounds x="360" y="389" width="5" height="5" /></element>
+		<element ref="text_178"><bounds x="392" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p3_m1_b0"><bounds x="392" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m1_b1"><bounds x="392" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m1_b2"><bounds x="392" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m1_b3"><bounds x="392" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m1_b4"><bounds x="392" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m1_b5"><bounds x="392" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m1_b6"><bounds x="392" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m1_b7"><bounds x="392" y="389" width="5" height="5" /></element>
+		<element ref="text_179"><bounds x="424" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p3_m2_b0"><bounds x="424" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m2_b1"><bounds x="424" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m2_b2"><bounds x="424" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m2_b3"><bounds x="424" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m2_b4"><bounds x="424" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m2_b5"><bounds x="424" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m2_b6"><bounds x="424" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m2_b7"><bounds x="424" y="389" width="5" height="5" /></element>
+		<element ref="text_180"><bounds x="456" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p3_m3_b0"><bounds x="456" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m3_b1"><bounds x="456" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m3_b2"><bounds x="456" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m3_b3"><bounds x="456" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m3_b4"><bounds x="456" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m3_b5"><bounds x="456" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m3_b6"><bounds x="456" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m3_b7"><bounds x="456" y="389" width="5" height="5" /></element>
+		<element ref="text_181"><bounds x="488" y="334" width="24" height="10" /></element>
+		<element ref="led_gold" name="sout3_p3_m4_b0"><bounds x="488" y="347" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m4_b1"><bounds x="488" y="353" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m4_b2"><bounds x="488" y="359" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m4_b3"><bounds x="488" y="365" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m4_b4"><bounds x="488" y="371" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m4_b5"><bounds x="488" y="377" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m4_b6"><bounds x="488" y="383" width="5" height="5" /></element>
+		<element ref="led_gold" name="sout3_p3_m4_b7"><bounds x="488" y="389" width="5" height="5" /></element>
+	</view>
+</mamelayout>
