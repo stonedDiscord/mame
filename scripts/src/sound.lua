@@ -12,6 +12,8 @@
 files {
 	MAME_DIR .. "src/devices/sound/bbd.cpp",
 	MAME_DIR .. "src/devices/sound/bbd.h",
+	MAME_DIR .. "src/devices/sound/drivesound.cpp",
+	MAME_DIR .. "src/devices/sound/drivesound.h",
 	MAME_DIR .. "src/devices/sound/flt_biquad.cpp",
 	MAME_DIR .. "src/devices/sound/flt_biquad.h",
 	MAME_DIR .. "src/devices/sound/flt_vol.cpp",
@@ -71,6 +73,20 @@ if SOUNDS["CDDA"] then
 	files {
 		MAME_DIR .. "src/devices/sound/cdda.cpp",
 		MAME_DIR .. "src/devices/sound/cdda.h",
+	}
+end
+
+
+
+---------------------------------------------------
+-- Zero-crossing comparator for line-level audio
+--@src/devices/sound/zcross.h,SOUNDS["ZCROSS"] = true
+---------------------------------------------------
+
+if SOUNDS["ZCROSS"] then
+	files {
+		MAME_DIR .. "src/devices/sound/zcross.cpp",
+		MAME_DIR .. "src/devices/sound/zcross.h",
 	}
 end
 
@@ -1025,15 +1041,6 @@ if SOUNDS["SID6581"]~=null or SOUNDS["SID8580"] then
 	files {
 		MAME_DIR .. "src/devices/sound/mos6581.cpp",
 		MAME_DIR .. "src/devices/sound/mos6581.h",
-		MAME_DIR .. "src/devices/sound/sid.cpp",
-		MAME_DIR .. "src/devices/sound/sid.h",
-		MAME_DIR .. "src/devices/sound/sidenvel.cpp",
-		MAME_DIR .. "src/devices/sound/sidenvel.h",
-		MAME_DIR .. "src/devices/sound/sidvoice.cpp",
-		MAME_DIR .. "src/devices/sound/sidvoice.h",
-		MAME_DIR .. "src/devices/sound/side6581.h",
-		MAME_DIR .. "src/devices/sound/sidw6581.h",
-		MAME_DIR .. "src/devices/sound/sidw8580.h",
 	}
 end
 
@@ -1386,6 +1393,18 @@ end
 
 
 ---------------------------------------------------
+-- Yamaha YM3413 LDSP
+--@src/devices/sound/ym3413.h,SOUNDS["YM3413"] = true
+---------------------------------------------------
+
+if SOUNDS["YM3413"] then
+	files {
+		MAME_DIR .. "src/devices/sound/ym3413.cpp",
+		MAME_DIR .. "src/devices/sound/ym3413.h",
+	}
+end
+
+---------------------------------------------------
 -- Yamaha FM synthesizers
 --@src/devices/sound/ym2154.h,SOUNDS["YM2154"] = true
 --@src/devices/sound/ymopm.h,SOUNDS["YM2151"] = true
@@ -1533,6 +1552,18 @@ if SOUNDS["MPEG_AUDIO"] then
 end
 
 ---------------------------------------------------
+-- Texas Instruments TMS320AV110 MPEG audio decoder
+--@src/devices/sound/tms320av110.h,SOUNDS["TMS320AV110"] = true
+---------------------------------------------------
+
+if SOUNDS["TMS320AV110"] then
+	files {
+		MAME_DIR .. "src/devices/sound/tms320av110.cpp",
+		MAME_DIR .. "src/devices/sound/tms320av110.h",
+	}
+end
+
+---------------------------------------------------
 -- ZOOM ZSG-2
 --@src/devices/sound/zsg2.h,SOUNDS["ZSG2"] = true
 ---------------------------------------------------
@@ -1628,6 +1659,18 @@ if SOUNDS["TA7630"] then
 end
 
 ---------------------------------------------------
+-- STmicroelectronics TDA7433
+--@src/devices/sound/tda7433.h,SOUNDS["TDA7433"] = true
+---------------------------------------------------
+
+if SOUNDS["TDA7433"] then
+	files {
+		MAME_DIR .. "src/devices/sound/tda7433.cpp",
+		MAME_DIR .. "src/devices/sound/tda7433.h",
+	}
+end
+
+---------------------------------------------------
 -- Sanyo LC7535
 --@src/devices/sound/lc7535.h,SOUNDS["LC7535"] = true
 ---------------------------------------------------
@@ -1700,6 +1743,18 @@ if SOUNDS["UPD934G"] then
 end
 
 ---------------------------------------------------
+--
+--@src/devices/sound/gsc38gg307.h,SOUNDS["GSC38GG307"] = true
+--------------------------------------------------
+
+if SOUNDS["GSC38GG307"] then
+	files {
+		MAME_DIR .. "src/devices/sound/gsc38gg307.cpp",
+		MAME_DIR .. "src/devices/sound/gsc38gg307.h",
+	}
+end
+
+--------------------------------------------------
 --
 --@src/devices/sound/iopspu.h,SOUNDS["IOPSPU"] = true
 ---------------------------------------------------
@@ -1940,6 +1995,18 @@ if SOUNDS["GT155"] then
 end
 
 ---------------------------------------------------
+-- Nintendo DS Sound
+--@src/devices/sound/nds_sound.h,SOUNDS["NDS_SOUND"] = true
+---------------------------------------------------
+
+if SOUNDS["NDS_SOUND"] then
+	files {
+		MAME_DIR .. "src/devices/sound/nds_sound.cpp",
+		MAME_DIR .. "src/devices/sound/nds_sound.h",
+	}
+end
+
+---------------------------------------------------
 -- Nintendo MMC5 Sound
 --@src/devices/sound/mmc5.h,SOUNDS["MMC5"] = true
 ---------------------------------------------------
@@ -1984,5 +2051,17 @@ if SOUNDS["L6009"] then
 	files {
 		MAME_DIR .. "src/devices/sound/l6009.cpp",
 		MAME_DIR .. "src/devices/sound/l6009.h",
+	}
+end
+
+---------------------------------------------------
+--
+--@src/devices/sound/gt913.h,SOUNDS["GT913"] = true
+---------------------------------------------------
+
+if SOUNDS["GT913"] then
+	files {
+		MAME_DIR .. "src/devices/sound/gt913.cpp",
+		MAME_DIR .. "src/devices/sound/gt913.h",
 	}
 end

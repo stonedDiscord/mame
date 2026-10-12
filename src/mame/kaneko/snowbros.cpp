@@ -1941,7 +1941,7 @@ void snowbros_state::snowbros_base(machine_config &config)
 	m_soundcpu->set_addrmap(AS_IO, &snowbros_pandora_state::sound_io_map);
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(57.5); /* ~57.5 - confirmed */
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(32*8, 262);
@@ -2049,7 +2049,7 @@ void snowbros_state::honeydol(machine_config &config)
 	m_soundcpu->set_addrmap(AS_IO, &snowbros_state::honeydol_sound_io_map);
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(57.5);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	m_screen->set_size(32*8, 262);
@@ -2088,7 +2088,7 @@ void snowbros_state::twinadv(machine_config &config)
 	m_soundcpu->set_vblank_int("screen", FUNC(snowbros_state::irq0_line_hold));
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(57.5);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	m_screen->set_size(32*8, 262);
@@ -2169,7 +2169,7 @@ void snowbros3_state::snowbro3(machine_config &config) /* PCB has 16MHz & 12MHz 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(32*8, 32*8);
@@ -2198,7 +2198,7 @@ void snowbros_pandora_state::yutnori(machine_config &config)
 //  WATCHDOG_TIMER(config, "watchdog"); // maybe
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(57.5);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(32*8, 262);
@@ -3106,8 +3106,9 @@ ROM_START( yutnori )
 	ROM_LOAD16_BYTE( "sys_d0-d7",    0x000001, 0x20000, CRC(d5c853da) SHA1(578f29c3a307f82fcaa23a7fe2931c0a673e777e) )
 	ROM_LOAD16_BYTE( "sys_d8-d15",   0x000000, 0x20000, CRC(bf108119) SHA1(e64f64ddb577d6750cbc3a6c9d8d2ec4482cafe0) )
 
-	ROM_REGION( 0x4010, "mcu", 0 )    /* PIC code */
-	ROM_LOAD( "pic16c64a-04-p",    0x000000, 0x4010, BAD_DUMP CRC(46fd3671) SHA1(54cf7a38f7743cdad73a2741183b2720ee42e6c8) ) // dump seems to be 99% empty, protected, only configuration bytes dumped?
+	// no code, just the user ids and configuration word
+	ROM_REGION16_LE( 0x4010, "mcu", 0 )
+	ROM_LOAD( "pic16c64a-04-p", 0x0000, 0x4010, BAD_DUMP CRC(46fd3671) SHA1(54cf7a38f7743cdad73a2741183b2720ee42e6c8) )
 
 	ROM_REGION( 0x120000, "gfx1", ROMREGION_ERASE00 )
 	ROM_LOAD( "graphics_rom_1",    0x000000, 0x80000, CRC(d4881b49) SHA1(e169b7eca48a0bd66ad55fe21197a4bb491198bb) )
@@ -3262,7 +3263,7 @@ void semicom_state::init_cookbib3()
 void semicom_state::init_sutjarod()
 {
 	u16 *rom = (u16*)memregion("maincpu")->base();
-	// patch RAM decrypt key in ROM to be the same as cookbib3
+	// HACK: patch RAM decrypt key in ROM to be the same as cookbib3
 	rom[0xb994 / 2] = 0x434b;
 	rom[0xb996 / 2] = 0x3345;
 
@@ -3273,7 +3274,7 @@ void semicom_state::init_sutjarod()
 
 void semicom_state::init_gwasu()
 {
-	// same reason for patch as init_sutjarod
+	// HACK: same reason for patch as init_sutjarod
 	u16 *rom = (u16*)memregion("maincpu")->base();
 	rom[0xfda8 / 2] = 0x434b;
 	rom[0xfdaa / 2] = 0x3345;

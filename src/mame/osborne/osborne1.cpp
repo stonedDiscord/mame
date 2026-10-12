@@ -631,7 +631,7 @@ void osborne1sp_state::machine_reset()
 template <int Width, unsigned Scale>
 inline void osborne1_state::draw_rows(uint16_t col, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
-	for (int y = cliprect.min_y; cliprect.max_y >= y; ++y)
+	for (int y = cliprect.top(); cliprect.bottom() >= y; ++y)
 	{
 		// Vertical scroll is latched at the start of the visible area
 		if (0 == y)
@@ -976,7 +976,7 @@ void osborne1_state::osborne1_base(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &osborne1_state::osborne1_io);
 	m_maincpu->irqack_cb().set(FUNC(osborne1_state::irqack_w));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER, rgb_t::green());
+	SCREEN(config, m_screen).set_color(rgb_t::green());
 
 	GFXDECODE(config, m_gfxdecode, "palette", gfx_osborne1);
 	PALETTE(config, "palette", palette_device::MONOCHROME_HIGHLIGHT);

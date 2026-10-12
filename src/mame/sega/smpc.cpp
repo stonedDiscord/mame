@@ -146,6 +146,7 @@ void smpc_hle_device::device_start()
 	save_item(NAME(m_prev_cdoff));
 
 	m_cmd_timer = timer_alloc(FUNC(smpc_hle_device::handle_command), this);
+	m_syshalt_timer = timer_alloc(FUNC(smpc_hle_device::system_halt), this);
 	m_rtc_timer = timer_alloc(FUNC(smpc_hle_device::handle_rtc_increment), this);
 	m_intback_timer = timer_alloc(FUNC(smpc_hle_device::intback_continue_request), this);
 	m_sndres_timer = timer_alloc(FUNC(smpc_hle_device::sound_reset), this);
@@ -170,6 +171,7 @@ void smpc_hle_device::device_reset()
 	memset(m_oreg, 0, 32);
 
 	m_cmd_timer->reset();
+	m_syshalt_timer->reset();
 	m_intback_timer->reset();
 	m_sndres_timer->reset();
 	m_comreg = 0xff;
@@ -256,7 +258,7 @@ uint8_t smpc_hle_device::status_flag_r()
 
 void smpc_hle_device::status_flag_w(uint8_t data)
 {
-	m_sf = BIT(data,0);
+	m_sf = BIT(data, 0);
 	m_cd_sf = false;
 }
 
@@ -370,24 +372,28 @@ void smpc_hle_device::command_register_w(uint8_t data)
 //  don't send a command if previous one is still in progress
 //  ST-V tries to send a sysres command if OREG31 doesn't return the ack command
 	if(m_command_in_progress == true)
+	{
+		logerror("SMPC: double issuing %02x!\n", data);
 		return;
+	}
 
 	m_comreg = data & 0x1f;
 
 	if(data & 0xe0)
-		logerror("%s COMREG = %02x!?\n",this->tag(),data);
+		logerror("SMPC: COMREG = %02x!?\n", data);
 
 	m_command_in_progress = true;
 	switch(m_comreg)
 	{
 		// gnine97/gnine98 and spinoffs wants two consecutive SSHON to resolve as a NOP
+		// 3dbball* is more finicky: uses two SSHOFF commands after (skipping) FMV
 		case 0x02:
 		case 0x03:
-			m_cmd_timer->adjust(attotime::from_usec(m_prev_sshoff == (m_comreg & 1) ? 0 : m_cmd_table_timing[m_comreg]));
+			m_cmd_timer->adjust(attotime::from_usec(m_prev_sshoff == (m_comreg & 1) ? 1 : m_cmd_table_timing[m_comreg]));
 			break;
 		case 0x06:
 		case 0x07:
-			m_cmd_timer->adjust(attotime::from_usec(m_prev_sndoff == (m_comreg & 1) ? 0 : m_cmd_table_timing[m_comreg]));
+			m_cmd_timer->adjust(attotime::from_usec(m_prev_sndoff == (m_comreg & 1) ? 1 : m_cmd_table_timing[m_comreg]));
 			break;
 		case 0x0e:
 		case 0x0f:
@@ -395,11 +401,16 @@ void smpc_hle_device::command_register_w(uint8_t data)
 			// This takes the equivalent of 3~4 frame cycles.
 			// (cfr. diagram on page 3 of SMPC manual)
 			// - shanhigw/sokyugrt/prikura (would otherwise set 2 credits at startup)
-			m_syshalt(1);
+			// The halt is deferred so that the BIOS clock change routine gets to execute the SLEEP
+			// that follows the command write, putting the Master SH2 in standby mode (which
+			// initializes its FRT, cfr. SH7604 hardware manual table 14.3).
+			// - madden98u otherwise dispatches to the (switched off) Slave SH2 after the FMV
+			//   from a stale input capture flag and hangs.
+			m_syshalt_timer->adjust(attotime::from_usec(10));
 
 			m_ckchg_tick = 5;
 
-			m_cmd_timer->adjust(m_screen->time_until_pos(m_screen->visible_area().max_y, 0));
+			m_cmd_timer->adjust(m_screen->time_until_pos(m_screen->visible_area().bottom(), 0));
 
 			break;
 		case 0x10:
@@ -433,6 +444,11 @@ void smpc_hle_device::command_register_w(uint8_t data)
 	}
 }
 
+
+TIMER_CALLBACK_MEMBER(smpc_hle_device::system_halt)
+{
+	m_syshalt(1);
+}
 
 TIMER_CALLBACK_MEMBER(smpc_hle_device::handle_command)
 {
@@ -512,7 +528,7 @@ TIMER_CALLBACK_MEMBER(smpc_hle_device::handle_command)
 			}
 
 			if (m_ckchg_tick >= 1)
-				m_cmd_timer->adjust(m_screen->time_until_pos(m_screen->visible_area().max_y, 0));
+				m_cmd_timer->adjust(m_screen->time_until_pos(m_screen->visible_area().bottom(), 0));
 			else
 			{
 				// send an unconditional NMI to Master SH2
@@ -570,6 +586,7 @@ TIMER_CALLBACK_MEMBER(smpc_hle_device::handle_command)
 			return;
 	}
 
+//	LOGMASKED(LOG_COMMAND, "acknowledge for command %02x\n", m_comreg);
 	m_command_in_progress = false;
 	m_oreg[31] = m_comreg;
 	sf_ack(false);

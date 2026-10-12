@@ -251,6 +251,7 @@ void stella8085_state::io_map(address_map &map)
 	map(0x70, 0x70).w(FUNC(stella8085_state::io70));
 	map(0x71, 0x71).w(FUNC(stella8085_state::io71));
 	map(0x72, 0x72).w(FUNC(stella8085_state::sounddev));
+	map(0x73, 0x73).nopw(); // programs contain vestigial code to configure the PPI used on earlier boards
 	// map(0x80, 0x8f) //Y8 ICC5 empty socket
 	map(0x90, 0x9f).rw(FUNC(stella8085_state::io9r),FUNC(stella8085_state::io9w)); //Y9 wired to rtc circuits but somehow memory mapped in hardware
 }
@@ -950,7 +951,26 @@ void stella8085_state::mainboard(machine_config &config, const XTAL &clock)
 	m_rs232->rxd_handler().set(m_uart, FUNC(i8256_device::write_rxd));
 	// CTS is gnd
 
-	I8279(config, m_kdc, clock / 2);
+	RTC62421(config, "rtc", 32.768_kHz_XTAL);
+
+	SPEAKER(config, "mono").front_center();
+	BEEP(config, m_beep)
+		.add_route(ALL_OUTPUTS, "mono", 0.50);
+}
+
+void stella8085_state::doppelpot(machine_config &config)
+{
+	I8085A(config, m_maincpu, 6.144_MHz_XTAL);
+	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
+	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
+
+	I8256(config, m_uart, 6.144_MHz_XTAL / 2);
+	m_uart->int_callback().set_inputline(m_maincpu, I8085_INTR_LINE);
+	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
+	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
+	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
+
+	I8279(config, m_kdc, 6.144_MHz_XTAL / 2);
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
 	m_kdc->out_bd_callback().set(FUNC(stella8085_state::kbd_bd_w));
 	m_kdc->out_disp_callback().set(FUNC(stella8085_state::disp_w));
@@ -1002,6 +1022,7 @@ void stella8085_state::excellent(machine_config &config)
 	ppi.out_pc_callback().set(FUNC(stella8085_state::sounddev));
 
 	doppelpot(config);
+
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_4040_map);
 	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_4040_map);
 

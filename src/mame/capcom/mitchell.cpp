@@ -119,7 +119,7 @@ mw-9.rom = ST M27C1001 / GFX
 
 #include "emu.h"
 
-#include "kabuki.h"  // needed for decoding functions only
+#include "kabuki.h" // needed for decoding functions only
 
 #include "cpu/z80/z80.h"
 #include "machine/74157.h"
@@ -1796,7 +1796,7 @@ void mitchell_state::mgakuen(machine_config &config)
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(64*8, 32*8);
@@ -1820,7 +1820,7 @@ void mitchell_state::mgakuen(machine_config &config)
 void mitchell_state::pang(machine_config &config)
 {
 	// basic machine hardware
-	Z80(config, m_maincpu, XTAL(16'000'000 )/ 2); // verified on PCB
+	Z80(config, m_maincpu, XTAL(16'000'000) / 2); // verified on PCB
 	m_maincpu->set_addrmap(AS_PROGRAM, &mitchell_state::mitchell_map);
 	m_maincpu->set_addrmap(AS_IO, &mitchell_state::mitchell_io_map);
 	m_maincpu->set_addrmap(AS_OPCODES, &mitchell_state::decrypted_opcodes_map);
@@ -1829,7 +1829,7 @@ void mitchell_state::pang(machine_config &config)
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(57.42);   // verified on PCB
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(64*8, 32*8);
@@ -1950,7 +1950,7 @@ void mstworld_state::mstworld(machine_config &config)
 	m_audiocpu->set_addrmap(AS_PROGRAM, &mstworld_state::sound_map);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(64*8, 32*8);
@@ -2009,7 +2009,7 @@ void pkladiesbl_state::pkladiesbl(machine_config &config)
 	EEPROM_93C46_16BIT(config, m_eeprom);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(59.09); // verified on PCB
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(64*8, 32*8);
@@ -2443,7 +2443,10 @@ ROM_START( pangbold )
 	ROM_LOAD( "1.1a",      0x00000, 0x10000, CRC(b6463907) SHA1(b79e0dca10c639b7f0ea9cbc49300b80708d46fa) )
 ROM_END
 
-// Similar to "pangbold" but with data on a battery backed 256Kbit RAM (undumped), on a small sub-board with the Z84 and a PLD (also undumped, was protected).
+/* Similar to "pangbold" but with data on a battery-backed 256Kbit RAM (undumped), on a small sub-board with
+   the Z84 and a PAL16L8ACN (also undumped, which was protected). The three chips are inside a black plastic
+   case protected by a photoresistor (as an anti-tamper measure). If any light enters the plastic box, the
+   RAM gets erased. */
 ROM_START( pangbp )
 	ROM_REGION( 2*0x50000, "maincpu", 0 )
 	ROM_LOAD( "pangbp_nvr.bin", 0x00000, 0x08000, NO_DUMP ) // Opcodes + data (?) on battery backed RAM (the battery was dead, so it's undumped)

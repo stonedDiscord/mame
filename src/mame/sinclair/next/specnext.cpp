@@ -211,7 +211,6 @@ protected:
 	void memory_change(u16 port, u8 data);
 	u16 get_layer2_active_page(u8 bank);
 	u32 screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
-	void on_scanline(u32 scanline);
 
 	required_device<z80n_device> m_maincpu;
 
@@ -235,6 +234,8 @@ private:
 	bool machine_type_48() const { return m_nr_03_machine_type == 0 || m_nr_03_machine_type == 1; }
 	bool machine_type_128() const { return m_nr_03_machine_type == 2 || m_nr_03_machine_type == 4; }
 	bool machine_type_p3() const { return !machine_type_48() && !machine_type_128(); }
+	// 32 cycles for 48K/+3 timing, 36 for 128K/Pentagon
+	u8 irq_pulse_cycles() const { return (BIT(m_eff_nr_03_machine_timing, 2) || (BIT(m_eff_nr_03_machine_timing, 1) && !BIT(m_eff_nr_03_machine_timing, 0))) ? 36 : 32; }
 
 	bool nmi_assert_mf() { return ((m_io_nmi->read() & 1) || m_nr_02_generate_mf_nmi) && m_nr_06_button_m1_nmi_en; }
 	bool nmi_assert_divmmc() { return ((m_io_nmi->read() & 2) || m_nr_02_generate_divmmc_nmi) && m_nr_06_button_drive_nmi_en; }
@@ -1024,7 +1025,7 @@ void specnext_state::update_video_mode()
 	// The visarea can't overlap with screen last vpos. Possibly related to https://github.com/mamedev/mame/pull/9945
 	visarea.max_y = std::min(visarea.max_y, height - 2);
 
-	m_screen->configure(width, height, visarea, HZ_TO_ATTOSECONDS(28_MHz_XTAL / 2) * width * height);
+	m_screen->configure(width, height, visarea, attotime::from_ticks(width * height, 28_MHz_XTAL / 2));
 	m_ula_scr->set_raster_offset(left, top);
 	m_lores->set_raster_offset(left, top);
 	m_tiles->set_raster_offset(left, top);
@@ -1035,15 +1036,6 @@ void specnext_state::update_video_mode()
 	m_eff_nr_03_machine_timing = m_nr_03_machine_timing;
 	m_eff_nr_05_5060 = m_nr_05_5060;
 	LOG("%s %dHz\n", machine_name, m_nr_05_5060 ? 60 : 50);
-}
-
-void specnext_state::on_scanline(u32 scanline)
-{
-	if (m_sprites->is_dirty())
-	{
-		m_screen->update_now();
-		m_sprites->update_cache_if_dirty();
-	}
 }
 
 u32 specnext_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
@@ -1100,6 +1092,7 @@ u32 specnext_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, c
 		{
 			if (ula_en)
 			{
+				m_ula_scr->draw_border(screen, bitmap, cliprect, m_port_fe_data & 0x07, 1);
 				if (m_nr_15_lores_en) m_lores->draw(screen, bitmap, clip256x192, 1);
 				else m_ula_scr->draw(screen, bitmap, clip256x192, 1);
 			}
@@ -1112,6 +1105,7 @@ u32 specnext_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, c
 			if (tiles_en) m_tiles->draw(screen, bitmap, clip320x256, TILEMAP_DRAW_CATEGORY(1), 1);
 			if (ula_en)
 			{
+				m_ula_scr->draw_border(screen, bitmap, cliprect, m_port_fe_data & 0x07, 1);
 				if (m_nr_15_lores_en) m_lores->draw(screen, bitmap, clip256x192, 1);
 				else m_ula_scr->draw(screen, bitmap, clip256x192, 1);
 			}
@@ -1124,6 +1118,7 @@ u32 specnext_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, c
 			if (layer2_en) m_layer2->draw_mix(screen, bitmap, m_blendprio_bitmap, clip320x256, m_nr_15_layer_priority & 1);
 			if (ula_en)
 			{
+				m_ula_scr->draw_border(screen, bitmap, cliprect, m_port_fe_data & 0x07);
 				if (m_nr_15_lores_en) m_lores->draw(screen, bitmap, clip256x192);
 				else m_ula_scr->draw(screen, bitmap, clip256x192);
 			}
@@ -1220,6 +1215,8 @@ void specnext_state::ulatm_w(u8 data)
 
 void specnext_state::port_7ffd_reg_w(u8 data)
 {
+	if (BIT(m_port_7ffd_data ^ data, 3))
+		m_screen->update_now();
 	m_port_7ffd_data = data;
 	m_ula_scr->ula_shadow_en_w(port_7ffd_shadow());
 }
@@ -2371,10 +2368,12 @@ void specnext_state::reg_w(offs_t nr_wr_reg, u8 nr_wr_dat)
 		nr_33_lores_scrolly_w(nr_wr_dat);
 		break;
 	case 0x34:
+		m_screen->update_now();
 		m_sprites->mirror_data_w(nr_wr_dat);
 		break;
 	case 0x35: case 0x36:  case 0x37: case 0x38: case 0x39:
 	case 0x75: case 0x76:  case 0x77: case 0x78: case 0x79:
+		m_screen->update_now();
 		m_sprites->mirror_inc_w(BIT(nr_wr_reg, 6));
 		m_sprites->mirror_index_w((nr_wr_reg & 0x3f) - 0x35);
 		m_sprites->mirror_data_w(nr_wr_dat);
@@ -2422,6 +2421,7 @@ void specnext_state::reg_w(offs_t nr_wr_reg, u8 nr_wr_dat)
 		}
 		break;
 	case 0x4b:
+		m_screen->update_now();
 		nr_4b_sprite_transparent_index_w(nr_wr_dat);
 		break;
 	case 0x4c:
@@ -2776,7 +2776,7 @@ TIMER_CALLBACK_MEMBER(specnext_state::irq_on)
 	LOGINTVVV("<ULA/Frame IRQ>\n");
 	m_im2_ula->irq_w(ASSERT_LINE);
 	if (m_nr_c0_int_mode_pulse_0_im2_1 == 0)
-		m_irq_off_timer->adjust(m_maincpu->clocks_to_attotime(32));
+		m_irq_off_timer->adjust(m_maincpu->clocks_to_attotime(irq_pulse_cycles()));
 }
 
 TIMER_CALLBACK_MEMBER(specnext_state::line_irq_on)
@@ -2785,12 +2785,13 @@ TIMER_CALLBACK_MEMBER(specnext_state::line_irq_on)
 	LOGINTVVV("<Line IRQ>\n");
 	m_im2_line->irq_w(ASSERT_LINE);
 	if (m_nr_c0_int_mode_pulse_0_im2_1 == 0)
-		m_irq_off_timer->adjust(m_maincpu->clocks_to_attotime(32));
+		m_irq_off_timer->adjust(m_maincpu->clocks_to_attotime(irq_pulse_cycles()));
 }
 
 void specnext_state::irq_w(int state)
 {
-	m_maincpu->set_input_line(INPUT_LINE_IRQ0, state);
+	if (!(m_nr_c0_int_mode_pulse_0_im2_1 == 0 && state == CLEAR_LINE && m_irq_off_timer->enabled()))
+		m_maincpu->set_input_line(INPUT_LINE_IRQ0, state);
 
 	const std::array<int, 10> states =
 	{
@@ -3840,6 +3841,9 @@ void specnext_state::machine_reset()
 		ay->data_w(0xff);
 	}
 
+	for (auto &dac : m_dac)
+		dac->data_w(0x80);
+
 	m_spi_clock->reset();
 	m_spi_clock_cycles = 0;
 	m_spi_clock_state = false;
@@ -4250,7 +4254,6 @@ void specnext_state::tbblue(machine_config &config)
 
 	m_screen->set_raw(28_MHz_XTAL / 2, 456 << 1, 312,  { 0, (359 << 1) | 1, 0, 287 });
 	m_screen->set_screen_update(FUNC(specnext_state::screen_update));
-	m_screen->scanline().set(FUNC(specnext_state::on_scanline));
 	m_screen->set_no_palette();
 
 	PALETTE(config.replace(), m_palette, palette_device::BLACK, 512 * (3 + 1 * 2) + 1); // ula tm l2 s*2 +1 == fallback
