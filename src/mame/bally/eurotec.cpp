@@ -287,8 +287,14 @@ void ballyw_state::ulc_transfer()
 	// The parallel serializer returns banks 2/3 on the next scan's
 	// banks 0/1.  Bank 2 is also monitored on bank 3 of 0x900201.
 	m_ulc_input[0x207] = bank < 2 ? m_ulc_parallel_output[bank + 2] : 0;
-	m_ulc_input[0x209] = m_switches[bank]->read();
-	m_ulc_input[0x205] = 0xff;
+	// Switch columns follow the row selector, independently of the ULC bank.
+	// The firmware samples 0x900209 on bank zero for rows 1-4 (SWMUX0-3).
+	u8 const row_select = m_ulc_output[0x231] & 7;
+	m_ulc_input[0x209] = bank == 0 && row_select >= 1 && row_select <= 4 ? m_switches[row_select - 1]->read() : 0;
+	// Off/Left and Select Down also appear on active-low direct inputs.
+	// Gloria folds these into SWMUX2 bits 5/6 in its switch debounce routine.
+	u8 const switches2 = m_switches[2]->read();
+	m_ulc_input[0x205] = bank == 0 ? (0xff & ~((BIT(switches2, 5) << 1) | (BIT(switches2, 6) << 3))) : 0xff;
 	// Coin serial request is bank three bit 2; the unit acknowledges it
 	// on bank zero bit 0 before the host starts transmitting.
 	if (bank == 3)
@@ -301,7 +307,6 @@ void ballyw_state::ulc_transfer()
 	// Row five corresponds to buffer row zero.  The firmware's digit
 	// lists are least significant first: money 11,10,14,13,12 and
 	// special counter 3,2,4.  Segment bits already use the standard order.
-	u8 const row_select = m_ulc_output[0x231] & 7;
 	if (row_select >= 1 && row_select <= 5)
 	{
 		u8 const row = row_select % 5;
