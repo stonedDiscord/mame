@@ -951,31 +951,37 @@ void stella8085_state::mainboard(machine_config &config, const XTAL &clock)
 	m_rs232->rxd_handler().set(m_uart, FUNC(i8256_device::write_rxd));
 	// CTS is gnd
 
-	RTC62421(config, "rtc", 32.768_kHz_XTAL);
-
-	SPEAKER(config, "mono").front_center();
-	BEEP(config, m_beep)
-		.add_route(ALL_OUTPUTS, "mono", 0.50);
-}
-
-void stella8085_state::doppelpot(machine_config &config)
-{
-	I8085A(config, m_maincpu, 6.144_MHz_XTAL);
-	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
-	m_maincpu->set_addrmap(AS_IO, &stella8085_state::io_map);
-
-	I8256(config, m_uart, 6.144_MHz_XTAL / 2);
-	m_uart->int_callback().set_inputline(m_maincpu, I8085_INTR_LINE);
-	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
-	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
-	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
-
-	I8279(config, m_kdc, 6.144_MHz_XTAL / 2);
+	I8279(config, m_kdc, clock / 2);
 	m_kdc->out_sl_callback().set(FUNC(stella8085_state::kbd_sl_w));
 	m_kdc->out_bd_callback().set(FUNC(stella8085_state::kbd_bd_w));
 	m_kdc->out_disp_callback().set(FUNC(stella8085_state::disp_w));
 	m_kdc->in_rl_callback().set(FUNC(stella8085_state::kbd_rl_r));
 	m_kdc->out_irq_callback().set_inputline(m_maincpu, I8085_RST65_LINE);
+
+}
+
+void stella8085_state::doppelpot(machine_config &config)
+{
+	mainboard(config, 6.144_MHz_XTAL);
+	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
+	m_maincpu->in_inta_func().set(m_uart, FUNC(i8256_device::inta_r));
+
+	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
+	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
+	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
+
+	// Wheel stepper motors, each driven by a 2-bit coil pattern. The REEL only
+	// provides gray-code decoding/position here; the light barrier is generated
+	// in update_optics() from the per-wheel coded disc (DISC_PATTERN).
+	REEL(config, m_motor[0], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[1], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[2], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[3], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+	REEL(config, m_motor[4], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
+
+	config.set_default_layout(layout_adpservice);
+
+	MC146818(config, "rtc", 32.768_kHz_XTAL);
 
 	SPEAKER(config, "mono").front_center();
 	BEEP(config, m_beep)
@@ -988,30 +994,10 @@ void stella8085_state::dicemstr(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::large_program_map);
 
 	RTC62421(config, "rtc", 32.768_kHz_XTAL);
-}
 
-void stella8085_state::doppelpot(machine_config &config)
-{
-	mainboard(config, 6.144_MHz_XTAL);
-	m_maincpu->set_addrmap(AS_PROGRAM, &stella8085_state::program_map);
-
-	m_maincpu->in_inta_func().set(m_uart, FUNC(i8256_device::inta_r));
-	m_uart->out_p2_callback().set(FUNC(stella8085_state::machine1_w)); //M1-4
-	m_uart->in_p1_callback().set(FUNC(stella8085_state::lw_r));
-	m_uart->out_p1_callback().set(FUNC(stella8085_state::machine2_w));
-
-	// wheel stepper motors, each driven by a 2-bit coil pattern. The REEL only
-	// provides gray-code decoding/position here; the light barrier is generated
-	// in update_optics() from the per-wheel coded disc (DISC_PATTERN).
-	REEL(config, m_motor[0], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
-	REEL(config, m_motor[1], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
-	REEL(config, m_motor[2], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
-	REEL(config, m_motor[3], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
-	REEL(config, m_motor[4], MPU3_48STEP_REEL, 96, 2, 0x00, 2);
-
-	config.set_default_layout(layout_adpservice);
-
-	MC146818(config, "rtc", 32.768_kHz_XTAL);
+	SPEAKER(config, "mono").front_center();
+	BEEP(config, m_beep)
+		.add_route(ALL_OUTPUTS, "mono", 0.50);
 }
 
 void stella8085_state::excellent(machine_config &config)
