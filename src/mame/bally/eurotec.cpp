@@ -870,7 +870,7 @@ void ballyw_state::eurotec_2rom(machine_config &config)
 		});
 	}
 
-	TIMER(config, "system_tick").configure_periodic(FUNC(ballyw_state::system_tick), attotime::from_hz(500));
+	TIMER(config, "system_tick").configure_periodic(FUNC(ballyw_state::system_tick), attotime::from_hz(888));
 
 	SPEAKER(config, "mono").front_center();
 }
