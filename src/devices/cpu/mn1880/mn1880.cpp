@@ -85,6 +85,8 @@
 #include "mn1880.h"
 #include "mn1880d.h"
 
+#include <bit>
+
 // device type definitions
 DEFINE_DEVICE_TYPE(MN1880, mn1880_device, "mn1880", "Panasonic MN1880")
 DEFINE_DEVICE_TYPE(MN18801A, mn18801a_device, "mn18801a", "Panasonic MN18801A")
@@ -273,15 +275,15 @@ void mn1880_device::device_start()
 
 	for (int i = 0; i < 2; i++)
 	{
-		state_add(MN1880_IPA + i, util::string_format("IP%c", 'a' + i).c_str(), m_cpu[i].ip).formatstr("%5s");
-		state_add(MN1880_IRA + i, util::string_format("IR%c", 'a' + i).c_str(), m_cpu[i].ir);
-		state_add(MN1880_FSA + i, util::string_format("FS%c", 'a' + i).c_str(), m_cpu[i].fs);
-		state_add(MN1880_XPA + i, util::string_format("XP%c", 'a' + i).c_str(), m_cpu[i].xp);
-		state_add(MN1880_YPA + i, util::string_format("YP%c", 'a' + i).c_str(), m_cpu[i].yp);
-		state_add(MN1880_SPA + i, util::string_format("SP%c", 'a' + i).c_str(), m_cpu[i].sp);
-		state_add(MN1880_LPA + i, util::string_format("LP%c", 'a' + i).c_str(), m_cpu[i].lp);
-		state_add(MN1880_IEA + i, util::string_format("IE%c", 'a' + i).c_str(), m_cpu[i].ie).mask(0xfff);
-		state_add(MN1880_IEMASKA + i, util::string_format("IEMASK%c", 'a' + i).c_str(), m_cpu[i].iemask);
+		state_add(MN1880_IPA + i, util::string_format("IP%c", 'a' + i), m_cpu[i].ip).formatstr("%5s");
+		state_add(MN1880_IRA + i, util::string_format("IR%c", 'a' + i), m_cpu[i].ir);
+		state_add(MN1880_FSA + i, util::string_format("FS%c", 'a' + i), m_cpu[i].fs);
+		state_add(MN1880_XPA + i, util::string_format("XP%c", 'a' + i), m_cpu[i].xp);
+		state_add(MN1880_YPA + i, util::string_format("YP%c", 'a' + i), m_cpu[i].yp);
+		state_add(MN1880_SPA + i, util::string_format("SP%c", 'a' + i), m_cpu[i].sp);
+		state_add(MN1880_LPA + i, util::string_format("LP%c", 'a' + i), m_cpu[i].lp);
+		state_add(MN1880_IEA + i, util::string_format("IE%c", 'a' + i), m_cpu[i].ie).mask(0xfff);
+		state_add(MN1880_IEMASKA + i, util::string_format("IEMASK%c", 'a' + i), m_cpu[i].iemask);
 		state_add_divider(MN1880_DIVIDER1 + i);
 	}
 
@@ -2430,7 +2432,7 @@ void mn1880_device::execute_run()
 			if (m_irq != 0)
 			{
 				// IRQ0 (first of four external edge inputs?) has the highest priority (after RESET)
-				unsigned level = 32 - count_leading_zeros_32((m_irq - 1) & ~m_irq);
+				unsigned level = std::bit_width((m_irq - 1U) & ~m_irq);
 				(void)standard_irq_callback(level, cpu.ip);
 				cpu.ie &= ~(1 << level); // No separate in-service lockout; handler must re-enable specific interrupt
 				m_if &= ~(1 << level);

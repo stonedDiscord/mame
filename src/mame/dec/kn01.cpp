@@ -191,14 +191,15 @@ uint32_t kn01_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, 
 
 	if (m_status & MONO)
 	{
-		for (int y = screen.visible_area().min_y; y <= screen.visible_area().max_y; y++)
+		for (int y = screen.visible_area().top(); y <= screen.visible_area().bottom(); y++)
 		{
-			for (int x = screen.visible_area().min_x; x <= screen.visible_area().max_x; x += 32)
+			auto *const dst = &bitmap.pix(y);
+			for (int x = screen.visible_area().left(); x <= screen.visible_area().right(); x += 32)
 			{
 				u32 const pixel_data = *pixel_pointer++;
 
 				for (unsigned i = 0; i < 32; i++)
-					bitmap.pix(y, x + i) = m_vdac->pen_color(BIT(pixel_data, i) * 128);
+					dst[x + i] = m_vdac->pen_color(BIT(pixel_data, i) * 128);
 			}
 
 			pixel_pointer += 1024 / 32;
@@ -206,16 +207,17 @@ uint32_t kn01_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, 
 	}
 	else
 	{
-		for (int y = screen.visible_area().min_y; y <= screen.visible_area().max_y; y++)
+		for (int y = screen.visible_area().top(); y <= screen.visible_area().bottom(); y++)
 		{
-			for (int x = screen.visible_area().min_x; x <= screen.visible_area().max_x; x += 4)
+			auto *const dst = &bitmap.pix(y);
+			for (int x = screen.visible_area().left(); x <= screen.visible_area().right(); x += 4)
 			{
 				u32 const pixel_data = *pixel_pointer++;
 
-				bitmap.pix(y, x + 3) = m_vdac->pen_color(u8(pixel_data >> 24));
-				bitmap.pix(y, x + 2) = m_vdac->pen_color(u8(pixel_data >> 16));
-				bitmap.pix(y, x + 1) = m_vdac->pen_color(u8(pixel_data >> 8));
-				bitmap.pix(y, x + 0) = m_vdac->pen_color(u8(pixel_data >> 0));
+				dst[x + 3] = m_vdac->pen_color(u8(pixel_data >> 24));
+				dst[x + 2] = m_vdac->pen_color(u8(pixel_data >> 16));
+				dst[x + 1] = m_vdac->pen_color(u8(pixel_data >> 8));
+				dst[x + 0] = m_vdac->pen_color(u8(pixel_data >> 0));
 			}
 		}
 	}
@@ -298,8 +300,6 @@ void kn01_state::machine_start()
 {
 	m_dram = std::make_unique<u16[]>(65536);
 	m_nram = std::make_unique<u16[]>(32768);
-
-	m_leds.resolve();
 
 	m_cpu->space(AS_PROGRAM).install_ram(0, m_mram->mask(), m_mram->pointer());
 
@@ -422,11 +422,11 @@ void kn01_state::kn01(machine_config &config, XTAL clock)
 	m_mram->set_default_size("24MiB");
 	m_mram->set_extra_options("4MiB,8MiB,12MiB,16MiB,20MiB");
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(69169800, 1280, 212, 1024+212, 901, 34, 864+34);
 	m_screen->set_screen_update(FUNC(kn01_state::screen_update));
 
-	TIMER(config, m_scantimer, 0);
+	TIMER(config, m_scantimer);
 	m_scantimer->configure_scanline(FUNC(kn01_state::scanline_timer), "screen", 0, 1);
 
 	BT478(config, m_vdac, 69169800);
@@ -449,7 +449,7 @@ void kn01_state::kn01(machine_config &config, XTAL clock)
 	DC7085(config, m_dz, 15.2064_MHz_XTAL);
 	m_dz->int_cb().set_inputline(m_cpu, INPUT_LINE_IRQ2);
 
-	LK201(config, m_lk201, 0);
+	LK201(config, m_lk201);
 	m_dz->tx_cb<0>().set([this](int state) { if (!(m_status & TXDIS)) m_lk201->rx_w(state); });
 	m_lk201->tx_handler().set(m_dz, FUNC(dc7085_device::rx_w<0>));
 

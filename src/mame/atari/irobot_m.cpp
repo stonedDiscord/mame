@@ -10,6 +10,8 @@
 #include "cpu/m6809/m6809.h"
 #include "irobot.h"
 
+#include "endianness.h"
+
 #define LOG_VIDEO (1 << 1)
 #define LOG_VG    (1 << 2)
 #define LOG_MATH  (1 << 3)
@@ -45,9 +47,9 @@ u8 irobot_state::sharedmem_r(offs_t offset)
 	switch (m_outx)
 	{
 		case 0:
-			return ((u8 *)m_mathboxrom.target())[((m_mpage & 1) << 13) + BYTE_XOR_BE(offset)];
+			return util::big_endian_cast<u8 const>(m_mathboxrom.target())[((m_mpage & 1) << 13) + offset];
 		case 1:
-			return ((u8 *)m_mathboxrom.target())[0x4000 + ((m_mpage & 3) << 13) + BYTE_XOR_BE(offset)];
+			return util::big_endian_cast<u8 const>(m_mathboxrom.target())[0x4000 + ((m_mpage & 3) << 13) + offset];
 		case 2:
 			return m_commram[m_commbank][BYTE_XOR_BE(offset & 0xfff)];
 		case 3:
@@ -154,7 +156,6 @@ TIMER_CALLBACK_MEMBER(irobot_state::scanline_callback)
 
 void irobot_state::machine_start()
 {
-	m_leds.resolve();
 	m_vg_clear = 0;
 	m_statwr = 0;
 
@@ -521,14 +522,13 @@ void irobot_state::irmb_run()
 
 	while ((prevop->flags & (FL_DPSEL | FL_CARRY)) != (FL_DPSEL | FL_CARRY))
 	{
-		u32 result;
-		u32 fu;
+		u32 result = 0;
 		u32 tmp;
 
 		icount += curop->cycles;
 
 		/* Get function code */
-		fu = curop->func;
+		u32 fu = curop->func;
 
 		/* Modify function for MULT */
 		if (!(prevop->flags & FL_MULT) || (Q & 1))

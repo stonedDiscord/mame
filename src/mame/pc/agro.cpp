@@ -43,7 +43,7 @@ public:
 		, m_maincpu(*this, "maincpu")
 	{ }
 
-	void agro(machine_config &config);
+	void agro(machine_config &config) ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -66,7 +66,7 @@ void agro_state::agro(machine_config &config)
 	PENTIUM_MMX(config, m_maincpu, 66'000'000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &agro_state::agro_map);
 
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	// ...
 }
 

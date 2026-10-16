@@ -11,6 +11,11 @@
 
 #pragma once
 
+#include "bus/ata/atadev.h"
+#include "bus/ata/ataintf.h"
+#include "bus/pc98_cbus/slot.h"
+#include "bus/rs232/rs232.h"
+
 #include "cpu/i386/i386.h"
 #include "cpu/i86/i286.h"
 #include "cpu/i86/i86.h"
@@ -32,10 +37,6 @@
 #include "machine/upd4991a.h"
 #include "machine/upd765.h"
 
-#include "bus/rs232/rs232.h"
-#include "bus/scsi/scsi.h"
-#include "bus/scsi/scsihd.h"
-
 #include "sound/beep.h"
 //#include "sound/dac.h"
 #include "sound/spkrdev.h"
@@ -43,15 +44,10 @@
 
 #include "video/upd7220.h"
 
-#include "bus/pc98_cbus/slot.h"
-
 #include "pc98_cd.h"
 #include "pc98_kbd.h"
 #include "pc98_memsw.h"
 #include "pc98_sdip.h"
-
-#include "bus/ata/atadev.h"
-#include "bus/ata/ataintf.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -190,10 +186,14 @@ protected:
 	void pit_clock_config(machine_config &config, const XTAL clock);
 
 	void pc9801_common_io(address_map &map) ATTR_COLD;
+	void cbus_overlay_io(address_map &map) ATTR_COLD;
 	void ipl_bank(address_map &map) ATTR_COLD;
 
 	uint8_t pc9801_a0_r(offs_t offset);
 	void pc9801_a0_w(offs_t offset, uint8_t data);
+
+	virtual u8 kanji_r(offs_t offset);
+	virtual void kanji_w(offs_t offset, uint8_t data);
 
 	uint8_t m_nmi_ff = 0;
 
@@ -207,7 +207,7 @@ private:
 
 	u8 ppi_sys_portb_r();
 
-	void draw_text(bitmap_rgb32 &bitmap, uint32_t addr, int y, int wd, int pitch, int lr, int cursor_on, int cursor_addr, int cursor_bot, int cursor_top, bool lower);
+	void draw_text(bitmap_rgb32 &bitmap, uint32_t addr, int y, int wd, int pitch, int lr, int cursor_on, int cursor_addr, int cursor_bot, int cursor_top, int topline, int botline, bool lower);
 
 //  uint8_t winram_r();
 //  void winram_w(uint8_t data);
@@ -261,7 +261,7 @@ protected:
 	UPD7220_DISPLAY_PIXELS_MEMBER( hgdc_display_pixels );
 
 	virtual void video_start() override ATTR_COLD;
-	void pc9801_palette(palette_device &palette) const;
+	virtual void palette_init(palette_device &palette) const ATTR_COLD;
 
 	uint8_t *m_char_rom = nullptr;
 	uint8_t *m_kanji_rom = nullptr;
@@ -305,10 +305,13 @@ private:
 	std::unique_ptr<uint16_t[]> m_tvram;
 	uint8_t m_gfx_ff = 0;
 	uint8_t m_txt_scroll_reg[8]{};
+
+protected:
 	uint8_t m_pal_clut[4]{};
 
 //  Mouse
 protected:
+
 	struct{
 		uint8_t control = 0;
 		uint8_t lx = 0, ly = 0;

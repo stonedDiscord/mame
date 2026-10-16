@@ -484,14 +484,29 @@ ROM_START( micac250 )
 	ROM_LOAD( "250in1microarcade.u2", 0x000000, 0x1000000, CRC(3bb2a65c) SHA1(294eb2165466981a79e1d4ec535038e73fbca4de) )
 ROM_END
 
-ROM_START( tvkunio1 )
+ROM_START( tvkunio1 ) // yellow unit
 	ROM_REGION( 0x200000, "mainrom", 0 )
 	ROM_LOAD( "mx29lv160dt.u3", 0x00000, 0x200000, CRC(4f502bff) SHA1(5c91c46c8b3b837cf98a5519d71117164c23a721) )
+ROM_END
+
+ROM_START( tvkunio2 ) // pink unit
+	ROM_REGION( 0x200000, "mainrom", 0 )
+	ROM_LOAD( "mx29lv160dt.u3", 0x00000, 0x200000, CRC(e39d4b78) SHA1(8496efddfef97662ffb707651361a588a39efde1) )
+ROM_END
+
+ROM_START( tvkunio3 ) // blue unit
+	ROM_REGION( 0x200000, "mainrom", 0 )
+	ROM_LOAD( "mx29lv160bt.u3", 0x00000, 0x200000, CRC(dcc4f44f) SHA1(18439fbaaf392664c506d41d5e2ec17fb5cbaa11) )
 ROM_END
 
 ROM_START( fingerd )
 	ROM_REGION( 0x2000000, "mainrom", 0 )
 	ROM_LOAD( "s29gl256n11tai02.u2", 0x00000, 0x2000000, CRC(58829d3c) SHA1(fab3b9914ec61f289509344b2d3f8a8b2f5bb5ba) )
+ROM_END
+
+ROM_START( orb300 ) // all games selectable
+	ROM_REGION( 0x1000000, "mainrom", 0 )
+	ROM_LOAD( "orb300arcade.u2", 0x00000, 0x1000000, CRC(25063e71) SHA1(14ee2921c24885ffeb877c0dca7842d1e3bf78fb) )
 ROM_END
 
 } // anonymous namespace
@@ -518,6 +533,9 @@ CONS( 201?, mymman,    0,  0,  nes_vt32_8mb, nes_vt32, nes_vt32_unk_state, empty
 
 // most games work, a few minor graphical issues common to the same games in other units
 CONS( 202?, typo240,   0,  0,  nes_vt32_16mb, nes_vt32, nes_vt32_unk_state, empty_init, "Typo", "Vintage Gamer 240-in-1", MACHINE_IMPERFECT_GRAPHICS )
+
+// games seem to run, although sub-menus use a currently unsupported video mode
+CONS( 202?, orb300,   0,  0,  nes_vt32_16mb, nes_vt32, nes_vt32_unk_state, empty_init, "Orb Gaming", "Mini Arcade Machine 300-in-1 (Orb Gaming)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS )
 
 // speed challenge doesn't work
 CONS( 2021, retror30,  0,  0,  nes_vt32_32mb,      nes_vt32, nes_vt32_unk_state, empty_init, "Orb Gaming", "Retro Racer (30-in-1)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS )
@@ -563,6 +581,8 @@ CONS( 201?, k10_2l,    0, 0,  nes_vt32_16mb, nes_vt32, nes_vt32_unk_state, empty
 
 // びっくり熱血新記録！はるかなる金メダル
 CONS( 2022, tvkunio1,  0, 0,  nes_vt32_2mb,  nes_vt32, nes_vt32_unk_state, empty_init, "Arc System Works", "Kunio-kun TV! Bikkuri Nekketsu Shin Kiroku! Harukanaru Kin Medal (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS ) // yellow unit
+CONS( 2022, tvkunio2,  0, 0,  nes_vt32_2mb,  nes_vt32, nes_vt32_unk_state, empty_init, "Arc System Works", "Kunio-kun TV! Downtown Special - Kunio-kun no Jidaigeki Da yo Zenin Shuugou! (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS ) // pink unit
+CONS( 2022, tvkunio3,  0, 0,  nes_vt32_2mb,  nes_vt32, nes_vt32_unk_state, empty_init, "Arc System Works", "Kunio-kun TV! Nekketsu Koukou Dodgeball Bu (Japan)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS ) // blue unit
 
 CONS( 202?, micac250,  0, 0,  nes_vt32_16mb, nes_vt32, nes_vt32_unk_state, empty_init, "<unknown>", "Micro Arcade 250-in-1", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS )
 

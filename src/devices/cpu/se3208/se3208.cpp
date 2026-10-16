@@ -4,6 +4,8 @@
 #include "se3208.h"
 #include "se3208dis.h"
 
+#include "endianness.h"
+
 #define LOG_ALIGN (1 << 1)
 
 #define VERBOSE (0)
@@ -1738,7 +1740,7 @@ void se3208_device::execute_run()
 		{
 			interrupt_execute();
 		}
-		--(m_icount);
+		m_icount -= 3;
 	} while(m_icount > 0);
 }
 

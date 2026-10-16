@@ -284,7 +284,7 @@ void intchess_state::intchess(machine_config &config)
 	m_via->readpb_handler().set(FUNC(intchess_state::control_r));
 	m_via->irq_handler().set_inputline(m_maincpu, M6502_IRQ_LINE);
 
-	MM74C923(config, m_encoder, 0); // timing parameters unknown
+	MM74C923(config, m_encoder); // timing parameters unknown
 	m_encoder->da_wr_callback().set(m_via, FUNC(via6522_device::write_ca2));
 	m_encoder->x1_rd_callback().set_ioport("X1");
 	m_encoder->x2_rd_callback().set_ioport("X2");
@@ -293,7 +293,7 @@ void intchess_state::intchess(machine_config &config)
 	m_encoder->data_tri_callback().set(m_encoder, FUNC(mm74c923_device::read));
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(50); // PAL
 	m_screen->set_size(8*20 + 32, 8*16 + 32);
 	m_screen->set_visarea(0, 8*20-1, 0, 8*16-1);

@@ -336,7 +336,7 @@ void c2031_device::via1_pb_w(uint8_t data)
 
 void c2031_device::byte_w(int state)
 {
-	m_maincpu->set_input_line(M6502_SET_OVERFLOW, state);
+	m_maincpu->set_input_line(M6502_SET_OVERFLOW, !state);
 
 	m_via1->write_ca1(state);
 }
@@ -381,11 +381,12 @@ void c2031_device::device_add_mconfig(machine_config &config)
 	C64H156(config, m_ga, XTAL(16'000'000));
 	m_ga->byte_callback().set(FUNC(c2031_device::byte_w));
 
-	floppy_connector &connector(FLOPPY_CONNECTOR(config, C64H156_TAG":0", 0));
+	floppy_connector &connector(FLOPPY_CONNECTOR(config, C64H156_TAG":0"));
 	connector.option_add("525ssqd", FLOPPY_525_SSQD);
 	connector.set_default_option("525ssqd");
 	connector.set_fixed(true);
 	connector.set_formats(c2031_device::floppy_formats);
+	connector.enable_sound(true);
 }
 
 
@@ -473,7 +474,6 @@ c2031_device::c2031_device(const machine_config &mconfig, const char *tag, devic
 
 void c2031_device::device_start()
 {
-	m_leds.resolve();
 	// install image callbacks
 	m_ga->set_floppy(m_floppy);
 
@@ -483,6 +483,7 @@ void c2031_device::device_start()
 	save_item(NAME(m_atna));
 	save_item(NAME(m_via0_irq));
 	save_item(NAME(m_via1_irq));
+	save_item(NAME(m_ifc));
 }
 
 

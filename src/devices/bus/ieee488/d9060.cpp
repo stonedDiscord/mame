@@ -608,13 +608,13 @@ d9090_device::d9090_device(const machine_config &mconfig, const char *tag, devic
 
 void d9060_device_base::device_start()
 {
-	m_leds.resolve();
-
 	// state saving
 	save_item(NAME(m_rfdo));
 	save_item(NAME(m_daco));
 	save_item(NAME(m_atna));
 	save_item(NAME(m_enable));
+	save_item(NAME(m_ifc));
+	save_item(NAME(m_data));
 
 	m_via->write_pb4(!(m_variant == TYPE_9090)); // J14 (6 HEADS)
 	m_via->write_pb5(!(m_variant == TYPE_9060)); // J13 (4 HEADS)

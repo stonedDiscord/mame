@@ -3,7 +3,7 @@
 
 #include "emu.h"
 #include "cpu/m6502/st2205u.h"
-#include "bl_handhelds_lcdc.h"
+#include "video/st7735_lcdc.h"
 #include "screen.h"
 #include "speaker.h"
 
@@ -42,7 +42,7 @@ private:
 	void st22xx_cutepet_map(address_map &map) ATTR_COLD;
 
 	required_device<screen_device> m_screen;
-	required_device<bl_handhelds_lcdc_device> m_lcdc;
+	required_device<st7735_lcdc_device> m_lcdc;
 	required_ioport_array<4> m_input_matrix;
 
 	u32 screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
@@ -224,16 +224,16 @@ void st22xx_bbl338_state::st22xx_dphh8213_map(address_map &map)
 {
 	map(0x0000000, 0x01fffff).rom().region("maincpu", 0);
 
-	map(0x0600000, 0x0600000).w(m_lcdc, FUNC(bl_handhelds_lcdc_device::lcdc_command_w));
-	map(0x0604000, 0x0604000).rw(m_lcdc, FUNC(bl_handhelds_lcdc_device::lcdc_data_r), FUNC(bl_handhelds_lcdc_device::lcdc_data_w));
+	map(0x0600000, 0x0600000).w(m_lcdc, FUNC(st7735_lcdc_device::lcdc_command_w));
+	map(0x0604000, 0x0604000).rw(m_lcdc, FUNC(st7735_lcdc_device::lcdc_data_r), FUNC(st7735_lcdc_device::lcdc_data_w));
 }
 
 void st22xx_bbl338_state::st22xx_cutepet_map(address_map &map)
 {
 	map(0x0000000, 0x03fffff).rom().region("maincpu", 0);
 
-	map(0x0600000, 0x0600000).w(m_lcdc, FUNC(bl_handhelds_lcdc_device::lcdc_command_w));
-	map(0x0604100, 0x0604100).rw(m_lcdc, FUNC(bl_handhelds_lcdc_device::lcdc_data_r), FUNC(bl_handhelds_lcdc_device::lcdc_data_w));
+	map(0x0600000, 0x0600000).w(m_lcdc, FUNC(st7735_lcdc_device::lcdc_command_w));
+	map(0x0604100, 0x0604100).rw(m_lcdc, FUNC(st7735_lcdc_device::lcdc_data_r), FUNC(st7735_lcdc_device::lcdc_data_w));
 }
 
 
@@ -242,8 +242,8 @@ void st22xx_bbl338_state::st22xx_bbl338_map(address_map &map)
 	//map(0x0000000, 0x0003fff).rom().region("internal", 0); // not dumped, so ensure any accesses here are logged
 	map(0x1000000, 0x13fffff).rom().region("maincpu", 0);
 
-	map(0x0600000, 0x0600000).w(m_lcdc, FUNC(bl_handhelds_lcdc_device::lcdc_command_w));
-	map(0x0604000, 0x0604000).rw(m_lcdc, FUNC(bl_handhelds_lcdc_device::lcdc_data_r), FUNC(bl_handhelds_lcdc_device::lcdc_data_w));
+	map(0x0600000, 0x0600000).w(m_lcdc, FUNC(st7735_lcdc_device::lcdc_command_w));
+	map(0x0604000, 0x0604000).rw(m_lcdc, FUNC(st7735_lcdc_device::lcdc_data_r), FUNC(st7735_lcdc_device::lcdc_data_w));
 }
 
 u32 st22xx_bbl338_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
@@ -354,20 +354,18 @@ void st22xx_bbl338_state::st22xx_dphh8213(machine_config &config)
 	m_maincpu->in_pc_callback().set_ioport("PORTC");
 
 	SPEAKER(config, "mono").front_center();
-	m_maincpu->add_route(0, "mono", 1.00);
-	m_maincpu->add_route(1, "mono", 1.00);
-	m_maincpu->add_route(2, "mono", 1.00);
-	m_maincpu->add_route(3, "mono", 1.00);
+	m_maincpu->add_route(st2205u_base_device::PSG_OUTPUT_PWM, "mono", 1.00);
+	m_maincpu->add_route(st2205u_base_device::PSG_OUTPUT_CURRENT_DAC, "mono", 1.00);
 
 
-	SCREEN(config, m_screen, SCREEN_TYPE_LCD);
+	SCREEN(config, m_screen).set_lcd();
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(160, 128);
 	m_screen->set_visarea(0, 160 - 1, 0, 128 - 1);
 	m_screen->set_screen_update(FUNC(st22xx_bbl338_state::screen_update));
 
-	BL_HANDHELDS_LCDC(config, m_lcdc, 0);
+	ST7735(config, m_lcdc);
 }
 
 void st22xx_bbl338_state::st22xx_cutepet(machine_config &config)
@@ -385,7 +383,7 @@ void st22xx_bbl338_state::st22xx_bbl338(machine_config &config)
 	m_maincpu->in_pc_callback().set_ioport("PORTC");
 
 	// incorrect for bbl338
-	SCREEN(config, m_screen, SCREEN_TYPE_LCD);
+	SCREEN(config, m_screen).set_lcd();
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(160, 128);
@@ -393,7 +391,7 @@ void st22xx_bbl338_state::st22xx_bbl338(machine_config &config)
 	m_screen->set_screen_update(FUNC(st22xx_bbl338_state::screen_update));
 
 	// incorrect for bbl338 (or will need changes to support higher resolutions)
-	BL_HANDHELDS_LCDC(config, m_lcdc, 0);
+	ST7735(config, m_lcdc);
 }
 
 
@@ -407,7 +405,8 @@ ROM_END
 
 ROM_START( class200 )
 	ROM_REGION( 0x4000, "internal", ROMREGION_ERASEFF )
-	ROM_LOAD( "internal.rom", 0x000000, 0x4000, NO_DUMP ) // unsure of exact size for this model
+	ROM_LOAD( "internal.rom", 0x0000, 0x2000, CRC(024fa502) SHA1(0aca4bbd6b98eb156187a144a274c8d3ead27d40) )
+	ROM_RELOAD( 0x2000, 0x2000 )
 
 	ROM_REGION( 0x400000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "m29w320eb.bin", 0x000000, 0x400000, CRC(3067b5f6) SHA1(9a159b16898054a74cfb32b5c597b505132f004e) )

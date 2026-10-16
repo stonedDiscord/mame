@@ -44,8 +44,7 @@ public:
 		, m_maincpu(*this, "maincpu")
 	{ }
 
-
-	void sshuffle(machine_config &config);
+	void sshuffle(machine_config &config) ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -74,7 +73,7 @@ void sshuffle_state::sshuffle(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &sshuffle_state::sshuffle_map);
 	m_maincpu->set_addrmap(AS_IO, &sshuffle_state::sshuffle_io);
 
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	// ...
 }
 

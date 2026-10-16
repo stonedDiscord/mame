@@ -28,6 +28,8 @@
 #include "debug/debugcpu.h"
 #include "debug/express.h"
 
+#include "softfloat3/bochs_ext/softfloat3_ext.h"
+
 #define LOG_MSR             (1U << 1)
 #define LOG_INVALID_OPCODE  (1U << 2)
 #define LOG_LIMIT_CHECK     (1U << 3)
@@ -1539,12 +1541,12 @@ uint32_t i386_device::GetNonTranslatedEA(uint8_t modrm,uint8_t *seg)
 	return ea;
 }
 
-uint32_t i386_device::GetEA(uint8_t modrm, int rwn)
+uint32_t i386_device::GetEA(uint8_t modrm, int rwn, int size)
 {
 	uint8_t segment;
 	uint32_t ea;
 	modrm_to_EA(modrm, &ea, &segment );
-	return i386_translate(segment, ea, rwn );
+	return i386_translate(segment, ea, rwn, size );
 }
 
 void i386_device::i386_check_irq_line()
@@ -2236,28 +2238,28 @@ void i386_device::state_export(const device_state_entry &entry)
 			m_debugger_temp = m_eip & 0xffff;
 			break;
 		case X87_ST0:
-			m_debugger_temp = floatx80_to_float64(ST(0));
+			m_debugger_temp = extF80_to_f64(ST(0)).v;
 			break;
 		case X87_ST1:
-			m_debugger_temp = floatx80_to_float64(ST(1));
+			m_debugger_temp = extF80_to_f64(ST(1)).v;
 			break;
 		case X87_ST2:
-			m_debugger_temp = floatx80_to_float64(ST(2));
+			m_debugger_temp = extF80_to_f64(ST(2)).v;
 			break;
 		case X87_ST3:
-			m_debugger_temp = floatx80_to_float64(ST(3));
+			m_debugger_temp = extF80_to_f64(ST(3)).v;
 			break;
 		case X87_ST4:
-			m_debugger_temp = floatx80_to_float64(ST(4));
+			m_debugger_temp = extF80_to_f64(ST(4)).v;
 			break;
 		case X87_ST5:
-			m_debugger_temp = floatx80_to_float64(ST(5));
+			m_debugger_temp = extF80_to_f64(ST(5)).v;
 			break;
 		case X87_ST6:
-			m_debugger_temp = floatx80_to_float64(ST(6));
+			m_debugger_temp = extF80_to_f64(ST(6)).v;
 			break;
 		case X87_ST7:
-			m_debugger_temp = floatx80_to_float64(ST(7));
+			m_debugger_temp = extF80_to_f64(ST(7)).v;
 			break;
 	}
 }
@@ -2331,7 +2333,7 @@ void i386_device::state_string_export(const device_state_entry &entry, std::stri
 			str = string_format("%08x%08x%08x%08x", XMM(7).d[3], XMM(7).d[2], XMM(7).d[1], XMM(7).d[0]);
 			break;
 	}
-	float_exception_flags = 0; // kill any float exceptions that occur here
+	softfloat_exceptionFlags = 0; // kill any float exceptions that occur here
 }
 
 void i386_device::build_opcode_table(uint32_t features)

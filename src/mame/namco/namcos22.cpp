@@ -26,13 +26,11 @@ TODO:
 - tokyowar garbage tile at right edge in attract mode. It's part of the cabinet link message, maybe BTANB?
 - ridgera2 title screen scrolls horizontally on some video footage, C139 related?
 - texture u/v mapping is often 1 pixel off, resulting in many glitch lines/gaps between textures
-- improve vertex lighting (is it phong shading?)
 - global offset is wrong in non-super22 testmode video test
-- acedrive/victlap testmode video test flickers
 - ss22 testmode video test screen#04 translucent polygon should be higher priority than sprite
-- ss22 testmode video test screen#13 geometry should not be lopsided (uses draw_direct_poly)
 - find out how/where vics num_sprites is determined exactly, currently a workaround is needed for airco22b and dirtdash
 - there's a sprite limit per scanline, eg. timecris submarine explosion smoke partially erases sprites on real hardware
+- adillor race end should fade polygons to red, these are vics sprites with a size of 0, expected x/y size is 0x100
 - propcycl attract mode, when the altar button is pressed, global fade should affect the background sprite
 - polygon position problems? (also has glitches on real hw, but not as bad)
   + timecris stage 1-2 start, beam appears through platform
@@ -588,7 +586,7 @@ Notes:
       C379         : Namco custom C379 (QFP64)
       C396         : Namco custom C396 (QFP160)
       C403         : Namco custom C403 (QFP136)
-      C405         : Namco custom C396 (x2, QFP176)
+      C405         : Namco custom C405 (x2, QFP176)
       SS22D1       : PALCE 20V8H (PLCC28, labelled 'SS22D1')
       SS22D2       : PALCE 16V8H (PLCC20, labelled 'SS22D2')
       SS22D3       : PALCE 16V8H (PLCC20, labelled 'SS22D3')
@@ -841,7 +839,7 @@ SYSTEM SUPER22 VIDEO(C) 8646962700 (8646972700)
   |               |-----| |-----| |-----| |-----|  |         |  |  |
   |   |---------|                                  |  C399   |  |--|
   |   |         |         |-----| |-----| |-----|  |         |   |
-  |   |  C387   |         |C400 | |C400 | |C400 |  |         |   |
+  |   |  C397   |         |C400 | |C400 | |C400 |  |         |   |
   |   |         |         |-----| |-----| |-----|  |---------|  |--|
 |--|  |         |                    |-----|            N341256 |  |
 |  |  |---------|                    |C406 |  |-----|   N341256 |  |
@@ -869,13 +867,11 @@ Notes:
       C361         : Namco custom C361 (QFP120)
       C374         : Namco custom C374 (QFP160)
       C381         : Namco custom C381 (x2, QFP144)
-      C387         : Namco custom C387 (QFP160)
       C395         : Namco custom C395 (QFP168)
+      C397         : Namco custom C397 (QFP160)
       C399         : Namco custom C399 (QFP160)
       C400         : Namco custom C400 (x4, QFP100)
-                     - x3 on 1st Revision
       C401         : Namco custom C401 (x4, QFP64)
-                     - x5 on 1st Revision
       C404         : Namco custom C404 (QFP208)
       C406         : Namco custom C406 (TQFP120)
       C407         : Namco custom C407 (QFP64) NOTE! On Revision A & B, this position is populated by an
@@ -1844,7 +1840,7 @@ void namcos22_state::namcos22_am(address_map &map)
 	/**
 	 * Tilemap Memory (64 x 64)
 	 * Mounted position: VIDEO  2K
-	 * Known chip type: HM511664 (64k x 16bit SRAM)
+	 * Known chip type: HM511664 (64k x 16bit DRAM)
 	 * Note: Self test: 90084000 - 9009ffff
 	 */
 	map(0x9009e000, 0x9009ffff).ram().w(FUNC(namcos22_state::namcos22_textram_w)).share(m_textram);
@@ -2063,28 +2059,28 @@ void namcos22_state::point_address_w(u16 data)
 
 void namcos22_state::point_loword_iw(u16 data)
 {
-	m_point_data |= data;
+	m_point_data = (m_point_data & ~0xffff) | data;
 	point_write(m_point_address++, m_point_data);
 }
 
 void namcos22_state::point_hiword_w(u16 data)
 {
-	m_point_data = data << 16;
+	m_point_data = (m_point_data & 0xffff) | data << 16;
 }
 
-u16 namcos22_state::point_loword_r()
+u16 namcos22_state::point_loword_ir()
 {
-	return point_read(m_point_address) & 0xffff;
-}
-
-u16 namcos22_state::point_hiword_ir()
-{
-	// high bit is unknown busy signal (ridgerac, ridgera2, raverace, cybrcomm)
-	const u16 ret = 0x8000 | (point_read(m_point_address) >> 16 & 0x00ff);
+	m_point_data = point_read(m_point_address);
 	if (!machine().side_effects_disabled())
 		m_point_address++;
 
-	return ret;
+	return m_point_data & 0xffff;
+}
+
+u16 namcos22_state::point_hiword_r()
+{
+	// high bit is unknown busy signal (ridgerac, ridgera2, raverace, cybrcomm)
+	return 0x8000 | (m_point_data >> 16 & 0xff);
 }
 
 
@@ -2456,8 +2452,8 @@ void namcos22_state::master_dsp_data(address_map &map)
 
 void namcos22_state::master_dsp_io(address_map &map)
 {
-	map(0x0, 0x0).rw(FUNC(namcos22_state::point_loword_r), FUNC(namcos22_state::point_loword_iw));
-	map(0x1, 0x1).rw(FUNC(namcos22_state::point_hiword_ir), FUNC(namcos22_state::point_hiword_w));
+	map(0x0, 0x0).rw(FUNC(namcos22_state::point_loword_ir), FUNC(namcos22_state::point_loword_iw));
+	map(0x1, 0x1).rw(FUNC(namcos22_state::point_hiword_r), FUNC(namcos22_state::point_hiword_w));
 	map(0x2, 0x2).rw(FUNC(namcos22_state::pdp_begin_r), FUNC(namcos22_state::dsp_unk2_w));
 	map(0x3, 0x3).rw(FUNC(namcos22_state::dsp_unk_port3_r), FUNC(namcos22_state::point_address_w));
 	map(0x4, 0x4).nopw(); /* unknown */
@@ -2628,7 +2624,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(namcos22s_state::mcu_irq)
 
 void namcos22s_state::mb87078_gain_changed(offs_t offset, u8 data)
 {
-	m_c352->set_output_gain(offset ^ 3, data / 100.0);
+	m_c352->set_output_gain(offset ^ 3, m_mb87078->gain_factor_r(offset));
 }
 
 /*
@@ -2952,18 +2948,18 @@ TIMER_DEVICE_CALLBACK_MEMBER(adillor_state::trackball_update)
 	if (BIT(m_config_switches->read(), 1))
 	{
 		double const ox = x, oy = y;
-		double const a = M_PI / 4.0;
-		x = ox*cos(a) - oy*sin(a);
-		y = ox*sin(a) + oy*cos(a);
+		double const scale = 1.0 / std::sqrt(2.0);
+		x = (ox - oy) * scale;
+		y = (oy + ox) * scale;
 	}
 
-	// tied to mcu A2/A3 timer (speed determines frequency)
+	// tied to MCU A2/A3 timer (speed determines frequency)
 	double t[2];
 	t[0] = fabs(y); // y -> A2
 	t[1] = fabs(x); // x -> A3
 	int params[2] = { (y >= 0.0) ? 2 : 0, (x <= 0.0) ? 3 : 1 };
 
-	// these values(in hz) may need tweaking:
+	// these values(in Hz) may need tweaking:
 	const double base = 20;
 	const double range = 1250;
 
@@ -3484,7 +3480,12 @@ static INPUT_PORTS_START( adillor )
 	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x0100, IP_ACTIVE_LOW, IPT_START1 )
-	PORT_BIT( 0xfe00, IP_ACTIVE_LOW, IPT_UNKNOWN )
+	// enabled with DSW4-8; P1 Start becomes frame advance while paused
+	// not on the dev panel, but also not wired in the cabinet, so hidden behind
+	// the dev machine config
+	PORT_BIT( 0x0200, IP_ACTIVE_LOW, IPT_OTHER ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x01) PORT_NAME("Dev Freeze Toggle")
+	PORT_BIT( 0x0200, IP_ACTIVE_LOW, IPT_UNKNOWN ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x00)
+	PORT_BIT( 0xfc00, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("OPT.0")
 	PORT_BIT( 0xffff, 0x0000, IPT_TRACKBALL_X ) PORT_SENSITIVITY(0x100) PORT_KEYDELTA(0x10)
@@ -3520,7 +3521,12 @@ static INPUT_PORTS_START( adillor )
 	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x01) PORT_PLAYER(2) PORT_NAME("Dev Service Right") // when in normal testmode, press this to enter the extra testmode
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_JOYSTICK_UP ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x01) PORT_PLAYER(2) PORT_NAME("Dev Service Up")
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_JOYSTICK_DOWN ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x01) PORT_PLAYER(2) PORT_NAME("Dev Service Down")
-	PORT_BIT( 0xffc0, IP_ACTIVE_LOW, IPT_UNKNOWN ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x01)
+	// left/right above are the coarse step; these two are the fine step
+	// without them most fields cannot reach every value
+	// eg. in SPRITE CG TEST the CHR NO index moves by 8 with Right and by 1 with Fine Inc.
+	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x01) PORT_PLAYER(2) PORT_NAME("Dev Service Fine Dec")
+	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_BUTTON4 ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x01) PORT_PLAYER(2) PORT_NAME("Dev Service Fine Inc")
+	PORT_BIT( 0xff00, IP_ACTIVE_LOW, IPT_UNKNOWN ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x01)
 	PORT_BIT( 0xffff, IP_ACTIVE_LOW, IPT_UNUSED ) PORT_CONDITION("DEV", 0x01, EQUALS, 0x00)
 INPUT_PORTS_END
 
@@ -3642,10 +3648,6 @@ ALLOW_SAVE_TYPE(namcos22_dsp_upload_state);
 
 void namcos22_state::machine_start()
 {
-	m_mcu_out.resolve();
-	m_cpuled_out.resolve();
-	m_wheel_motor.resolve();
-
 	m_portbits[0] = 0xffff;
 	m_portbits[1] = 0xffff;
 	m_dsp_upload_state = NAMCOS22_DSP_UPLOAD_READY;
@@ -3699,9 +3701,12 @@ void namcos22_state::machine_start()
 	save_item(NAME(m_objectshift));
 	save_item(NAME(m_viewmatrix));
 	save_item(NAME(m_LitSurfaceInfo));
-	save_item(NAME(m_SurfaceNormalFormat));
 	save_item(NAME(m_LitSurfaceCount));
 	save_item(NAME(m_LitSurfaceIndex));
+	save_item(NAME(m_LitSurfaceWidth));
+	save_item(NAME(m_LitSurfaceIntensity));
+	save_item(NAME(m_LitSurfaceGouraud));
+	save_item(NAME(m_LitSurfaceTriangles));
 	save_item(NAME(m_tilemapattr));
 	save_item(NAME(m_rowscroll));
 	save_item(NAME(m_lastrow));
@@ -3760,7 +3765,7 @@ void adillor_state::machine_start()
 
 void namcos22_state::namcos22(machine_config &config)
 {
-	/* basic machine hardware */
+	// basic machine hardware
 	M68020(config, m_maincpu, 49.152_MHz_XTAL/2); // MC68020RP25E
 	m_maincpu->set_addrmap(AS_PROGRAM, &namcos22_state::namcos22_am);
 	m_maincpu->set_vblank_int("screen", FUNC(namcos22_state::namcos22_interrupt));
@@ -3796,10 +3801,14 @@ void namcos22_state::namcos22(machine_config &config)
 	m_iomcu->p4_in_cb().set(FUNC(namcos22_state::iomcu_port4_s22_r));
 	m_iomcu->set_disable(); // not emulated yet
 
+	// high quantum is needed for main CPU => master DSP comms (acedrive, victlap video test)
+	// and erratic inputs otherwise in ss22 games, probably mcu vs maincpu shareram
+	config.set_maximum_quantum(attotime::from_hz(40000));
+
 	EEPROM_2864(config, "eeprom").write_time(attotime::zero);
 
-	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	// video hardware
+	SCREEN(config, m_screen);
 	m_screen->set_raw(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
 	m_screen->set_screen_update(FUNC(namcos22_state::screen_update_namcos22));
 	m_screen->screen_vblank().set(FUNC(namcos22_state::screen_vblank));
@@ -3807,7 +3816,7 @@ void namcos22_state::namcos22(machine_config &config)
 	PALETTE(config, m_palette).set_entries(0x8000);
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_namcos22);
 
-	/* sound hardware */
+	// sound hardware
 	SPEAKER(config, "speaker", 2).front();
 
 	C352(config, m_c352, 49.152_MHz_XTAL/2, 288);
@@ -3819,11 +3828,9 @@ void namcos22_state::cybrcomm(machine_config &config)
 {
 	namcos22(config);
 
-	SPEAKER(config, "rear_left").rear_left();
-	SPEAKER(config, "rear_right").rear_right();
-
-	m_c352->add_route(2, "rear_left", 1.0);
-	m_c352->add_route(3, "rear_right", 1.0);
+	SPEAKER(config, "rear", 2).rear();
+	m_c352->add_route(2, "rear", 1.0, 0);
+	m_c352->add_route(3, "rear", 1.0, 1);
 }
 
 // System Super22
@@ -3832,7 +3839,7 @@ void namcos22s_state::namcos22s(machine_config &config)
 {
 	namcos22(config);
 
-	/* basic machine hardware */
+	// basic machine hardware
 	M68EC020(config.replace(), m_maincpu, 49.152_MHz_XTAL/2); // MC68EC020FG25
 	m_maincpu->set_addrmap(AS_PROGRAM, &namcos22s_state::namcos22s_am);
 	m_maincpu->set_vblank_int("screen", FUNC(namcos22s_state::namcos22s_interrupt));
@@ -3850,17 +3857,17 @@ void namcos22s_state::namcos22s(machine_config &config)
 	m_mcu->an2_cb().set(FUNC(namcos22s_state::mcu_adc_r<2>));
 	m_mcu->an3_cb().set(FUNC(namcos22s_state::mcu_adc_r<3>));
 	TIMER(config, "mcu_irq").configure_scanline(FUNC(namcos22s_state::mcu_irq), "screen", 0, 240);
-	config.set_maximum_quantum(attotime::from_hz(9000)); // erratic inputs otherwise, probably mcu vs maincpu shareram
 
 	config.device_remove("iomcu");
 
-	MB87078(config, m_mb87078);
-	m_mb87078->gain_changed().set(FUNC(namcos22s_state::mb87078_gain_changed));
-
-	/* video hardware */
+	// video hardware
 	m_screen->set_screen_update(FUNC(namcos22s_state::screen_update_namcos22s));
 
 	GFXDECODE(config.replace(), m_gfxdecode, m_palette, gfx_super);
+
+	// sound hardware
+	MB87078(config, m_mb87078);
+	m_mb87078->gain_changed().set(FUNC(namcos22s_state::mb87078_gain_changed));
 }
 
 void namcos22s_state::airco22b(machine_config &config)
@@ -6323,7 +6330,7 @@ void propcycl_state::init_propcycl()
 {
 	u32 *ROM = (u32 *)memregion("maincpu")->base();
 
-	// patch out strange routine (uninitialized-eeprom related?)
+	// HACK: patch out strange routine (uninitialized-eeprom related?)
 	// maybe needs more accurate 28C64 eeprom device emulation
 	ROM[0x1992c/4] = 0x4e754e75;
 
@@ -6345,7 +6352,7 @@ void propcycl_state::init_propcycl()
 
 void propcycl_state::init_propcyclj()
 {
-	// see init_propcycl for notes
+	// HACK: see init_propcycl for notes
 	u32 *ROM = (u32 *)memregion("maincpu")->base();
 
 	ROM[0x1990a/4] = 0x4e754e75;
@@ -6404,7 +6411,7 @@ GAME( 1993, ridgeraca,  ridgerac, namcos22,  ridgera,    namcos22_state,  init_r
 GAME( 1993, ridgeracb,  ridgerac, namcos22,  ridgera,    namcos22_state,  init_ridgerac,  ROT0, "Namco", "Ridge Racer (US, RR3 Ver.B)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS ) // 1994-01-17, reports as "-Foreign B-" RR3 means USA?
 GAME( 1993, ridgeracc,  ridgerac, namcos22,  ridgera,    namcos22_state,  init_ridgerac,  ROT0, "Namco", "Ridge Racer (US, RR3)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS ) // 1993-10-28, reports as "-Foreign B-"
 GAME( 1993, ridgeracj,  ridgerac, namcos22,  ridgera,    namcos22_state,  init_ridgerac,  ROT0, "Namco", "Ridge Racer (Japan, RR1)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS ) // 1993-10-07
-GAME( 1994, ridgerac3m, ridgerac, namcos22,  ridgerac3m, namcos22_state,  init_ridgerac,  ROT0, "Namco", "Ridge Racer (World, RRC, Three Monitor Version)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NOT_WORKING ) // 1994-07-01, Standard game with 3 monitor linkup
+GAME( 1994, ridgerac3m, ridgerac, namcos22,  ridgerac3m, namcos22_state,  init_ridgerac,  ROT0, "Namco", "Ridge Racer (World, RRC, three monitor version)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NOT_WORKING ) // 1994-07-01, Standard game with 3 monitor linkup
 GAME( 1993, ridgeracf,  0,        namcos22,  ridgeracf,  namcos22_state,  init_ridgerac,  ROT0, "Namco", "Ridge Racer Full Scale (World, RRF2)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NOT_WORKING ) // 1993-12-13, very different version, incomplete dump.
 GAME( 1994, ridgera2,   0,        namcos22,  ridgera2,   namcos22_state,  init_ridgera2,  ROT0, "Namco", "Ridge Racer 2 (World, RRS2)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 1994-06-21 - NOT labeled "B" but based off Japan Rev.B
 GAME( 1994, ridgera2j,  ridgera2, namcos22,  ridgera2,   namcos22_state,  init_ridgera2,  ROT0, "Namco", "Ridge Racer 2 (Japan, RRS1 Ver.B)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 1994-06-21
@@ -6414,7 +6421,7 @@ GAME( 1994, cybrcomm,   0,        cybrcomm,  cybrcomm,   namcos22_state,  init_c
 GAME( 1995, raverace,   0,        namcos22,  raverace,   namcos22_state,  init_raverace,  ROT0, "Namco", "Rave Racer (World, RV2 Ver.B)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 07/16/95
 GAME( 1995, raveracej,  raverace, namcos22,  raverace,   namcos22_state,  init_raverace,  ROT0, "Namco", "Rave Racer (Japan, RV1 Ver.B)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 07/16/95
 GAME( 1995, raveraceja, raverace, namcos22,  raverace,   namcos22_state,  init_raverace,  ROT0, "Namco", "Rave Racer (Japan, RV1)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 06/29/95
-GAME( 1994, acedrive,   0,        namcos22,  acedrive,   namcos22_state,  init_acedrive,  ROT0, "Namco", "Ace Driver: Racing Evolution (World, AD2)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 94/10/20 16:22:25
+GAME( 1994, acedrive,   0,        namcos22,  acedrive,   namcos22_state,  init_acedrive,  ROT0, "Namco", "Ace Driver (World, AD2)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 94/10/20 16:22:25
 GAME( 1996, victlap,    0,        namcos22,  victlap,    namcos22_state,  init_victlap,   ROT0, "Namco", "Ace Driver: Victory Lap (World, ADV2 Ver.B)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 96/05/21 19:39:59
 GAME( 1996, victlapa,   victlap,  namcos22,  victlap,    namcos22_state,  init_victlap,   ROT0, "Namco", "Ace Driver: Victory Lap (World, ADV2)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 96/02/13 17:29:10
 GAME( 1996, victlapj,   victlap,  namcos22,  victlap,    namcos22_state,  init_victlap,   ROT0, "Namco", "Ace Driver: Victory Lap (Japan, ADV1 Ver.C)", MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_GRAPHICS | MACHINE_NODEVICE_LAN ) // 96/02/13 17:29:10

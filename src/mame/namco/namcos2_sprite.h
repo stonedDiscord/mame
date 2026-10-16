@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:David Haywood
+// copyright-holders:David Haywood, Phil Stroffolino, Ernesto Corvi, Juergen Buchmueller, Alex Pasadyn, Aaron Giles, Nicola Salmoria
 
 #ifndef MAME_NAMCO_NAMCOS2_SPRITE_H
 #define MAME_NAMCO_NAMCOS2_SPRITE_H
@@ -16,9 +16,15 @@ public:
 	using ns2_mix_delegate = device_delegate<bool (u16 &dest, u8 &destpri, u16 colbase, u16 src, u32 prival)>;
 
 	// construction/destruction
-	namcos2_sprite_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+	namcos2_sprite_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 	template <typename T> namcos2_sprite_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock, T &&palette_tag, const gfx_decode_entry *gfxinfo)
 		: namcos2_sprite_device(mconfig, tag, owner, clock)
+	{
+		set_info(gfxinfo);
+		set_palette(std::forward<T>(palette_tag));
+	}
+	template <typename T> namcos2_sprite_device(const machine_config &mconfig, const char *tag, device_t *owner, T &&palette_tag, const gfx_decode_entry *gfxinfo)
+		: namcos2_sprite_device(mconfig, tag, owner, 0, std::forward<T>(palette_tag), gfxinfo)
 	{
 		set_info(gfxinfo);
 		set_palette(std::forward<T>(palette_tag));
@@ -37,7 +43,7 @@ public:
 	bitmap_ind16 &screen_bitmap() { return m_screenbitmap; }
 
 protected:
-	namcos2_sprite_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock);
+	namcos2_sprite_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, u16 xmask);
 
 	// device_t implementation
 	virtual void device_start() override ATTR_COLD;
@@ -52,15 +58,18 @@ protected:
 
 	template <class BitmapClass> void draw_common(screen_device &screen, BitmapClass &bitmap, const rectangle &cliprect, int control);
 
-	void zdrawgfxzoom(bitmap_ind16 &dest_bmp, const rectangle &clip, gfx_element *gfx, u32 code, u32 color, bool flipx, bool flipy, int sx, int sy, int scalex, int scaley, u32 prival);
+	void draw_single_sprite(bitmap_ind16 &bitmap, const rectangle &clip, gfx_element *gfx, u32 code, u32 color, bool flipx, bool flipy, int sx, int sy, int sizex, int sizey, u32 prival);
 
 	required_shared_ptr<u16> m_spriteram;
+	required_region_ptr<u8> m_scalelut_region;
 
 	ns2_priority_delegate m_pri_cb;
 	ns2_mix_delegate m_mix_cb;
 
 	bitmap_ind16 m_renderbitmap;
 	bitmap_ind16 m_screenbitmap;
+
+	u16 m_xmask;
 };
 
 class namcos2_sprite_finallap_device : public namcos2_sprite_device
@@ -84,9 +93,15 @@ class namcos2_sprite_metalhawk_device : public namcos2_sprite_device
 {
 public:
 	// construction/destruction
-	namcos2_sprite_metalhawk_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+	namcos2_sprite_metalhawk_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 	template <typename T> namcos2_sprite_metalhawk_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock, T &&palette_tag, const gfx_decode_entry *gfxinfo)
 		: namcos2_sprite_metalhawk_device(mconfig, tag, owner, clock)
+	{
+		set_info(gfxinfo);
+		set_palette(std::forward<T>(palette_tag));
+	}
+	template <typename T> namcos2_sprite_metalhawk_device(const machine_config &mconfig, const char *tag, device_t *owner, T &&palette_tag, const gfx_decode_entry *gfxinfo)
+		: namcos2_sprite_metalhawk_device(mconfig, tag, owner, 0, std::forward<T>(palette_tag), gfxinfo)
 	{
 		set_info(gfxinfo);
 		set_palette(std::forward<T>(palette_tag));

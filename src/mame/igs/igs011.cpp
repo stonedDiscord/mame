@@ -49,7 +49,9 @@ TODO:
 - Interrupt controller at 838000 or a38000 (there's a preliminary
   implementation for lhb)
 
-- vbowl, vbowlj: trackball support
+- vbowl, vbowlj: trackball glitches occasionally with "direct"
+  orientation, jumping by exactly 181 in the direction orthogonal to
+  the movement
 
 - xymga: stop during attract mode with 'RECORD ERROR 3'
 
@@ -96,11 +98,6 @@ Original game bugs that are emulated faithfully:
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
-
-#define LOG_BLITTER (1U << 1)
-
-//#define VERBOSE (LOG_GENERAL | LOG_BLITTER)
-#include "logmacro.h"
 
 
 namespace {
@@ -201,6 +198,7 @@ public:
 	void init_drgnwrldv40k() ATTR_COLD;
 	void init_ryukobou() ATTR_COLD;
 	void init_tygn() ATTR_COLD;
+	void init_sdmg2641c() ATTR_COLD;
 
 	void drgnwrld(machine_config &config) ATTR_COLD;
 	void drgnwrld_igs012(machine_config &config) ATTR_COLD;
@@ -208,6 +206,7 @@ public:
 	void wlcc(machine_config &config) ATTR_COLD;
 	void xymg(machine_config &config) ATTR_COLD;
 	void xymga(machine_config &config) ATTR_COLD;
+	void sdmg2641c(machine_config &config) ATTR_COLD;
 	void lhb2(machine_config &config) ATTR_COLD;
 	void lhb2cpgs(machine_config &config) ATTR_COLD;
 	void lhb3(machine_config &config) ATTR_COLD;
@@ -245,6 +244,8 @@ private:
 	u16 wlcc_igs003_r();
 	void xymg_igs003_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	u16 xymg_igs003_r();
+	void sdmg2641c_igs003_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	u16 sdmg2641c_igs003_r();
 	void lhb_irq_enable_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	void lhb_okibank_w(u8 data);
 
@@ -271,6 +272,7 @@ private:
 	void lhb2_mem(address_map &map) ATTR_COLD;
 	void lhb3_mem(address_map &map) ATTR_COLD;
 	void nkishusp_mem(address_map &map) ATTR_COLD;
+	void sdmg2641c_mem(address_map &map) ATTR_COLD;
 	void tygn_mem(address_map &map) ATTR_COLD;
 	void wlcc_mem(address_map &map) ATTR_COLD;
 	void xymg_base_mem(address_map &map) ATTR_COLD;
@@ -287,6 +289,8 @@ public:
 		, m_ics(*this, "ics")
 		, m_vbowl_trackball(*this, "vbowl_trackball")
 		, m_io_an(*this, "AN%u", 0U)
+		, m_io_conf(*this, "CONF")
+		, m_trackball_count{ 0, 0 }
 	{
 	}
 
@@ -297,10 +301,16 @@ public:
 	void vbowl(machine_config &config) ATTR_COLD;
 	void vbowlhk(machine_config &config) ATTR_COLD;
 
+protected:
+	virtual void machine_start() override ATTR_COLD;
+
 private:
 	required_device<ics2115_device> m_ics;
 	required_shared_ptr<u16> m_vbowl_trackball;
 	required_ioport_array<2> m_io_an;
+	required_ioport m_io_conf;
+
+	u16 m_trackball_count[2];
 
 	void vbowl_prot_swap_w(u8 data);
 	u16 vbowl_prot_r();
@@ -354,6 +364,13 @@ void igs011_oki_state::machine_start()
 	save_item(NAME(m_lhb_irq_enable));
 }
 
+void vbowl_state::machine_start()
+{
+	igs011_state_base::machine_start();
+
+	save_item(NAME(m_trackball_count));
+}
+
 // Inputs
 
 u16 igs011_oki_state::key_matrix_r()
@@ -381,11 +398,12 @@ u16 igs011_state_base::dips_r()
 
 	u16 ret = 0xff;
 	for (int i = 0; i < Num; i++)
+	{
 		if (BIT(~m_dips_sel, i))
 			ret &= m_io_dsw[i]->read();
+	}
 
-	// 0x0100 is blitter busy
-	return  (ret & 0xff) | 0x0000;
+	return  (ret & 0xff) | (m_igs011->blitter_busy_r() ? 0x0100 : 0x0000);
 }
 
 /***************************************************************************
@@ -1627,6 +1645,128 @@ void vbowl_state::vbowlhk_igs003_w(offs_t offset, u16 data, u16 mem_mask)
 	}
 }
 
+void igs011_oki_state::sdmg2641c_igs003_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	switch (m_igs003_reg)
+	{
+		case 0x01:
+			COMBINE_DATA(&m_input_sel);
+
+			if (ACCESSING_BITS_0_7)
+			{
+				machine().bookkeeping().coin_counter_w(0, BIT(data, 5)); // coin in
+				machine().bookkeeping().coin_counter_w(1, BIT(data, 6)); // coin out
+				m_hopper->motor_w(BIT(data, 7));
+			}
+
+			if (m_input_sel & 0x40)
+				logerror("%s: warning, unknown bits written in input_sel = %02x\n", machine().describe_context(), m_input_sel);
+			break;
+
+		case 0x40:
+			m_igs003_prot_h2 = m_igs003_prot_h1;
+			m_igs003_prot_h1 = data;
+			break;
+
+		case 0x41:
+		case 0x42:
+		case 0x43:
+		case 0x44:
+		case 0x45:
+		case 0x46:
+		case 0x47:
+			break;
+
+		case 0x48:
+			m_igs003_prot_x = 0;
+			if ((m_igs003_prot_h2 & 0x0a) != 0x0a)   m_igs003_prot_x |= 0x08;
+			if ((m_igs003_prot_h2 & 0x90) != 0x90)   m_igs003_prot_x |= 0x04;
+			if ((m_igs003_prot_h1 & 0x06) != 0x06)   m_igs003_prot_x |= 0x02;
+			if ((m_igs003_prot_h1 & 0x90) != 0x90)   m_igs003_prot_x |= 0x01;
+			break;
+
+		case 0x50: // reset
+			m_igs003_prot_hold = 0;
+			break;
+
+		case 0x80:
+		case 0x81:
+		case 0x82:
+		case 0x83:
+		case 0x84:
+		case 0x85:
+		case 0x86:
+		case 0x87:
+			{
+				m_igs003_prot_y = m_igs003_reg & 0x07;
+				m_igs003_prot_z = data;
+
+				const u16 old = m_igs003_prot_hold;
+
+				// rotate (with some bits inverted)
+				m_igs003_prot_hold <<= 1;
+				m_igs003_prot_hold |= BIT(old, 15);
+				m_igs003_prot_hold ^= 0x2bad;
+				// xor bit 0
+				m_igs003_prot_hold ^= BIT(old, 9);
+				m_igs003_prot_hold ^= BIT(old, 6);
+				m_igs003_prot_hold ^= BIT(old, 1);
+				m_igs003_prot_hold ^= BIT(m_igs003_prot_z, m_igs003_prot_y);
+				// xor other 4 bits
+				m_igs003_prot_hold ^= BIT(m_igs003_prot_x, 0) <<  3;
+				m_igs003_prot_hold ^= BIT(m_igs003_prot_x, 1) <<  8;
+				m_igs003_prot_hold ^= BIT(m_igs003_prot_x, 2) << 10;
+				m_igs003_prot_hold ^= BIT(m_igs003_prot_x, 3) << 14;
+			}
+			break;
+
+		default:
+			logerror("%s: warning, writing to igs003_reg %02x = %02x\n", machine().describe_context(), m_igs003_reg, data);
+	}
+}
+
+u16 igs011_oki_state::sdmg2641c_igs003_r()
+{
+	switch (m_igs003_reg)
+	{
+		case 0x00:  return m_io_coin->read();
+
+		case 0x02:  return key_matrix_r();
+
+		case 0x03:
+			return bitswap<16>(m_igs003_prot_hold, 14,11,8,6,4,3,1,0, 5,2,9,7,10,13,12,15) & 0xff;
+
+		case 0x20:  return 0x49;
+		case 0x21:  return 0x47;
+		case 0x22:  return 0x53;
+
+		case 0x24:  return 0x41;
+		case 0x25:  return 0x41;
+		case 0x26:  return 0x7f;
+		case 0x27:  return 0x41;
+		case 0x28:  return 0x41;
+
+		case 0x2a:  return 0x3e;
+		case 0x2b:  return 0x41;
+		case 0x2c:  return 0x49;
+		case 0x2d:  return 0xf9;
+		case 0x2e:  return 0x0a;
+
+		case 0x30:  return 0x26;
+		case 0x31:  return 0x49;
+		case 0x32:  return 0x49;
+		case 0x33:  return 0x49;
+		case 0x34:  return 0x32;
+
+		default:
+			if (!machine().side_effects_disabled())
+				logerror("%s: warning, reading with igs003_reg = %02x\n", machine().describe_context(), m_igs003_reg);
+			break;
+	}
+
+	return 0;
+}
+
 
 /***************************************************************************
 
@@ -2126,6 +2266,28 @@ void igs011_oki_state::init_nkishusp()
 	rom[0x4c67a/2]  =   0x6038;     // 04C67A: 6E38      bgt     $4c6b4 (system error)
 }
 
+void igs011_oki_state::init_sdmg2641c()
+{
+	u16 *src = (u16 *)m_maincpu_region->base();
+
+	const int rom_size = 0x80000;
+
+	for (int i = 0; i < rom_size/2; i++)
+	{
+		u16 x = src[i];
+
+		if ((i & 0x0300) != 0x0100)   // lhb: 0x1100
+			x ^= 0x0200;
+
+		if ((i & 0x0150) != 0x0000 && (i & 0x0152) != 0x0010)
+			x ^= 0x0004;
+
+		if ((i & 0x2084) != 0x2084 && (i & 0x2094) != 0x2014)
+			x ^= 0x0020;
+
+		src[i] = x;
+	}
+}
 
 /***************************************************************************
 
@@ -2276,6 +2438,15 @@ void igs011_oki_state::xymga_mem(address_map &map)
 	map(0x700000, 0x700001).portr("COIN");
 	map(0x700002, 0x700005).r(FUNC(igs011_oki_state::lhb_inputs_r));
 	map(0x700002, 0x700003).w(FUNC(igs011_oki_state::lhb_inputs_w));
+}
+
+void igs011_oki_state::sdmg2641c_mem(address_map &map)
+{
+	xymg_base_mem(map);
+
+	map(0x700000, 0x700001).w(FUNC(igs011_oki_state::igs003_w));
+	map(0x700002, 0x700003).rw(FUNC(igs011_oki_state::sdmg2641c_igs003_r), FUNC(igs011_oki_state::sdmg2641c_igs003_w));
+	map(0x838000, 0x838001).w(FUNC(igs011_oki_state::lhb_irq_enable_w));
 }
 
 void igs011_oki_state::wlcc_mem(address_map &map)
@@ -2430,7 +2601,25 @@ void vbowl_state::screen_vblank(int state)
 	if (state)
 	{
 		m_vbowl_trackball[0] = m_vbowl_trackball[1];
-		m_vbowl_trackball[1] = (m_io_an[1]->read() << 8) | m_io_an[0]->read();
+
+		// trackball is rotated 45 degrees
+		u8 const x = m_io_an[0]->read();
+		u8 const y = m_io_an[1]->read();
+		if (BIT(m_io_conf->read(), 0))
+		{
+			u8 const dx = x - m_trackball_count[0];
+			u8 const dy = y - m_trackball_count[1];
+			u8 const ax = (m_vbowl_trackball[1] & 0xff) + dx + dy;
+			u8 const ay = (m_vbowl_trackball[1] >> 8) + dy - dx;
+			m_vbowl_trackball[1] = (u16(ay) << 8) | u16(ax);
+		}
+		else
+		{
+			m_vbowl_trackball[1] = (u16(y) << 8) | u16(x);
+		}
+
+		m_trackball_count[0] = x;
+		m_trackball_count[1] = y;
 	}
 }
 
@@ -2442,10 +2631,10 @@ void vbowl_state::vbowl_pen_hi_w(u8 data)
 		logerror("%s: warning, unknown bits written to pen_hi = %02x\n", machine().describe_context(), data);
 }
 
-void vbowl_state::vbowl_link_0_w(u16 data){ }
-void vbowl_state::vbowl_link_1_w(u16 data){ }
-void vbowl_state::vbowl_link_2_w(u16 data){ }
-void vbowl_state::vbowl_link_3_w(u16 data){ }
+void vbowl_state::vbowl_link_0_w(u16 data) { }
+void vbowl_state::vbowl_link_1_w(u16 data) { }
+void vbowl_state::vbowl_link_2_w(u16 data) { }
+void vbowl_state::vbowl_link_3_w(u16 data) { }
 
 void vbowl_state::vbowl_mem(address_map &map)
 {
@@ -3496,6 +3685,8 @@ static INPUT_PORTS_START( vbowlhk )
 
 	PORT_START("AN1")
 	PORT_BIT( 0xff, 0xff, IPT_UNKNOWN )
+
+	PORT_START("CONF")
 INPUT_PORTS_END
 
 
@@ -3523,6 +3714,11 @@ static INPUT_PORTS_START( vbowl )
 
 	PORT_MODIFY("AN1")
 	PORT_BIT( 0xff, 0x00, IPT_TRACKBALL_Y ) PORT_SENSITIVITY(30) PORT_KEYDELTA(30) PORT_PLAYER(1)
+
+	PORT_MODIFY("CONF")
+	PORT_CONFNAME( 0x01, 0x01, "Trackball Orientation" )
+	PORT_CONFSETTING(    0x00, "Direct" )
+	PORT_CONFSETTING(    0x01, "Natural" )
 INPUT_PORTS_END
 
 
@@ -3534,6 +3730,9 @@ static INPUT_PORTS_START( vbowlj )
 	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Controls ) )      PORT_DIPLOCATION("SW1:6")
 	PORT_DIPSETTING(    0x20, DEF_STR( Joystick ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( Trackball ) )
+	PORT_DIPNAME( 0x40, 0x40, DEF_STR( Unknown ) )       PORT_DIPLOCATION("SW1:7")
+	PORT_DIPSETTING(    0x40, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
 
@@ -3580,7 +3779,7 @@ void igs011_state_base::igs011_base(machine_config &config)
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(1282));
 	m_screen->set_size(512, 260);
@@ -3647,7 +3846,7 @@ void igs011_oki_state::drgnwrld_igs012(machine_config &config)
 
 	m_maincpu->set_addrmap(AS_PROGRAM, &igs011_oki_state::drgnwrld_igs012_mem);
 
-	IGS012(config, m_igs012, 0);
+	IGS012(config, m_igs012);
 }
 
 
@@ -3711,6 +3910,13 @@ void igs011_oki_state::xymga(machine_config &config)
 	xymg(config);
 
 	m_maincpu->set_addrmap(AS_PROGRAM, &igs011_oki_state::xymga_mem);
+}
+
+void igs011_oki_state::sdmg2641c(machine_config &config)
+{
+	xymg(config);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &igs011_oki_state::sdmg2641c_mem);
 }
 
 
@@ -3782,14 +3988,14 @@ void vbowl_state::vbowl(machine_config &config)
 	// irq 5 points to a debug function (all routines are clearly patched out)
 	// irq 4 points to an apparently unneeded routine
 
-	IGS012(config, m_igs012, 0);
+	IGS012(config, m_igs012);
 
 	m_screen->screen_vblank().set(FUNC(vbowl_state::screen_vblank));
 	//GFXDECODE(config, "gfxdecode", m_palette, gfx_igs011_hi);
 
 	ICS2115(config, m_ics, 33.8688_MHz_XTAL);
 	m_ics->irq().set(FUNC(vbowl_state::sound_irq));
-	m_ics->add_route(ALL_OUTPUTS, "mono", 3.75);
+	m_ics->add_route(ALL_OUTPUTS, "mono", 0.375);
 }
 
 void vbowl_state::vbowlhk(machine_config &config)
@@ -4610,6 +4816,18 @@ ROM_START( xymga )
 	ROM_LOAD( "igs_s0202.u39", 0x000000, 0x80000, CRC(106ac5f7) SHA1(5796a880c3424e3d2251b2223a0e594957afecaf) ) // same as xymg, only without 1st and 2nd half identical
 ROM_END
 
+ROM_START( sdmg2641c ) // IGS PCB N0-0093-8
+	ROM_REGION( 0x80000, "maincpu", 0 )
+	ROM_LOAD16_WORD_SWAP( "igs_m2403.u30", 0x00000, 0x80000, CRC(e5f197fe) SHA1(d17bf7f37251083645cf235e148cb819d1bd995d) )
+
+	ROM_REGION( 0x280000, "igs011", 0 )
+	ROM_LOAD( "rom.u15",      0x000000, 0x200000, CRC(ec54452c) SHA1(0ee7ffa3d4845af083944e64faf5a1c78247aaa2) )
+	ROM_LOAD( "igs_l2404.u8", 0x200000, 0x080000, CRC(47dd4df5) SHA1(74e2fdb6a7052290b631fc13d31bc03261410e84) )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "igs_s0202.u39", 0x000000, 0x80000, CRC(106ac5f7) SHA1(5796a880c3424e3d2251b2223a0e594957afecaf) ) // not dumped, but ROM code matches xymga's
+ROM_END
+
 
 } // anonymous namespace
 
@@ -4643,4 +4861,5 @@ GAME( 1996, wlcc,          xymg,     wlcc,            wlcc,      igs011_oki_stat
 GAME( 1996, vbowl,         0,        vbowl,           vbowl,     vbowl_state,      init_vbowl,        ROT0, "IGS",                     "Virtua Bowling (World, V101XCM)",                  MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_SOUND )
 GAME( 1996, vbowlj,        vbowl,    vbowl,           vbowlj,    vbowl_state,      init_vbowlj,       ROT0, "IGS / Alta",              "Virtua Bowling (Japan, V100JCM)",                  MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_SOUND )
 GAME( 1996, vbowlhk,       vbowl,    vbowlhk,         vbowlhk,   vbowl_state,      init_vbowlhk,      ROT0, "IGS / Tai Tin Amusement", "Virtua Bowling (Hong Kong, V101HJS)",              MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_SOUND )
+GAME( 1997, sdmg2641c,     sdmg2,    sdmg2641c,       xymg,      igs011_oki_state, init_sdmg2641c,    ROT0, "IGS",                     "Chaoji Da Manguan II (China, V641C)",              MACHINE_SUPPORTS_SAVE | MACHINE_NOT_WORKING ) // inputs / outputs / protection need verifying
 GAME( 1998, nkishusp,      lhb2,     nkishusp,        nkishusp,  igs011_oki_state, init_nkishusp,     ROT0, "IGS / Alta",              "Mahjong Nenrikishu SP (Japan, V250J)",             MACHINE_SUPPORTS_SAVE )

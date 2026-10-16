@@ -48,6 +48,7 @@
 #include "bus/heathzenith/h89/cdr_fdc_880h.h"
 #include "bus/heathzenith/h89/h_88_3.h"
 #include "bus/heathzenith/h89/h_88_5.h"
+#include "bus/heathzenith/h89/h17_fdc.h"
 #include "bus/heathzenith/h89/mms77316_fdc.h"
 #include "bus/heathzenith/h89/sigmasoft_parallel_port.h"
 #include "bus/heathzenith/h89/sigmasoft_sound.h"
@@ -973,6 +974,7 @@ void h89_base_state::h89_right_cards_mms(device_slot_interface &device)
 
 void h89_base_state::h89_right_p506_cards(device_slot_interface &device)
 {
+	device.option_add("h17fdc",    H89BUS_H_17_FDC);
 	device.option_add("h_88_3",    H89BUS_H_88_3);
 	device.option_add("ha_88_3",   H89BUS_HA_88_3);
 	device.option_add("ss_snd",    H89BUS_SIGMASOFT_SND);
@@ -1018,7 +1020,7 @@ void h89_base_state::h89_base(machine_config &config)
 
 	m_tlbc->reset_cb().set(FUNC(h89_base_state::reset_line));
 
-	H89BUS(config, m_h89bus, 0);
+	H89BUS(config, m_h89bus);
 	m_h89bus->set_program_space(m_maincpu, AS_PROGRAM);
 	m_h89bus->set_io_space(m_maincpu, AS_IO);
 	m_h89bus->out_int3_callback().set(FUNC(h89_base_state::slot_irq<3>));
@@ -1034,7 +1036,7 @@ void h89_base_state::h89_base(machine_config &config)
 	H89BUS_RIGHT_SLOT(config, "p506", "h89bus", [this](device_slot_interface &device) { h89_right_p506_cards(device); }, "we_pullup").set_p506_signalling(true);
 
 	// H89 interrupt interval is 2mSec
-	TIMER(config, "irq_timer", 0).configure_periodic(FUNC(h89_base_state::h89_irq_timer), attotime::from_msec(2));
+	TIMER(config, "irq_timer").configure_periodic(FUNC(h89_base_state::h89_irq_timer), attotime::from_msec(2));
 }
 
 void h88_state::h88(machine_config &config)

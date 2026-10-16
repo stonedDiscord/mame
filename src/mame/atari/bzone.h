@@ -15,6 +15,7 @@
 #include "mathbox.h"
 #include "sound/discrete.h"
 #include "screen.h"
+#include "vector.h"
 
 #define BZONE_MASTER_CLOCK (XTAL(12'096'000))
 #define BZONE_CLOCK_3KHZ   (BZONE_MASTER_CLOCK / 4096)
@@ -27,14 +28,13 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_mathbox(*this, "mathbox"),
 		m_discrete(*this, "discrete"),
-		m_screen(*this, "screen"),
+		m_vector(*this, "vector"),
 		m_startled(*this, "startled")
 	{ }
 
 	int clock_r();
 	void bzone(machine_config &config);
 	void bradley(machine_config &config);
-	void dsrtwars(machine_config &config);
 
 protected:
 	void bzone_coin_counter_w(offs_t offset, uint8_t data);
@@ -46,14 +46,14 @@ protected:
 
 	void bzone_base(machine_config &config);
 	void bzone_audio(machine_config &config);
+	void bzone_discrete_audio(machine_config &config) ATTR_COLD;
 	void bzone_map(address_map &map) ATTR_COLD;
 	void bradley_map(address_map &map) ATTR_COLD;
-	void dsrtwars_map(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<mathbox_device> m_mathbox;
 	optional_device<discrete_device> m_discrete;
-	required_device<screen_device> m_screen;
+	required_device<vector_device> m_vector;
 	output_finder<> m_startled;
 
 private:

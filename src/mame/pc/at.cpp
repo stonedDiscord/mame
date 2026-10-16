@@ -136,42 +136,42 @@ public:
 		m_ram(*this, RAM_TAG)
 	{ }
 
-	void pc30iii(machine_config &config);
-	void k286i(machine_config &config);
-	void ibm5170(machine_config &config);
-	void ct386sx(machine_config &config);
-	void xb42639(machine_config &config);
-	void at486l(machine_config &config);
-	void comportii(machine_config &config);
-	void comportiii(machine_config &config);
-	void comslt286(machine_config &config);
-	void dsys200(machine_config &config);
-	void ibm5162(machine_config &config);
-	void neat(machine_config &config);
-	void at386l(machine_config &config);
-	void ibm5170a(machine_config &config);
-	void ec1842(machine_config &config);
-	void at486(machine_config &config);
-	void ficpio2(machine_config &config);
-	void at386sx(machine_config &config);
-	void pc40iii(machine_config &config);
-	void pc45iii(machine_config &config);
-	void c286lt(machine_config &config);
-	void csl286(machine_config &config);
-	void c386sx16(machine_config &config);
-	void atturbo(machine_config &config);
-	void at386(machine_config &config);
-	void ncrpc8(machine_config &config);
-	void n8810m15(machine_config &config);
-	void n8810m55(machine_config &config);
-	void ews286(machine_config &config);
-	void olyport40(machine_config &config);
-	void micral45(machine_config &config);
-	void euroat(machine_config &config);
-	void pg750(machine_config &config);
+	void pc30iii(machine_config &config) ATTR_COLD;
+	void k286i(machine_config &config) ATTR_COLD;
+	void ibm5170(machine_config &config) ATTR_COLD;
+	void ct386sx(machine_config &config) ATTR_COLD;
+	void xb42639(machine_config &config) ATTR_COLD;
+	void at486l(machine_config &config) ATTR_COLD;
+	void comportii(machine_config &config) ATTR_COLD;
+	void comportiii(machine_config &config) ATTR_COLD;
+	void comslt286(machine_config &config) ATTR_COLD;
+	void dsys200(machine_config &config) ATTR_COLD;
+	void ibm5162(machine_config &config) ATTR_COLD;
+	void neat(machine_config &config) ATTR_COLD;
+	void at386l(machine_config &config) ATTR_COLD;
+	void ibm5170a(machine_config &config) ATTR_COLD;
+	void ec1842(machine_config &config) ATTR_COLD;
+	void at486(machine_config &config) ATTR_COLD;
+	void ficpio2(machine_config &config) ATTR_COLD;
+	void at386sx(machine_config &config) ATTR_COLD;
+	void pc40iii(machine_config &config) ATTR_COLD;
+	void pc45iii(machine_config &config) ATTR_COLD;
+	void c286lt(machine_config &config) ATTR_COLD;
+	void csl286(machine_config &config) ATTR_COLD;
+	void c386sx16(machine_config &config) ATTR_COLD;
+	void atturbo(machine_config &config) ATTR_COLD;
+	void at386(machine_config &config) ATTR_COLD;
+	void ncrpc8(machine_config &config) ATTR_COLD;
+	void n8810m15(machine_config &config) ATTR_COLD;
+	void n8810m55(machine_config &config) ATTR_COLD;
+	void ews286(machine_config &config) ATTR_COLD;
+	void olyport40(machine_config &config) ATTR_COLD;
+	void micral45(machine_config &config) ATTR_COLD;
+	void euroat(machine_config &config) ATTR_COLD;
+	void pg750(machine_config &config) ATTR_COLD;
 
-	void init_at();
-	void init_atpci();
+	void init_at() ATTR_COLD;
+	void init_atpci() ATTR_COLD;
 
 protected:
 	required_device<cpu_device> m_maincpu;
@@ -205,10 +205,10 @@ class at_vrom_fix_state : public at_state
 public:
 	using at_state::at_state;
 
-	void init_megapcpla();
+	void init_megapcpla() ATTR_COLD;
 
-	void ibmps1(machine_config &config);
-	void megapcpla(machine_config &config);
+	void ibmps1(machine_config &config) ATTR_COLD;
+	void megapcpla(machine_config &config) ATTR_COLD;
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
@@ -491,7 +491,7 @@ void at_state::neat(machine_config &config)
 	rtc.irq().set("mb:pic8259_slave", FUNC(pic8259_device::ir0_w)); // this is in :mb
 	rtc.set_century_index(0x32);
 
-	CS8221(config, "cs8221", 0, "maincpu", "mb:isa", "bios");
+	CS8221(config, "cs8221", "maincpu", "mb:isa", "bios");
 }
 
 void at_state::xb42639(machine_config &config)
@@ -567,8 +567,9 @@ void at_state::at486(machine_config &config)
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
+	// FIXME: deteremine ISA bus clock
 	// on-board devices
-	ISA16_SLOT(config, "board1", 0, "mb:isabus", pc_isa16_cards, "fdc_smc", true); // FIXME: deteremine ISA bus clock
+	ISA16_SLOT(config, "board1", 0, "mb:isabus", pc_isa16_cards, "fdc_smc", true);
 	ISA16_SLOT(config, "board2", 0, "mb:isabus", pc_isa16_cards, "comat", true);
 	ISA16_SLOT(config, "board3", 0, "mb:isabus", pc_isa16_cards, "ide", true);
 	ISA16_SLOT(config, "board4", 0, "mb:isabus", pc_isa16_cards, "lpt", true);
@@ -606,7 +607,7 @@ void at_state::ct386sx(machine_config &config)
 {
 	at386sx(config);
 	m_maincpu->set_addrmap(AS_IO, &at_state::neat_io);
-	CS8221(config, "cs8221", 0, "maincpu", "mb:isa", "maincpu");
+	CS8221(config, "cs8221", "maincpu", "mb:isa", "maincpu");
 }
 
 // Commodore PC 30-III
@@ -640,8 +641,9 @@ void at_vrom_fix_state::megapcpla(machine_config &config)
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
+	// FIXME: determine ISA bus clock
 	// on board devices
-	ISA16_SLOT(config, "board1", 0, "mb:isabus", pc_isa16_cards, "fdc_smc", true); // FIXME: determine ISA bus clock
+	ISA16_SLOT(config, "board1", 0, "mb:isabus", pc_isa16_cards, "fdc_smc", true);
 	ISA16_SLOT(config, "board2", 0, "mb:isabus", pc_isa16_cards, "comat", true);
 	ISA16_SLOT(config, "board3", 0, "mb:isabus", pc_isa16_cards, "ide", true);
 	ISA16_SLOT(config, "board4", 0, "mb:isabus", pc_isa16_cards, "lpt", true);
@@ -683,7 +685,8 @@ void at_state::ficpio2(machine_config &config)
 	RAM(config, m_ram).set_default_size("4M").set_extra_options("1M,2M,8M,16M,32M,64M,128M");
 
 	// on board devices
-	ISA16_SLOT(config, "board1", 0, "mb:isabus", pc_isa16_cards, "fdc_smc", true); // FIXME: determine ISA bus clock
+	// FIXME: determine ISA bus clock
+	ISA16_SLOT(config, "board1", 0, "mb:isabus", pc_isa16_cards, "fdc_smc", true);
 	ISA16_SLOT(config, "board2", 0, "mb:isabus", pc_isa16_cards, "comat", true);
 	ISA16_SLOT(config, "board3", 0, "mb:isabus", pc_isa16_cards, "lpt", true);
 
@@ -692,8 +695,9 @@ void at_state::ficpio2(machine_config &config)
 	ide_controller_32_device &ide2(IDE_CONTROLLER_32(config, "ide2").options(ata_devices, "cdrom", nullptr, true));
 	ide2.irq_handler().set("mb:pic8259_slave", FUNC(pic8259_device::ir7_w));
 
-	PCI_BUS(config, "pcibus", 0).set_busnum(0);
+	PCI_BUS(config, "pcibus").set_busnum(0);
 	PCI_CONNECTOR(config, "pcibus:0", pci_devices, "vt82c505", true);
+	// FIXME: determine ISA bus clock
 	ISA16_SLOT(config, "isa1", 0, "mb:isabus", pc_isa16_cards, "svga_et4k", false);
 	ISA16_SLOT(config, "isa2", 0, "mb:isabus", pc_isa16_cards, nullptr, false);
 	ISA16_SLOT(config, "isa3", 0, "mb:isabus", pc_isa16_cards, nullptr, false);
@@ -813,8 +817,9 @@ void at_state::pg750(machine_config &config)
 	rtc.irq().set("mb:pic8259_slave", FUNC(pic8259_device::ir0_w)); // this is in :mb
 	rtc.set_century_index(0x32);
 
+	// FIXME: deteremine ISA bus clock
 	// on-board devices
-	ISA16_SLOT(config, "board1", 0, "mb:isabus", pc_isa16_cards, "fdc", true).set_option_machine_config("fdc", cfg_dual_1440K); // FIXME: deteremine ISA bus clock
+	ISA16_SLOT(config, "board1", 0, "mb:isabus", pc_isa16_cards, "fdc", true).set_option_machine_config("fdc", cfg_dual_1440K);
 	ISA16_SLOT(config, "board2", 0, "mb:isabus", pc_isa16_cards, "comat", true);
 	ISA16_SLOT(config, "board3", 0, "mb:isabus", pc_isa16_cards, "lpt", true);
 	// ISA cards

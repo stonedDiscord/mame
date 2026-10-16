@@ -14,6 +14,8 @@
 
 #include "xtensa_helper.h"
 
+#include <bit>
+
 #define LOG_UNHANDLED_OPS       (1U << 1)
 #define LOG_UNHANDLED_CACHE_OPS (1U << 3)
 #define LOG_UNHANDLED_SYNC_OPS  (1U << 4)
@@ -372,7 +374,7 @@ void xtensa_device::device_start()
 	state_add(XTENSA_LOOPCOUNT, "LoopCount", m_extreg_lcount);
 
 	for (int i = 0; i < 16; i++)
-		state_add(XTENSA_A0 + i, string_format("a%d", i).c_str(), m_a[i]);
+		state_add(XTENSA_A0 + i, string_format("a%d", i), m_a[i]);
 
 	save_item(NAME(m_a_real));
 	save_item(NAME(m_a));
@@ -928,7 +930,7 @@ void xtensa_device::getop_and_execute()
 					}
 					else
 					{
-						result = count_leading_zeros_32(srcval);
+						result = std::countl_zero(srcval);
 					}
 					set_reg(dstreg, result);
 					break;

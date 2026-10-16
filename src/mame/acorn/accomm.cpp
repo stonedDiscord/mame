@@ -28,7 +28,7 @@
 #include "bus/centronics/ctronics.h"
 #include "bus/econet/econet.h"
 #include "bus/rs232/rs232.h"
-#include "cpu/g65816/g65816.h"
+#include "cpu/m6502/w65816.h"
 #include "machine/6522via.h"
 #include "machine/6850acia.h"
 #include "machine/clock.h"
@@ -87,7 +87,7 @@ protected:
 	virtual void machine_start() override ATTR_COLD;
 
 private:
-	required_device<g65816_device> m_maincpu;
+	required_device<w65816_device> m_maincpu;
 	required_memory_region m_maincpu_region;
 	required_device<input_merger_device> m_irqs;
 	required_device<screen_device> m_screen;
@@ -143,9 +143,6 @@ void accomm_state::machine_reset()
 
 void accomm_state::machine_start()
 {
-	m_shiftlock_led.resolve();
-	m_capslock_led.resolve();
-
 	m_ula->set_ram(m_vram);
 
 	m_maincpu->space(AS_PROGRAM).install_readwrite_tap(0x000000, 0xffffff, "cpu_clock_tap",
@@ -205,7 +202,7 @@ void accomm_state::ram_w(offs_t offset, uint8_t data)
 
 uint8_t accomm_state::via_pb_r()
 {
-	return 0xfe | (m_rtc->sda_r() & m_cct->read_sda());
+	return 0xfe | (m_rtc->sda_r() & m_dtmf->sda_r() & m_cct->read_sda());
 }
 
 void accomm_state::via_pb_w(uint8_t data)
@@ -214,6 +211,9 @@ void accomm_state::via_pb_w(uint8_t data)
 
 	m_rtc->sda_w(BIT(data, 1));
 	m_rtc->scl_w(BIT(data, 2));
+
+	m_dtmf->sda_w(BIT(data, 1));
+	m_dtmf->scl_w(BIT(data, 2));
 
 	m_cct->write_sda(BIT(data, 1));
 	m_cct->write_scl(BIT(data, 2));
@@ -424,12 +424,12 @@ INPUT_PORTS_END
 
 void accomm_state::accomm(machine_config &config)
 {
-	G65816(config, m_maincpu, 16_MHz_XTAL / 8);
+	W65816(config, m_maincpu, 16_MHz_XTAL / 8);
 	m_maincpu->set_addrmap(AS_PROGRAM, &accomm_state::mem_map);
 
-	INPUT_MERGER_ANY_HIGH(config, m_irqs).output_handler().set_inputline(m_maincpu, G65816_LINE_IRQ);
+	INPUT_MERGER_ANY_HIGH(config, m_irqs).output_handler().set_inputline(m_maincpu, w65816_device::IRQ_LINE);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(16_MHz_XTAL, 1024, 0, 640, 312, 0, 256);
 	m_screen->set_screen_update(FUNC(accomm_state::screen_update));
 	m_screen->set_video_attributes(VIDEO_UPDATE_SCANLINE);
@@ -473,7 +473,7 @@ void accomm_state::accomm(machine_config &config)
 	rs423.dcd_handler().set(m_scn2641, FUNC(scn2641_device::dcd_w));
 	rs423.cts_handler().set(m_scn2641, FUNC(scn2641_device::cts_w));
 
-	ACIA6850(config, m_acia, 0);
+	ACIA6850(config, m_acia);
 	m_acia->txd_handler().set("modem", FUNC(rs232_port_device::write_txd));
 	m_acia->rts_handler().set("modem", FUNC(rs232_port_device::write_rts));
 	m_acia->irq_handler().set(m_irqs, FUNC(input_merger_device::in_w<2>));
@@ -491,9 +491,9 @@ void accomm_state::accomm(machine_config &config)
 
 	MC6854(config, m_adlc);
 	m_adlc->out_txd_cb().set("econet", FUNC(econet_device::host_data_w));
-	m_adlc->out_irq_cb().set_inputline(m_maincpu, G65816_LINE_NMI);
+	m_adlc->out_irq_cb().set_inputline(m_maincpu, w65816_device::NMI_LINE);
 
-	econet_device &econet(ECONET(config, "econet", 0));
+	econet_device &econet(ECONET(config, "econet"));
 	econet.clk_wr_callback().set(m_adlc, FUNC(mc6854_device::txc_w));
 	econet.clk_wr_callback().append(m_adlc, FUNC(mc6854_device::rxc_w));
 	econet.data_wr_callback().set(m_adlc, FUNC(mc6854_device::set_rx));

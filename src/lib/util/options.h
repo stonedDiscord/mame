@@ -156,11 +156,12 @@ public:
 		void set_value_changed_handler(std::function<void(const char *)> &&handler) { m_value_changed_handler = std::move(handler); }
 		virtual void revert(int priority_hi, int priority_lo) { }
 
+		// check whether a value would be valid for this option
+		void validate(std::string_view value);
+
 	protected:
 		virtual void internal_set_value(std::string &&newvalue, bool perform_substitutions) = 0;
 		virtual bool internal_copy_value(const entry &that);
-
-		void validate(const std::string &value);
 
 	private:
 		const std::vector<std::string>              m_names;
@@ -207,8 +208,8 @@ public:
 	void copy_from(const core_options &that);
 
 	// output
-	std::string output_ini(const core_options *diff = nullptr) const;
-	std::string output_help() const;
+	void output_ini(std::ostream &str, const core_options *diff = nullptr) const;
+	void output_help(std::ostream &str) const;
 
 	// reading
 	const char *value(std::string_view option) const noexcept;

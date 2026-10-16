@@ -27,6 +27,7 @@
 
 #include "main.h"
 
+#include "util/endianness.h"
 #include "util/ioprocs.h"
 #include "util/ioprocsfilter.h"
 #include "util/multibyte.h"
@@ -197,8 +198,7 @@ void save_manager::save_memory(device_t *device, const char *module, const char 
 	if (!m_reg_allowed)
 	{
 		machine().logerror("Attempt to register save state entry after state registration is closed!\nModule %s tag %s name %s\n", module, tag, name);
-		fatalerror("Attempt to register save state entry after state registration is closed!\nModule %s tag %s name %s\n", module, tag, name);
-		return;
+		throw emu_fatalerror("Attempt to register save state entry after state registration is closed!\nModule %s tag %s name %s\n", module, tag, name);
 	}
 
 	// create the full name

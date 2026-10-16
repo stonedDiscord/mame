@@ -65,7 +65,7 @@ class gamtor_vga_device : public svga_device
 {
 public:
 	// construction/destruction
-	gamtor_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	gamtor_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 //  virtual uint8_t mem_r(offs_t offset) override;
 //  virtual void mem_w(offs_t offset, uint8_t data) override;
@@ -150,7 +150,7 @@ const tiny_rom_entry *gamtor_vga_device::device_rom_region() const
 class mc_mk4_hopper_device : public device_t
 {
 public:
-	mc_mk4_hopper_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	mc_mk4_hopper_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 	void mc_mk4_hopper(machine_config &mconfig) ATTR_COLD;
 
 protected:
@@ -176,18 +176,28 @@ void mc_mk4_hopper_device::device_start()
 
 void mc_mk4_hopper_device::device_add_mconfig(machine_config &config)
 {
-	HOPPER(config, m_hopper, 0);
+	HOPPER(config, m_hopper);
 }
 
 ROM_START(mc_mk4_hopper)
 
 	// LEDs PCB
-	ROM_REGION( 0x4000, "ledscpu", ROMREGION_ERASEFF )
-	ROM_LOAD( "hop_leds_pic12c671.bin", 0x0000, 0x4000, CRC(61e31970) SHA1(70ed27a9df57bc2bf9b6cd94ca86469fe6f9d5b4) ) // Config Word: 0x3FFC. User ID: ID0=0x007F, ID1=0x007F, ID2=0x007F, ID3=0x007F
+	ROM_REGION16_LE( 0x4010, "ledscpu", 0 )
+	ROM_LOAD( "hop_leds_pic12c671.bin", 0x0000, 0x4000, CRC(61e31970) SHA1(70ed27a9df57bc2bf9b6cd94ca86469fe6f9d5b4) )
+	ROM_FILL( 0x4000, 0x01, 0x7f )
+	ROM_FILL( 0x4001, 0x01, 0x00 ) // user_id0: 0x007f
+	ROM_FILL( 0x4002, 0x01, 0x7f )
+	ROM_FILL( 0x4003, 0x01, 0x00 ) // user_id1: 0x007f
+	ROM_FILL( 0x4004, 0x01, 0x7f )
+	ROM_FILL( 0x4005, 0x01, 0x00 ) // user_id2: 0x007f
+	ROM_FILL( 0x4006, 0x01, 0x7f )
+	ROM_FILL( 0x4007, 0x01, 0x00 ) // user_id3: 0x007f
+	ROM_FILL( 0x400e, 0x01, 0xfc )
+	ROM_FILL( 0x400f, 0x01, 0x3f ) // configuration: 0x3ffc
 
 	// Main PCB
-	ROM_REGION( 0x0400, "maincpu", ROMREGION_ERASEFF )
-	ROM_LOAD( "hop_pic16c620a.bin",     0x0000, 0x0400, NO_DUMP )
+	ROM_REGION16_LE( 0x4010, "maincpu", ROMREGION_ERASEFF )
+	ROM_LOAD( "hop_pic16c620a.bin", 0x0000, 0x4010, NO_DUMP )
 ROM_END
 
 const tiny_rom_entry *mc_mk4_hopper_device::device_rom_region() const
@@ -253,11 +263,11 @@ void gaminator_state::gaminator(machine_config &config)
 	MCF5206E(config, m_maincpu, 33.333_MHz_XTAL); // ColdFire MCF5406ECAB40
 	m_maincpu->set_addrmap(AS_PROGRAM, &gaminator_state::gaminator_map);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(XTAL(25'174'800),900,0,640,526,0,480);
 	screen.set_screen_update("vga", FUNC(gamtor_vga_device::screen_update));
 
-	gamtor_vga_device &vga(GAMTOR_VGA(config, "vga", 0));
+	gamtor_vga_device &vga(GAMTOR_VGA(config, "vga"));
 	vga.set_screen("screen");
 	vga.set_vram_size(0x100000);
 
@@ -266,7 +276,7 @@ void gaminator_state::gaminator(machine_config &config)
 
 	RTC72423(config, "rtc", XTAL(32'768)); // Fake crystal value, the 72423 uses its own internal crystal
 
-	MC_MK4_HOPPER(config, "hopper", 0);
+	MC_MK4_HOPPER(config, "hopper");
 }
 
 // Base ROMs for genuine Novomatic CoolFire PCB. Bootleg sets may use a different Russian bootleg hardware.
