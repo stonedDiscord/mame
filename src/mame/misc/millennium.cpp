@@ -199,7 +199,6 @@ void millennium_state::millennium_io(address_map &map)
 	map(0xe0, 0xe0).r(FUNC(millennium_state::pe0_r));
 }
 
-/* Input ports */
 static INPUT_PORTS_START( millennium )
 	PORT_START("KEYPAD")
 	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYPAD) // Dummy
@@ -268,7 +267,13 @@ void millennium_state::millennium(machine_config &config)
 	SPEAKER(config, "mono").front_center();
 }
 
-/* ROM definition */
+ROM_START( m06jaa03 )
+	ROM_REGION( 0x40000, "maincpu", ROMREGION_ERASEFF )
+	ROM_LOAD( "06jaa03.u5", 0x00000, 0x40000, CRC(0f25bfbd) SHA1(935638031ad9f2f23d95d4f753407aa99221442d))
+	ROM_REGION( 0x80000, "adpcm", ROMREGION_ERASEFF )
+	ROM_LOAD( "06fen01.u10", 0x00000, 0x80000, CRC(86258462) SHA1(af365e55991cc709232fa8a5715d56ca843b0a36))
+ROM_END
+
 ROM_START( mnba1f02 )
 	ROM_REGION( 0x40000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "nba1f02.u5", 0x00000, 0x40000, CRC(f6e04336) SHA1(4c9a7b47c048b81dd0f420ac82e403f776484aea))
@@ -278,8 +283,6 @@ ROM_END
 
 } // anonymous namespace
 
-
-/* Driver */
-
-/*    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY        FULLNAME          FLAGS */
-COMP( 1993, mnba1f02, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard E/F)", MACHINE_NOT_WORKING )
+//    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY        FULLNAME          FLAGS */
+COMP( 1993, m06jaa03, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard English/Japanese)", MACHINE_NOT_WORKING )
+COMP( 1993, mnba1f02, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard English/French)", MACHINE_NOT_WORKING )
