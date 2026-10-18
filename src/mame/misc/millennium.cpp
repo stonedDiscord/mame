@@ -274,6 +274,13 @@ ROM_START( m06jaa03 )
 	ROM_LOAD( "06fen01.u10", 0x00000, 0x80000, CRC(86258462) SHA1(af365e55991cc709232fa8a5715d56ca843b0a36))
 ROM_END
 
+ROM_START( m12aav08 )
+	ROM_REGION( 0x40000, "maincpu", ROMREGION_ERASEFF )
+	ROM_LOAD( "12aav08.u5", 0x00000, 0x40000, CRC(62867a1f) SHA1(d75912a5c0705a1669ae9456feea034e0183abaf))
+	ROM_REGION( 0x80000, "adpcm", ROMREGION_ERASEFF )
+	ROM_LOAD( "12aav08.u10", 0x00000, 0x80000, CRC(c24b856c) SHA1(bd92b3941401ba76cbdbce9df370cc75c45509b4))
+ROM_END
+
 ROM_START( mnba1f02 )
 	ROM_REGION( 0x40000, "maincpu", ROMREGION_ERASEFF )
 	ROM_LOAD( "nba1f02.u5", 0x00000, 0x40000, CRC(f6e04336) SHA1(4c9a7b47c048b81dd0f420ac82e403f776484aea))
@@ -285,4 +292,5 @@ ROM_END
 
 //    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY        FULLNAME          FLAGS */
 COMP( 1993, m06jaa03, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard English/Japanese)", MACHINE_NOT_WORKING )
+COMP( 1993, m12aav08, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard)", MACHINE_NOT_WORKING )
 COMP( 1993, mnba1f02, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (Multipay Multicard English/French)", MACHINE_NOT_WORKING )
