@@ -318,11 +318,11 @@ ROM_END
 
 } // anonymous namespace
 
-//    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY        FULLNAME          FLAGS */
-COMP( 1993, m06jaa03, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.7 Multipay Multicard English/Japanese)",    MACHINE_NOT_WORKING )
-COMP( 1993, m12aav08, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.7 Multipay Multicard)",                     MACHINE_NOT_WORKING )
-COMP( 1993, mnba1f02, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.9 Multipay Multicard English/French)",      MACHINE_NOT_WORKING )
-COMP( 1993, mnna1f02, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.9 Multipay Multicard TTY English/French)",  MACHINE_NOT_WORKING )
-COMP( 1993, mnnk1f05, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.13 Multipay Multicard TTY English/French)", MACHINE_NOT_WORKING )
-COMP( 1993, mnpa1f01, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.20 Multipay Multicard English/French)",     MACHINE_NOT_WORKING )
-COMP( 1993, mnpa1s01, 0,      0,      millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.20 Multipay Multicard English/Spanish)",    MACHINE_NOT_WORKING )
+//    YEAR  NAME      PARENT COMPAT MACHINE     INPUT       CLASS             INIT        COMPANY   FULLNAME                                                   FLAGS
+COMP( 1993, m06jaa03, mnpa1s01, 0, millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.7 Multipay Multicard English/Japanese)",    MACHINE_NOT_WORKING )
+COMP( 1993, m12aav08, mnpa1s01, 0, millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.7 Multipay Multicard English/Spanish)",     MACHINE_NOT_WORKING )
+COMP( 1993, mnba1f02, mnpa1s01, 0, millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.9 Multipay Multicard English/French)",      MACHINE_NOT_WORKING )
+COMP( 1993, mnna1f02, mnpa1s01, 0, millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.9 Multipay Multicard TTY English/French)",  MACHINE_NOT_WORKING )
+COMP( 1993, mnnk1f05, mnpa1s01, 0, millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.13 Multipay Multicard TTY English/French)", MACHINE_NOT_WORKING )
+COMP( 1993, mnpa1f01, mnpa1s01, 0, millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.20 Multipay Multicard English/French)",     MACHINE_NOT_WORKING )
+COMP( 1993, mnpa1s01,        0, 0, millennium,  millennium, millennium_state, empty_init, "Nortel", "Millennium (1.20 Multipay Multicard English/Spanish)",    MACHINE_NOT_WORKING )
