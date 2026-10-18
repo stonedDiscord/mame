@@ -1,31 +1,680 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- license:CC0-1.0 -->
 <mamelayout version="2">
+	<element name="panel">
+		<rect>
+			<bounds x="0" y="0" width="100" height="156" />
+			<color red="0.48" green="0.49" blue="0.5" />
+		</rect>
+		<rect>
+			<bounds x="2" y="2" width="96" height="10" />
+			<color red="0.05" green="0.4" blue="0.6" />
+		</rect>
+		<rect>
+			<bounds x="5" y="16" width="90" height="16" />
+			<color red="0.08" green="0.1" blue="0.1" />
+		</rect>
+		<rect>
+			<bounds x="6" y="117" width="88" height="36" />
+			<color red="0.75" green="0.62" blue="0.12" />
+		</rect>
+	</element>
+	<element name="title">
+		<text string="NORTEL  MILLENNIUM">
+			<bounds x="0" y="0" width="100" height="8" />
+			<color red="1" green="1" blue="1" />
+		</text>
+	</element>
+	<element name="handset">
+		<rect>
+			<bounds x="0" y="0" width="26" height="60" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</rect>
+		<rect>
+			<bounds x="2" y="3" width="22" height="16" />
+			<color red="0.1" green="0.1" blue="0.1" />
+		</rect>
+		<rect>
+			<bounds x="7" y="16" width="12" height="30" />
+			<color red="0.1" green="0.1" blue="0.1" />
+		</rect>
+		<rect>
+			<bounds x="2" y="44" width="22" height="13" />
+			<color red="0.1" green="0.1" blue="0.1" />
+		</rect>
+	</element>
+	<element name="key_0" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="1">
+			<bounds x="0.6" y="4.5" width="10.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_1" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="2">
+			<bounds x="1" y="1" width="10" height="7.199999999999999" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="ABC">
+			<bounds x="1" y="8.040000000000001" width="10" height="2.7600000000000002" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_2" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="3">
+			<bounds x="1" y="1" width="10" height="7.199999999999999" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="DEF">
+			<bounds x="1" y="8.040000000000001" width="10" height="2.7600000000000002" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_3" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="4">
+			<bounds x="1" y="1" width="10" height="7.199999999999999" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="GHI">
+			<bounds x="1" y="8.040000000000001" width="10" height="2.7600000000000002" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_4" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="5">
+			<bounds x="1" y="1" width="10" height="7.199999999999999" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="JKL">
+			<bounds x="1" y="8.040000000000001" width="10" height="2.7600000000000002" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_5" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="6">
+			<bounds x="1" y="1" width="10" height="7.199999999999999" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="MNO">
+			<bounds x="1" y="8.040000000000001" width="10" height="2.7600000000000002" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_6" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="7">
+			<bounds x="1" y="1" width="10" height="7.199999999999999" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="PRS">
+			<bounds x="1" y="8.040000000000001" width="10" height="2.7600000000000002" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_7" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="8">
+			<bounds x="1" y="1" width="10" height="7.199999999999999" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="TUV">
+			<bounds x="1" y="8.040000000000001" width="10" height="2.7600000000000002" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_8" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="9">
+			<bounds x="1" y="1" width="10" height="7.199999999999999" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="WXY">
+			<bounds x="1" y="8.040000000000001" width="10" height="2.7600000000000002" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_9" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="*">
+			<bounds x="0.6" y="4.5" width="10.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_10" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="0">
+			<bounds x="0.6" y="4.5" width="10.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="key_11" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="#">
+			<bounds x="0.6" y="4.5" width="10.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="volume_down" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="8" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="7.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="7.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Volume -">
+			<bounds x="0.6" y="2.5" width="10.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="volume_up" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="8" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="7.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="7.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Volume +">
+			<bounds x="0.6" y="2.5" width="10.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="language" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="8" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="7.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="7.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Espanol">
+			<bounds x="0.6" y="2.5" width="10.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="next_call" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="12" height="8" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="11.2" height="7.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="11.2" height="7.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Next Call">
+			<bounds x="0.6" y="2.5" width="10.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_1" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Local">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="Operator">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_2" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Long Distance">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="Operator">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_3" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Call">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="Collect">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_4" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Directory">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="Assistance">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_5" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Airport">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="Info Line">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_6" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Speed Dial">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="6">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_7" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Speed Dial">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="7">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_8" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Speed Dial">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="8">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_9" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Speed Dial">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="9">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
+	<element name="speed_10" defstate="0">
+		<rect>
+			<bounds x="0" y="0" width="16" height="12" />
+			<color red="0.16" green="0.17" blue="0.18" />
+		</rect>
+		<rect state="0">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.78" green="0.79" blue="0.8" />
+		</rect>
+		<rect state="1">
+			<bounds x="0.4" y="0.4" width="15.2" height="11.2" />
+			<color red="0.48" green="0.52" blue="0.55" />
+		</rect>
+		<text string="Speed Dial">
+			<bounds x="0.6" y="3.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+		<text string="10">
+			<bounds x="0.6" y="6.0" width="14.8" height="3" />
+			<color red="0.05" green="0.05" blue="0.05" />
+		</text>
+	</element>
 
-    <!-- Element definitions -->
-    <element name="background">
-        <rect>
-            <bounds x="0" y="0" width="40" height="100" />
-            <color red="0.350" green="0.350" blue="0.350" alpha="1.000" />
-        </rect>
-    </element>
-
-    <element name="1">
-        <rect>
-            <bounds x="0" y="0" width="2" height="2" />
-            <color red="0.100" green="0.100" blue="0.200" alpha="1.000" />
-        </rect>
-    </element>
-
-    <view name="Handheld">
-        <element name="background" ref="background">
-            <bounds x="0" y="0" width="40" height="100" />
-        </element>
-        <screen index="0">
-            <bounds x="5" y="20" width="30" height="10" />
-        </screen>
-        <element name="1" ref="1" inputtag="IN2" inputmask="0x20">
-            <bounds x="15" y="50" width="2" height="2" />
-        </element>
-    </view>
-
+	<view name="Payphone">
+		<bounds x="0" y="0" width="100" height="156" />
+		<element ref="panel">
+			<bounds x="0" y="0" width="100" height="156" />
+		</element>
+		<element ref="title">
+			<bounds x="4" y="3" width="92" height="8" />
+		</element>
+		<screen index="0">
+			<bounds x="8" y="19" width="84" height="10" />
+		</screen>
+		<element ref="handset">
+			<bounds x="9" y="51" width="26" height="60" />
+		</element>
+		<element ref="key_0" inputtag="KEYPAD" inputmask="0x001">
+			<bounds x="46" y="52" width="12" height="12" />
+		</element>
+		<element ref="key_1" inputtag="KEYPAD" inputmask="0x002">
+			<bounds x="62" y="52" width="12" height="12" />
+		</element>
+		<element ref="key_2" inputtag="KEYPAD" inputmask="0x004">
+			<bounds x="78" y="52" width="12" height="12" />
+		</element>
+		<element ref="key_3" inputtag="KEYPAD" inputmask="0x008">
+			<bounds x="46" y="67" width="12" height="12" />
+		</element>
+		<element ref="key_4" inputtag="KEYPAD" inputmask="0x010">
+			<bounds x="62" y="67" width="12" height="12" />
+		</element>
+		<element ref="key_5" inputtag="KEYPAD" inputmask="0x020">
+			<bounds x="78" y="67" width="12" height="12" />
+		</element>
+		<element ref="key_6" inputtag="KEYPAD" inputmask="0x040">
+			<bounds x="46" y="82" width="12" height="12" />
+		</element>
+		<element ref="key_7" inputtag="KEYPAD" inputmask="0x080">
+			<bounds x="62" y="82" width="12" height="12" />
+		</element>
+		<element ref="key_8" inputtag="KEYPAD" inputmask="0x100">
+			<bounds x="78" y="82" width="12" height="12" />
+		</element>
+		<element ref="key_9" inputtag="KEYPAD" inputmask="0x200">
+			<bounds x="46" y="97" width="12" height="12" />
+		</element>
+		<element ref="key_10" inputtag="KEYPAD" inputmask="0x400">
+			<bounds x="62" y="97" width="12" height="12" />
+		</element>
+		<element ref="key_11" inputtag="KEYPAD" inputmask="0x800">
+			<bounds x="78" y="97" width="12" height="12" />
+		</element>
+		<element ref="volume_down" inputtag="FUNCTION" inputmask="0x001">
+			<bounds x="43" y="37" width="12" height="8" />
+		</element>
+		<element ref="volume_up" inputtag="FUNCTION" inputmask="0x002">
+			<bounds x="57" y="37" width="12" height="8" />
+		</element>
+		<element ref="language" inputtag="FUNCTION" inputmask="0x004">
+			<bounds x="71" y="37" width="12" height="8" />
+		</element>
+		<element ref="next_call" inputtag="FUNCTION" inputmask="0x008">
+			<bounds x="85" y="37" width="12" height="8" />
+		</element>
+		<element ref="speed_1" inputtag="SPEEDDIAL" inputmask="0x001">
+			<bounds x="8" y="120" width="16" height="12" />
+		</element>
+		<element ref="speed_2" inputtag="SPEEDDIAL" inputmask="0x002">
+			<bounds x="25" y="120" width="16" height="12" />
+		</element>
+		<element ref="speed_3" inputtag="SPEEDDIAL" inputmask="0x004">
+			<bounds x="42" y="120" width="16" height="12" />
+		</element>
+		<element ref="speed_4" inputtag="SPEEDDIAL" inputmask="0x008">
+			<bounds x="59" y="120" width="16" height="12" />
+		</element>
+		<element ref="speed_5" inputtag="SPEEDDIAL" inputmask="0x010">
+			<bounds x="76" y="120" width="16" height="12" />
+		</element>
+		<element ref="speed_6" inputtag="SPEEDDIAL" inputmask="0x020">
+			<bounds x="8" y="138" width="16" height="12" />
+		</element>
+		<element ref="speed_7" inputtag="SPEEDDIAL" inputmask="0x040">
+			<bounds x="25" y="138" width="16" height="12" />
+		</element>
+		<element ref="speed_8" inputtag="SPEEDDIAL" inputmask="0x080">
+			<bounds x="42" y="138" width="16" height="12" />
+		</element>
+		<element ref="speed_9" inputtag="SPEEDDIAL" inputmask="0x100">
+			<bounds x="59" y="138" width="16" height="12" />
+		</element>
+		<element ref="speed_10" inputtag="SPEEDDIAL" inputmask="0x200">
+			<bounds x="76" y="138" width="16" height="12" />
+		</element>
+	</view>
 </mamelayout>
