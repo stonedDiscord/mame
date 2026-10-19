@@ -12,8 +12,9 @@
  DISPLAY: Noritake CU20026S (2x20 VFD)
    SOUND: UPD7759
 
-   The telephony processor firmware is undumped.  Its CSI/O startup and
-   diagnostic replies are simulated here; call handling is not implemented.
+   The telephony processor firmware is undumped.  Its CSI/O startup,
+   diagnostic replies and key/hook events are simulated here; call handling
+   is not implemented.
 
 ***************************************************************************/
 
@@ -49,10 +50,16 @@ public:
 		, m_eeprom(*this, "eeprom")
 		, m_adpcm(*this, "adpcm")
 		, m_vfd(*this, "vfd")
+		, m_keypad(*this, "KEYPAD")
+		, m_function(*this, "FUNCTION")
+		, m_speeddial(*this, "SPEEDDIAL")
+		, m_hook(*this, "HOOK")
 	{
 	}
 
 	void millennium(machine_config &config);
+	DECLARE_INPUT_CHANGED_MEMBER(key_changed);
+	DECLARE_INPUT_CHANGED_MEMBER(hook_changed);
 
 private:
 	required_device<z180_device> m_maincpu;
@@ -60,6 +67,10 @@ private:
 	required_device<eeprom_serial_93c46_16bit_device> m_eeprom;
 	required_device<upd7759_device> m_adpcm;
 	required_device<noritake_vfd_device> m_vfd;
+	required_ioport m_keypad;
+	required_ioport m_function;
+	required_ioport m_speeddial;
+	required_ioport m_hook;
 
 	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
@@ -305,8 +316,8 @@ void millennium_state::telephony_command(u8 data)
 
 	switch (data)
 	{
-	case 0x30: // hook status: on hook
-		telephony_reply({ 0x6c });
+	case 0x30: // hook status
+		telephony_reply({ u8(m_hook->read() ? 0x6e : 0x6c) });
 		break;
 	case 0x31: // telephony status (checksum includes the opcode and length)
 		telephony_reply({ 0xc0, 8, 0, 0, 0, 0, 0, 0xc8 });
@@ -320,8 +331,8 @@ void millennium_state::telephony_command(u8 data)
 	case 0x38: // error report
 		telephony_reply({ 0xc4, 4, 0, 0xc8 });
 		break;
-	case 0x3a: // key matrix: no key pressed
-		telephony_reply({ 0x88 });
+	case 0x3a: // key matrix: any key held (used by the stuck-key test)
+		telephony_reply({ u8((m_keypad->read() || m_function->read() || m_speeddial->read()) ? 0x8a : 0x88) });
 		break;
 	case 0x3b: // handset continuity
 		telephony_reply({ 0x8c });
@@ -354,41 +365,60 @@ void millennium_state::millennium_io(address_map &map)
 	map(0xe0, 0xe0).r(FUNC(millennium_state::pe0_r));
 }
 
+// Event codes are taken from the control firmware's CSI/O receive dispatch
+// (06JAA03 ROM offset 0x1efad).  Dial keys use DTMF order: 1-9, 0, *, #;
+// speed dial events are 0x40-0x52, Next Call is 0x58 and Language is 0x5a.
+// The volume keys appear to use 0x54/0x56 and be handled locally by the
+// telephony processor; their order and audio effect still need verification.
+// No release event is dispatched by the control firmware; held keys are
+// reported by command 0x3a.
+INPUT_CHANGED_MEMBER(millennium_state::key_changed)
+{
+	if (newval)
+		telephony_reply({ u8(param) });
+}
+
+INPUT_CHANGED_MEMBER(millennium_state::hook_changed)
+{
+	telephony_reply({ u8(newval ? 0x62 : 0x60) });
+}
+
 static INPUT_PORTS_START( millennium )
-	// These controls are scanned by the undumped telephony processor.
-	// TODO: implement its key event protocol and key matrix status reply.
 	PORT_START("KEYPAD")
-	PORT_BIT(0x001, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("1") PORT_CODE(KEYCODE_1) PORT_CODE(KEYCODE_1_PAD) PORT_CHAR('1')
-	PORT_BIT(0x002, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("2 ABC") PORT_CODE(KEYCODE_2) PORT_CODE(KEYCODE_2_PAD) PORT_CHAR('2')
-	PORT_BIT(0x004, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("3 DEF") PORT_CODE(KEYCODE_3) PORT_CODE(KEYCODE_3_PAD) PORT_CHAR('3')
-	PORT_BIT(0x008, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("4 GHI") PORT_CODE(KEYCODE_4) PORT_CODE(KEYCODE_4_PAD) PORT_CHAR('4')
-	PORT_BIT(0x010, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("5 JKL") PORT_CODE(KEYCODE_5) PORT_CODE(KEYCODE_5_PAD) PORT_CHAR('5')
-	PORT_BIT(0x020, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("6 MNO") PORT_CODE(KEYCODE_6) PORT_CODE(KEYCODE_6_PAD) PORT_CHAR('6')
-	PORT_BIT(0x040, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("7 PRS") PORT_CODE(KEYCODE_7) PORT_CODE(KEYCODE_7_PAD) PORT_CHAR('7')
-	PORT_BIT(0x080, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("8 TUV") PORT_CODE(KEYCODE_8) PORT_CODE(KEYCODE_8_PAD) PORT_CHAR('8')
-	PORT_BIT(0x100, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("9 WXY") PORT_CODE(KEYCODE_9) PORT_CODE(KEYCODE_9_PAD) PORT_CHAR('9')
-	PORT_BIT(0x200, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("*") PORT_CODE(KEYCODE_ASTERISK) PORT_CHAR('*')
-	PORT_BIT(0x400, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("0") PORT_CODE(KEYCODE_0) PORT_CODE(KEYCODE_0_PAD) PORT_CHAR('0')
-	PORT_BIT(0x800, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("#") PORT_CODE(KEYCODE_MINUS_PAD) PORT_CHAR('#')
+	PORT_BIT(0x001, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("1") PORT_CODE(KEYCODE_1) PORT_CODE(KEYCODE_1_PAD) PORT_CHAR('1') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x22)
+	PORT_BIT(0x002, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("2 ABC") PORT_CODE(KEYCODE_2) PORT_CODE(KEYCODE_2_PAD) PORT_CHAR('2') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x24)
+	PORT_BIT(0x004, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("3 DEF") PORT_CODE(KEYCODE_3) PORT_CODE(KEYCODE_3_PAD) PORT_CHAR('3') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x26)
+	PORT_BIT(0x008, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("4 GHI") PORT_CODE(KEYCODE_4) PORT_CODE(KEYCODE_4_PAD) PORT_CHAR('4') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x28)
+	PORT_BIT(0x010, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("5 JKL") PORT_CODE(KEYCODE_5) PORT_CODE(KEYCODE_5_PAD) PORT_CHAR('5') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x2a)
+	PORT_BIT(0x020, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("6 MNO") PORT_CODE(KEYCODE_6) PORT_CODE(KEYCODE_6_PAD) PORT_CHAR('6') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x2c)
+	PORT_BIT(0x040, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("7 PRS") PORT_CODE(KEYCODE_7) PORT_CODE(KEYCODE_7_PAD) PORT_CHAR('7') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x2e)
+	PORT_BIT(0x080, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("8 TUV") PORT_CODE(KEYCODE_8) PORT_CODE(KEYCODE_8_PAD) PORT_CHAR('8') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x30)
+	PORT_BIT(0x100, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("9 WXY") PORT_CODE(KEYCODE_9) PORT_CODE(KEYCODE_9_PAD) PORT_CHAR('9') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x32)
+	PORT_BIT(0x200, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("*") PORT_CODE(KEYCODE_ASTERISK) PORT_CHAR('*') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x36)
+	PORT_BIT(0x400, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("0") PORT_CODE(KEYCODE_0) PORT_CODE(KEYCODE_0_PAD) PORT_CHAR('0') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x34)
+	PORT_BIT(0x800, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("#") PORT_CODE(KEYCODE_MINUS_PAD) PORT_CHAR('#') PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x38)
 
 	PORT_START("FUNCTION")
-	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Volume Down") PORT_CODE(KEYCODE_DOWN)
-	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Volume Up") PORT_CODE(KEYCODE_UP)
-	PORT_BIT(0x04, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Language / Espanol") PORT_CODE(KEYCODE_L)
-	PORT_BIT(0x08, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Next Call") PORT_CODE(KEYCODE_N)
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Volume Down") PORT_CODE(KEYCODE_DOWN) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x56)
+	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Volume Up") PORT_CODE(KEYCODE_UP) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x54)
+	PORT_BIT(0x04, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Language / Espanol") PORT_CODE(KEYCODE_L) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x5a)
+	PORT_BIT(0x08, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Next Call") PORT_CODE(KEYCODE_N) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x58)
 
 	// Speed dial destinations are configurable; names follow the reference phone.
 	PORT_START("SPEEDDIAL")
-	PORT_BIT(0x001, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 1 (Local Operator)") PORT_CODE(KEYCODE_Q)
-	PORT_BIT(0x002, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 2 (Long Distance Operator)") PORT_CODE(KEYCODE_W)
-	PORT_BIT(0x004, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 3 (Call Collect)") PORT_CODE(KEYCODE_E)
-	PORT_BIT(0x008, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 4 (Directory Assistance)") PORT_CODE(KEYCODE_R)
-	PORT_BIT(0x010, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 5 (Airport Info Line)") PORT_CODE(KEYCODE_T)
-	PORT_BIT(0x020, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 6") PORT_CODE(KEYCODE_A)
-	PORT_BIT(0x040, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 7") PORT_CODE(KEYCODE_S)
-	PORT_BIT(0x080, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 8") PORT_CODE(KEYCODE_D)
-	PORT_BIT(0x100, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 9") PORT_CODE(KEYCODE_F)
-	PORT_BIT(0x200, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 10") PORT_CODE(KEYCODE_G)
+	PORT_BIT(0x001, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 1 (Local Operator)") PORT_CODE(KEYCODE_Q) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x40)
+	PORT_BIT(0x002, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 2 (Long Distance Operator)") PORT_CODE(KEYCODE_W) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x42)
+	PORT_BIT(0x004, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 3 (Call Collect)") PORT_CODE(KEYCODE_E) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x44)
+	PORT_BIT(0x008, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 4 (Directory Assistance)") PORT_CODE(KEYCODE_R) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x46)
+	PORT_BIT(0x010, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 5 (Airport Info Line)") PORT_CODE(KEYCODE_T) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x48)
+	PORT_BIT(0x020, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 6") PORT_CODE(KEYCODE_A) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x4a)
+	PORT_BIT(0x040, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 7") PORT_CODE(KEYCODE_S) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x4c)
+	PORT_BIT(0x080, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 8") PORT_CODE(KEYCODE_D) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x4e)
+	PORT_BIT(0x100, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 9") PORT_CODE(KEYCODE_F) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x50)
+	PORT_BIT(0x200, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("Speed Dial 10") PORT_CODE(KEYCODE_G) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::key_changed), 0x52)
+
+	PORT_START("HOOK")
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_OTHER) PORT_NAME("Handset Off Hook") PORT_CODE(KEYCODE_H) PORT_TOGGLE PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(millennium_state::hook_changed), 0)
 INPUT_PORTS_END
 
 

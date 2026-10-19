@@ -25,7 +25,7 @@
 			<color red="1" green="1" blue="1" />
 		</text>
 	</element>
-	<element name="handset">
+	<element name="handset" defstate="0">
 		<rect>
 			<bounds x="0" y="0" width="26" height="60" />
 			<color red="0.05" green="0.05" blue="0.05" />
@@ -42,6 +42,14 @@
 			<bounds x="2" y="44" width="22" height="13" />
 			<color red="0.1" green="0.1" blue="0.1" />
 		</rect>
+		<text state="0" string="On Hook">
+			<bounds x="3" y="28" width="20" height="3" />
+			<color red="0.8" green="0.8" blue="0.8" />
+		</text>
+		<text state="1" string="Off Hook">
+			<bounds x="3" y="28" width="20" height="3" />
+			<color red="0.2" green="1" blue="0.6" />
+		</text>
 	</element>
 	<element name="key_0" defstate="0">
 		<rect>
@@ -595,7 +603,7 @@
 		<screen index="0">
 			<bounds x="8" y="19" width="84" height="10" />
 		</screen>
-		<element ref="handset">
+		<element ref="handset" inputtag="HOOK" inputmask="0x01">
 			<bounds x="9" y="51" width="26" height="60" />
 		</element>
 		<element ref="key_0" inputtag="KEYPAD" inputmask="0x001">
