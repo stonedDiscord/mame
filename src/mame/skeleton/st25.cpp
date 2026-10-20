@@ -93,6 +93,8 @@ protected:
 private:
 	u8 m_okidata = 0;
 	u16 m_service = 0;
+	bool m_service_data = true;
+	bool m_service_clock = true;
 	bool m_topk = false;
 	bool m_botk = false;
 	required_device<v25_device> m_maincpu;
@@ -109,7 +111,10 @@ private:
 
 	void io5_w(u8 data);
 	void p2_w(u8 data);
+	void service_data_w(int state);
+	void service_clock_w(int state);
 	void service_strobe_w(u8 data);
+	HD44780_PIXEL_UPDATE(lcd_pixel_update);
 };
 
 
@@ -166,18 +171,44 @@ void st25_state::p2_w(u8 data)
 	m_okidata = data;
 }
 
+void st25_state::service_data_w(int state)
+{
+	m_service_data = state;
+}
+
+void st25_state::service_clock_w(int state)
+{
+	// Both TxD0 and SCK0 are inverted before reaching the service keyboard.
+	if (m_service_clock && !state)
+		m_service = (m_service << 1) | !m_service_data;
+	m_service_clock = state;
+}
+
 void st25_state::service_strobe_w(u8 data)
 {
-	m_lcd->rs_w(BIT(m_service, 8));
-	// 9 NC
-	m_botk = BIT(m_service, 10);
-	m_topk = BIT(m_service, 11);
-	m_lcd->e_w(BIT(m_service, 12));
+	// The data byte is shifted out before the control byte.
+	m_lcd->rs_w(BIT(m_service, 0));
+	// 1 NC
+	m_botk = BIT(m_service, 2);
+	m_topk = BIT(m_service, 3);
+	m_lcd->db_w(m_service >> 8);
+	m_lcd->e_w(BIT(m_service, 4));
+}
 
-	m_lcd->db_w(m_service & 0xff);
+HD44780_PIXEL_UPDATE(st25_state::lcd_pixel_update)
+{
+	// The 16-character module has two eight-character rows wired side by side.
+	if (line < 2 && pos < 8)
+		bitmap.pix(y, (line * 8 + pos) * 6 + x) = state;
 }
 
 static INPUT_PORTS_START(st25)
+	PORT_START("SERVICE")
+	PORT_BIT( 0x7f, IP_ACTIVE_LOW, IPT_UNUSED )
+	PORT_CONFNAME( 0x80, 0x00, "Service Keyboard" )
+	PORT_CONFSETTING(    0x80, "Disconnected" )
+	PORT_CONFSETTING(    0x00, "Connected" )
+
 	PORT_START("SERVICE_TOPK")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYPAD) PORT_CODE(KEYCODE_1_PAD) PORT_NAME("1")
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_KEYPAD) PORT_CODE(KEYCODE_2_PAD) PORT_NAME("2")
@@ -223,6 +254,8 @@ void st25_state::machine_start()
 {
 	save_item(NAME(m_okidata));
 	save_item(NAME(m_service));
+	save_item(NAME(m_service_data));
+	save_item(NAME(m_service_clock));
 	save_item(NAME(m_topk));
 	save_item(NAME(m_botk));
 }
@@ -233,8 +266,10 @@ void st25_state::st25_1(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &st25_state::io_map);
 	m_maincpu->set_addrmap(AS_PROGRAM, &st25_state::program_map_st25_1);
 
+	m_maincpu->p1_in_cb().set_ioport("SERVICE"); // P17: service keyboard present (active low)
 	m_maincpu->p2_out_cb().set(FUNC(st25_state::p2_w));
-	//m_maincpu->txd0_cb().set(FUNC(st25_state::txd0_w)); // Service
+	m_maincpu->txd_handler<0>().set(FUNC(st25_state::service_data_w));
+	m_maincpu->sck_out_cb().set(FUNC(st25_state::service_clock_w));
 	//m_maincpu->txd1_cb().set(FUNC(st25_state::txd1_w)); // Money
 
 	RS232_PORT(config, m_rs232); // NSM DATAprint
@@ -257,7 +292,8 @@ void st25_state::st25_1(machine_config &config)
 	PALETTE(config, "palette", palette_device::MONOCHROME_INVERTED);
 
 	HD44780(config, m_lcd, 270'000);
-	m_lcd->set_lcd_size(1, 16);
+	m_lcd->set_lcd_size(2, 8);
+	m_lcd->set_pixel_update_cb(FUNC(st25_state::lcd_pixel_update));
 
 	// Sound hardware
 	SPEAKER(config, "mono").front_center();
