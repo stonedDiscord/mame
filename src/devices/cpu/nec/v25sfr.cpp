@@ -99,11 +99,7 @@ void v25_common_device::write_irqcontrol(int /*INTSOURCES*/ source, uint8_t d)
 		m_unmasked_irq |= source;
 
 	if (BIT(d, 5))
-	{
-		if ((m_macro_service & source) == 0)
-			logerror("%06x: Warning: macro service function not implemented\n",PC());
 		m_macro_service |= source;
-	}
 	else
 		m_macro_service &= ~source;
 
@@ -293,6 +289,8 @@ void v25_common_device::scc0_w(uint8_t d)
 {
 	logerror("%06x: SCC0 prescaler set to %d\n", PC(), 2 << (d & 0x0f));
 	m_scc[0] = d & 0x0f;
+	if (!BIT(m_scm[0], 0))
+		serial_register_clear(0);
 }
 
 uint8_t v25_common_device::brg0_r()

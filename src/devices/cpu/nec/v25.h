@@ -30,6 +30,9 @@ public:
 	// configuration helpers
 	void set_decryption_table(const uint8_t *decryption_table) { m_v25v35_decryptiontable = decryption_table; }
 
+	auto sck_out_cb() { return m_sck_out.bind(); }
+	auto rxclk_out_cb() { return m_rxclk_out.bind(); }
+
 	auto pt_in_cb() { return m_pt_in.bind(); }
 	auto p0_in_cb() { return m_p0_in.bind(); }
 	auto p1_in_cb() { return m_p1_in.bind(); }
@@ -155,6 +158,9 @@ private:
 	uint8_t   m_rxb[2];
 	uint16_t  m_tx_shift[2];
 	uint8_t   m_tx_count[2];
+	bool      m_sync_tx;
+	bool      m_sck_state;
+	bool      m_rxclk_state;
 	bool      m_tx_pending[2];
 	uint16_t  m_rx_shift[2];
 	uint8_t   m_rx_count[2];
@@ -186,6 +192,8 @@ private:
 
 	/* callbacks */
 	devcb_read8 m_pt_in;
+	devcb_write_line m_sck_out;
+	devcb_write_line m_rxclk_out;
 	devcb_read8 m_p0_in;
 	devcb_read8 m_p1_in;
 	devcb_read8 m_p2_in;
@@ -269,6 +277,8 @@ private:
 	void serial_rxd_w(unsigned n, int state);
 	void serial_load_tx(unsigned n);
 	void serial_tx_enabled(unsigned n);
+	void serial_register_clear(unsigned n);
+	void macro_service(uint32_t source, uint8_t control);
 	uint8_t rxb_r(unsigned n);
 	void txb_w(unsigned n, uint8_t d);
 	void scm_w(unsigned n, uint8_t d);

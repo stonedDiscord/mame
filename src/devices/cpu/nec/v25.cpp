@@ -20,16 +20,14 @@
 
     IBRK flag (trap I/O instructions) not implemented.
 
-    Interrupt macro service function not implemented.
-
     Port implementation is incomplete: mode control registers are ignored.
 
     Timer implementation is incomplete: polling is not implemented
     (reading any of the registers just returns the last value written)
 
-    The serial interface implements asynchronous mode only; I/O interface
-    mode is not emulated.  Note that the serial interface and the DMA
-    controller differ considerably between the V25/35 and the V25+/35+.
+    External receive clocks in serial I/O interface mode are not implemented.
+    Note that the serial interface and the DMA controller differ considerably
+    between the V25/35 and the V25+/35+.
 
     Make internal RAM into a real RAM region, and use an
     internal address map (remapped when IDB is written to)
@@ -68,8 +66,13 @@ v25_common_device::v25_common_device(const machine_config &mconfig, device_type 
 	, m_data_config("data", ENDIANNESS_LITTLE, 16, 9, 0, address_map_constructor(FUNC(v25_common_device::ida_sfr_map), this))
 	, m_io_config("io", ENDIANNESS_LITTLE, is_16bit ? 16 : 8, 16, 0)
 	, m_internal_ram(*this, "internal_ram")
+	, m_sync_tx(false)
+	, m_sck_state(true)
+	, m_rxclk_state(true)
 	, m_PCK(8)
 	, m_pt_in(*this, 0xff)
+	, m_sck_out(*this)
+	, m_rxclk_out(*this)
 	, m_p0_in(*this, 0xff)
 	, m_p1_in(*this, 0xff)
 	, m_p2_in(*this, 0xff)
@@ -146,11 +149,18 @@ void v25_common_device::scm_w(unsigned n, uint8_t d)
 	const uint8_t old = m_scm[n];
 	m_scm[n] = d;
 
-	if (!BIT(d, 0))
+	// Changing interface mode clears the serial shift registers.
+	if (BIT(d, 0) != BIT(old, 0))
+		serial_register_clear(n);
+
+	// TSK starts eight internally clocked receive shifts in I/O interface mode.
+	if (!n && !BIT(d, 0) && (d & 0x4c) == 0x4c && !m_rx_count[n])
 	{
-		if (BIT(d, 0) != BIT(old, 0))
-			logerror("%06x: SCM%u set to %02x: I/O interface mode not emulated\n", PC(), n, d);
-		return;
+		m_rx_shift[n] = 0;
+		m_rx_count[n] = 8;
+		m_rxclk_state = false;
+		m_rxclk_out(0);
+		m_rx_timer[n]->adjust(serial_bit_time(n) / 2, n);
 	}
 
 	if (!BIT(d, 6) && BIT(old, 6))
@@ -159,7 +169,7 @@ void v25_common_device::scm_w(unsigned n, uint8_t d)
 		m_rx_count[n] = 0;
 	}
 
-	if (!BIT(d, 7) && BIT(old, 7))
+	if (!BIT(d, 7) && BIT(old, 7) && BIT(d, 0))
 	{
 		m_tx_timer[n]->adjust(attotime::never);
 		m_tx_count[n] = 0;
@@ -170,16 +180,31 @@ void v25_common_device::scm_w(unsigned n, uint8_t d)
 		serial_tx_enabled(n);
 }
 
+void v25_common_device::serial_register_clear(unsigned n)
+{
+	m_tx_timer[n]->adjust(attotime::never);
+	m_rx_timer[n]->adjust(attotime::never);
+	m_tx_count[n] = m_rx_count[n] = 0;
+	m_tx_shift[n] = m_rx_shift[n] = 0;
+	if (!n)
+	{
+		m_sync_tx = false;
+		m_sck_state = m_rxclk_state = true;
+		m_sck_out(1);
+		m_rxclk_out(1);
+	}
+}
+
 // Appendix A.3 of the user's manual has it that enabling transmission, by setting TxRDY or
 // by taking CTS low, raises a transmission completion interrupt of its own.  Firmware that
 // keeps its output in a queue relies on it: it appends a byte, sets TxRDY, and leaves the
 // handler to move the first byte into the transmit buffer.
 void v25_common_device::serial_tx_enabled(unsigned n)
 {
-	if (!BIT(m_scm[n], 7) || !BIT(m_scm[n], 0) || m_cts_state[n])
+	if (!BIT(m_scm[n], 7) || (BIT(m_scm[n], 0) ? m_cts_state[n] : n != 0))
 		return;
 
-	if (m_tx_pending[n])
+	if (m_tx_pending[n] && !m_tx_count[n])
 		serial_load_tx(n);
 	else if (!m_tx_count[n])
 		m_pending_irq |= s_serial_irq[n][2];
@@ -204,8 +229,23 @@ void v25_common_device::txb_w(unsigned n, uint8_t d)
 // once it has emptied
 void v25_common_device::serial_load_tx(unsigned n)
 {
-	if (!BIT(m_scm[n], 7) || !BIT(m_scm[n], 0) || m_cts_state[n])
+	if (!BIT(m_scm[n], 7) || (BIT(m_scm[n], 0) ? m_cts_state[n] : n != 0))
 		return;
+
+	if (!BIT(m_scm[n], 0))
+	{
+		m_sync_tx = true;
+		m_tx_shift[n] = m_txb[n];
+		m_tx_count[n] = 8;
+		m_tx_pending[n] = false;
+		m_sck_state = false;
+		m_txd_handler[n](BIT(m_tx_shift[n], 7));
+		m_sck_out(0);
+		m_tx_timer[n]->adjust(serial_bit_time(n) / 2, n);
+		// TxB becomes empty as soon as its contents enter the shift register.
+		m_pending_irq |= s_serial_irq[n][2];
+		return;
+	}
 
 	const unsigned bits = serial_data_bits(n);
 	const uint8_t data = m_txb[n] & make_bitmask<uint8_t>(bits);
@@ -229,6 +269,26 @@ void v25_common_device::serial_load_tx(unsigned n)
 TIMER_CALLBACK_MEMBER(v25_common_device::serial_tx_callback)
 {
 	const unsigned n = param;
+
+	if (!n && m_sync_tx)
+	{
+		m_sck_state = !m_sck_state;
+		if (!m_sck_state)
+		{
+			m_tx_shift[n] <<= 1;
+			m_txd_handler[n](BIT(m_tx_shift[n], 7));
+		}
+		m_sck_out(m_sck_state);
+		if (m_sck_state && !--m_tx_count[n])
+		{
+			m_sync_tx = false;
+			if (m_tx_pending[n])
+				serial_load_tx(n);
+			return;
+		}
+		m_tx_timer[n]->adjust(serial_bit_time(n) / 2, n);
+		return;
+	}
 
 	m_tx_shift[n] >>= 1;
 	if (--m_tx_count[n])
@@ -265,6 +325,25 @@ void v25_common_device::serial_rxd_w(unsigned n, int state)
 TIMER_CALLBACK_MEMBER(v25_common_device::serial_rx_callback)
 {
 	const unsigned n = param;
+	if (!n && !BIT(m_scm[n], 0))
+	{
+		m_rxclk_state = !m_rxclk_state;
+		m_rxclk_out(m_rxclk_state);
+		if (m_rxclk_state)
+			m_rx_shift[n] = (m_rx_shift[n] << 1) | m_rxd_state[n];
+		if (m_rxclk_state && !--m_rx_count[n])
+		{
+			m_scm[n] &= ~0x08;
+			m_sce[n] = m_rx_full[n] ? 1 : 0;
+			m_rxb[n] = m_rx_shift[n];
+			m_rx_full[n] = true;
+			m_pending_irq |= s_serial_irq[n][m_sce[n] ? 0 : 1];
+		}
+		else
+			m_rx_timer[n]->adjust(serial_bit_time(n) / 2, n);
+		return;
+	}
+
 	const unsigned bits = serial_data_bits(n);
 	const uint8_t parity = BIT(m_scm[n], 4, 2);
 
@@ -412,6 +491,11 @@ void v25_common_device::device_reset()
 	m_io_word_pending = false;
 	m_io_word_latch = 0;
 
+	m_sync_tx = false;
+	m_sck_state = true;
+	m_rxclk_state = true;
+	m_sck_out(1);
+	m_rxclk_out(1);
 	m_TMC0 = m_TMC1 = 0;
 
 	for (int i = 0; i < 2; i++)
@@ -524,6 +608,45 @@ void v25_common_device::nec_trap()
 	nec_interrupt(NEC_TRAP_VECTOR, BRK);
 }
 
+// User's manual section 4.5.3: transfer one item without changing the CPU registers.
+void v25_common_device::macro_service(uint32_t source, uint8_t control)
+{
+	const unsigned channel = (control & 7) * 4;
+	const u16 descriptor = m_internal_ram[channel];
+	const u16 offset = m_internal_ram[channel + 2];
+	const u32 address = (u32(m_internal_ram[channel + 3]) << 4) + offset;
+	const u32 sfr = m_IDB + 0x100 + (descriptor >> 8);
+	const bool word = BIT(control, 5);
+	u16 data;
+	if (BIT(control, 4))
+	{
+		data = word ? v25_read_word(sfr) : v25_read_byte(sfr);
+		if (word)
+			v25_write_word(address, data);
+		else
+			v25_write_byte(address, data);
+	}
+	else
+	{
+		data = word ? v25_read_word(address) : v25_read_byte(address);
+		if (word)
+			v25_write_word(sfr, data);
+		else
+			v25_write_byte(sfr, data);
+	}
+
+	m_internal_ram[channel + 2] = offset + (word ? 2 : 1);
+	const u8 count = u8(descriptor) - 1;
+	m_internal_ram[channel] = (descriptor & 0xff00) | count;
+	if (!count || (BIT(control, 7) && u8(data) == u8(m_internal_ram[channel + 1])))
+	{
+		m_macro_service &= ~source;
+		m_pending_irq |= source;
+	}
+	// Base transfer time with internal RAM enabled; external wait states are not modelled.
+	CLK(BIT(control, 7) ? 27 : 24);
+}
+
 void v25_common_device::external_int()
 {
 	// interrupt sources subject to priority control
@@ -531,6 +654,8 @@ void v25_common_device::external_int()
 				| INTSER0 | INTSR0 | INTST0 | INTSER1 | INTSR1 | INTST1 | INTTB;
 
 	int pending = m_pending_irq & m_unmasked_irq;
+	if (!m_IF)
+		pending &= m_macro_service | NMI_IRQ;
 
 	if (pending & NMI_IRQ)
 	{
@@ -671,7 +796,7 @@ void v25_common_device::external_int()
 			m_pending_irq &= ~source;
 			if (m_macro_service & source)
 			{
-				logerror("Unhandled macro service %02x\n", ms);
+				macro_service(source, ms);
 			}
 			else
 			{
@@ -951,6 +1076,9 @@ void v25_common_device::device_start()
 	std::fill_n(&m_stms[0], 2, 0);
 	std::fill_n(&m_tmms[0], 3, 0);
 
+	save_item(NAME(m_sync_tx));
+	save_item(NAME(m_sck_state));
+	save_item(NAME(m_rxclk_state));
 	save_item(NAME(m_txb));
 	save_item(NAME(m_rxb));
 	save_item(NAME(m_tx_shift));
@@ -1235,7 +1363,7 @@ void v25_common_device::execute_run()
 		{
 			if (m_pending_irq & NMI_IRQ)
 				external_int();
-			else if (m_IF)
+			else if (m_IF || (m_pending_irq & m_unmasked_irq & m_macro_service))
 				external_int();
 		}
 
