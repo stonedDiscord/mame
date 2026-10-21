@@ -220,7 +220,7 @@ void gse1_state::daten_w(uint8_t data)
 			}
 			break;
 		default:
-			LOG("Write %02x to address %02x\n", data, m_adresse);
+			LOG("Unhandled write %02x to address %02x\n", data, m_adresse);
 			break;
 	}
 }
@@ -237,8 +237,11 @@ uint8_t gse1_state::daten_r()
 		case 0x07:
 			data = ioport("T7")->read();
 			break;
+		default:
+			LOG("Unhandled read from address %02x\n", m_adresse);
+			break;
 	}
-	LOG("Read from address %02x data %02x\n", m_adresse, data);
+	
 	return data;
 }
 
@@ -246,12 +249,15 @@ uint8_t gse1_state::daten_r()
 uint8_t gse1_state::pio1_pa_r()
 {
 	// Steckerleiste 15
+	// TODO: The coin sequencing is missing
+	// Specifically PA2 and/or PA3 have to be triggered shortly after a coin passes PA5-7
 	return ioport("COIN")->read();
 }
 
 uint8_t gse1_state::pio1_pb_r()
 {
 	// Steckerleiste 15
+	// PB5-7
 	return ioport("RETURN")->read();
 }
 
@@ -260,12 +266,12 @@ void gse1_state::pio1_pb_w(uint8_t data)
 	// Steckerleiste 15
 	m_pio1_pb = data;
 	//coins out
-	machine().bookkeeping().coin_counter_w(3,BIT(m_pio1_pb,0)); // 0.10DM
-	machine().bookkeeping().coin_counter_w(2,BIT(m_pio1_pb,1)); // 1DM
-	machine().bookkeeping().coin_counter_w(1,BIT(m_pio1_pb,2)); // 2DM
-	machine().bookkeeping().coin_counter_w(0,BIT(m_pio1_pb,3)); // 5DM
+	machine().bookkeeping().coin_counter_w(3,BIT(m_pio1_pb,0)); // PB0 0.10DM 
+	machine().bookkeeping().coin_counter_w(2,BIT(m_pio1_pb,1)); // PB1 1DM
+	machine().bookkeeping().coin_counter_w(1,BIT(m_pio1_pb,2)); // PB2 2DM
+	machine().bookkeeping().coin_counter_w(0,BIT(m_pio1_pb,3)); // PB3 5DM
 
-	machine().bookkeeping().coin_lockout_global_w(!BIT(m_pio1_pb,4)); // coin magnet
+	machine().bookkeeping().coin_lockout_global_w(!BIT(m_pio1_pb,4)); // PB4 coin magnet
 }
 
 //PIO2
@@ -273,14 +279,15 @@ uint8_t gse1_state::pio2_pa_r()
 {
 	// Steckerleiste 17
 	uint8_t data = m_pio2_pa;
-	data = m_battery ? data | 0x80 : data & ~0x80; //PA7
+	// The only input here is the battery status
+	data = m_battery ? data | 0x80 : data & ~0x80; //PA7 from IC1
 	return data;
 }
 
 void gse1_state::pio2_pa_w(uint8_t data)
 {
-	m_pio2_pa = data;
 	// Steckerleiste 17
+	m_pio2_pa = data;
 	m_led = BIT(data, 0);
 	// 1 NC
 	m_dac_alarm_l->write(BIT(data, 2));
