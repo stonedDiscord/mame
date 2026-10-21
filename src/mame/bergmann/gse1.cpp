@@ -19,10 +19,11 @@ Spinning discs (both position detection and layout)
 #include "emu.h"
 
 #include "cpu/z80/z80.h"
+#include "machine/nvram.h"
 #include "machine/watchdog.h"
+#include "machine/z80ctc.h"
 #include "machine/z80daisy.h"
 #include "machine/z80pio.h"
-#include "machine/z80ctc.h"
 #include "sound/dac.h"
 
 #include "speaker.h"
@@ -122,7 +123,7 @@ void gse1_state::mem_map(address_map &map)
 {
 	map.global_mask(0x7fff);
 	map(0x0000, 0x3fff).rom().region("maincpu", 0);
-	map(0x4000, 0x47ff).ram();
+	map(0x4000, 0x47ff).ram().share("nvram");
 	map(0x6000, 0x6000).w(m_watchdog, FUNC(watchdog_timer_device::reset_w));
 }
 
