@@ -57,7 +57,7 @@ public:
 	{
 	}
 
-	void gse1(machine_config &config);
+	void gse1(machine_config &config) ATTR_COLD;
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
@@ -242,7 +242,7 @@ uint8_t gse1_state::daten_r()
 			LOG("Unhandled read from address %02x\n", m_adresse);
 			break;
 	}
-	
+
 	return data;
 }
 
