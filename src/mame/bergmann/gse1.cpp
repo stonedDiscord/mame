@@ -90,8 +90,8 @@ private:
 	uint8_t m_pio2_pa = 0xff;
 	uint8_t m_pio2_pb = 0xff;
 
-	void mem_map(address_map &map);
-	void io_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
+	void io_map(address_map &map) ATTR_COLD;
 
 	void adresse_w(uint8_t data);
 	void daten_w(uint8_t data);
