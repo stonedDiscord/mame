@@ -34,6 +34,7 @@
 
 // interrupt types
 #define PPC_IRQ                 0       /* external IRQ */
+#define PPC_SMI                 1       /* (603 family) system management interrupt */
 #define PPC_IRQ_LINE_0          0       /* (4XX) external IRQ0 */
 #define PPC_IRQ_LINE_1          1       /* (4XX) external IRQ1 */
 #define PPC_IRQ_LINE_2          2       /* (4XX) external IRQ2 */
@@ -328,6 +329,7 @@ protected:
 		EXCEPTION_ITLBMISS      = 16,       // PPCCAP_603_MMU
 		EXCEPTION_DTLBMISSL     = 17,       // PPCCAP_603_MMU
 		EXCEPTION_DTLBMISSS     = 18,       // PPCCAP_603_MMU
+		EXCEPTION_SMI           = 20,       // 603 family
 		EXCEPTION_COUNT
 	};
 
@@ -635,7 +637,7 @@ protected:
 	// so the checks are recorded in m_entry_checks and re-verified before the code is handed back.
 	struct reuse_entry
 	{
-		drccodeptr code;
+		drcuml_state::hash_codeptr code;
 		offs_t physpc;
 		uint32_t sig;
 		uint32_t checkfirst; // first of this block's entry checks in m_entry_checks
@@ -770,6 +772,7 @@ protected:
 	void static_generate_exception(uint8_t exception, int recover, const char *name);
 	void static_generate_memory_accessor(int mode, int size, bool iswrite, bool ismasked, bool isreserve, const char *name, uml::code_handle *&handleptr, uml::code_handle *masked);
 	void static_generate_swap_tgpr();
+	void static_generate_memory_handlers();
 	void static_generate_lsw_entries(int mode);
 	void static_generate_stsw_entries(int mode);
 	void static_generate_fpscr_finish();

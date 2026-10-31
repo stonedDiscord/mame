@@ -824,6 +824,7 @@ void ppc_device::device_start()
 	save_item(NAME(m_core->irq_pending));
 	save_item(NAME(m_tb_zero_cycles));
 	save_item(NAME(m_dec_zero_cycles));
+	save_item(NAME(m_rtc_zero_cycles));
 
 	save_item(NAME(m_core->reserve));
 	save_item(NAME(m_core->reserve_address));
@@ -969,14 +970,7 @@ void ppc_device::device_start()
 		static_generate_entry_point();
 		static_generate_nocode_handler();
 		static_generate_out_of_cycles();
-		if (m_drcoptions & PPCDRC_BUS_RETRY)
-			static_generate_bus_retry();
 		static_generate_tlb_mismatch();
-		// 601 has a unified cache, so code can self-modify without icbi.
-		// PPCDRC_STRICT_601_SELF_MODIFY causes the write accessors to watch for stores
-		// to compiled code pages.
-		if (m_flavor == PPC_MODEL_601 && (m_drcoptions & PPCDRC_STRICT_601_SELF_MODIFY))
-			static_generate_code_write_reset();
 		if (m_cap & PPCCAP_603_MMU)
 			static_generate_swap_tgpr();
 
@@ -1003,8 +997,38 @@ void ppc_device::device_start()
 
 		// add the shared floating-point status-flag finalizer
 		static_generate_fpscr_finish();
+	}
+	catch (drcuml_block::abort_compilation &)
+	{
+		fatalerror("Error generating PPC static handlers\n");
+	}
 
-		/* add subroutines for memory accesses */
+	/* mark the cache dirty so it is updated on next execute */
+	m_cache_dirty = true;
+}
+
+/*-------------------------------------------------
+    static_generate_memory_handlers - generate the
+    memory accessor subroutines.  These bake in
+    the fast RAM regions, so they are generated at
+    the first reset, after the driver has added
+    its fast RAM regions
+-------------------------------------------------*/
+
+void ppc_device::static_generate_memory_handlers()
+{
+	try
+	{
+		// the accessors dispatch to these, so they follow the same option values
+		if (m_drcoptions & PPCDRC_BUS_RETRY)
+			static_generate_bus_retry();
+		// 601 has a unified cache, so code can self-modify without icbi.
+		// PPCDRC_STRICT_601_SELF_MODIFY causes the write accessors to watch for stores
+		// to compiled code pages.
+		if (m_flavor == PPC_MODEL_601 && (m_drcoptions & PPCDRC_STRICT_601_SELF_MODIFY))
+			static_generate_code_write_reset();
+
+		// add subroutines for memory accesses
 		for (int mode = 0; mode < 8; mode++)
 		{
 			static_generate_memory_accessor(mode, 1, false, false, false, "read8", m_read8[mode], nullptr);
@@ -1033,9 +1057,6 @@ void ppc_device::device_start()
 	{
 		fatalerror("Error generating PPC static handlers\n");
 	}
-
-	/* mark the cache dirty so it is updated on next execute */
-	m_cache_dirty = true;
 }
 
 void ppc_device::state_export(const device_state_entry &entry)
@@ -1242,17 +1263,28 @@ void ppc_device::device_stop()
 
 void ppc_device::device_reset()
 {
+	// the memory accessors are generated once, after the driver has added its fast RAM regions
+	if (!m_read8[0])
+	{
+		static_generate_memory_handlers();
+		m_cache_dirty = true;
+	}
+
 	// discard any pending retry request (this getter clears the flag)
 	access_to_be_redone();
 
-	/* initialize the OEA state */
+	// initialize the OEA state
 	if (m_cap & PPCCAP_OEA)
 	{
-		/* PC to the reset vector; MSR has IP set to start */
+		// PC to the reset vector; MSR has IP set to start
 		m_core->pc = 0xfff00100;
 		m_core->msr = MSROEA_IP;
+		m_core->spr[SPROEA_SRR0] = 0;
+		m_core->spr[SPROEA_SRR1] = 0;
+		if (m_flavor != PPC_MODEL_601)
+			m_core->spr[SPR603_HID0] = 0;
 
-		/* reset the decrementer */
+		// reset the decrementer
 		m_dec_zero_cycles = total_cycles();
 		if (m_tb_divisor || (m_flavor == PPC_MODEL_601))
 		{
@@ -1260,35 +1292,43 @@ void ppc_device::device_reset()
 		}
 	}
 
-	/* initialize the 4XX state */
+	// initialize the 4XX state
 	if (m_cap & PPCCAP_4XX)
 	{
-		/* PC to the last word; MSR to 0 */
+		// PC to the last word; MSR to 0
 		m_core->pc = 0xfffffffc;
 		m_core->msr = 0;
 
-		/* reset the SPU status */
+		// reset the SPU status
 		m_core->spr[SPR4XX_TCR] &= ~PPC4XX_TCR_WRC_MASK;
 		m_spu.regs[SPU4XX_LINE_STATUS] = 0x06;
 	}
 
-	/* initialize the 602 HID0 register */
+	// initialize the 602 HID0 register
 	if (m_flavor == PPC_MODEL_602)
 	{
 		m_core->spr[SPR602_ESASRR] = 0;
 		m_core->spr[SPR603_HID0] = 1;
 	}
+	else if (m_flavor == PPC_MODEL_603E || m_flavor == PPC_MODEL_603EV || m_flavor == PPC_MODEL_603R)
+	{
+		// initialize the 603e HID1 register; PC0-PC3 are a read-only view of the PLL_CFG pins
+		// PLL_CFG0-3 encodings indexed by twice the CPU:bus ratio (0 = no such setting)
+		static constexpr uint8_t pll_cfg[13] = {0, 0, 0x1, 0xc, 0x4, 0x6, 0x8, 0xe, 0xa, 0x7, 0xb, 0x9, 0xd};
+		uint32_t const ratio = m_system_clock ? ((uint64_t(clock()) * 4 + m_system_clock) / (uint64_t(m_system_clock) * 2)) : 0;
+		m_core->spr[SPR603_HID1] = (ratio < std::size(pll_cfg)) ? (uint32_t(pll_cfg[ratio]) << 28) : 0;
+	}
 
-	/* time base starts here */
+	// time base starts here
 	m_tb_zero_cycles = total_cycles();
 
-	/* clear interrupts */
+	// clear interrupts
 	m_core->irq_pending = 0;
 
 	// clear the "any page has code" flag
 	m_core->m_codepage_any = 0;
 
-	/* flush the TLB */
+	// flush the TLB
 	if (m_cap & PPCCAP_603_MMU)
 	{
 		for (int tlbindex = 0; tlbindex < PPC603_FIXED_TLB_ENTRIES; tlbindex++)
@@ -1297,7 +1337,7 @@ void ppc_device::device_reset()
 		}
 	}
 
-	/* Mark the cache dirty */
+	// Mark the cache dirty
 	m_core->mode = 0;
 	m_cache_dirty = true;
 }
@@ -2289,11 +2329,11 @@ void ppc_device::ppccom_execute_mtspr()
 			case SPR603_HASH2:
 			case SPR603_IMISS:
 			case SPR603_ICMP:
+			case SPR603_HID1:
 				return;
 
 			/* write-through no-ops */
 			case SPR603_RPA:
-			case SPR603_HID1:
 			case SPR603_IABR:
 			case SPR603_HID2:
 				m_core->spr[m_core->param0] = m_core->param1;
@@ -2633,6 +2673,11 @@ void ppc_device::execute_set_input(int inputnum, int state)
 	{
 		case PPC_IRQ:
 			m_core->irq_pending = (m_core->irq_pending & ~1) | ((state != CLEAR_LINE) ? 1 : 0);
+			break;
+
+		case PPC_SMI:
+			if (m_cap & PPCCAP_603_MMU)
+				m_core->irq_pending = (m_core->irq_pending & ~4) | ((state != CLEAR_LINE) ? 4 : 0);
 			break;
 	}
 }
