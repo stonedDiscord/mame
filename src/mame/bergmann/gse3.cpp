@@ -179,7 +179,7 @@ void gse3_state::mem_map(address_map &map)
 {
 	map(0x00000, 0x0ffff).rom().region("maincpu", 0);
 	map(0x80000, 0x87fff).ram();
-	map(0xc0000, 0xc7fff).rw("m48t35", FUNC(m48t35_device::read), FUNC(m48t35_device::write));
+	map(0xc0000, 0xc7fff).rw(m_timekeeper, FUNC(m48t35_device::read), FUNC(m48t35_device::write));
 }
 
 void gse3_state::io_map(address_map &map)
