@@ -190,14 +190,13 @@ void gse3_state::io_map(address_map &map)
 	map(0x80, 0x80).portr("DSW2");
 	map(0x81, 0x81).r(FUNC(gse3_state::status_r));
 	map(0x82, 0x82).w(FUNC(gse3_state::control_w));
-	map(0x83, 0x83).portr("SELFTEST");
+	map(0x83, 0x83).portr("DSW1");
 	map(0x84, 0x84).nopw(); // unknown
 	map(0x85, 0x85).w(FUNC(gse3_state::sound_w));
 }
 
 static INPUT_PORTS_START( gse3 )
-	PORT_START("SELFTEST")
-	// The boot code at 0x0083 skips the hardware tests when bit 7 is high.
+	PORT_START("DSW1") // all unlabeled
 	PORT_BIT(0x7f, IP_ACTIVE_LOW, IPT_UNUSED)
 	PORT_CONFNAME(0x80, 0x00, "Power-on Self-test")
 	PORT_CONFSETTING(0x00, DEF_STR(On))
@@ -207,7 +206,7 @@ static INPUT_PORTS_START( gse3 )
 	PORT_DIPNAME(0x01, 0x01, "Currency") PORT_DIPLOCATION("SW2:1")
 	PORT_DIPSETTING(   0x01, "Euro")
 	PORT_DIPSETTING(   0x00, "DM")
-	PORT_BIT(0xfe, IP_ACTIVE_LOW, IPT_UNUSED)
+	PORT_BIT(0xfe, IP_ACTIVE_LOW, IPT_UNUSED) //unlabeled
 INPUT_PORTS_END
 
 void gse3_state::gse3(machine_config &config)
