@@ -9,7 +9,7 @@ Main board
 CPU Z8S18020VSC
 RAM CY62256LL
 
- Rom Module
+Rom Module:
   ______________
  | [CONNECTOR]  |
  |              |
@@ -22,10 +22,9 @@ RAM CY62256LL
  | [CONNECTOR]  |
  |______________|
 
-Coin unit processor (MZ):
-The Crown service manual, Ausgabe 4.0 (2004), describes the MZ-SER board
-on page 4-9.  It controls the coin validator, tube level sensors, payout
-motors/end-position sensors and optional banknote reader.
+IFC:
+Service display with 5 digits and 4 buttons, it takes in the serial data from the main board,
+displays the information and carries it on.
 
 TODO:
 - Identify cabinet inputs and the remaining serial bus peripherals.
@@ -207,6 +206,32 @@ static INPUT_PORTS_START( gse3 )
 	PORT_DIPSETTING(   0x01, "Euro")
 	PORT_DIPSETTING(   0x00, "DM")
 	PORT_BIT(0xfe, IP_ACTIVE_LOW, IPT_UNUSED) //unlabeled
+
+	PORT_START("IFC")
+	PORT_DIPNAME(0x01, 0x00, "Disable Sound") PORT_DIPLOCATION("SW3:1") // Sound abgeschaltet
+	PORT_DIPSETTING(   0x01, "On")
+	PORT_DIPSETTING(   0x00, "Off")
+	PORT_DIPNAME(0x02, 0x00, "Disable Pause melody") PORT_DIPLOCATION("SW3:2") // Pausenmelodie abgeschaltet
+	PORT_DIPSETTING(   0x01, "On")
+	PORT_DIPSETTING(   0x00, "Off")
+	PORT_DIPNAME(0x04, 0x00, "Disable Door alarm") PORT_DIPLOCATION("SW3:3") // Türöffnungsalarm abgeschaltet
+	PORT_DIPSETTING(   0x01, "On")
+	PORT_DIPSETTING(   0x00, "Off")
+	PORT_DIPNAME(0x08, 0x00, "Delay Program start") PORT_DIPLOCATION("SW3:4") // Programmstart verzögert
+	PORT_DIPSETTING(   0x01, "On")
+	PORT_DIPSETTING(   0x00, "Off")
+	PORT_DIPNAME(0x10, 0x00, "Display coin mech errors") PORT_DIPLOCATION("SW3:5") // Verl. Fehleranz., Münzabtastg.
+	PORT_DIPSETTING(   0x01, "On")
+	PORT_DIPSETTING(   0x00, "Off")
+	PORT_DIPNAME(0x20, 0x00, "Forced to OFF") PORT_DIPLOCATION("SW3:6") // Festgelegt auf OFF
+	PORT_DIPSETTING(   0x01, "On")
+	PORT_DIPSETTING(   0x00, "Off")
+	PORT_DIPNAME(0x40, 0x00, "Enable bill acceptor") PORT_DIPLOCATION("SW3:7") // Betrieb m. Banknotenleser
+	PORT_DIPSETTING(   0x01, "On")
+	PORT_DIPSETTING(   0x00, "Off")
+	PORT_DIPNAME(0x80, 0x00, "Coin input limit") PORT_DIPLOCATION("SW3:8") // Einwurfbegrenzung "EIN"
+	PORT_DIPSETTING(   0x01, "On")
+	PORT_DIPSETTING(   0x00, "Off")
 INPUT_PORTS_END
 
 void gse3_state::gse3(machine_config &config)
