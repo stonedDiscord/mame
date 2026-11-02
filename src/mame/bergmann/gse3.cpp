@@ -9,27 +9,23 @@ Main board
 CPU Z8S18020VSC
 RAM CY62256LL
 
-Game module:
-NVRAM M48T35
+ Rom Module
+  ______________
+ | [CONNECTOR]  |
+ |              |
+ |   M27C512    | // Program ROM IC4
+ |              |
+ |    M48T35    | // Timekeeper RAM
+ |              |
+ |   M27C4001   | // Sound ROM IC5
+ |              |
+ | [CONNECTOR]  |
+ |______________|
 
 Coin unit processor (MZ):
 The Crown service manual, Ausgabe 4.0 (2004), describes the MZ-SER board
 on page 4-9.  It controls the coin validator, tube level sensors, payout
-motors/end-position sensors and optional banknote reader.  CR7A12 uses
-the same functional interface; the exact earlier coin board is unverified.
-
-CR7A12's coin processor link is bit-banged through the cabinet bus:
-- Select address 0xf, then transmit on control bit 4 (idle high).
-- Commands are LSB first, seven data bits, odd parity and one stop bit.
-- Deselect to address 0 before receiving; control bit 3 requests a reply
-  byte, with the return line read on status bit 7.
-- Replies are LSB first, eight data bits, even parity and one stop bit.
-  Reply bit 7 marks the final byte; the first byte echoes the command.
-- The firmware acknowledges each valid reply byte by pulsing control bit 3.
-Transmit routine: 0x5948; receive routine: 0x5991; transaction: 0x58a3.
-The first boot command is 0x10.  With no reply, the firmware reports
-message 0x0393 and halts at 0x5911.  DE=0x0241 is the message handler's
-control flags, not the error number.
+motors/end-position sensors and optional banknote reader.
 
 TODO:
 - Identify cabinet inputs and the remaining serial bus peripherals.
@@ -119,15 +115,15 @@ void gse3_state::machine_reset()
 
 u8 gse3_state::status_r()
 {
-	// Bit 5 is the active-low sound busy signal (polled at 0x2041/0x2054).
-	// Bit 7 is the serial bus return line.  Other inputs are not yet identified.
+	// Bit 5 is the active-low sound busy signal
+	// Bit 7 is the serial bus return line.
+	// TODO: Identify other inputs.
 	return (BIT(m_input_shift, 15) << 7) | (m_oki->busy_r() << 5) | 0x5f;
 }
 
 void gse3_state::sound_w(u8 data)
 {
-	// Seven-bit phrase number and active-low ST.  The firmware writes the
-	// phrase with bit 7 high, pulses it low, then restores it high.
+	// Seven-bit phrase number and active-low ST.
 	m_oki->write(data & 0x7f);
 	m_oki->st_w(BIT(data, 7));
 }
@@ -230,7 +226,7 @@ void gse3_state::gse3(machine_config &config)
 
 	M48T35(config, m_timekeeper, 0);
 
-	OKIM6376(config, m_oki, 128'000).add_route(ALL_OUTPUTS, "mono", 1.0); // provisional 16 kHz sample rate, clock unverified
+	OKIM6376(config, m_oki, 128'000).add_route(ALL_OUTPUTS, "mono", 1.0); // unverified
 
 	SPEAKER(config, "mono").front_center();
 }
