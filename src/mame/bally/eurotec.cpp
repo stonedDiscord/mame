@@ -68,6 +68,7 @@ itron FGF169H6
 TODO:
 the ULC/FPGA contains some kind of protection and handles most IO
 DS1985 serial number chip
+Verify the AY-compatible PSG type and clock (possibly implemented in the ULC).
 
 */
 
@@ -80,6 +81,7 @@ DS1985 serial number chip
 #include "machine/steppers.h"
 #include "machine/timer.h"
 #include "machine/watchdog.h"
+#include "sound/ay8910.h"
 #include "sound/okim6376.h"
 #include "video/roc10937.h"
 #include "speaker.h"
@@ -98,6 +100,7 @@ public:
 		m_rtc(*this, "rtc"),
 		m_watchdog(*this, "watchdog"),
 		m_vfd(*this, "vfd"),
+		m_psg(*this, "psg"),
 		m_oki(*this, "snd"),
 		m_reels(*this, "reel%u", 0U),
 		m_switches(*this, "SWMUX%u", 0U),
@@ -125,6 +128,7 @@ private:
 	required_device<rtc72421_device> m_rtc;
 	required_device<watchdog_timer_device> m_watchdog;
 	required_device<roc10937_device> m_vfd;
+	required_device<ym2149_device> m_psg;
 	optional_device<okim6376_device> m_oki;
 	required_device_array<stepper_device, 3> m_reels;
 	required_ioport_array<4> m_switches;
@@ -514,6 +518,7 @@ void ballyw_state::mem_map_1rom(address_map &map)
 	map(0x100000, 0x13ffff).ram().share("nvram");
 	map(0x800000, 0x80003f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write)).umask16(0x00ff); // RTC A0-A3 CPU A1-A4
 	map(0x900000, 0x9003ff).rw(FUNC(ballyw_state::ulc_r), FUNC(ballyw_state::ulc_w)).umask16(0x00ff);
+	map(0x900000, 0x900003).w(m_psg, FUNC(ym2149_device::address_data_w)).umask16(0xff00);
 }
 
 void ballyw_state::mem_map_2rom(address_map &map)
@@ -523,6 +528,7 @@ void ballyw_state::mem_map_2rom(address_map &map)
 	map(0x100000, 0x17ffff).ram().share("nvram");
 	map(0x800000, 0x80003f).rw(m_rtc, FUNC(rtc72421_device::read), FUNC(rtc72421_device::write)).umask16(0x00ff); // RTC A0-A3 CPU A1-A4
 	map(0x900000, 0x9003ff).rw(FUNC(ballyw_state::ulc_r), FUNC(ballyw_state::ulc_w)).umask16(0x00ff);
+	map(0x900000, 0x900003).w(m_psg, FUNC(ym2149_device::address_data_w)).umask16(0xff00);
 }
 
 u8 ballyw_state::ulc_r(offs_t offset)
@@ -873,6 +879,11 @@ void ballyw_state::eurotec_2rom(machine_config &config)
 	TIMER(config, "system_tick").configure_periodic(FUNC(ballyw_state::system_tick), attotime::from_hz(888));
 
 	SPEAKER(config, "mono").front_center();
+
+	// The tone sequencer writes AY registers to 0x900000/2 (including MOVEP.W),
+	// on the opposite byte lane to the ULC I/O and OKI control registers.
+	// Use the predecessor's YM2149 for now; the ULC may integrate the PSG.
+	YM2149(config, m_psg, 16_MHz_XTAL / 8).add_route(ALL_OUTPUTS, "mono", 0.30); // clock unverified
 }
 
 void ballyw_state::eurotec_1rom(machine_config &config)
@@ -1390,8 +1401,8 @@ GAME(2000, heroldp5, 	    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT
 GAME(2000, jetsets5,	    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Jet Set (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2000, sfires5,         0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Sunfire (S5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2001, carats5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Carat (S5)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, diakp2,	   diaks5, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Diamant Krone (P2)",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
-GAME(2001, diaks5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Diamant Krone (S5)",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, diakp2,	   diaks5, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Diamant Krone (P2)",     MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(2001, diaks5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Diamant Krone (S5)",     MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2001, lanzes5,		    0, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lanzelot (S5)",          MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2001, limbos3,         0, eurotec_2rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Limbo (S3)",             MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
 GAME(2001, lordp5,     lords5, eurotec_1rom, ballyw, ballyw_state, empty_init, ROT0, "Bally Wulff", "Lord CD (P5)",           MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
