@@ -6,7 +6,7 @@ ADP
 Profitech 3000 Servicetastatur
 
 Hardware:
-- CPU: 80C52 @ 11.0592MHz
+- CPU: 80C31 @ 11.0592MHz
 - LCD: LCD4002A
 - Memory: 27C256 EPROM (32KB), 24CS16 I2C EEPROM (2KB)
 
@@ -40,7 +40,9 @@ ___| XTAL  80C31          +KEYPAD+       |__
 */
 
 #include "emu.h"
+#include "servicet.h"
 #include "cpu/mcs51/i80c51.h"
+#include "machine/74165.h"
 #include "machine/i2cmem.h"
 #include "video/hd44780.h"
 #include "emupal.h"
@@ -72,22 +74,30 @@ enum
 	PORT_3_RD
 };
 
-class servicet_state : public driver_device
+class adp_service_keyboard_device : public device_t, public device_adp_bus_interface
 {
 public:
-	servicet_state(const machine_config &mconfig, device_type type, const char *tag) :
-		driver_device(mconfig, type, tag),
+	adp_service_keyboard_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+		device_t(mconfig, ADP_SERVICE_KEYBOARD, tag, owner, clock),
+		device_adp_bus_interface(mconfig, *this),
 		m_maincpu(*this, "maincpu"),
 		m_i2cmem(*this, "eeprom"),
 		m_lcd(*this, "hd44780"),
+		m_reply(*this, "reply"),
 		m_io_keys(*this, "IN%u", 0U)
 	{ }
 
-	void servicet(machine_config &config) ATTR_COLD;
+	virtual void data_w(int state) override;
+	virtual void clock_w(int state) override;
+	virtual void enable_w(int state) override;
 
 protected:
-	virtual void machine_start() override ATTR_COLD;
-	virtual void machine_reset() override ATTR_COLD;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_reset_after_children() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
+	virtual tiny_rom_entry const *device_rom_region() const override ATTR_COLD;
 
 private:
 	uint8_t port1_r();
@@ -100,26 +110,33 @@ private:
 	void servicet_data(address_map &map) ATTR_COLD;
 	void servicet_map(address_map &map) ATTR_COLD;
 
-	HD44780_PIXEL_UPDATE(servicet_pixel_update);
+	void return_data_w(int state);
 
 	required_device<mcs51_cpu_device> m_maincpu;
 	required_device<i2cmem_device> m_i2cmem;
 	required_device<hd44780_device> m_lcd;
+	required_device<ttl165_device> m_reply;
 	required_ioport_array<3> m_io_keys;
 
 	uint8_t m_port1 = 0xff;
 	uint8_t m_port3 = 0xff;
 	uint8_t m_lcd_data = 0;
+	uint16_t m_shift = 0;
+	uint16_t m_latch = 0;
+	uint8_t m_reply_data = 0;
+	int m_data = 0;
+	int m_clock = 0;
+	int m_strobe = 0;
 };
 
-void servicet_state::servicet_map(address_map &map)
+void adp_service_keyboard_device::servicet_map(address_map &map)
 {
-	map(0x0000, 0x7fff).rom();
+	map(0x0000, 0x7fff).rom().region("maincpu", 0);
 }
 
-void servicet_state::servicet_data(address_map &map)
+void adp_service_keyboard_device::servicet_data(address_map &map)
 {
-	map(0x0000, 0xffff).rw(FUNC(servicet_state::bus_r), FUNC(servicet_state::bus_w));
+	map(0x0000, 0xffff).rw(FUNC(adp_service_keyboard_device::bus_r), FUNC(adp_service_keyboard_device::bus_w));
 }
 
 static INPUT_PORTS_START( servicet )
@@ -139,21 +156,41 @@ static INPUT_PORTS_START( servicet )
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_NAME("F2") PORT_CODE(KEYCODE_F2)
 INPUT_PORTS_END
 
-void servicet_state::machine_start()
+void adp_service_keyboard_device::device_start()
 {
 	save_item(NAME(m_port1));
 	save_item(NAME(m_port3));
 	save_item(NAME(m_lcd_data));
+	save_item(NAME(m_shift));
+	save_item(NAME(m_latch));
+	save_item(NAME(m_reply_data));
+	save_item(NAME(m_data));
+	save_item(NAME(m_clock));
+	save_item(NAME(m_strobe));
 }
 
-void servicet_state::machine_reset()
+void adp_service_keyboard_device::device_reset()
 {
 	m_port1 = 0xff;
 	m_port3 = 0xff;
 	m_lcd_data = 0;
+	m_shift = 0;
+	m_latch = 0;
+	m_reply_data = 0;
+	m_data = 0;
+	m_clock = 0;
+	m_strobe = 0;
+	output_data(0);
 }
 
-uint8_t servicet_state::port1_r()
+void adp_service_keyboard_device::device_reset_after_children()
+{
+	m_reply->shift_load_w(1);
+	m_maincpu->set_input_line(MCS51_INT0_LINE, ASSERT_LINE);
+	m_maincpu->set_input_line(MCS51_INT1_LINE, CLEAR_LINE);
+}
+
+uint8_t adp_service_keyboard_device::port1_r()
 {
 	uint8_t data = m_port1; // Start with what was written to port1
 
@@ -190,12 +227,12 @@ uint8_t servicet_state::port1_r()
 	return data;
 }
 
-void servicet_state::port1_w(uint8_t data)
+void adp_service_keyboard_device::port1_w(uint8_t data)
 {
 	m_port1 = data;
 }
 
-uint8_t servicet_state::port3_r()
+uint8_t adp_service_keyboard_device::port3_r()
 {
 	uint8_t data = m_port3;
 
@@ -207,7 +244,7 @@ uint8_t servicet_state::port3_r()
 	return data;
 }
 
-void servicet_state::port3_w(uint8_t data)
+void adp_service_keyboard_device::port3_w(uint8_t data)
 {
 	m_port3 = data;
 
@@ -215,43 +252,33 @@ void servicet_state::port3_w(uint8_t data)
 	m_i2cmem->write_scl(BIT(data, PORT_3_SCL));
 }
 
-uint8_t servicet_state::bus_r(offs_t offset)
+uint8_t adp_service_keyboard_device::bus_r(offs_t offset)
 {
+	// U20 is bit-reversed; U19 additionally exchanges CPU D1 and D3.
+	if ((offset & 0xc070) == 0x40)
+		return bitswap<8>(m_latch, 0, 1, 2, 3, 4, 5, 6, 7);
+	if ((offset & 0xc070) == 0x50)
+		return bitswap<8>(m_latch >> 8, 0, 1, 2, 3, 6, 5, 4, 7);
+
 	uint8_t data = 0xff;
 
-	// LCD is mapped to addresses where A6:A4 = 111 (0x70-0x7f)
-	if ((offset & 0x70) == 0x70)
+	// U16 decodes A4-A6, enabled only when A14 and A15 are low.
+	if ((offset & 0xc070) == 0x70)
 	{
 		// RS and RW are A1 and A0
-		bool rs = BIT(offset, 1);
-		bool rw = BIT(offset, 0);
+		bool const rs = BIT(offset, 1);
+		bool const rw = BIT(offset, 0);
 
-		if (rw)
-		{
-			m_lcd->rs_w(rs);
-			m_lcd->rw_w(1);
-
-			m_lcd->e_w(1);
-			data = m_lcd->db_r();
-			m_lcd->e_w(0);
-		}
-		else
-		{
-			data = m_lcd_data;
-		}
-	}
-	else
-	{
-		//LOG("Bus read: %02X to %04X\n", offset);
+		data = rw ? m_lcd->read(rs) : m_lcd_data;
 	}
 
 	return data;
 }
 
-void servicet_state::bus_w(offs_t offset, uint8_t data)
+void adp_service_keyboard_device::bus_w(offs_t offset, uint8_t data)
 {
-	// LCD is mapped to addresses where A6:A4 = 111 (0x70-0x7f)
-	if ((offset & 0x70) == 0x70)
+	// U16 decodes A4-A6, enabled only when A14 and A15 are low.
+	if ((offset & 0xc070) == 0x70)
 	{
 		// RS and RW are A1 and A0
 		bool const rs = BIT(offset, 1);
@@ -269,26 +296,30 @@ void servicet_state::bus_w(offs_t offset, uint8_t data)
 			m_lcd->e_w(0);
 		}
 	}
-	else if (offset == 0x4000)
+	else if ((offset & 0xc070) == 0x60)
 	{
-		//LOG("GSG write: %02X \n", data, offset);
-	}
-	else
-	{
-		//LOG("Bus write: %02X to %04X\n", data, offset);
+		m_reply_data = data;
+		m_reply->shift_load_w(0);
+		m_reply->shift_load_w(1);
 	}
 }
 
-void servicet_state::servicet(machine_config &config)
+void adp_service_keyboard_device::device_add_mconfig(machine_config &config)
 {
-	I80C31(config, m_maincpu, 11.0592_MHz_XTAL);
-	m_maincpu->set_addrmap(AS_PROGRAM, &servicet_state::servicet_map);
-	m_maincpu->set_addrmap(AS_DATA, &servicet_state::servicet_data);
+	config.set_maximum_quantum(attotime::from_usec(20));
 
-	m_maincpu->port_in_cb<1>().set(FUNC(servicet_state::port1_r));
-	m_maincpu->port_out_cb<1>().set(FUNC(servicet_state::port1_w));
-	m_maincpu->port_in_cb<3>().set(FUNC(servicet_state::port3_r));
-	m_maincpu->port_out_cb<3>().set(FUNC(servicet_state::port3_w));
+	I80C31(config, m_maincpu, 11.0592_MHz_XTAL);
+	m_maincpu->set_addrmap(AS_PROGRAM, &adp_service_keyboard_device::servicet_map);
+	m_maincpu->set_addrmap(AS_DATA, &adp_service_keyboard_device::servicet_data);
+
+	m_maincpu->port_in_cb<1>().set(FUNC(adp_service_keyboard_device::port1_r));
+	m_maincpu->port_out_cb<1>().set(FUNC(adp_service_keyboard_device::port1_w));
+	m_maincpu->port_in_cb<3>().set(FUNC(adp_service_keyboard_device::port3_r));
+	m_maincpu->port_out_cb<3>().set(FUNC(adp_service_keyboard_device::port3_w));
+
+	TTL165(config, m_reply);
+	m_reply->data_callback().set([this]() { return m_reply_data; });
+	m_reply->qh_callback().set(FUNC(adp_service_keyboard_device::return_data_w));
 
 	// I2C EEPROM: 24C16 (2KB) - connected to P3.4 (SDA) and P3.5 (SCL)
 	I2C_24C16(config, m_i2cmem);
@@ -309,13 +340,56 @@ void servicet_state::servicet(machine_config &config)
 	m_lcd->set_lcd_size(2, 40); // 2 lines, 40 characters
 }
 
-ROM_START( servicet )
+ROM_START( adp_servicet )
 	ROM_REGION( 0x8000, "maincpu", 0 )
 	ROM_LOAD( "service_tastatur_v3.3.u3", 0x0000, 0x8000, CRC(8eb161c4) SHA1(d44f3b38e75e1095487893d8b30c4e3212c1a143) )
 
 	ROM_REGION(0x800, "eeprom", ROMREGION_ERASEFF)
 ROM_END
 
+ioport_constructor adp_service_keyboard_device::device_input_ports() const
+{
+	return INPUT_PORTS_NAME(servicet);
+}
+
+tiny_rom_entry const *adp_service_keyboard_device::device_rom_region() const
+{
+	return ROM_NAME(adp_servicet);
+}
+
+void adp_service_keyboard_device::data_w(int state)
+{
+	m_data = state;
+}
+
+void adp_service_keyboard_device::clock_w(int state)
+{
+	if (state && !m_clock)
+	{
+		m_shift = (m_shift << 1) | m_data;
+		if (m_strobe)
+			m_latch = m_shift;
+	}
+	m_clock = state;
+	m_reply->clock_w(state);
+}
+
+void adp_service_keyboard_device::enable_w(int state)
+{
+	// The 4094 storage register is transparent while STR is high.
+	if (state)
+		m_latch = m_shift;
+	m_strobe = state;
+	// The two NAND inverters drive complementary active-low interrupts.
+	m_maincpu->set_input_line(MCS51_INT1_LINE, state ? ASSERT_LINE : CLEAR_LINE);
+	m_maincpu->set_input_line(MCS51_INT0_LINE, state ? CLEAR_LINE : ASSERT_LINE);
+}
+
+void adp_service_keyboard_device::return_data_w(int state)
+{
+	output_data(state);
+}
+
 } // anonymous namespace
 
-GAME( 1992, servicet, 0, servicet, servicet, servicet_state, empty_init, ROT0, "ADP", u8"Merkur Service Testgerät", MACHINE_NOT_WORKING | MACHINE_NO_SOUND_HW )
+DEFINE_DEVICE_TYPE_PRIVATE(ADP_SERVICE_KEYBOARD, device_adp_bus_interface, adp_service_keyboard_device, "adp_servicet", "ADP Profitech 3000 Service Keyboard")
