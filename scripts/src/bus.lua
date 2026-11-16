@@ -575,6 +575,20 @@ end
 
 ---------------------------------------------------
 --
+--@src/devices/bus/adp/bus.h,BUSES["ADP_BUS"] = true
+---------------------------------------------------
+
+if BUSES["ADP_BUS"] then
+	files {
+		MAME_DIR .. "src/devices/bus/adp/bus.cpp",
+		MAME_DIR .. "src/devices/bus/adp/bus.h",
+		MAME_DIR .. "src/devices/bus/adp/servicet.cpp",
+		MAME_DIR .. "src/devices/bus/adp/servicet.h",
+	}
+end
+
+---------------------------------------------------
+--
 --@src/devices/bus/amiga/clockport/clockport.h,BUSES["AMIGA_CLOCKPORT"] = true
 ---------------------------------------------------
 

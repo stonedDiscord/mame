@@ -90,6 +90,7 @@ Connectors:
 
 
 #include "emu.h"
+#include "bus/adp/bus.h"
 #include "cpu/m68000/m68000.h"
 #include "machine/mc68681.h"
 #include "machine/msm6242.h"
@@ -198,6 +199,7 @@ public:
 		m_duart(*this, "duart"),
 		m_nvram(*this, "nvram"),
 		m_dac(*this, "dac"),
+		m_service(*this, "service"),
 		m_digits(*this, "digit%u", 0U),
 		m_dbg(*this, "dbg%u", 0U),
 		m_anzled(*this, "anzled%u", 0U),
@@ -219,6 +221,7 @@ private:
 	required_device<mc68681_device> m_duart;
 	required_device<nvram_device> m_nvram;
 	required_device<ad7224_device> m_dac;
+	required_device<adp_bus_device> m_service;
 	output_finder<8> m_digits;   // the 8 in-machine digits (Sonderspiele + Münzspeicher)
 	output_finder<32> m_dbg;     // raw reconstruction (4 fields x 8) for the debug grid
 	output_finder<5> m_anzled;   // coin-accept LEDs (0,10/1/2/5 DM) + Freispiele
@@ -266,7 +269,7 @@ uint8_t stellafr_state::mux_r()
 	bool li = false;
 	bool emp = false;
 	bool ma = false;
-	bool st = false;
+	bool const st = m_service->data_r();
 	bool t = false; // main buttons in
 	bool t2 = false;
 	bool emp2 = false;
@@ -302,6 +305,11 @@ void stellafr_state::mux_w(uint8_t data)
 	// and committed to the outputs by the strobe lines on mux2_w.
 	// anz goes into one 74hc4094
 	// mux has 2 chained for lamp cols 0 - 11, 3 bits for lz encoded and EnSDAp
+	// Approximate the board-generated nTaktDist pulse once per data write.
+	m_service->data_w(BIT(data, U1_1MA));
+	m_service->clock_w(0);
+	m_service->clock_w(1);
+
 	m_ma1   = (m_ma1   << 1) | BIT(data, U1_1MA);
 	m_ma2   = (m_ma2   << 1) | BIT(data, U1_2MA);
 	m_me    = (m_me    << 1) | BIT(data, U1_ME);
@@ -433,6 +441,7 @@ void stellafr_state::mux2_w(uint8_t data)
 	if (BIT(data, 7) && !BIT(m_strobe, 7))
 		lamps_w(8 + BIT(m_mux2, 12, 3), m_mux2);
 
+	m_service->enable_w(BIT(data, U5_ENANZ1));
 	m_strobe = data;
 }
 
@@ -549,6 +558,7 @@ void stellafr_state::common(machine_config &config)
 	m_duart->outport_cb().set(FUNC(stellafr_state::duart_output_w));
 
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_ALL_0);
+	ADP_BUS(config, m_service, adp_bus_devices, nullptr);
 
 	AD7224(config, m_dac, 0);
 
