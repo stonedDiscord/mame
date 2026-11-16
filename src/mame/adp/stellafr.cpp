@@ -95,6 +95,7 @@ Connectors:
 #include "machine/mc68681.h"
 #include "machine/msm6242.h"
 #include "machine/nvram.h"
+#include "machine/timekpr.h"
 #include "sound/ay8910.h"
 #include "sound/dac.h"
 #include "speaker.h"
@@ -459,7 +460,8 @@ void stellafr_state::mem_map_tk(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
 	peripherals_map(map);
-	map(0xff0000, 0xffffff).ram().share("nvram");
+	map(0xff0000, 0xffffff).ram().umask16(0x00ff).share("nvram");
+	map(0xff0000, 0xffffff).rw("timekeeper", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask16(0xff00);
 }
 
 void stellafr_state::mem_map_rtc(address_map &map)
@@ -538,6 +540,8 @@ void stellafr_state::sus_tk(machine_config &config)
 	M68000(config, m_maincpu, 8'000'000); // ?
 	m_maincpu->set_addrmap(AS_PROGRAM, &stellafr_state::mem_map_tk);
 	common(config);
+
+	M48T35(config, "timekeeper");
 }
 
 void stellafr_state::sus_rtc(machine_config &config)
