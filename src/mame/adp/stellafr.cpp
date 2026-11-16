@@ -202,7 +202,7 @@ public:
 		m_dbg(*this, "dbg%u", 0U),
 		m_anzled(*this, "anzled%u", 0U),
 		m_magnet(*this, "magnet%u", 0U),
-		m_lamps(*this, "lamp%u", 0U),
+		m_lamps(*this, "lamp%u_%u", 0U, 0U),
 		m_leds(*this, "led%u", 0U),
 		m_in0(*this, "IN0")
 	{ }
@@ -223,7 +223,7 @@ private:
 	output_finder<32> m_dbg;     // raw reconstruction (4 fields x 8) for the debug grid
 	output_finder<5> m_anzled;   // coin-accept LEDs (0,10/1/2/5 DM) + Freispiele
 	output_finder<2> m_magnet;   // coin diverter magnets L/R
-	output_finder<128> m_lamps;
+	output_finder<16, 12> m_lamps; // P12 rows 0-7, P13 rows 8-15; LS0-LS11
 	output_finder<2> m_leds;
 	required_ioport m_in0;
 
@@ -236,7 +236,7 @@ private:
 	uint8_t m_anz1;  // main 7seg segment chain (one segment line over 8 digits)
 	uint16_t m_mux1; // lamp columns + 3-bit mux select
 	uint8_t m_anz2;  // second 7seg segment chain
-	uint8_t m_mux2;
+	uint16_t m_mux2;
 
 	uint8_t m_strobe;        // last value written to the strobe/control port (mux2_w)
 	uint8_t m_anz_bank;      // which of the two ANZ banks per scan step (0/1)
@@ -288,13 +288,10 @@ uint8_t stellafr_state::mux_r()
 
 void stellafr_state::lamps_w(uint8_t row, uint16_t data)
 {
-	LOG("Row %d\n", row);
-	for (int i = 0; i < 8; i++)
-	{
-		uint8_t const lamp_index = (row * 10) + i;
-		bool const lamp_value = BIT(data, i);
-		m_lamps[lamp_index] = lamp_value;
-	}
+	// Each Serienplan board has twelve LS outputs and three binary LZ selects
+	// in its U10/U9 shift-register chain.  Cabinet wiring belongs in the layout.
+	for (int column = 0; column < 12; column++)
+		m_lamps[row][column] = BIT(data, column);
 }
 
 void stellafr_state::mux_w(uint8_t data)
@@ -431,7 +428,10 @@ void stellafr_state::mux2_w(uint8_t data)
 		anz_strobe();
 
 	if (BIT(data, 5) && !BIT(m_strobe, 5))
-		lamps_w((m_mux1 >> 12) & 0x07, m_mux1 & 0x0FFF); //main lamps out
+		lamps_w(BIT(m_mux1, 12, 3), m_mux1);
+
+	if (BIT(data, 7) && !BIT(m_strobe, 7))
+		lamps_w(8 + BIT(m_mux2, 12, 3), m_mux2);
 
 	m_strobe = data;
 }
@@ -495,12 +495,6 @@ void stellafr_state::machine_start()
 	save_item(NAME(m_anz_cycle));
 	save_item(NAME(m_anz_prevpos));
 	save_item(NAME(m_seg));
-
-	// convince the firmware that its battery-backed RAM is already initialised
-	// (signature checked at boot in FUN_000084e8) so it skips the FOUL/F-IN
-	// uninitialised state
-	m_maincpu->space(AS_PROGRAM).write_dword(0xffc000, 0x31415926);
-	m_maincpu->space(AS_PROGRAM).write_dword(0xffec02, 0x000000a5);
 }
 
 void stellafr_state::machine_reset()
@@ -554,7 +548,7 @@ void stellafr_state::common(machine_config &config)
 	m_duart->irq_cb().set_inputline(m_maincpu, M68K_IRQ_2); // ?
 	m_duart->outport_cb().set(FUNC(stellafr_state::duart_output_w));
 
-	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
+	NVRAM(config, m_nvram, nvram_device::DEFAULT_ALL_0);
 
 	AD7224(config, m_dac, 0);
 
