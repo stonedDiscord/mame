@@ -192,37 +192,24 @@ void adp_service_keyboard_device::device_reset_after_children()
 
 uint8_t adp_service_keyboard_device::port1_r()
 {
-	uint8_t data = m_port1; // Start with what was written to port1
-
-	// key matrix scanning seems to be bidirectional
-	// CPU drives each line HIGH and checks if connected lines are also HIGH = button pressed
-
-	// Column-to-Row scanning: When columns (P1.0-P1.2) are driven HIGH
-	for (int col = 0; col < 3; col++)
+	// P1 is quasi-bidirectional: a driven low pulls down every connected
+	// row/column through the closed switches.  Iterate for multi-key paths.
+	uint8_t data = m_port1;
+	uint8_t previous;
+	do
 	{
-		if (BIT(m_port1, col)) // Column is driven HIGH
+		previous = data;
+		for (int col = 0; col < 3; col++)
 		{
 			uint8_t const keys = m_io_keys[col]->read();
-			data |= (keys & 0x70); // Mask to only row bits (4,5,6)
-		}
-	}
-
-	// Row-to-Column scanning: When rows (P1.4-P1.6) are driven HIGH
-	for (int row = 0; row < 3; row++)
-	{
-		if (BIT(m_port1, row + 4)) // Row is driven HIGH (bits 4,5,6)
-		{
-			// Check all columns for this row
-			for (int col = 0; col < 3; col++)
+			for (int row = 0; row < 3; row++)
 			{
-				uint8_t const keys = m_io_keys[col]->read();
-				if (BIT(keys, row + 4)) // Key pressed in this row
-				{
-					data |= (1 << col); // Set corresponding column bit HIGH
-				}
+				if (BIT(keys, row + 4) && (!BIT(data, col) || !BIT(data, row + 4)))
+					data &= ~((1 << col) | (1 << (row + 4)));
 			}
 		}
 	}
+	while (data != previous);
 
 	return data;
 }
