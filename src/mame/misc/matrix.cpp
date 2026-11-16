@@ -80,7 +80,7 @@ void matrix_state::main_io(address_map &map)
 
 void matrix_state::matrix(machine_config &config)
 {
-	MEDIAGX(config, m_maincpu, 233'000'000); // Cyrix MediaGX GXm-266GP
+	MEDIAGXM(config, m_maincpu, 233'000'000); // Cyrix MediaGX GXm-266GP
 	m_maincpu->set_addrmap(AS_PROGRAM, &matrix_state::main_map);
 	m_maincpu->set_addrmap(AS_IO, &matrix_state::main_io);
 	m_maincpu->set_irq_acknowledge_callback("pci:12.0:pic8259_master", FUNC(pic8259_device::inta_cb));
@@ -151,13 +151,13 @@ ROM_START( matrix )
 ROM_END
 
 
-void matrix_state::init_decryption() // at least enough to see strings from various programs like DOS-C, PMODE/W, UPX, etc
+void matrix_state::init_decryption()
 {
+	// at least enough to see strings from various programs like DOS-C, PMODE/W, UPX, etc
 	uint8_t *rom = memregion("unsorted")->base();
 	std::vector<uint8_t> buffer(0x300000);
 
 	memcpy(&buffer[0], rom, 0x300000);
-
 
 	for (int i = 0; i < 0x300000; i++)
 	{

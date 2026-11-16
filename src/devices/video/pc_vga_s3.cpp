@@ -70,6 +70,8 @@ void s3vision864_vga_device::device_start()
 
 	s3.id_high = s3.id_low = s3.revision = 0; // <undefined>
 	s3.id_cr30 = 0xc1;
+
+	save_item(NAME(s3.cr42));
 }
 
 void s3vision864_vga_device::device_reset()
@@ -81,6 +83,8 @@ void s3vision864_vga_device::device_reset()
 	s3.strapping = 0x000f0b1e;
 	s3.sr10 = 0x42;
 	s3.sr11 = 0x41;
+
+	s3.cr50 = 0;
 }
 
 u16 s3vision864_vga_device::line_compare_mask()
@@ -91,12 +95,12 @@ u16 s3vision864_vga_device::line_compare_mask()
 
 uint16_t s3vision864_vga_device::offset()
 {
-	if(s3.memory_config & 0x08)
+	if((s3.memory_config & 0x08) || BIT(s3.cr3a, 4))
 		return vga.crtc.offset << 3;
 	return vga_device::offset();
 }
 
-void s3vision864_vga_device::s3_define_video_mode()
+void s3vision864_vga_device::recompute_params()
 {
 	int divisor = 1;
 	int xtal = ((vga.miscellaneous_output & 0xc) ? XTAL(28'636'363) : XTAL(25'174'800)).value();
@@ -104,6 +108,7 @@ void s3vision864_vga_device::s3_define_video_mode()
 
 	if((vga.miscellaneous_output & 0xc) == 0x0c)
 	{
+		// TODO: goes wildly out of tolerance with 1600x1200x8 already
 		// DCLK calculation
 		freq = ((double)(s3.clk_pll_m+2) / (double)((s3.clk_pll_n+2)*(pow(2.0,s3.clk_pll_r)))) * 14.318; // clock between XIN and XOUT
 		xtal = freq * 1000000;
@@ -141,7 +146,8 @@ void s3vision864_vga_device::s3_define_video_mode()
 	else
 	{
 		// 0000: Mode 0 8-bit 1 VCLK/pixel
-		svga.rgb8_en = (s3.memory_config & 8) >> 3;
+		// Cybervision64 definitely wants CR3A bit 4 too (ENH 256)
+		svga.rgb8_en = BIT(s3.memory_config, 3) || BIT(s3.cr3a, 4);
 		svga.rgb15_en = 0;
 		svga.rgb16_en = 0;
 		svga.rgb32_en = 0;
@@ -192,7 +198,7 @@ void s3vision864_vga_device::crtc_map(address_map &map)
 			s3.memory_config = data;
 			vga.crtc.start_addr_latch &= ~0x30000;
 			vga.crtc.start_addr_latch |= ((data & 0x30) << 12);
-			s3_define_video_mode();
+			recompute_params();
 		})
 	);
 	// TODO: CR32, CR33 & CR34 (backward compatibility)
@@ -254,6 +260,15 @@ void s3vision864_vga_device::crtc_map(address_map &map)
 			s3.reg_lock2 = data;
 		})
 	);
+	map(0x3a, 0x3a).lrw8(
+		NAME([this] (offs_t offset) {
+			return s3.cr3a;
+		}),
+		NAME([this] (offs_t offset, u8 data) {
+			s3.cr3a = data;
+			recompute_params();
+		})
+	);
 	map(0x40, 0x40).lw8(
 		NAME([this] (offs_t offset, u8 data) {
 			// enable 8514/A registers (x2e8, x6e8, xae8, xee8)
@@ -268,7 +283,7 @@ void s3vision864_vga_device::crtc_map(address_map &map)
 		NAME([this] (offs_t offset, u8 data) {
 			// bit 5 = interlace, bits 0-3 = dot clock (seems to be undocumented)
 			s3.cr42 = data;
-			s3_define_video_mode();
+			recompute_params();
 		})
 	);
 	map(0x43, 0x43).lrw8(
@@ -278,7 +293,7 @@ void s3vision864_vga_device::crtc_map(address_map &map)
 		NAME([this] (offs_t offset, u8 data) {
 			s3.cr43 = data;  // bit 2 = bit 8 of offset register, but only if bits 4-5 of CR51 are 00h.
 			refresh_pitch_offset();
-			s3_define_video_mode();
+			recompute_params();
 		})
 	);
 /*
@@ -478,6 +493,31 @@ bit  0-5  Pattern Display Start Y-Pixel Position.
 			s3.cursor_pattern_y = data;
 		})
 	);
+	// xx-- ---x GESCR-W (bit 0 MSB) Graphics Engine Command Screen Pixel Width
+	// 00-- ---0 1024 (or 2048 if bit 1 CR31 high)
+	// 01-- ---0 640
+	// 10-- ---0 800 (or 1600x1200x4 if bit 2 of $4ae8 high)
+	// 11-- ---0 1280
+	// 00-- ---1 1152
+	// 01-- ---1 <reserved>
+	// 10-- ---1 1600
+	// 11-- ---1 <reserved>
+	// ---- -x-- ENB /BREQ Enable /BREQ and /BGNT functions
+	// --xx ---- PXL-LNGH Pixel Length Select, selects pixel length for Enhanced mode
+	// --00 ---- 1 byte (corresponds to bit 7 of $42e8)
+	// --01 ---- 2 bytes, 16bpp
+	// --10 ---- <reserved>
+	// --11 ---- 4 bytes, 32bpp
+	map(0x50, 0x50).lrw8(
+		NAME([this] (offs_t offset) {
+			return s3.cr50;
+		}),
+		NAME([this] (offs_t offset, u8 data) {
+			s3.cr50 = data;
+			LOG("CR50: EX_SCTL_1 Extended System Cont 1 %02x\n", data);
+			// TODO: hookup to graphics engine
+		})
+	);
 	map(0x51, 0x51).lrw8(
 		NAME([this] (offs_t offset) {
 			u8 res = (vga.crtc.start_addr_latch & 0x0c0000) >> 18;
@@ -493,7 +533,7 @@ bit  0-5  Pattern Display Start Y-Pixel Position.
 			svga.bank_w = (svga.bank_w & 0xcf) | ((data & 0x0c) << 2);
 			svga.bank_r = svga.bank_w;
 			refresh_pitch_offset();
-			s3_define_video_mode();
+			recompute_params();
 		})
 	);
 	map(0x53, 0x53).lrw8(
@@ -575,7 +615,7 @@ bit    0  Horizontal Total bit 8. Bit 8 of the Horizontal Total register (3d4h
 			vga.crtc.horz_blank_end = (vga.crtc.horz_blank_end & 0xffbf) | ((data & 0x08) << 3);
 			vga.crtc.horz_retrace_start = (vga.crtc.horz_retrace_start & 0xfeff) | ((data & 0x10) << 4);
 			vga.crtc.horz_retrace_end = (vga.crtc.horz_retrace_end & 0xffdf) | (data & 0x20);
-			s3_define_video_mode();
+			recompute_params();
 		})
 	);
 /*
@@ -597,12 +637,12 @@ bit    0  Vertical Total bit 10. Bit 10 of the Vertical Total register (3d4h
  */
 	map(0x5e, 0x5e).lw8(
 		NAME([this] (offs_t offset, u8 data) {
-			vga.crtc.vert_total = (vga.crtc.vert_total & 0xfbff) | ((data & 0x01) << 10);
-			vga.crtc.vert_disp_end = (vga.crtc.vert_disp_end & 0xfbff) | ((data & 0x02) << 9);
-			vga.crtc.vert_blank_start = (vga.crtc.vert_blank_start & 0xfbff) | ((data & 0x04) << 8);
-			vga.crtc.vert_retrace_start = (vga.crtc.vert_retrace_start & 0xfbff) | ((data & 0x10) << 6);
-			vga.crtc.line_compare = (vga.crtc.line_compare & 0xfbff) | ((data & 0x40) << 4);
-			s3_define_video_mode();
+			vga.crtc.vert_total         = (vga.crtc.vert_total & 0xfbff)         | (BIT(data, 0) << 10);
+			vga.crtc.vert_disp_end      = (vga.crtc.vert_disp_end & 0xfbff)      | (BIT(data, 1) << 10);
+			vga.crtc.vert_blank_start   = (vga.crtc.vert_blank_start & 0xfbff)   | (BIT(data, 2) << 10);
+			vga.crtc.vert_retrace_start = (vga.crtc.vert_retrace_start & 0xfbff) | (BIT(data, 4) << 10);
+			vga.crtc.line_compare       = (vga.crtc.line_compare & 0xfbff)       | (BIT(data, 6) << 10);
+			recompute_params();
 		})
 	);
 	map(0x67, 0x67).lrw8(
@@ -611,7 +651,7 @@ bit    0  Vertical Total bit 10. Bit 10 of the Vertical Total register (3d4h
 		}),
 		NAME([this] (offs_t offset, u8 data) {
 			s3.ext_misc_ctrl_2 = data;
-			s3_define_video_mode();
+			recompute_params();
 		})
 	);
 	map(0x68, 0x68).lrw8(
@@ -634,7 +674,7 @@ bit    0  Vertical Total bit 10. Bit 10 of the Vertical Total register (3d4h
 		NAME([this] (offs_t offset, u8 data) {
 			vga.crtc.start_addr_latch &= ~0x1f0000;
 			vga.crtc.start_addr_latch |= ((data & 0x1f) << 16);
-			s3_define_video_mode();
+			recompute_params();
 		})
 	);
 	// TODO: doesn't match number of bits
@@ -694,7 +734,7 @@ void s3vision864_vga_device::sequencer_map(address_map &map)
 				s3.clk_pll_n = s3.sr12 & 0x1f;
 				s3.clk_pll_r = (s3.sr12 & 0x60) >> 5;
 				s3.clk_pll_m = s3.sr13 & 0x7f;
-				s3_define_video_mode();
+				recompute_params();
 			}
 			// immediate DCLK/MCLK load
 			if(data & 0x20)
@@ -702,7 +742,7 @@ void s3vision864_vga_device::sequencer_map(address_map &map)
 				s3.clk_pll_n = s3.sr12 & 0x1f;
 				s3.clk_pll_r = (s3.sr12 & 0x60) >> 5;
 				s3.clk_pll_m = s3.sr13 & 0x7f;
-				s3_define_video_mode();
+				recompute_params();
 			}
 			s3.sr15 = data;
 		})

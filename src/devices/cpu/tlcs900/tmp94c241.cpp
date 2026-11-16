@@ -496,7 +496,7 @@ void tmp94c241_device::change_timer_flipflop(uint8_t flipflop, uint8_t operation
 		case 0x8:
 			if (!BIT(m_port_function[PORT_E], 0)) return;
 			break;
-		case 0xA:
+		case 0xa:
 			if (!BIT(m_port_function[PORT_E], 4)) return;
 			break;
 		default:
@@ -792,6 +792,9 @@ uint8_t tmp94c241_device::port_r()
 	/* Reading a port returns:
 	   - Output latch value for bits configured as output (PXCR bit = 1)
 	   - External pin level for bits configured as input (PXCR bit = 0) */
+	// ports A and B have no control register: their pins are outputs
+	if constexpr (P == PORT_A || P == PORT_B)
+		return m_port_latch[P];
 	uint8_t dir = m_port_control[P];
 	uint8_t external = m_port_read[P](0);
 	return (m_port_latch[P] & dir) | (external & ~dir);
@@ -1252,6 +1255,8 @@ void tmp94c241_device::tlcs900_check_irqs()
 	// Check for NMI
 	if (m_nmi_state == ASSERT_LINE)
 	{
+		tlcs900_intnest_accept();
+
 		m_xssp.d -= 4;
 		WRMEML(m_xssp.d, m_pc.d);
 		m_xssp.d -= 2;
@@ -1321,6 +1326,8 @@ void tmp94c241_device::tlcs900_check_irqs()
 		else if (vector == 0x9c)
 			LOGMASKED(LOG_IRQ, "IRQ: INTTC2 (DMA ch2 done) level=%d PC=%06X\n", level, m_pc.d);
 
+		tlcs900_intnest_accept();
+
 		m_xssp.d -= 4;
 		WRMEML(m_xssp.d, m_pc.d);
 		m_xssp.d -= 2;
@@ -1339,13 +1346,11 @@ void tmp94c241_device::tlcs900_check_irqs()
 		// Clear taken IRQ
 		m_int_reg[irq_vector_map[irq].reg] &= ~ irq_vector_map[irq].iff;
 
-		// Level-detect re-assertion: Level-triggered interrupt
-		// flags are continuously driven by the input level. Clearing the flag
-		// during dispatch has no lasting effect if the input is still asserted.
-		// Re-assert INT0 flag if input is still active in level-detect mode.
+		// In level mode the INT0 flag follows the pin, so taking the
+		// interrupt does not clear it while the pin is still high.
 		if (irq_vector_map[irq].reg == INTE0AD &&
 			irq_vector_map[irq].iff == 0x08 &&
-			!(m_iimc & 0x02) &&
+			BIT(m_iimc, 1) &&
 			m_level[TLCS900_INT0] == ASSERT_LINE)
 		{
 			m_int_reg[INTE0AD] |= 0x08;
@@ -1467,6 +1472,9 @@ void tmp94c241_device::tlcs900_handle_timers()
 				    timer_id 6  =>  m_timer_16[1]  m_timer_change[5]
 				    timer_id 8  =>  m_timer_16[2]  m_timer_change[6]
 				    timer_id A  =>  m_timer_16[3]  m_timer_change[7]
+
+				    TREG_HIGH match generates the upper interrupt (e.g., INTTR5).
+				    TREG_LOW match generates the lower interrupt (e.g., INTTR4).
 				*/
 				uint8_t timer_index = (timer_id - 4)/2;
 
@@ -1474,11 +1482,18 @@ void tmp94c241_device::tlcs900_handle_timers()
 				{
 					m_timer_16[timer_index]++;
 					// TODO: also check for criteria of up counter matching CAPn registers
-					if (((m_timer_16[timer_index] == m_treg_16[timer_reg_high]) && BIT(tffcr, 3)) ||
-							((m_timer_16[timer_index] == m_treg_16[timer_reg_low]) && BIT(tffcr, 2)) )
+					if (m_timer_16[timer_index] == m_treg_16[timer_reg_high])
 					{
-						change_timer_flipflop(timer_id, FF_INVERT);
+						if (BIT(tffcr, 3))
+							change_timer_flipflop(timer_id, FF_INVERT);
 						m_timer_16[timer_index] = 0;
+						m_int_reg[interrupt] |= 0x80;
+						m_check_irqs = 1;
+					}
+					else if (m_timer_16[timer_index] == m_treg_16[timer_reg_low])
+					{
+						if (BIT(tffcr, 2))
+							change_timer_flipflop(timer_id, FF_INVERT);
 						m_int_reg[interrupt] |= 0x08;
 						m_check_irqs = 1;
 					}
@@ -1588,7 +1603,8 @@ void tmp94c241_device::execute_set_input(int input, int level)
 			break;
 
 		case TLCS900_INT0:
-			if (m_iimc & 0x02)
+			// IIMC bit 1 (I0LE) set selects level detection
+			if (!BIT(m_iimc, 1))
 			{
 				// Rising edge detect
 				if (level != m_level[TLCS900_INT0] && level == ASSERT_LINE)

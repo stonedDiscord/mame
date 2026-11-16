@@ -5,6 +5,8 @@
  *
  * Notes:
  * - sis85c471 doesn't belong here, it's a full on ISA PC/AT
+ * - (Hack Inc.) to setup working CD-ROM, set any unused HDD to None (the detection is quite slow),
+ *   then in Chipset Features set Onboard 496B IDE Port to Both
  *
  * TODO:
  * - Finish porting sis85c496 from at.cpp;
@@ -27,7 +29,6 @@
 #include "machine/w83787f.h"
 #include "video/voodoo_pci.h"
 
-#include "softlist.h"
 #include "softlist_dev.h"
 
 namespace {
@@ -40,7 +41,7 @@ public:
 		, m_maincpu(*this, "maincpu")
 	{ }
 
-	void sis496(machine_config &config);
+	void sis496(machine_config &config) ATTR_COLD;
 
 protected:
 	required_device<i486dx4_device> m_maincpu;
@@ -63,7 +64,7 @@ public:
 		, m_screen(*this, "voodoo_screen")
 	{ }
 
-	void sis496_voodoo1(machine_config &config);
+	void sis496_voodoo1(machine_config &config) ATTR_COLD;
 
 protected:
 	required_device<voodoo_1_pci_device> m_voodoo;
@@ -165,7 +166,7 @@ void sis496_voodoo1_state::sis496_voodoo1(machine_config &config)
 	m_voodoo->set_status_cycles(1000);
 
 	// TODO: wrong, needs VGA passthru
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(57);
 	m_screen->set_size(640, 480);
 	m_screen->set_visarea(0, 640 - 1, 0, 480 - 1);

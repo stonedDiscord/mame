@@ -88,6 +88,8 @@ Scanline 0 is the start of vblank.
 #include "macrtc.h"
 #include "mactoolbox.h"
 
+#include "bus/adb/adb.h"
+#include "bus/adb/cards.h"
 #include "bus/mackbd/mackbd.h"
 #include "bus/macpds/hyperdrive.h"
 #include "bus/macpds/pds_tpdfpd.h"
@@ -106,7 +108,6 @@ Scanline 0 is the start of vblank.
 #include "machine/applefdintf.h"
 #include "machine/timer.h"
 #include "machine/z80scc.h"
-#include "macadb.h"
 #include "macscsi.h"
 #include "sound/dac.h"
 #include "sound/flt_biquad.h"
@@ -123,7 +124,8 @@ Scanline 0 is the start of vblank.
 namespace {
 
 static constexpr auto C7M   = (15.6672_MHz_XTAL / 2);
-static constexpr auto C3_7M = (15.6672_MHz_XTAL / 4).value();
+// C3.7M, 3.672 MHz (IM III-25): the Plus TSG PAL divides C16M by 4 but skips one toggle per 32 C16M clocks
+static constexpr auto C3_7M = (15.6672_MHz_XTAL * 15 / 64);
 
 // video parameters
 static constexpr s32 MAC_H_VIS   = 512;
@@ -144,7 +146,7 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_via(*this, "via6522_0"),
 		m_adbmodem(*this, "adbmodem"),
-		m_macadb(*this, "macadb"),
+		m_adbbus(*this, "adb"),
 		m_ram(*this, RAM_TAG),
 		m_scsibus(*this, "scsi"),
 		m_scsihelp(*this, "scsihelp"),
@@ -202,7 +204,7 @@ private:
 	required_device<m68000_device> m_maincpu;
 	required_device<via6522_device> m_via;
 	optional_device<adbmodem_device> m_adbmodem;
-	optional_device<macadb_device> m_macadb;
+	optional_device<adb_bus_device> m_adbbus;
 	required_device<ram_device> m_ram;
 	optional_device<nscsi_bus_device> m_scsibus;
 	optional_device<mac_scsi_helper_device> m_scsihelp;
@@ -500,7 +502,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(mac128_state::mac_scanline)
 
 	m_hblank_timer->adjust(m_screen->time_until_pos(scanline, MAC_H_TOTAL - 9));
 
-	if ((!(scanline % 10)) && (!m_macadb))
+	if ((!(scanline % 10)) && (!m_adbbus))
 	{
 		mouse_callback();
 	}
@@ -1153,7 +1155,7 @@ void mac128_state::mac512ke(machine_config &config)
 	config.set_maximum_quantum(attotime::from_hz(60));
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(15.6672_MHz_XTAL, MAC_H_TOTAL, 0, MAC_H_VIS, MAC_V_TOTAL, MAC_V_FIRST, MAC_V_TOTAL);
 	m_screen->set_native_aspect();
 	m_screen->set_screen_update(FUNC(mac128_state::screen_update_mac));
@@ -1186,20 +1188,21 @@ void mac128_state::mac512ke(machine_config &config)
 	applefdintf_device::add_35(config, m_floppy[0]);
 	applefdintf_device::add_35(config, m_floppy[1]);
 
-	SCC85C30(config, m_scc, C7M);
-	m_scc->configure_channels(C3_7M, 0, C3_7M, 0);
+	SCC85C30(config, m_scc, C3_7M);
+	m_scc->configure_channels(C3_7M.value(), 0, C3_7M.value(), 0);
 	m_scc->out_int_callback().set(FUNC(mac128_state::set_scc_interrupt));
 	m_scc->out_txda_callback().set("modem", FUNC(rs232_port_device::write_txd));
 	m_scc->out_txdb_callback().set("printer", FUNC(rs232_port_device::write_txd));
 
+	// DE-9 serial ports: the only handshake line is an input (pin 7) to /CTS;
+	// there is no handshake output.  /DCDA and /DCDB are the mouse's X1 and Y1
+	// interrupts, not connected to the ports.
 	rs232_port_device &rs232a(RS232_PORT(config, "modem", default_rs232_devices, nullptr));
 	rs232a.rxd_handler().set(m_scc, FUNC(z80scc_device::rxa_w));
-	rs232a.dcd_handler().set(m_scc, FUNC(z80scc_device::dcda_w));
 	rs232a.cts_handler().set(m_scc, FUNC(z80scc_device::ctsa_w));
 
 	rs232_port_device &rs232b(RS232_PORT(config, "printer", default_rs232_devices, nullptr));
 	rs232b.rxd_handler().set(m_scc, FUNC(z80scc_device::rxb_w));
-	rs232b.dcd_handler().set(m_scc, FUNC(z80scc_device::dcdb_w));
 	rs232b.cts_handler().set(m_scc, FUNC(z80scc_device::ctsb_w));
 
 	MOS6522(config, m_via, C7M/10);
@@ -1293,6 +1296,12 @@ void mac128_state::macplus(machine_config &config)
 	SOFTWARE_LIST(config, "hdd_list").set_original("mac_hdd").set_filter("MC68000,macplus");
 	SOFTWARE_LIST(config, "cd_list").set_original("mac_cdrom").set_filter("MC68000,macplus");
 
+	// mini-DIN-8 serial ports add a handshake output, HSKo (pin 1), driven from
+	// the SCC's /DTR through a line driver.  GPi (pin 7) is not connected here:
+	// /DCDA and /DCDB are the mouse's X1 and Y1.
+	m_scc->out_dtra_callback().set("modem", FUNC(rs232_port_device::write_dtr));
+	m_scc->out_dtrb_callback().set("printer", FUNC(rs232_port_device::write_dtr));
+
 	/* internal ram */
 	m_ram->set_default_size("4M");
 	m_ram->set_extra_options("1M,2M,2560K,4M");
@@ -1339,11 +1348,18 @@ void mac128_state::macse(machine_config &config)
 	ADBMODEM(config, m_adbmodem, C7M);
 	m_adbmodem->via_clock_callback().set(m_via, FUNC(via6522_device::write_cb1));
 	m_adbmodem->via_data_callback().set(m_via, FUNC(via6522_device::write_cb2));
-	m_adbmodem->linechange_callback().set(m_macadb, FUNC(macadb_device::adb_linechange_w));
+	m_adbmodem->linechange_callback().set(m_adbbus, FUNC(adb_bus_device::adb_host_line_w));
 	m_adbmodem->irq_callback().set(FUNC(mac128_state::adb_irq_w));
 
-	MACADB(config, m_macadb, C7M);
-	m_macadb->adb_data_callback().set(m_adbmodem, FUNC(adbmodem_device::set_adb_line));
+	ADB_BUS(config, m_adbbus);
+	m_adbbus->out_adb_callback().set(m_adbmodem, FUNC(adbmodem_device::set_adb_line));
+	ADB_CONNECTOR(config, "adb:0", adb_devices, "hle_keyboard");
+	ADB_CONNECTOR(config, "adb:1", adb_devices, "hle_mouse");
+
+	// each serial port's GPi (pin 7) reaches the SCC's /DCD input; the mouse
+	// is on ADB here
+	subdevice<rs232_port_device>("modem")->dcd_handler().set(m_scc, FUNC(z80scc_device::dcda_w));
+	subdevice<rs232_port_device>("printer")->dcd_handler().set(m_scc, FUNC(z80scc_device::dcdb_w));
 
 	R65NC22(config.replace(), m_via, C7M/10);
 	m_via->readpa_handler().set(FUNC(mac128_state::mac_via_in_a));
@@ -1391,6 +1407,10 @@ void mac128_state::macclasc(machine_config &config)
 	NCR53C80(config.replace(), m_ncr5380);
 	m_ncr5380->irq_handler().set(DEVICE_SELF, FUNC(mac128_state::scsi_irq_w));
 	m_ncr5380->drq_handler().set(m_scsihelp, FUNC(mac_scsi_helper_device::drq_w));
+
+	// serial ports as the Plus's: GPi (pin 7) is not connected
+	subdevice<rs232_port_device>("modem")->dcd_handler().set_nop();
+	subdevice<rs232_port_device>("printer")->dcd_handler().set_nop();
 
 	subdevice<software_list_device>("flop_mac35_orig")->set_filter("MC68000,macclasc");
 	subdevice<software_list_device>("flop_mac35_clean")->set_filter("MC68000,macclasc");

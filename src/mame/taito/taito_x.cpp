@@ -3,7 +3,6 @@
 // thanks-to:Richard Bush
 /***************************************************************************
 
-
 Taito X-system
 
 driver by Richard Bush, Howie Cohen and Yochizo
@@ -530,10 +529,10 @@ private:
 
 void taitox_cchip_state::counters_w(u8 data)
 {
-	machine().bookkeeping().coin_lockout_w(1, data & 0x08);
-	machine().bookkeeping().coin_lockout_w(0, data & 0x04);
-	machine().bookkeeping().coin_counter_w(1, data & 0x02);
-	machine().bookkeeping().coin_counter_w(0, data & 0x01);
+	machine().bookkeeping().coin_lockout_w(1, BIT(data, 3));
+	machine().bookkeeping().coin_lockout_w(0, BIT(data, 2));
+	machine().bookkeeping().coin_counter_w(1, BIT(data, 1));
+	machine().bookkeeping().coin_counter_w(0, BIT(data, 0));
 }
 
 u16 taitox_state::dsw_input_r(offs_t offset)
@@ -549,7 +548,8 @@ u16 taitox_state::dsw_input_r(offs_t offset)
 		case 0x03:
 			return (m_dswb_io->read() & 0xf0) >> 4;
 		default:
-			logerror("taitox unknown dsw read offset: %04x\n", offset);
+			if (!machine().side_effects_disabled())
+				logerror("%s: unknown dsw_input_r offset: %04x\n", machine().describe_context(), offset);
 			return 0x00;
 	}
 }
@@ -566,7 +566,8 @@ u16 taitox_state::input_r(offs_t offset)
 			return m_in_io[2]->read();    // COINn + SERVICE1 + TILT
 
 		default:
-			logerror("taitox unknown input read offset: %04x\n", offset);
+			if (!machine().side_effects_disabled())
+				logerror("%s: unknown input_r offset: %04x\n", machine().describe_context(), offset);
 			return 0x00;
 	}
 }
@@ -576,15 +577,15 @@ void taitox_state::daisenpu_input_w(offs_t offset, u16 data)
 	switch (offset)
 	{
 		case 0x04:  // coin counters and lockout
-			machine().bookkeeping().coin_counter_w(0, data & 0x01);
-			machine().bookkeeping().coin_counter_w(1, data & 0x02);
-			machine().bookkeeping().coin_lockout_w(0, ~data & 0x04);
-			machine().bookkeeping().coin_lockout_w(1, ~data & 0x08);
+			machine().bookkeeping().coin_counter_w(0, BIT(data, 0));
+			machine().bookkeeping().coin_counter_w(1, BIT(data, 1));
+			machine().bookkeeping().coin_lockout_w(0, BIT(~data, 2));
+			machine().bookkeeping().coin_lockout_w(1, BIT(~data, 3));
 //logerror("taitox coin control %04x to offset %04x\n", data, offset);
 			break;
 
 		default:
-			logerror("taitox unknown input write %04x to offset %04x\n", data, offset);
+			logerror("%s: unknown daisenpu_input_w %04x to offset %04x\n", machine().describe_context(), data, offset);
 	}
 }
 
@@ -594,15 +595,15 @@ void taitox_state::kyustrkr_input_w(offs_t offset, u16 data)
 	switch (offset)
 	{
 		case 0x04:  // coin counters and lockout
-			machine().bookkeeping().coin_counter_w(0, data & 0x01);
-			machine().bookkeeping().coin_counter_w(1, data & 0x02);
-			machine().bookkeeping().coin_lockout_w(0, data & 0x04);
-			machine().bookkeeping().coin_lockout_w(1, data & 0x08);
+			machine().bookkeeping().coin_counter_w(0, BIT(data, 0));
+			machine().bookkeeping().coin_counter_w(1, BIT(data, 1));
+			machine().bookkeeping().coin_lockout_w(0, BIT(data, 2));
+			machine().bookkeeping().coin_lockout_w(1, BIT(data, 3));
 //logerror("taitox coin control %04x to offset %04x\n", data, offset);
 			break;
 
 		default:
-			logerror("taitox unknown input write %04x to offset %04x\n", data, offset);
+			logerror("%s: unknown kyustrkr_input_w %04x to offset %04x\n", machine().describe_context(), data, offset);
 	}
 }
 
@@ -699,7 +700,7 @@ void taitox_state::kyustrkr_map(address_map &map)
 void taitox_state::sound_map(address_map &map)
 {
 	map(0x0000, 0x3fff).rom();
-	map(0x4000, 0x7fff).bankr("z80bank");
+	map(0x4000, 0x7fff).bankr(m_z80bank);
 	map(0xc000, 0xdfff).ram();
 	map(0xe000, 0xe003).rw("ymsnd", FUNC(ym2610_device::read), FUNC(ym2610_device::write));
 	map(0xe200, 0xe200).nopr().w("tc0140syt", FUNC(tc0140syt_device::slave_port_w));
@@ -714,7 +715,7 @@ void taitox_state::sound_map(address_map &map)
 void taitox_state::daisenpu_sound_map(address_map &map)
 {
 	map(0x0000, 0x3fff).rom();
-	map(0x4000, 0x7fff).bankr("z80bank");
+	map(0x4000, 0x7fff).bankr(m_z80bank);
 	map(0xc000, 0xdfff).ram();
 	map(0xe000, 0xe001).rw("ymsnd", FUNC(ym2151_device::read), FUNC(ym2151_device::write));
 	map(0xe200, 0xe200).nopr().w("ciu", FUNC(pc060ha_device::slave_port_w));
@@ -1038,7 +1039,7 @@ void taitox_cchip_state::superman(machine_config &config)
 	m_spritegen->set_bg_yoffsets(0x1, -0x1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(57.43);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(52*8, 32*8);
@@ -1081,7 +1082,7 @@ void taitox_state::daisenpu(machine_config &config)
 	m_spritegen->set_bg_yoffsets(0x1, -0x1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(52*8, 32*8);
@@ -1121,8 +1122,8 @@ void taitox_state::gigandes(machine_config &config)
 	m_spritegen->set_bg_yoffsets(0x1, -0x1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_refresh_hz(60);
+	screen_device &screen(SCREEN(config, "screen"));
+	screen.set_refresh_hz(57.43);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(52*8, 32*8);
 	screen.set_visarea(0*8, 48*8-1, 1*8, 31*8-1);
@@ -1164,7 +1165,7 @@ void taitox_state::ballbros(machine_config &config)
 	m_spritegen->set_bg_yoffsets(0x1, -0x1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(52*8, 32*8);
