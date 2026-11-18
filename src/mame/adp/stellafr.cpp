@@ -7,6 +7,9 @@ German Fruit Machines / Gambling Machines
 
 CPU Board:
 ----------
+There are at least 2 variants, the one pictured with SRAM, RTC and a battery,
+and a later one with ST Timekeeper + ZeropowerRAM and no RTC or battery.
+
  ____________________________________________________________
  |           ______________  ______________     ___________ |
  | 74HC245N  | t1 i       |  |KM681000ALP7|     |+        | |
@@ -29,7 +32,7 @@ Parts:
  KM681000ALP7       - 128K X 8 Bit Low Power CMOS Static RAM
  OKIM62X42B         - Real-time Clock ic With Built-in Crystal
  MAX691CPE          - P Reset ic With Watchdog And Battery Switchover
- X                    - 8MHz xtal
+ X                  - 8MHz/12MHz oscillator
  3V Bat             - Lithium 3V power module
 
 Sound  and I/O board:
@@ -199,6 +202,7 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
 		m_nvram(*this, "nvram"),
+		m_nvram_data(*this, "nvram"),
 		m_dac(*this, "dac"),
 		m_service(*this, "service"),
 		m_digits(*this, "digit%u", 0U),
@@ -221,6 +225,7 @@ private:
 	required_device<cpu_device> m_maincpu;
 	required_device<mc68681_device> m_duart;
 	required_device<nvram_device> m_nvram;
+	required_shared_ptr<uint16_t> m_nvram_data;
 	required_device<ad7224_device> m_dac;
 	required_device<adp_bus_device> m_service;
 	output_finder<8> m_digits;   // the 8 in-machine digits (Sonderspiele + Münzspeicher)
@@ -460,8 +465,13 @@ void stellafr_state::mem_map_tk(address_map &map)
 {
 	map(0x000000, 0x0fffff).rom();
 	peripherals_map(map);
-	map(0xff0000, 0xffffff).ram().umask16(0x00ff).share("nvram");
-	map(0xff0000, 0xffffff).rw("timekeeper", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask16(0xff00);
+	map(0xff0000, 0xffffff).ram().share("nvram");
+	// Timekeeper population: U3 is an M48T08 on D8-D15, with 8 KB SRAM.
+	// Its socket address lines above A12 do not address additional storage.
+	map(0xff0000, 0xff3fff).mirror(0x00c000).rw("timekeeper", FUNC(timekeeper_device::read), FUNC(timekeeper_device::write)).umask16(0xff00);
+	map(0xff0000, 0xffffff).lrw8(
+		NAME([this](offs_t offset) { return uint8_t(m_nvram_data[offset]); }),
+		NAME([this](offs_t offset, uint8_t data) { m_nvram_data[offset] = (m_nvram_data[offset] & 0xff00) | data; })).umask16(0x00ff);
 }
 
 void stellafr_state::mem_map_rtc(address_map &map)
@@ -469,6 +479,7 @@ void stellafr_state::mem_map_rtc(address_map &map)
 	map(0x000000, 0x0fffff).rom();
 	map(0x400000, 0x40001f).rw("rtc", FUNC(msm6242_device::read), FUNC(msm6242_device::write)).umask16(0x00ff);
 	peripherals_map(map);
+	// Separate-RTC population: U3/U7 provide the two SRAM byte lanes.
 	map(0xfc0000, 0xffffff).ram().share("nvram");
 }
 
@@ -541,7 +552,7 @@ void stellafr_state::sus_tk(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &stellafr_state::mem_map_tk);
 	common(config);
 
-	M48T35(config, "timekeeper");
+	MK48T08(config, "timekeeper");
 }
 
 void stellafr_state::sus_rtc(machine_config &config)
