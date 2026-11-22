@@ -88,12 +88,13 @@ public:
 	void b_w(offs_t offset, u8 data);
 	void mark_plane_dirty(int num);
 	void mark_all_tilemaps_dirty();
-	void tilemap_draw(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect, int num, u32 flags, u32 priority);
-	void tilemap_draw(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int num, u32 flags, u32 priority);
+	void tilemap_draw(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect, int num, u32 flags, u32 priority, u8 priority_mask = 0xff);
+	void tilemap_draw(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int num, u32 flags, u32 priority, u8 priority_mask = 0xff);
 	void tilemap_draw_dj(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int layer, u32 flags, u32 priority);
 	void set_layer_association(int status);
 	int get_layer_association() { return m_layer_association; }
 	void set_layer_offs(int layer, s32 offsx, s32 offsy);
+	u8 set_pen_split(const int (&threshold)[4], const u8 (&penmask)[4]);
 	void set_lsram_page(int logical_page, s32 physical_page, s32 physical_offset);
 	int is_irq_enabled(int irqline);
 	void read_avac(int &mode, int &data);
@@ -152,6 +153,7 @@ private:
 	u8        m_all_lines_dirty[K056832_PAGE_COUNT];
 	u8        m_page_tile_mode[K056832_PAGE_COUNT];
 	s32       m_last_colorbase[K056832_PAGE_COUNT];
+	s32       m_page_pen_split[K056832_PAGE_COUNT];
 	u8        m_layer_tile_mode[8];
 	s32       m_default_layer_association;
 	s32       m_layer_association;
@@ -191,7 +193,7 @@ private:
 	int rom_read_b(int offset, int blksize, int blksize2, int zerosec);
 
 	template<class BitmapClass>
-	void tilemap_draw_common(screen_device &screen, BitmapClass &bitmap, const rectangle &cliprect, int layer, u32 flags, u32 priority);
+	void tilemap_draw_common(screen_device &screen, BitmapClass &bitmap, const rectangle &cliprect, int layer, u32 flags, u32 priority, u8 priority_mask);
 	int update_linemap(int page);
 
 	void create_gfx();

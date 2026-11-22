@@ -13,6 +13,7 @@
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
+#include <algorithm>
 #include <list>
 #include <memory>
 
@@ -28,6 +29,29 @@
 #include "window.h"
 #include "osdmac.h"
 #include "modules/monitor/monitor_common.h"
+
+//============================================================
+//  PROTOTYPES (windowcontroller.mm)
+//============================================================
+
+extern void *CreateMAMEWindow(const char *title, int x, int y, int w, int h, bool isFullscreen, uint32_t displayID, bool headless);
+extern void *GetOSWindow(void *wincontroller);
+extern void *GetOSStandardWindow(void *wincontroller);
+extern void MacWindowGetSize(void *wincontroller, int *width, int *height);
+extern void MacWindowGetSizePixels(void *wincontroller, int *width, int *height);
+extern void MacSetFullscreen(void *wincontroller, bool fullscreen, uint32_t displayID);
+extern uint32_t MacDisplayIDForWindow(void *wincontroller);
+extern void MacDestroyWindow(void *wincontroller);
+extern void MacSetWindowAspectRatio(void *wincontroller, int width, int height);
+extern void MacSetWindowMinSize(void *wincontroller, int width, int height);
+extern void MacSetWindowContentSize(void *wincontroller, int width, int height);
+extern bool MacAppHasFocus();
+extern int MacPointerInWindow();
+extern void MacShowPointer(bool show);
+extern void MacCapturePointer(void *wincontroller, bool capture);
+
+// implemented in input_mac.cpp
+extern void MacLightgunTouchEvent(uint32_t touch, int x, int y, int width, int height, bool contact);
 
 //============================================================
 //  PARAMETERS
@@ -73,13 +97,55 @@ bool mac_osd_interface::window_init()
 }
 
 
+extern void MacPollInputs(); // in windowcontroller.mm
+
 void mac_osd_interface::process_events()
 {
+	MacPollInputs();
+}
+
+//============================================================
+//  MacRequestMachineExit
+//  called from the Cocoa side when the user clicks the close
+//  box or quits from the menu bar or the Dock; returns 1 if a
+//  running machine accepted the request
+//============================================================
+
+extern "C" int MacRequestMachineExit()
+{
+	if (osd_common_t::window_list().empty())
+	{
+		return 0;
+	}
+
+	osd_common_t::window_list().front()->machine().schedule_exit();
+	return 1;
+}
+
+//============================================================
+//  MacOrderWindowsFront
+//  called when the application becomes active; windows shown
+//  before activation completed (fullscreen startup) may not
+//  have been ordered in, so re-assert all of them
+//============================================================
+
+extern void MacOrderWindowFront(void *wincontroller); // in windowcontroller.mm
+
+extern "C" void MacOrderWindowsFront()
+{
+	for (const auto &w : osd_common_t::window_list())
+	{
+		auto &win = static_cast<mac_window_info &>(*w);
+		if (win.platform_window() != nullptr)
+		{
+			MacOrderWindowFront(win.platform_window());
+		}
+	}
 }
 
 bool mac_osd_interface::has_focus() const
 {
-	return true;
+	return MacAppHasFocus();
 }
 
 
@@ -107,6 +173,7 @@ void mac_window_info::capture_pointer()
 {
 	if (!m_mouse_captured)
 	{
+		MacCapturePointer(platform_window(), true);
 		m_mouse_captured = true;
 	}
 }
@@ -115,6 +182,7 @@ void mac_window_info::release_pointer()
 {
 	if (m_mouse_captured)
 	{
+		MacCapturePointer(platform_window(), false);
 		m_mouse_captured = false;
 	}
 }
@@ -123,6 +191,7 @@ void mac_window_info::hide_pointer()
 {
 	if (!m_mouse_hidden)
 	{
+		MacShowPointer(false);
 		m_mouse_hidden = true;
 	}
 }
@@ -131,6 +200,7 @@ void mac_window_info::show_pointer()
 {
 	if (m_mouse_hidden)
 	{
+		MacShowPointer(true);
 		m_mouse_hidden = false;
 	}
 }
@@ -163,6 +233,49 @@ void mac_window_info::notify_changed()
 
 
 //============================================================
+//  update_aspect_ratio
+//============================================================
+
+void mac_window_info::update_aspect_ratio()
+{
+	if (platform_window() == nullptr || target() == nullptr)
+	{
+		return;
+	}
+
+	if (keepaspect() && (target()->scale_mode() == SCALE_FRACTIONAL))
+	{
+		// derive the ideal shape from the render target; only the ratio matters
+		int32_t width, height;
+		target()->compute_visible_area(10000, 10000, monitor()->pixel_aspect(), target()->orientation(), width, height);
+		MacSetWindowAspectRatio(platform_window(), width, height);
+
+		if (!fullscreen())
+		{
+			const osd_dim current = get_size();
+			if ((current.width() > 0) && (current.height() > 0))
+			{
+				target()->compute_visible_area(current.width(), current.height(), monitor()->pixel_aspect(), target()->orientation(), width, height);
+				if (osd_dim(width, height) != current)
+				{
+					MacSetWindowContentSize(platform_window(), width, height);
+				}
+			}
+		}
+	}
+	else
+	{
+		// integer scaling modes and -nokeepaspect resize freely
+		MacSetWindowAspectRatio(platform_window(), 0, 0);
+	}
+
+	// keep the window from being shrunk to nothing
+	osd_dim minimum = get_min_bounds(keepaspect());
+	MacSetWindowMinSize(platform_window(), minimum.width(), minimum.height());
+}
+
+
+//============================================================
 //  toggle_full_screen
 //============================================================
 
@@ -170,7 +283,15 @@ void mac_window_info::toggle_full_screen()
 {
 	// if we are in debug mode, never go full screen
 	if (machine().debug_flags & DEBUG_FLAG_OSD_ENABLED)
+	{
 		return;
+	}
+
+	// a headless window is never shown, so it never goes full screen either
+	if (m_headless)
+	{
+		return;
+	}
 
 	// If we are going fullscreen (leaving windowed) remember our windowed size
 	if (!fullscreen())
@@ -180,17 +301,12 @@ void mac_window_info::toggle_full_screen()
 
 	// kill off the drawers
 	renderer_reset();
-	if (fullscreen() && video_config.switchres)
-	{
-	}
-	//SDL_DestroyWindow(platform_window());
-	//set_platform_window(nullptr);
 
 	downcast<mac_osd_interface &>(machine().osd()).release_keys();
+	abort_touches();
 
-	renderer_create();
-
-	// toggle the window mode
+	// toggle the window mode; complete_create switches the existing window
+	// pair and recreates the renderer on the new drawable
 	set_fullscreen(!fullscreen());
 
 	complete_create();
@@ -201,9 +317,13 @@ void mac_window_info::modify_prescale(int dir)
 	int new_prescale = prescale();
 
 	if (dir > 0 && prescale() < 8)
+	{
 		new_prescale = prescale() + 1;
+	}
 	if (dir < 0 && prescale() > 1)
+	{
 		new_prescale = prescale() - 1;
+	}
 
 	if (new_prescale != prescale())
 	{
@@ -235,17 +355,41 @@ void mac_window_info::update_cursor_state()
 	// the possibility of losing control
 	if (!(machine().debug_flags & DEBUG_FLAG_OSD_ENABLED))
 	{
-		bool should_hide_mouse = downcast<mac_osd_interface&>(machine().osd()).should_hide_mouse();
+		auto &osd = downcast<mac_osd_interface &>(machine().osd());
 
-		if (!fullscreen() && !should_hide_mouse)
+		if (m_headless || !osd.has_focus() || machine().ui().is_menu_active())
 		{
+			// the window is hidden, the app is inactive or a menu wants the pointer
 			show_pointer();
+			release_pointer();
+		}
+		else if (osd.should_hide_mouse())
+		{
+			// a mouse- or lightgun-enabled machine is being pointed at.
+			// capturing for relative motion freezes the system cursor, which
+			// a lightgun reads its position from, so only do it for the mouse
+			// (strictly opt-in via -mouse)
+			hide_pointer();
+			if (osd.options().mouse())
+			{
+				capture_pointer();
+			}
+			else
+			{
+				release_pointer();
+			}
+		}
+		else if (fullscreen() && MacPointerInWindow())
+		{
+			// plain fullscreen: hide the cursor over the game, but leave it
+			// free so other displays stay usable
+			hide_pointer();
 			release_pointer();
 		}
 		else
 		{
-			hide_pointer();
-			capture_pointer();
+			show_pointer();
+			release_pointer();
 		}
 	}
 }
@@ -270,13 +414,13 @@ int mac_window_info::window_init()
 
 	create_target();
 
-	renderer_create();
-
 	result = complete_create();
 
 	// handle error conditions
 	if (result == 1)
+	{
 		goto error;
+	}
 
 	return 0;
 
@@ -295,12 +439,14 @@ void mac_window_info::complete_destroy()
 	// Release pointer grab and hide if needed
 	show_pointer();
 	release_pointer();
+	abort_touches();
 
-	if (fullscreen() && video_config.switchres)
+	if (platform_window() != nullptr)
 	{
+		MacDestroyWindow(platform_window());
+		set_platform_window(nullptr);
 	}
 
-	//SDL_DestroyWindow(platform_window());
 	// release all keys ...
 	downcast<mac_osd_interface &>(machine().osd()).release_keys();
 }
@@ -312,72 +458,9 @@ void mac_window_info::complete_destroy()
 
 osd_dim mac_window_info::pick_best_mode()
 {
-//  int minimum_width, minimum_height, target_width, target_height;
-//  int i;
-//  int num;
-//  float size_score, best_score = 0.0f;
-	osd_dim ret(0,0);
-#if 0
-	// determine the minimum width/height for the selected target
-	target()->compute_minimum_size(minimum_width, minimum_height);
-
-	// use those as the target for now
-	target_width = minimum_width * std::max(1, prescale());
-	target_height = minimum_height * std::max(1, prescale());
-
-	// if we're not stretching, allow some slop on the minimum since we can handle it
-	{
-		minimum_width -= 4;
-		minimum_height -= 4;
-	}
-
-	// FIXME: this should be provided by monitor !
-	num = SDL_GetNumDisplayModes(monitor()->oshandle());
-
-	if (num == 0)
-	{
-		osd_printf_error("SDL: No modes available?!\n");
-		exit(-1);
-	}
-	else
-	{
-		for (i = 0; i < num; ++i)
-		{
-			SDL_DisplayMode mode;
-			SDL_GetDisplayMode(monitor()->oshandle(), i, &mode);
-
-			// compute initial score based on difference between target and current
-			size_score = 1.0f / (1.0f + abs((int32_t)mode.w - target_width) + abs((int32_t)mode.h - target_height));
-
-			// if the mode is too small, give a big penalty
-			if (mode.w < minimum_width || mode.h < minimum_height)
-				size_score *= 0.01f;
-
-			// if mode is smaller than we'd like, it only scores up to 0.1
-			if (mode.w < target_width || mode.h < target_height)
-				size_score *= 0.1f;
-
-			// if we're looking for a particular mode, that's a winner
-			if (mode.w == m_win_config.width && mode.h == m_win_config.height)
-				size_score = 2.0f;
-
-			// refresh adds some points
-			if (m_win_config.refresh)
-				size_score *= 1.0f / (1.0f + abs(m_win_config.refresh - mode.refresh_rate) / 10.0f);
-
-			osd_printf_verbose("%4dx%4d@%2d -> %f\n", (int)mode.w, (int)mode.h, (int) mode.refresh_rate, (double) size_score);
-
-			// best so far?
-			if (size_score > best_score)
-			{
-				best_score = size_score;
-				ret = osd_dim(mode.w, mode.h);
-			}
-
-		}
-	}
-#endif
-	return ret;
+	// Modern macOS doesn't do exclusive-mode display switching, so the
+	// desktop resolution is always the best (and only) choice
+	return monitor()->position_size().dim();
 }
 
 //============================================================
@@ -400,10 +483,23 @@ void mac_window_info::update()
 		int tempwidth, tempheight;
 
 		// see if the games video mode has changed
+		// pick up runtime changes to the aspect settings from the UI
+		const bool aspect = keepaspect();
+		const int scale_mode = target()->scale_mode();
+		if (aspect != m_last_keepaspect || scale_mode != m_last_scale_mode)
+		{
+			m_last_keepaspect = aspect;
+			m_last_scale_mode = scale_mode;
+			update_aspect_ratio();
+		}
+
 		target()->compute_minimum_size(tempwidth, tempheight);
 		if (osd_dim(tempwidth, tempheight) != m_minimum_dim)
 		{
 			m_minimum_dim = osd_dim(tempwidth, tempheight);
+
+			// the view or rotation changed - update the resize constraints
+			update_aspect_ratio();
 
 			if (!this->m_fullscreen)
 			{
@@ -418,9 +514,13 @@ void mac_window_info::update()
 		}
 
 		if (video_config.waitvsync && video_config.syncrefresh)
+		{
 			event_wait_ticks = osd_ticks_per_second(); // block at most a second
+		}
 		else
+		{
 			event_wait_ticks = 0;
+		}
 
 		if (m_rendered_event.wait(event_wait_ticks))
 		{
@@ -435,11 +535,15 @@ void mac_window_info::update()
 			// Check whether window has vector screens
 
 			{
-				const screen_device *screen = screen_device_enumerator(machine().root_device()).byindex(index());
-				if ((screen != nullptr) && (screen->screen_type() == SCREEN_TYPE_VECTOR))
+				const device_video_output_interface *screen = video_output_interface_enumerator(machine().root_device()).byindex(index());
+				if ((screen != nullptr) && (screen->is_vector()))
+				{
 					renderer().set_flags(osd_renderer::FLAG_HAS_VECTOR_SCREEN);
+				}
 				else
+				{
 					renderer().clear_flags(osd_renderer::FLAG_HAS_VECTOR_SCREEN);
+				}
 			}
 
 			m_primlist = &primlist;
@@ -452,9 +556,13 @@ void mac_window_info::update()
 			else
 			{
 				if( video_config.perftest )
+				{
 					measure_fps(update);
+				}
 				else
+				{
 					renderer().draw(update);
+				}
 			}
 
 			/* all done, ready for next */
@@ -468,11 +576,19 @@ void mac_window_info::update()
 //  complete_create
 //============================================================
 
-extern void *CreateMAMEWindow(const char *title, int x, int y, int w, int h, bool isFullscreen);
-extern void *GetOSWindow(void *wincontroller);
-
 int mac_window_info::complete_create()
 {
+	// A synthetic monitor has no display handle.  Keep the render target for
+	// UI/Lua use, but only create the usual hidden Cocoa window on a real display.
+	if (m_headless && !monitor()->oshandle())
+	{
+		if (!has_renderer())
+		{
+			renderer_create();
+		}
+		return renderer().create();
+	}
+
 	osd_dim temp(0,0);
 
 	// clear out original mode. Needed on OSX
@@ -483,7 +599,9 @@ int mac_window_info::complete_create()
 
 		// if we're allowed to switch resolutions, override with something better
 		if (video_config.switchres)
+		{
 			temp = pick_best_mode();
+		}
 	}
 	else if (m_windowed_dim.width() > 0)
 	{
@@ -502,26 +620,94 @@ int mac_window_info::complete_create()
 	// create the window .....
 	osd_printf_verbose("Enter mac_window_info::complete_create\n");
 
-	// get monitor work area for centering
-	osd_rect work = monitor()->usuable_position_size();
-
-	auto window = CreateMAMEWindow(title().c_str(),
-			work.left() + (work.width() - temp.width()) / 2,
-			work.top() + (work.height() - temp.height()) / 2,
-			temp.width(), temp.height(), fullscreen());
-
-	if  (window == nullptr)
+	if (platform_window() == nullptr)
 	{
-		osd_printf_error("Window creation failed!\n");
-		return 1;
+		// get monitor work area for centering
+		osd_rect work = monitor()->usuable_position_size();
+
+		// starting in fullscreen mode, keep the hidden standard window small
+		// enough to fit the display's work area so AppKit doesn't relocate it
+		osd_dim window_dim = temp;
+		if (fullscreen())
+		{
+			window_dim = get_min_bounds(keepaspect());
+		}
+
+		// Multiple windows on one monitor tile as a centered grid
+		int slot = 0;
+		for (const auto &other : osd_common_t::window_list())
+		{
+			auto &win = static_cast<mac_window_info &>(*other);
+			if ((&win != this) && (win.monitor()->oshandle() == monitor()->oshandle()))
+			{
+				slot++;
+			}
+		}
+
+		int expected = 0;
+		auto &options = downcast<osd_options &>(machine().options());
+		for (int i = 0; i < video_config.numscreens; i++)
+		{
+			const auto mon = monitor()->module().pick_monitor(options, i);
+			if (mon && (mon->oshandle() == monitor()->oshandle()))
+			{
+				expected++;
+			}
+		}
+		expected = std::max(expected, slot + 1);
+
+		const int gap = 16;
+		const int titlebar = 28;		// guesstimated value
+		const int cols_fit = std::max(1, (work.width() + gap) / (window_dim.width() + gap));
+		const int cols = std::min(expected, cols_fit);
+		const int rows = (expected + cols - 1) / cols;
+		const int col = slot % cols;
+		const int row = slot / cols;
+
+		// center the whole grid in the work area
+		const int grid_width = (cols * window_dim.width()) + ((cols - 1) * gap);
+		const int grid_height = (rows * window_dim.height()) + ((rows - 1) * (titlebar + gap));
+		int x = work.left() + ((work.width() - grid_width) / 2) + (col * (window_dim.width() + gap));
+		int y = work.top() + ((work.height() - grid_height) / 2) + (row * (window_dim.height() + titlebar + gap));
+		x = std::max(x, work.left());
+		y = std::max(y, work.top());
+
+		auto window = CreateMAMEWindow(title().c_str(),
+				x, y,
+				window_dim.width(), window_dim.height(), fullscreen(),
+				uint32_t(monitor()->oshandle()), m_headless);
+
+		if  (window == nullptr)
+		{
+			osd_printf_error("Window creation failed!\n");
+			return 1;
+		}
+
+		set_platform_window(window);
+	}
+	else
+	{
+		uint32_t display = MacDisplayIDForWindow(platform_window());
+		if (display == 0)
+		{
+			display = uint32_t(monitor()->oshandle());
+		}
+		MacSetFullscreen(platform_window(), fullscreen(), display);
 	}
 
-	set_platform_window(window);
+	// create the renderer now that the platform window exists; some render
+	// modules (bgfx) need a valid native window handle at creation time
+	if (!has_renderer())
+	{
+		renderer_create();
+	}
 
 	// update monitor resolution after mode change to ensure proper pixel aspect
 	monitor()->refresh();
 	if (fullscreen() && video_config.switchres)
+	{
 		monitor()->update_resolution(temp.width(), temp.height());
+	}
 
 	// initialize the drawing backend
 	if (renderer().create())
@@ -529,6 +715,9 @@ int mac_window_info::complete_create()
 		osd_printf_verbose("Exiting mac_window_info::complete_create\n");
 		return 1;
 	}
+
+	// apply the resize constraints to the (windowed) presentation
+	update_aspect_ratio();
 
 	return 0;
 }
@@ -559,9 +748,13 @@ void mac_window_info::measure_fps(int update)
 	frames++;
 	currentTime = osd_ticks();
 	if(startTime==0||frames==frames_skip4fps)
+	{
 		startTime=currentTime;
+	}
 	if( frames>=frames_skip4fps )
+	{
 		sumdt+=currentTime-t0;
+	}
 	if( (currentTime-lastTime)>1L*osd_ticks_per_second() && frames>frames_skip4fps )
 	{
 		dt = (double) (currentTime-startTime) / tps; // in decimale sec.
@@ -610,7 +803,9 @@ osd_rect mac_window_info::constrain_to_aspect_ratio(const osd_rect &rect, int ad
 
 	// do not constrain aspect ratio for integer scaled views
 	if (target()->scale_mode() != SCALE_FRACTIONAL)
+	{
 		return rect;
+	}
 
 	// get the pixel aspect ratio for the target monitor
 	pixel_aspect = monitor()->pixel_aspect();
@@ -662,9 +857,13 @@ osd_rect mac_window_info::constrain_to_aspect_ratio(const osd_rect &rect, int ad
 
 		// further clamp to the maximum width/height in the window
 		if (m_win_config.width != 0)
+		{
 			maxwidth = std::min(maxwidth, m_win_config.width + extrawidth);
+		}
 		if (m_win_config.height != 0)
+		{
 			maxheight = std::min(maxheight, m_win_config.height + extraheight);
+		}
 	}
 
 	// clamp to the maximum
@@ -724,9 +923,13 @@ osd_dim mac_window_info::get_min_bounds(int constrain)
 
 	// expand to our minimum dimensions
 	if (minwidth < MIN_WINDOW_DIM)
+	{
 		minwidth = MIN_WINDOW_DIM;
+	}
 	if (minheight < MIN_WINDOW_DIM)
+	{
 		minheight = MIN_WINDOW_DIM;
+	}
 
 	// account for extra window stuff
 	minwidth += wnd_extra_width();
@@ -769,9 +972,35 @@ osd_dim mac_window_info::get_min_bounds(int constrain)
 
 osd_dim mac_window_info::get_size()
 {
+	if (m_headless && !platform_window())
+	{
+		int width, height;
+		target()->compute_minimum_size(width, height);
+		return osd_dim(
+				(m_win_config.width > 0) ? m_win_config.width : std::max(width, 1),
+				(m_win_config.height > 0) ? m_win_config.height : std::max(height, 1));
+	}
+
 	int w=0; int h=0;
-	// TODO: get window size from ObjC
-//  SDL_GetWindowSize(platform_window(), &w, &h);
+	if (platform_window() != nullptr)
+	{
+		MacWindowGetSize(platform_window(), &w, &h);
+	}
+	return osd_dim(w,h);
+}
+
+osd_dim mac_window_info::get_size_pixels()
+{
+	if (m_headless && !platform_window())
+	{
+		return get_size();
+	}
+
+	int w=0; int h=0;
+	if (platform_window() != nullptr)
+	{
+		MacWindowGetSizePixels(platform_window(), &w, &h);
+	}
 	return osd_dim(w,h);
 }
 
@@ -796,26 +1025,248 @@ osd_dim mac_window_info::get_max_bounds(int constrain)
 	{
 		int temp = m_win_config.width + wnd_extra_width();
 		if (temp < maximum.width())
+		{
 			tempw = temp;
+		}
 	}
 	if (m_win_config.height != 0)
 	{
 		int temp = m_win_config.height + wnd_extra_height();
 		if (temp < maximum.height())
+		{
 			temph = temp;
+		}
 	}
 
 	maximum = maximum.resize(tempw, temph);
 
 	// constrain to fit
 	if (constrain && target()->scale_mode() == SCALE_FRACTIONAL)
+	{
 		maximum = constrain_to_aspect_ratio(maximum, WMSZ_BOTTOMRIGHT);
+	}
 
 	// remove extra window stuff
 	maximum = maximum.resize(maximum.width() - wnd_extra_width(), maximum.height() - wnd_extra_height());
 
 	return maximum.dim();
 }
+
+//============================================================
+//  touch input
+//============================================================
+
+// TAP_DISTANCE is in window points, but touches arrive in backing pixels
+int mac_window_info::tap_distance()
+{
+	const int points = get_size().width();
+	if (points <= 0)
+	{
+		return TAP_DISTANCE;
+	}
+
+	const int scale = (get_size_pixels().width() + (points / 2)) / points;
+	return TAP_DISTANCE * scale * scale;
+}
+
+// touches drive the lightgun too, like WM_POINTER on Windows
+void mac_window_info::touch_lightgun(uint32_t touch, int x, int y, bool contact)
+{
+	const osd_dim size = get_size_pixels();
+	MacLightgunTouchEvent(touch, x, y, size.width(), size.height(), contact);
+}
+
+std::vector<mac_window_info::mac_pointer_info>::iterator mac_window_info::find_touch(uint32_t touch)
+{
+	const auto found = std::lower_bound(m_active_pointers.begin(), m_active_pointers.end(), touch, &mac_pointer_info::compare);
+	if ((m_active_pointers.end() != found) && (found->touch == touch))
+	{
+		return found;
+	}
+
+	return m_active_pointers.end();
+}
+
+void mac_window_info::remove_touch(std::vector<mac_pointer_info>::iterator info)
+{
+	m_pointer_mask &= ~(uint64_t(1) << info->index);
+	if (info->index < m_next_pointer)
+	{
+		m_next_pointer = info->index;
+	}
+	m_active_pointers.erase(info);
+}
+
+void mac_window_info::touch_down(uint32_t touch, int x, int y)
+{
+	auto info = std::lower_bound(m_active_pointers.begin(), m_active_pointers.end(), touch, &mac_pointer_info::compare);
+	if ((m_active_pointers.end() != info) && (info->touch == touch))
+	{
+		return;
+	}
+
+	// render targets track at most 64 pointers
+	if (m_next_pointer >= 64)
+	{
+		osd_printf_warning("mac_window_info: exceeded maximum number of active pointers\n");
+		return;
+	}
+
+	info = m_active_pointers.emplace(info, touch, m_next_pointer, 0);
+	m_pointer_mask |= uint64_t(1) << m_next_pointer;
+	while ((m_next_pointer < 64) && BIT(m_pointer_mask, m_next_pointer))
+	{
+		m_next_pointer++;
+	}
+
+	info->primary_down(x, y, std::chrono::milliseconds(250), tap_distance(), true, m_ptrdev_info);
+	info->x = x;
+	info->y = y;
+	info->buttons = 1;
+	target()->push_pointer_update(osd::ui_event_handler::pointer::TOUCH, info->index, info->device, x, y, 1, 1, 0, info->clickcnt);
+	touch_lightgun(touch, x, y, true);
+}
+
+void mac_window_info::touch_moved(uint32_t touch, int x, int y)
+{
+	const auto info = find_touch(touch);
+	if ((m_active_pointers.end() == info) || ((x == info->x) && (y == info->y)))
+	{
+		return;
+	}
+
+	info->check_primary_hold_drag(x, y, std::chrono::milliseconds(250), tap_distance());
+	info->x = x;
+	info->y = y;
+	target()->push_pointer_update(osd::ui_event_handler::pointer::TOUCH, info->index, info->device, x, y, 1, 0, 0, info->clickcnt);
+	touch_lightgun(touch, x, y, true);
+}
+
+void mac_window_info::touch_up(uint32_t touch, int x, int y)
+{
+	const auto info = find_touch(touch);
+	if (m_active_pointers.end() == info)
+	{
+		return;
+	}
+
+	info->check_primary_hold_drag(x, y, std::chrono::milliseconds(250), tap_distance());
+
+	// remember quick taps so the next touch nearby can count as a multi-tap
+	if (0 < info->clickcnt)
+	{
+		const auto now = std::chrono::steady_clock::now();
+		const auto time = std::chrono::milliseconds(250);
+		if ((time + info->pressed) >= now)
+		{
+			if (m_ptrdev_info.size() <= info->device)
+			{
+				m_ptrdev_info.resize(info->device + 1);
+			}
+
+			pointer_dev_info &devinfo = m_ptrdev_info[info->device];
+			const uint32_t i = devinfo.clear_expired_touches(now, time);
+			if (std::size(devinfo.touches) > i)
+			{
+				devinfo.touches[i].when = info->pressed;
+				devinfo.touches[i].x = info->pressedx;
+				devinfo.touches[i].y = info->pressedy;
+				devinfo.touches[i].cnt = info->clickcnt;
+			}
+		}
+	}
+
+	target()->push_pointer_update(osd::ui_event_handler::pointer::TOUCH, info->index, info->device, x, y, 0, 0, 1, info->clickcnt);
+	target()->push_pointer_leave(osd::ui_event_handler::pointer::TOUCH, info->index, info->device, x, y, 0, info->clickcnt);
+	touch_lightgun(touch, x, y, false);
+	remove_touch(info);
+}
+
+void mac_window_info::touch_cancelled(uint32_t touch)
+{
+	const auto info = find_touch(touch);
+	if (m_active_pointers.end() == info)
+	{
+		return;
+	}
+
+	// the system took the touch, so fail any tap in progress
+	if (0 < info->clickcnt)
+	{
+		info->clickcnt = -info->clickcnt;
+	}
+	target()->push_pointer_abort(osd::ui_event_handler::pointer::TOUCH, info->index, info->device, info->x, info->y, info->buttons, info->clickcnt);
+	touch_lightgun(touch, info->x, info->y, false);
+	remove_touch(info);
+}
+
+void mac_window_info::abort_touches()
+{
+	while (!m_active_pointers.empty())
+	{
+		touch_cancelled(m_active_pointers.back().touch);
+	}
+}
+
+
+//============================================================
+//  touch events from the gesture recognizer
+//============================================================
+
+// match either the current (possibly fullscreen) or the standard window
+mac_window_info *mac_window_info::from_nswindow(void *nswindow)
+{
+	for (const auto &w : osd_common_t::window_list())
+	{
+		auto &win = static_cast<mac_window_info &>(*w);
+		if ((win.platform_window() != nullptr) && (win.target() != nullptr))
+		{
+			if ((GetOSWindow(win.platform_window()) == nswindow) || (GetOSStandardWindow(win.platform_window()) == nswindow))
+			{
+				return &win;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+extern "C" void MacTouchDown(void *nswindow, uint32_t touch, int x, int y)
+{
+	mac_window_info *const window = mac_window_info::from_nswindow(nswindow);
+	if (window != nullptr)
+	{
+		window->touch_down(touch, x, y);
+	}
+}
+
+extern "C" void MacTouchMoved(void *nswindow, uint32_t touch, int x, int y)
+{
+	mac_window_info *const window = mac_window_info::from_nswindow(nswindow);
+	if (window != nullptr)
+	{
+		window->touch_moved(touch, x, y);
+	}
+}
+
+extern "C" void MacTouchUp(void *nswindow, uint32_t touch, int x, int y)
+{
+	mac_window_info *const window = mac_window_info::from_nswindow(nswindow);
+	if (window != nullptr)
+	{
+		window->touch_up(touch, x, y);
+	}
+}
+
+extern "C" void MacTouchCancelled(void *nswindow, uint32_t touch)
+{
+	mac_window_info *const window = mac_window_info::from_nswindow(nswindow);
+	if (window != nullptr)
+	{
+		window->touch_cancelled(touch);
+	}
+}
+
 
 //============================================================
 //  construction and destruction
@@ -829,12 +1280,17 @@ mac_window_info::mac_window_info(
 		const osd_window_config *config)
 	: osd_window_t(a_machine, renderprovider, index, a_monitor, *config)
 	, m_startmaximized(0)
+	, m_headless(downcast<mac_osd_interface &>(a_machine.osd()).headless())
 	// Following three are used by input code to defer resizes
 	, m_minimum_dim(0, 0)
 	, m_windowed_dim(0, 0)
+	, m_last_keepaspect(false)
+	, m_last_scale_mode(-1)
 	, m_rendered_event(0, 1)
 	, m_mouse_captured(false)
 	, m_mouse_hidden(false)
+	, m_pointer_mask(1)
+	, m_next_pointer(1)
 {
 	//FIXME: these should be per_window in config-> or even better a bit set
 	m_fullscreen = !video_config.windowed;

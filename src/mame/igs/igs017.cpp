@@ -93,6 +93,7 @@ Notes:
 
 #include "emu.h"
 
+#include "igs003.h"
 #include "igs017_igs031.h"
 #include "igs022.h"
 #include "igsmahjong.h"
@@ -754,6 +755,7 @@ public:
 		, m_decrypted_opcodes(*this, "decrypted_opcodes")
 		// Optional devices
 		, m_hopper(*this, "hopper")
+		, m_igs003(*this, "igs003")
 		, m_igs_bitswap(*this, "igs_bitswap")
 		, m_igs_string(*this, "igs_string")
 		, m_igs_incdec(*this, "igs_incdec")
@@ -779,6 +781,7 @@ public:
 	void tarzan(machine_config &config) ATTR_COLD;
 	void tjsb(machine_config &config) ATTR_COLD;
 	// 68000
+	void hjdmg(machine_config &config) ATTR_COLD;
 	void jking302us(machine_config &config) ATTR_COLD;
 	void lhzb2(machine_config &config) ATTR_COLD;
 	void lhzb2a(machine_config &config) ATTR_COLD;
@@ -843,6 +846,7 @@ private:
 
 	// Optional devices
 	optional_device<hopper_device> m_hopper;
+	optional_device<igs003_device> m_igs003;
 	optional_device<igs_bitswap_device> m_igs_bitswap;
 	optional_device<igs_string_device> m_igs_string;
 	optional_device<igs_incdec_device> m_igs_incdec;
@@ -1030,7 +1034,6 @@ private:
 	void decrypted_opcodes_map(address_map &map) ATTR_COLD;
 
 	void igs_bitswap_mux_map(address_map &map) ATTR_COLD;
-	void igs_fixed_data_mux_map(address_map &map) ATTR_COLD;
 	void igs_string_mux_map(address_map &map) ATTR_COLD;
 
 	void cpoker2_io(address_map &map) ATTR_COLD;
@@ -1039,10 +1042,9 @@ private:
 	void happyskl_map(address_map &map) ATTR_COLD;
 	void happyskl_io(address_map &map) ATTR_COLD;
 	void happyskl_mux_map(address_map &map) ATTR_COLD;
+	void hjdmg_map(address_map &map) ATTR_COLD;
 	void iqblocka_io(address_map &map) ATTR_COLD;
 	void iqblocka_map(address_map &map) ATTR_COLD;
-	void iqblocka_mux_map(address_map &map) ATTR_COLD;
-	void iqblockf_mux_map(address_map &map) ATTR_COLD;
 	void jking302us_map(address_map &map) ATTR_COLD;
 	void jking302us_mux_map(address_map &map) ATTR_COLD;
 	void lhzb2_map(address_map &map) ATTR_COLD;
@@ -2756,15 +2758,6 @@ void igs017_state::igs_string_mux_map(address_map &map)
 	map(0x40, 0x40).r(m_igs_string, FUNC(igs_string_device::advance_string_offs_r));
 }
 
-// 0x20 - 0x34: read fixed data
-void igs017_state::igs_fixed_data_mux_map(address_map &map)
-{
-	map(0x20, 0x34).rom().region("igs_fixed_data", 0);
-	map(0x23, 0x23).unmapr();
-	map(0x29, 0x29).unmapr();
-	map(0x2f, 0x2f).unmapr();
-}
-
 
 // iqblocka, iqblockf, genius6
 
@@ -2821,32 +2814,14 @@ void igs017_state::iqblocka_io(address_map &map)
 
 	map(0x2010, 0x2011).w(FUNC(igs017_state::incdec_remap_addr_w));
 
-	map(0x8000, 0x8000).w (m_igs_mux, FUNC(igs_mux_device::address_w));
-	map(0x8001, 0x8001).rw(m_igs_mux, FUNC(igs_mux_device::data_r), FUNC(igs_mux_device::data_w));
+	map(0x8000, 0x8000).w (m_igs003, FUNC(igs003_device::index_w));
+	map(0x8001, 0x8001).rw(m_igs003, FUNC(igs003_device::data_r), FUNC(igs003_device::data_w));
 
 	map(0x9000, 0x9000).rw(m_oki, FUNC(okim6295_device::read), FUNC(okim6295_device::write));
 
 	map(0xa000, 0xa000).portr("BUTTONS");
 
 	map(0xb000, 0xb001).w("ymsnd", FUNC(ym2413_device::write));
-}
-
-void igs017_state::iqblocka_mux_map(address_map &map)
-{
-	map(0x00, 0x00).portr("PLAYER1").w(NAME((&igs017_state::counter_w<7, 0x7f, 0>))); // coin in
-	map(0x01, 0x01).portr("PLAYER2");
-	map(0x02, 0x02).portr("COINS");
-
-	igs_bitswap_mux_map(map); // 0x03 r, 0x40 - 0x47 w, 0x48 w, 0x50 w, 0x80 - 0x87 w, 0xa0 w
-
-	igs_fixed_data_mux_map(map); // 0x20 - 0x34: read fixed data
-}
-
-void igs017_state::iqblockf_mux_map(address_map &map)
-{
-	iqblocka_mux_map(map);
-
-	map(0x01, 0x01).w(NAME((&igs017_state::counter_w<7, 0x7f, 1>))); // coin out (in gambling mode, only iqblockf/genius6)
 }
 
 // starzan
@@ -3380,6 +3355,29 @@ void igs017_state::sdmg2_mux_map(address_map &map)
 	map(0x00, 0x00).portr("COINS");
 	map(0x01, 0x01).w(FUNC(igs017_state::sdmg2_keys_hopper_w));
 	map(0x02, 0x02).portr("MATRIX").w(NAME((&igs017_state::oki_sound_bank_w<7, 0x7f>)));
+}
+
+void igs017_state::hjdmg_map(address_map &map)
+{
+	map(0x000000, 0x07ffff).rom();
+
+	// incdec protection
+	map(0x002001, 0x002001).w(m_igs_incdec, FUNC(igs_incdec_device::reset_w));
+	map(0x002003, 0x002003).w(m_igs_incdec, FUNC(igs_incdec_device::dec_w));
+	map(0x002007, 0x002007).w(m_igs_incdec, FUNC(igs_incdec_device::inc_w));
+	map(0x00200b, 0x00200b).r(m_igs_incdec, FUNC(igs_incdec_device::result_r));
+
+	// incalt protection
+	map(0x010000, 0x0107ff).rw(m_igs_incalt, FUNC(igs_incalt_device::result_r), FUNC(igs_incalt_device::byte_w));
+
+	map(0x1f0000, 0x1fffff).ram().share("nvram");
+
+	map(0x200000, 0x20ffff).rw(m_igs017_igs031, FUNC(igs017_igs031_device::read), FUNC(igs017_igs031_device::write)).umask16(0x00ff);
+
+	map(0x210001, 0x210001).rw(m_oki, FUNC(okim6295_device::read), FUNC(okim6295_device::write));
+
+	map(0x212000, 0x212001).nopr().w(m_igs_mux, FUNC(igs_mux_device::address_w)).umask16(0x00ff); // clr.w dummy read
+	map(0x212002, 0x212003).rw(m_igs_mux, FUNC(igs_mux_device::data_r), FUNC(igs_mux_device::data_w)).umask16(0x00ff);
 }
 
 // mgdh, mgdha
@@ -4366,7 +4364,7 @@ static INPUT_PORTS_START( lhzb2 )
 	PORT_START("COINS")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("hopper", FUNC(hopper_device::line_r)) // 哈巴
 	PORT_SERVICE_NO_TOGGLE( 0x02, IP_ACTIVE_LOW )                                                           // 测试      (hold on start for input test)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                        // 査帐
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                        // 查帐
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_IMPULSE(5)  PORT_CONDITION("DSW1", 0x20, EQUALS, 0x20)  // 投币
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_KEYIN )           PORT_CONDITION("DSW1", 0x20, EQUALS, 0x00)  // 投币
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_GAMBLE_PAYOUT )          PORT_CONDITION("DSW1", 0x40, EQUALS, 0x40)  // 退币
@@ -4383,7 +4381,7 @@ static INPUT_PORTS_START( lhzb2a )
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("hopper", FUNC(hopper_device::line_r)) // 哈巴
 	PORT_SERVICE_NO_TOGGLE( 0x04, IP_ACTIVE_LOW )                                                           // 测试      (hold on start for input test)
-	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                        // 査帐
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                        // 查帐
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_IMPULSE(5)  PORT_CONDITION("DSW1", 0x20, EQUALS, 0x20)  // 投币
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_GAMBLE_KEYIN )           PORT_CONDITION("DSW1", 0x20, EQUALS, 0x00)  // 投币
 	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_GAMBLE_PAYOUT )          PORT_CONDITION("DSW1", 0x40, EQUALS, 0x40)  // 退币
@@ -4500,7 +4498,7 @@ static INPUT_PORTS_START( mgcsb )
 
 INPUT_PORTS_END
 
-static INPUT_PORTS_START( sdmg2_common )
+static INPUT_PORTS_START( sdmg2_dsw )
 	PORT_START("DSW1")
 	CREDIT_SETTINGS_COMMON
 	PORT_DIPNAME( 0x10, 0x10, "Credit Limit" )                          PORT_DIPLOCATION("SW1:5")     // 進分上限
@@ -4533,12 +4531,12 @@ static INPUT_PORTS_START( sdmg2_common )
 	PORT_DIPNAME( 0x80, 0x80, "Number Type" )                           PORT_DIPLOCATION("SW2:8")     // 數字形態
 	PORT_DIPSETTING(    0x80, "Numbers" )                                                             // 數字
 	PORT_DIPSETTING(    0x00, "Blocks" )                                                              // 方塊       (apples for bet, mahjong tong tiles for numbers)
-
-	IGS_MAHJONG_MATRIX_CONDITIONAL("DSW2", 0x40, 0x40)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( sdmg2 )
-	PORT_INCLUDE(sdmg2_common)
+	PORT_INCLUDE(sdmg2_dsw)
+
+	IGS_MAHJONG_MATRIX_CONDITIONAL("DSW2", 0x40, 0x40)
 
 	PORT_START("COINS")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("hopper", FUNC(hopper_device::line_r)) // 哈巴
@@ -4566,8 +4564,43 @@ static INPUT_PORTS_START( sdmg2 )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN )              PORT_CONDITION("DSW2", 0x40, EQUALS, 0x00)  //           related to joystick BUTTON3
 INPUT_PORTS_END
 
+static INPUT_PORTS_START( hjdmg )
+	PORT_INCLUDE(sdmg2_dsw)
+
+	PORT_MODIFY("DSW2")
+	PORT_DIPNAME( 0x40, 0x40, "Show Title" )                            PORT_DIPLOCATION("SW2:7")         // 機種名稱
+	PORT_DIPSETTING(    0x00, DEF_STR(No) )                                                               // 無            copyright notice over picture of clouds in the sky
+	PORT_DIPSETTING(    0x40, DEF_STR(Yes) )                                                              // 有            game title and copyright notice with picture of golden statue on black background
+	PORT_DIPNAME( 0x80, 0x80, "Use External Credit Manager" )           PORT_DIPLOCATION("SW2:8")         // 開分卡
+	PORT_DIPSETTING(    0x80, DEF_STR(No) )                                                               // 無
+	PORT_DIPSETTING(    0x00, DEF_STR(Yes) )                                                              // 有            automatically bet up to ten credits and pay out immediately on win (i.e. bet and payout buttons aren't needed)
+
+	// Double up game controls are a bit weird - the dedicated keys aren't used:
+	// Double Up (double):  A
+	// Double Up:           C
+	// Double Up (half):    E
+	// Take Score:          G  Start
+	// Big/Left:            K
+	// Small/Right:         M
+	PORT_INCLUDE(igs_mahjong_matrix)
+
+	PORT_START("COINS")
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("hopper", FUNC(hopper_device::line_r)) // 哈巴
+	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_MEMORY_RESET )                                                     // 清除
+	PORT_SERVICE_NO_TOGGLE( 0x04, IP_ACTIVE_LOW )                                                         // 測試      (hold on start for input test)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                      // 查帳
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN1 )                PORT_CONDITION("DSW1", 0x20, EQUALS, 0x20)  // 投幣
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_GAMBLE_KEYIN )         PORT_CONDITION("DSW1", 0x20, EQUALS, 0x00)  // 投幣
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_GAMBLE_PAYOUT )        PORT_CONDITION("DSW1", 0x40, EQUALS, 0x40)  // 退幣
+	PORT_BIT( 0x20, IP_ACTIVE_LOW, IPT_GAMBLE_KEYOUT )        PORT_CONDITION("DSW1", 0x40, EQUALS, 0x00)  // 退幣
+	PORT_BIT( 0xc0, IP_ACTIVE_LOW, IPT_UNKNOWN )
+
+	PORT_START("MATRIX")
+	PORT_BIT( 0xff, IP_ACTIVE_HIGH, IPT_CUSTOM )              PORT_CUSTOM_MEMBER(FUNC(igs017_state::keys_ipt_r<>))
+INPUT_PORTS_END
+
 static INPUT_PORTS_START( sdmg2p )
-	PORT_INCLUDE(sdmg2_common)
+	PORT_INCLUDE(sdmg2_dsw)
 
 	PORT_MODIFY("DSW1")
 	PORT_DIPNAME( 0x80, 0x80, "Hide Credits" )                          PORT_DIPLOCATION("SW1:8")     // 隐分功能   (hides credits/bets/wins, game plays normally)
@@ -4591,6 +4624,8 @@ static INPUT_PORTS_START( sdmg2p )
 	PORT_DIPUNKNOWN_DIPLOC( 0x20, IP_ACTIVE_LOW, "SW3:6" )
 	PORT_DIPUNKNOWN_DIPLOC( 0x40, IP_ACTIVE_LOW, "SW3:7" )
 	PORT_DIPUNKNOWN_DIPLOC( 0x80, IP_ACTIVE_LOW, "SW3:8" )
+
+	IGS_MAHJONG_MATRIX_CONDITIONAL("DSW2", 0x40, 0x40)
 
 	PORT_START("COINS")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNKNOWN )
@@ -4752,7 +4787,7 @@ static INPUT_PORTS_START( slqz2 )
 	PORT_START("COINS")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("hopper", FUNC(hopper_device::line_r)) // 哈巴
 	PORT_SERVICE_NO_TOGGLE( 0x02, IP_ACTIVE_LOW )                                                           // 测试      (hold on start for input test)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                        // 査帐
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                        // 查帐
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_IMPULSE(5)  PORT_CONDITION("DSW1", 0x20, EQUALS, 0x20)  // 投币
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_KEYIN )           PORT_CONDITION("DSW1", 0x20, EQUALS, 0x00)  // 投币
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_GAMBLE_PAYOUT )          PORT_CONDITION("DSW1", 0x40, EQUALS, 0x40)  // 退币
@@ -5031,7 +5066,7 @@ static INPUT_PORTS_START( tarzan )
 	PORT_START("COINS")
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("hopper", FUNC(hopper_device::line_r)) // 哈巴
 	PORT_SERVICE_NO_TOGGLE( 0x02, IP_ACTIVE_LOW )                                                           // 测试      (hold on start for input test)
-	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                        // 査帐
+	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                        // 查帐
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_IMPULSE(5)  PORT_CONDITION("DSW2", 0x01, EQUALS, 0x01)  // 投币
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_GAMBLE_KEYIN )           PORT_CONDITION("DSW2", 0x01, EQUALS, 0x00)  // 投币
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_GAMBLE_PAYOUT )          PORT_CONDITION("DSW3", 0x20, EQUALS, 0x20)  // 洗分
@@ -5418,7 +5453,7 @@ void igs017_state::base_machine_oki(machine_config &config, const XTAL &xtal_oki
 	I8255A(config, m_ppi);
 
 	// video
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(512, 256);
@@ -5459,21 +5494,18 @@ void igs017_state::iqblocka(machine_config &config)
 	// NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	// i/o
-	m_igs_mux->set_addrmap(0, &igs017_state::iqblocka_mux_map);
+	IGS003(config, m_igs003); // 8255 in the iqblocka PCB layout, IGS003c on genius6
+	m_igs003->in_pa_callback().set_ioport("PLAYER1");
+	m_igs003->in_pb_callback().set_ioport("PLAYER2");
+	m_igs003->in_pc_callback().set_ioport("COINS");
+	m_igs003->out_pa_callback().set(NAME((&igs017_state::counter_w<7, 0x7f, 0>))); // coin in
+	// TODO: port C bits 2 and 4 are outputs, purpose unknown
 
 	m_igs017_igs031->in_pa_callback().set_ioport("DSW1");
 	m_igs017_igs031->in_pb_callback().set_ioport("DSW2");
 	m_igs017_igs031->in_pc_callback().set_ioport("DSW3");
 
 	// protection
-	IGS_BITSWAP(config, m_igs_bitswap);
-	m_igs_bitswap->set_val_xor(0x15d6);
-	m_igs_bitswap->set_mf_bits(3, 5, 9, 11);
-	m_igs_bitswap->set_m3_bits<0>(~5,  8, ~10, ~15);
-	m_igs_bitswap->set_m3_bits<1>( 3, ~8, ~12, ~15);
-	m_igs_bitswap->set_m3_bits<2>( 2, ~6, ~11, ~15);
-	m_igs_bitswap->set_m3_bits<3>( 0, ~1, ~3,  ~15);
-
 	IGS_INCDEC(config, m_igs_incdec);
 
 	// sound
@@ -5484,22 +5516,16 @@ void igs017_state::iqblockf(machine_config &config)
 {
 	iqblocka(config);
 
-	m_igs_mux->set_addrmap(0, &igs017_state::iqblockf_mux_map);
-
-	// tweaked protection bitswap
-	m_igs_bitswap->set_mf_bits(0, 5, 9, 13);
+	m_igs003->out_pb_callback().set(NAME((&igs017_state::counter_w<7, 0x7f, 1>))); // coin out (in gambling mode)
+	m_igs003->set_hold_xpos(1, 6, 10, 14);
 }
 
 void igs017_state::genius6(machine_config &config)
 {
 	iqblockf(config);
 
-	// tweaked protection bitswap
-	m_igs_bitswap->set_mf_bits(2, 7, 9, 13);
-	m_igs_bitswap->set_m3_bits<0>(~5,  6,  ~7, ~15);
-	m_igs_bitswap->set_m3_bits<1>( 1, ~6,  ~9, ~15);
-	m_igs_bitswap->set_m3_bits<2>( 4, ~8, ~12, ~15);
-	m_igs_bitswap->set_m3_bits<3>( 3, ~5,  ~6, ~15);
+	m_igs003->set_hold_taps(igs003_device::hold_taps::B);
+	m_igs003->set_hold_xpos(3, 8, 10, 14);
 }
 
 
@@ -5964,6 +5990,12 @@ void igs017_state::sdmg2(machine_config &config)
 	IGS_INCALT(config, m_igs_incalt);
 }
 
+void igs017_state::hjdmg(machine_config &config)
+{
+	sdmg2(config);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &igs017_state::hjdmg_map);
+}
 
 // mgdh, mgdha
 
@@ -6113,9 +6145,6 @@ ROM_START( iqblocka )
 
 	ROM_REGION( 0x2dd, "pld", ROMREGION_ERASE )
 	ROM_LOAD( "cq.u24", 0x000, 0x2dd, NO_DUMP ) // PAL22CV10
-
-	ROM_REGION( 0x15, "igs_fixed_data", 0 )
-	ROM_LOAD( "igs_fixed_data.key", 0x00, 0x15, CRC(9159ecbf) SHA1(b6bdb1f327944dfc7f6f71565a24e89517607490) )
 ROM_END
 
 // English title (IQ Block) and year 1997:
@@ -6136,9 +6165,6 @@ ROM_START( iqblockf )
 
 	ROM_REGION( 0x2dd, "pld", ROMREGION_ERASE )
 	ROM_LOAD( "cq.u24", 0x000, 0x2dd, NO_DUMP ) // PAL22CV10
-
-	ROM_REGION( 0x15, "igs_fixed_data", 0 )
-	ROM_LOAD( "igs_fixed_data.key", 0x00, 0x15, CRC(9159ecbf) SHA1(b6bdb1f327944dfc7f6f71565a24e89517607490) )
 ROM_END
 
 // IQ Block V110F also exists (undumped) with IGS003e (not 8255)
@@ -6190,9 +6216,6 @@ ROM_START( genius6 )
 
 	ROM_REGION( 0x2dd, "pld", ROMREGION_ERASE )
 	ROM_LOAD( "cq.u24", 0x000, 0x2dd, NO_DUMP ) // PAL22CV10
-
-	ROM_REGION( 0x15, "igs_fixed_data", 0 )
-	ROM_LOAD( "igs_fixed_data.key", 0x00, 0x15, CRC(9159ecbf) SHA1(b6bdb1f327944dfc7f6f71565a24e89517607490) )
 ROM_END
 
 // strangely identifies as V133F and has 1997 copyright, while the parent is V110F but with 1998 copyright
@@ -6211,9 +6234,6 @@ ROM_START( genius6a )
 
 	ROM_REGION( 0x2dd, "pld", ROMREGION_ERASE )
 	ROM_LOAD( "cq.u24", 0x000, 0x2dd, NO_DUMP ) // PAL22CV10
-
-	ROM_REGION( 0x15, "igs_fixed_data", 0 )
-	ROM_LOAD( "igs_fixed_data.key", 0x00, 0x15, CRC(9159ecbf) SHA1(b6bdb1f327944dfc7f6f71565a24e89517607490) )
 ROM_END
 
 ROM_START( genius6b ) // PCB NO-0132, identical to V133F but for the main CPU ROM
@@ -6231,9 +6251,6 @@ ROM_START( genius6b ) // PCB NO-0132, identical to V133F but for the main CPU RO
 
 	ROM_REGION( 0x2dd, "pld", ROMREGION_ERASE )
 	ROM_LOAD( "cq.u24", 0x000, 0x2dd, NO_DUMP ) // PAL22CV10
-
-	ROM_REGION( 0x15, "igs_fixed_data", 0 )
-	ROM_LOAD( "igs_fixed_data.key", 0x00, 0x15, CRC(9159ecbf) SHA1(b6bdb1f327944dfc7f6f71565a24e89517607490) )
 ROM_END
 
 /***************************************************************************
@@ -6523,6 +6540,21 @@ ROM_START( sdmg2 ) // C5220P001 PCB
 
 	ROM_REGION( 0x80000, "oki", 0 )
 	ROM_LOAD( "s0206.u3", 0x00000, 0x80000, CRC(ae5a441c) SHA1(923774ef73ab0f70e0db1738a4292dcbd70d2384) )
+ROM_END
+
+ROM_START( hjdmg )
+	ROM_REGION( 0x80000, "maincpu", 0 )
+	ROM_LOAD16_WORD_SWAP( "goldmaj_v-739c.u25", 0x00000, 0x80000, CRC(8b2523af) SHA1(04a9805be2cb49a722a10dbaacc65be3af66af33) )
+
+	ROM_REGION( 0x280000, "igs017_igs031:sprites", 0 )
+	ROM_LOAD( "m0901.u5",      0x000000, 0x200000, CRC(9699db24) SHA1(50fc2f173c20b48d10595f01f1e9545f1b13a61b) ) // FIXED BITS (xxxxxxxx0xxxxxxx)
+	ROM_LOAD( "goldmaj-cg.u4", 0x200000, 0x080000, CRC(bb97d83a) SHA1(836635d2805297d3f9fd09cb1d7bfc3f6f9e87a6) ) // FIXED BITS (xxxxxxxx0xxxxxxx)
+
+	ROM_REGION( 0x20000, "igs017_igs031:tilemaps", 0 )
+	ROM_LOAD( "text.u6", 0x000000, 0x020000, CRC(cb34cbc0) SHA1(ceedbdda085fd1acc9a575502bdf7cf998f54f05) )
+
+	ROM_REGION( 0x80000, "oki", 0 )
+	ROM_LOAD( "s0903.u15", 0x00000, 0x80000, CRC(ae5a441c) SHA1(923774ef73ab0f70e0db1738a4292dcbd70d2384) )
 ROM_END
 
 /***************************************************************************
@@ -7480,6 +7512,7 @@ GAME ( 1997,  mgdha,       mgdh,     mgdha,      mgdh,        igs017_state, init
 GAME ( 1997,  sdmg2,       0,        sdmg2,      sdmg2,       igs017_state, init_sdmg2,      ROT0, "IGS", "Chaoji Da Manguan II (China, V765C)",                                MACHINE_SUPPORTS_SAVE ) // 超級大滿貫II
 GAME ( 1997,  sdmg2754ca,  sdmg2,    sdmg2,      sdmg2,       igs017_state, init_sdmg2754ca, ROT0, "IGS", "Chaoji Da Manguan II (China, V754C, set 1)",                         MACHINE_SUPPORTS_SAVE ) // 超級大滿貫II
 GAME ( 1997,  sdmg2754cb,  sdmg2,    sdmg2,      sdmg2,       igs017_state, init_sdmg2754cb, ROT0, "IGS", "Chaoji Da Manguan II (China, V754C, set 2)",                         MACHINE_SUPPORTS_SAVE ) // 超級大滿貫II
+GAME ( 1997,  hjdmg,       0,        hjdmg,      hjdmg,       igs017_state, init_sdmg2,      ROT0, "IGS", "Huangjin Da Manguan (China, V739C)",                                 MACHINE_NOT_WORKING |MACHINE_SUPPORTS_SAVE ) // 黄金大满贯, protection emulation not tested
 GAME ( 1997,  tjsb,        0,        tjsb,       tjsb,        igs017_state, init_tjsb,       ROT0, "IGS", "Tian Jiang Shen Bing (China, V137C)",                                MACHINE_UNEMULATED_PROTECTION | MACHINE_SUPPORTS_SAVE ) // 天將神兵, fails the bonus round protection check (if enabled via DSW), see e.g. demo mode
 GAME ( 1998,  genius6,     0,        genius6,    genius6,     igs017_state, init_iqblocka,   ROT0, "IGS", "Genius 6 (V110F)",                                                   0 ) // shows Chinese text in puzzle game
 GAME ( 1997,  genius6a,    genius6,  genius6,    genius6,     igs017_state, init_iqblocka,   ROT0, "IGS", "Genius 6 (V133F)",                                                   0 ) // clone because it has older copyright year

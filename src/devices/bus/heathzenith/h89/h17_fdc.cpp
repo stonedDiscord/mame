@@ -7,8 +7,7 @@
     This was an option for both the Heathkit H8 and H89 computer systems.
 
   TODO
-    - define hard-sectored disk format
-    - incoming floppy data should drive receive clock of the ami 2350.
+    - writing to disk images
 
 ****************************************************************************/
 
@@ -50,9 +49,9 @@ class heath_h17_fdc_device : public device_t, public device_h89bus_right_card_in
 public:
 	heath_h17_fdc_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 
-	auto floppy_ram_wp_cb() { return m_floppy_ram_wp.bind(); }
-
 	[[maybe_unused]] void side_select_w(int state);
+
+	virtual void bus_clock_changed(u32 clock) override;
 
 protected:
 	static constexpr u8 MAX_FLOPPY_DRIVES = 3;
@@ -72,18 +71,28 @@ protected:
 	void step_w(int state);
 	void dir_w(int state);
 	void set_motor(bool motor_on);
+	void reset_rx_separator();
+	void schedule_rx_cell();
+	void rx_emit_cell();
 
 	void sync_character_received(int state);
 
+	TIMER_CALLBACK_MEMBER(rx_timer_cb);
 	TIMER_DEVICE_CALLBACK_MEMBER(tx_timer_cb);
-
-	devcb_write_line m_floppy_ram_wp;
 
 	required_device<s2350_device> m_s2350;
 	required_device_array<floppy_connector, MAX_FLOPPY_DRIVES> m_floppies;
 	required_device<timer_device> m_tx_timer;
+	emu_timer *m_rx_timer;
 
 	bool m_installed;
+
+	u32 m_bus_clock;
+
+	attotime m_rx_cell_start;
+	attotime m_rx_scan;
+	bool     m_rx_have_clock;
+	bool     m_rx_data;
 
 	bool m_motor_on;
 	bool m_write_gate;
@@ -103,19 +112,27 @@ protected:
 	static constexpr u8 CTRL_STEP_COMMAND     = 6; // (Active high)
 	static constexpr u8 CTRL_WRITE_ENABLE_RAM = 7; // 0 - write protected
 
-	// USRT clock
-	static constexpr XTAL USRT_BASE_CLOCK = XTAL(12'288'000) / 6 / 16;
-	static constexpr u32  USRT_TX_CLOCK   = USRT_BASE_CLOCK.value();
+	// USRT clock is the 2 MHz bus clock divided by 16, so the board only reads
+	// and writes the disk correctly with a 2.048 MHz bus clock.
+	static constexpr u32 USRT_CLOCK_DIVIDER = 16;
+
+	u32 usrt_clock() { return h89bus().clock() / USRT_CLOCK_DIVIDER; }
+
+	// A bit cell holds an FM clock half-cell followed by a data half-cell.
+	attotime fm_cell_time() { return attotime::from_hz(usrt_clock() * 2); }
+	attotime fm_bit_time()  { return attotime::from_hz(usrt_clock()); }
+
+	void start_tx_clock();
 };
 
 
 heath_h17_fdc_device::heath_h17_fdc_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock)
 	: device_t(mconfig, H89BUS_H_17_FDC, tag, owner, 0)
 	, device_h89bus_right_card_interface(mconfig, *this)
-	, m_floppy_ram_wp(*this)
 	, m_s2350(*this, "s2350")
 	, m_floppies(*this, "floppy%u", 0U)
 	, m_tx_timer(*this, "tx_timer")
+	, m_rx_timer(nullptr)
 	, m_floppy(nullptr)
 {
 }
@@ -153,9 +170,12 @@ void heath_h17_fdc_device::set_floppy(floppy_image_device *floppy)
 	m_floppy = floppy;
 
 	// set any latched signals
+	if (m_floppy)
 	{
 		m_floppy->ss_w(m_side);
 	}
+
+	reset_rx_separator();
 }
 
 void heath_h17_fdc_device::side_select_w(int state)
@@ -165,6 +185,7 @@ void heath_h17_fdc_device::side_select_w(int state)
 	if (m_floppy)
 	{
 		m_floppy->ss_w(m_side);
+		reset_rx_separator();
 	}
 }
 
@@ -182,9 +203,10 @@ void heath_h17_fdc_device::step_w(int state)
 {
 	if (m_floppy)
 	{
-		LOGFUNC("%s: step dir: 0x%02x\n", FUNCNAME, state);
+		LOGFUNC("%s: step: 0x%02x\n", FUNCNAME, state);
 
 		m_floppy->stp_w(state);
+		reset_rx_separator();
 	}
 }
 
@@ -207,6 +229,110 @@ void heath_h17_fdc_device::set_motor(bool motor_on)
 			floppy->mon_w(!motor_on);
 		}
 	}
+
+	reset_rx_separator();
+}
+
+// Receive data separator.  The board has no PLL, so the cell rate is fixed and
+// each flux transition only moves the phase.  The first pulse in a cell is its
+// clock; after that a pulse near the middle is a data 1, a later one is the
+// next cell's clock, and an earlier one is dropped.
+
+void heath_h17_fdc_device::schedule_rx_cell()
+{
+	if (!m_motor_on || !m_floppy)
+	{
+		m_rx_timer->adjust(attotime::never);
+		return;
+	}
+
+	// Wake for whichever comes first, the next flux transition or the end of
+	// the cell being assembled.
+	attotime const cell_end = m_rx_cell_start + fm_bit_time();
+	attotime const edge     = m_floppy->get_next_transition(m_rx_scan);
+	attotime const next     = (!edge.is_never() && edge < cell_end) ? edge : cell_end;
+	attotime const now      = machine().time();
+
+	m_rx_timer->adjust(next > now ? next - now : attotime::zero);
+}
+
+void heath_h17_fdc_device::reset_rx_separator()
+{
+	m_rx_cell_start = machine().time();
+	m_rx_scan       = m_rx_cell_start;
+	m_rx_have_clock = false;
+	m_rx_data       = false;
+
+	schedule_rx_cell();
+}
+
+void heath_h17_fdc_device::rx_emit_cell()
+{
+	m_s2350->rx_w(m_rx_data ? 1 : 0);
+	m_s2350->rcp_w();
+
+	m_rx_have_clock = false;
+	m_rx_data       = false;
+}
+
+TIMER_CALLBACK_MEMBER(heath_h17_fdc_device::rx_timer_cb)
+{
+	if (!m_motor_on || !m_floppy)
+	{
+		m_rx_timer->adjust(attotime::never);
+		return;
+	}
+
+	attotime const now       = machine().time();
+	attotime const half      = fm_cell_time();
+	attotime const win_open  = (half * 3) / 4;
+	attotime const win_close = (half * 5) / 4;
+
+	while (true)
+	{
+		attotime const cell_end = m_rx_cell_start + fm_bit_time();
+		attotime const edge     = m_floppy->get_next_transition(m_rx_scan);
+
+		if (!edge.is_never() && edge < cell_end && edge <= now)
+		{
+			m_rx_scan = edge;
+
+			attotime const in_cell = edge - m_rx_cell_start;
+			if (!m_rx_have_clock)
+			{
+				// Before the data window: a phase half a cell out would
+				// otherwise eat each clock as data and never recover.
+				m_rx_cell_start = edge;
+				m_rx_have_clock = true;
+			}
+			else if (in_cell >= win_open && in_cell < win_close)
+			{
+				m_rx_data = true;
+			}
+			else if (in_cell >= win_close)
+			{
+				// The next cell's clock, ending this cell early.
+				rx_emit_cell();
+
+				m_rx_cell_start = edge;
+				m_rx_have_clock = true;
+			}
+			// Anything else is too early to be data, and must not move the
+			// phase.
+		}
+		else if (cell_end <= now)
+		{
+			// No clock ended the cell; roll on to the next.
+			rx_emit_cell();
+			m_rx_cell_start = cell_end;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	schedule_rx_cell();
 }
 
 void heath_h17_fdc_device::ctrl_w(u8 val)
@@ -244,7 +370,7 @@ void heath_h17_fdc_device::ctrl_w(u8 val)
 
 	step_w(!BIT(val, CTRL_STEP_COMMAND));
 
-	m_floppy_ram_wp(BIT(val, CTRL_WRITE_ENABLE_RAM));
+	set_slot_fmwe(BIT(val, CTRL_WRITE_ENABLE_RAM));
 }
 
 u8 heath_h17_fdc_device::read(offs_t offset)
@@ -280,13 +406,13 @@ u8 heath_h17_fdc_device::floppy_status_r()
 	if (m_floppy)
 	{
 		// index/sector hole
-		val |= m_floppy->idx_r() ? 0x00 : 0x01;
+		val |= m_floppy->idx_r() ? 0x01 : 0x00;
 
 		// track 0
 		val |= m_floppy->trk00_r() ? 0x00 : 0x02;
 
 		// disk is write-protected
-		val |= m_floppy->wpt_r() ? 0x00 : 0x04;
+		val |= m_floppy->wpt_r() ? 0x04 : 0x00;
 	}
 	else
 	{
@@ -303,12 +429,20 @@ u8 heath_h17_fdc_device::floppy_status_r()
 
 void heath_h17_fdc_device::device_start()
 {
+	m_rx_timer = timer_alloc(FUNC(heath_h17_fdc_device::rx_timer_cb), this);
+
 	m_installed = false;
+	m_bus_clock = h89bus().clock();
 
 	save_item(NAME(m_installed));
+	save_item(NAME(m_bus_clock));
 	save_item(NAME(m_motor_on));
 	save_item(NAME(m_write_gate));
 	save_item(NAME(m_sync_char_received));
+	save_item(NAME(m_rx_cell_start));
+	save_item(NAME(m_rx_scan));
+	save_item(NAME(m_rx_have_clock));
+	save_item(NAME(m_rx_data));
 	save_item(NAME(m_step_direction));
 	save_item(NAME(m_side));
 }
@@ -317,7 +451,7 @@ void heath_h17_fdc_device::device_reset()
 {
 	if (!m_installed)
 	{
-		h89bus::addr_ranges  addr_ranges = h89bus().get_address_ranges(h89bus::IO_FLPY);
+		h89bus::addr_ranges  addr_ranges = h89bus().get_address_ranges(h89bus::IO_FLPY, m_p506_signals);
 
 		if (addr_ranges.size() == 1)
 		{
@@ -334,8 +468,31 @@ void heath_h17_fdc_device::device_reset()
 	m_motor_on           = false;
 	m_write_gate         = false;
 	m_sync_char_received = false;
+	m_bus_clock          = h89bus().clock();
 
-	m_tx_timer->adjust(attotime::from_hz(USRT_TX_CLOCK), 0, attotime::from_hz(USRT_TX_CLOCK));
+	start_tx_clock();
+	reset_rx_separator();
+}
+
+void heath_h17_fdc_device::start_tx_clock()
+{
+	attotime const period = fm_bit_time();
+
+	m_tx_timer->adjust(period, 0, period);
+}
+
+void heath_h17_fdc_device::bus_clock_changed(u32 clock)
+{
+	LOGFUNC("%s: clock: %u\n", FUNCNAME, clock);
+
+	// loading a state reports the clock it restored, leave the restored timing alone
+	if (clock == m_bus_clock)
+		return;
+
+	m_bus_clock = clock;
+
+	start_tx_clock();
+	reset_rx_separator();
 }
 
 static void h17_floppies(device_slot_interface &device)
@@ -377,7 +534,7 @@ void heath_h17_fdc_device::sync_character_received(int state)
 {
 	LOGFUNC("%s: state: %d\n", FUNCNAME, state);
 
-	m_sync_char_received = bool(!BIT(state, 0));
+	m_sync_char_received = bool(BIT(state, 0));
 }
 
 } // anonymous namespace

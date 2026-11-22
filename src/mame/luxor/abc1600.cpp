@@ -30,21 +30,6 @@
 
 */
 
-/*
-
-    TODO:
-
-    - systest1600 failures
-        - CIO timer (works if CIO clock is 4219000)
-        - DMA (expects to read 0xff from 0x18000..)
-    - crashes after reset
-    - Z80 SCC/DART interrupt chain
-    - [:2a:chb] - TX FIFO is full, discarding data
-        [:] SCC write 000003
-        [:2a:chb] void z80scc_channel::data_write(uint8_t): Data Register Write: 17 ' '
-
-*/
-
 #include "emu.h"
 #include "abc1600_v.h"
 #include "abc1600_mmu.h"
@@ -56,8 +41,8 @@
 #include "imagedev/floppy.h"
 #include "machine/74259.h"
 #include "machine/e0516.h"
+#include "machine/eepromser.h"
 #include "machine/input_merger.h"
-#include "machine/nmc9306.h"
 #include "machine/ram.h"
 #include "machine/wd_fdc.h"
 #include "machine/z80dma.h"
@@ -162,7 +147,7 @@ private:
 	required_device<z8536_device> m_cio;
 	required_device<fd1797_device> m_fdc;
 	required_device<e0516_device> m_rtc;
-	required_device<nmc9306_device> m_nvram;
+	required_device<eeprom_serial_93cxx_device> m_nvram;
 	required_device<ram_device> m_ram;
 	required_device_array<floppy_connector, 3> m_floppy;
 	required_device<abcbus_slot_device> m_bus0i;
@@ -214,6 +199,7 @@ private:
 	void update_drdy1(int state);
 	void sccrq_a_w(int state) { m_sccrq_a = state; update_drdy1(0); }
 	void sccrq_b_w(int state) { m_sccrq_b = state; update_drdy1(0); }
+	u8 scc_irq_ack_r();
 
 	// DMA
 	int m_dmadis = 0;
@@ -332,13 +318,13 @@ uint8_t abc1600_state::bus_r(offs_t offset)
 		case INP:
 			if (m_bus0)
 			{
-				data &= m_bus0i->read_inp();
-				data &= m_bus0x->read_inp();
+				data &= m_bus0i->read_inp(0);
+				data &= m_bus0x->read_inp(0);
 			}
 			else
 			{
-				data &= m_bus1->read_inp();
-				data &= m_bus2->read_inp();
+				data &= m_bus1->read_inp(0);
+				data &= m_bus2->read_inp(0);
 			}
 
 			LOG("%s INP %02x: %02x\n", machine().describe_context(), cs, data);
@@ -403,13 +389,13 @@ void abc1600_state::bus_w(offs_t offset, uint8_t data)
 
 		if (m_bus0)
 		{
-			m_bus0i->write_out(data);
-			m_bus0x->write_out(data);
+			m_bus0i->write_out(0, data);
+			m_bus0x->write_out(0, data);
 		}
 		else
 		{
-			m_bus1->write_out(data);
-			m_bus2->write_out(data);
+			m_bus1->write_out(0, data);
+			m_bus2->write_out(0, data);
 		}
 		break;
 
@@ -606,6 +592,7 @@ void abc1600_state::sysscc_w(int state)
 	LOG("%s SYSSCC %d\n", machine().describe_context(), state);
 
 	m_sysscc = state;
+	m_mac->sysscc_w(state);
 
 	m_cio->pb5_w(!state);
 
@@ -622,6 +609,7 @@ void abc1600_state::sysfs_w(int state)
 	LOG("%s SYSFS %d\n", machine().describe_context(), state);
 
 	m_sysfs = state;
+	m_mac->sysfs_w(state);
 
 	m_cio->pb6_w(!state);
 
@@ -651,7 +639,7 @@ void abc1600_state::mac_mem(address_map &map)
 	map(0x1ff600, 0x1ff607).mirror(0xf8).rw(FUNC(abc1600_state::scc_r), FUNC(abc1600_state::scc_w));
 	map(0x1ff700, 0x1ff707).mirror(0xf8).rw(FUNC(abc1600_state::cio_r), FUNC(abc1600_state::cio_w));
 	map(0x1ff800, 0x1ff807).mirror(0xf8).m(ABC1600_MOVER_TAG, FUNC(abc1600_mover_device::iowr0_map));
-	map(0x1ff900, 0x1ff907).mirror(0xf8).m(ABC1600_MOVER_TAG, FUNC(abc1600_mover_device::iowr1_map));
+	map(0x1ff900, 0x1ff9ff).m(ABC1600_MOVER_TAG, FUNC(abc1600_mover_device::iowr1_map));
 	map(0x1ffa00, 0x1ffa07).mirror(0xf8).m(ABC1600_MOVER_TAG, FUNC(abc1600_mover_device::iowr2_map));
 	map(0x1ffb00, 0x1ffb00).mirror(0x7e).w(FUNC(abc1600_state::fw0_w));
 	map(0x1ffb01, 0x1ffb01).mirror(0x7e).w(FUNC(abc1600_state::fw1_w));
@@ -663,7 +651,7 @@ void abc1600_state::cpu_space_map(address_map &map)
 {
 	map(0xffff0, 0xfffff).m(m_maincpu, FUNC(m68008_device::autovectors_map));
 	map(0xffff5, 0xffff5).lr8(NAME([this]() -> u8 { return m_cio->intack_r(); }));
-	map(0xffffb, 0xffffb).lr8(NAME([this]() -> u8 { return m_dart->m1_r(); }));
+	map(0xffffb, 0xffffb).lr8(NAME([this]() -> u8 { return scc_irq_ack_r(); }));
 	map(0xfffff, 0xfffff).lr8(NAME([this]() -> u8 { m_maincpu->set_input_line(M68K_IRQ_7, CLEAR_LINE); return m68008_device::autovector(7); }));
 }
 
@@ -711,13 +699,15 @@ INPUT_PORTS_END
 
 void abc1600_state::update_br()
 {
-	// _BR = !_DMADIS || (_DBRQ0 || _DBRQ1 || _DBRQ2)
+	// BR = _DMADIS && (DBRQ0 || DBRQ1 || DBRQ2)
 	// _IOC = IORQ delayed by 1 clock, or IORQ preceded by 1 clock on MINT2 or MINT5
 	// _BGACK = !_BR && !_BG && _IOC
 	// DMA0.BAI = _BGACK
 
-	// workaround for floppy DMA, this should use the 68000 BR line instead
-	m_dma0->bai_w(!m_dmadis || m_dbrq0 || m_dbrq1 || m_dbrq2);
+	bool const br = m_dmadis && (m_dbrq0 || m_dbrq1 || m_dbrq2);
+
+	m_maincpu->set_input_line(INPUT_LINE_HALT, br ? ASSERT_LINE : CLEAR_LINE);
+	m_dma0->bai_w(br);
 }
 
 void abc1600_state::update_pren0(int state)
@@ -927,7 +917,7 @@ uint8_t abc1600_state::cio_pc_r()
 	uint8_t data = 0x0d;
 
 	// data in
-	data |= (m_rtc->dio_r() || m_nvram->do_r()) << 1;
+	data |= (m_rtc->dio_r() && m_nvram->do_read()) << 1;
 
 	return data;
 }
@@ -956,9 +946,26 @@ void abc1600_state::cio_pc_w(uint8_t data)
 	m_rtc->dio_w(data_out);
 	m_rtc->clk_w(clock);
 
-	m_nvram->cs_w(nvram_cs);
-	m_nvram->di_w(data_out);
-	m_nvram->sk_w(clock);
+	m_nvram->cs_write(nvram_cs);
+	m_nvram->di_write(data_out);
+	m_nvram->clk_write(clock);
+}
+
+u8 abc1600_state::scc_irq_ack_r()
+{
+	auto *scc = dynamic_cast<device_z80daisy_interface *>(m_scc.target());
+	if (scc->z80daisy_irq_state() & Z80_DAISY_INT)
+	{
+		return m_scc->m1_r();
+	}
+
+	auto *dart = dynamic_cast<device_z80daisy_interface *>(m_dart.target());
+	if (dart->z80daisy_irq_state() & Z80_DAISY_INT)
+	{
+		return m_dart->m1_r();
+	}
+
+	return m68008_device::autovector(5);
 }
 
 static void abc1600_floppies(device_slot_interface &device)
@@ -1042,6 +1049,7 @@ void abc1600_state::abc1600(machine_config &config)
 	m_mac->set_addrmap(AS_PROGRAM, &abc1600_state::mac_mem);
 	m_mac->set_addrmap(m68000_base_device::AS_CPU_SPACE, &abc1600_state::cpu_space_map);
 	m_mac->set_cpu(m_maincpu);
+	m_mac->set_pack_callback(ABC1600_MOVER_TAG, FUNC(abc1600_mover_device::cpu_pack_tick));
 	m_mac->in_tren_cb<0>().set(FUNC(abc1600_state::read_tren0));
 	m_mac->out_tren_cb<0>().set(FUNC(abc1600_state::write_tren0));
 	m_mac->in_tren_cb<1>().set(m_bus1, FUNC(abcbus_slot_device::read_tren));
@@ -1121,12 +1129,16 @@ void abc1600_state::abc1600(machine_config &config)
 	rs232a.cts_handler().set(m_scc, FUNC(scc8530_device::ctsa_w));
 	rs232a.dcd_handler().set(m_scc, FUNC(scc8530_device::dcda_w));
 	rs232a.ri_handler().set(m_scc, FUNC(scc8530_device::synca_w));
+	rs232a.rxc_handler().set([this](int state) { if (!m_atce) m_scc->rtxca_w(state); });
+	rs232a.txc_handler().set([this](int state) { if (!m_atce) m_scc->trxca_w(state); });
 
 	rs232_port_device &rs232b(RS232_PORT(config, RS232_B_TAG, default_rs232_devices, nullptr));
 	rs232b.rxd_handler().set(m_scc, FUNC(scc8530_device::rxb_w));
 	rs232b.cts_handler().set(m_scc, FUNC(scc8530_device::ctsb_w));
 	rs232b.dcd_handler().set(m_scc, FUNC(scc8530_device::dcdb_w));
 	rs232b.ri_handler().set(m_scc, FUNC(scc8530_device::syncb_w));
+	rs232b.rxc_handler().set([this](int state) { if (!m_btce) m_scc->rtxcb_w(state); });
+	rs232b.txc_handler().set([this](int state) { if (!m_btce) m_scc->trxcb_w(state); });
 
 	Z8536(config, m_cio, XTAL(64'000'000)/16);
 	m_cio->irq_wr_cb().set_inputline(MC68008P8_TAG, M68K_IRQ_2);
@@ -1136,9 +1148,9 @@ void abc1600_state::abc1600(machine_config &config)
 	m_cio->pc_rd_cb().set(FUNC(abc1600_state::cio_pc_r));
 	m_cio->pc_wr_cb().set(FUNC(abc1600_state::cio_pc_w));
 
-	NMC9306(config, m_nvram);
+	EEPROM_93C06_16BIT(config, m_nvram);
 
-	E0516(config, m_rtc, XTAL(32'768));
+	E0516(config, m_rtc, XTAL(32'768)).set_use_utc(true);
 	m_rtc->outsel_rd_cb().set_constant(0);
 
 	FD1797(config, m_fdc, XTAL(64'000'000)/64); // clocked by 9229B
@@ -1201,7 +1213,7 @@ ROM_START( abc1600 )
 	ROM_LOAD( "1025 6490354-01.6e",  0x618, 0x104, CRC(9bda0468) SHA1(ad373995dcc18532274efad76fa80bd13c23df25) ) // X36 Z80A-DMA INTERFACER
 	ROM_LOAD( "1031", 0x71c, 0x144, CRC(0aedc9fc) SHA1(2cbbc7d5cb16b410d296062feb77ed26ff01af24) ) // NS32081 IN ABC1600
 
-	ROM_REGION( 0x20, NMC9306_TAG, 0 )
+	ROM_REGION16_LE( 0x20, NMC9306_TAG, 0 )
 	ROM_LOAD( "nmc9306.14c", 0x00, 0x20, CRC(0edfc912) SHA1(a4d080456d32a6731d8969dd3727fba76cfe252d) )
 ROM_END
 
@@ -1214,4 +1226,4 @@ ROM_END
 //**************************************************************************
 
 //    YEAR  NAME     PARENT  COMPAT  MACHINE  INPUT    CLASS          INIT        COMPANY  FULLNAME    FLAGS
-COMP( 1985, abc1600, 0,      0,      abc1600, abc1600, abc1600_state, empty_init, "Luxor", "ABC 1600", MACHINE_IMPERFECT_CONTROLS | MACHINE_IMPERFECT_GRAPHICS | MACHINE_SUPPORTS_SAVE )
+COMP( 1985, abc1600, 0,      0,      abc1600, abc1600, abc1600_state, empty_init, "Luxor", "ABC 1600", MACHINE_SUPPORTS_SAVE )

@@ -17,11 +17,18 @@
 #include <CoreGraphics/CoreGraphics.h>
 
 #include <algorithm>
+#include <cstring>
+#include <vector>
 
+#include "modules/lib/osdobj_common.h"
 #include "modules/osdwindow.h"
 #include "monitor_common.h"
 #include "osdcore.h"
 #include "window.h"
+
+// implemented in windowcontroller.mm
+extern uint32_t MacDisplayIDForWindow(void *wincontroller);
+extern bool MacGetDisplayWorkArea(uint32_t displayID, int *x, int *y, int *width, int *height);
 
  //============================================================
  //  mac_monitor_info
@@ -43,9 +50,35 @@ private:
 		dimensions = CGDisplayBounds((CGDirectDisplayID)oshandle());
 
 		m_pos_size = osd_rect(dimensions.origin.x, dimensions.origin.y, dimensions.size.width, dimensions.size.height);
-		m_usuable_pos_size = osd_rect(dimensions.origin.x, dimensions.origin.y, dimensions.size.width, dimensions.size.height);
+
+		// the usable area excludes the menu bar and Dock
+		int x, y, width, height;
+		if (MacGetDisplayWorkArea((uint32_t)oshandle(), &x, &y, &width, &height))
+		{
+			m_usuable_pos_size = osd_rect(x, y, width, height);
+		}
+		else
+		{
+			m_usuable_pos_size = m_pos_size;
+		}
+
 		m_is_primary = CGDisplayIsMain((CGDirectDisplayID)oshandle());
 	}
+};
+
+// Headless render targets need geometry, but must not depend on WindowServer.
+class mac_headless_monitor_info : public osd_monitor_info
+{
+public:
+	mac_headless_monitor_info(monitor_module &module)
+		: osd_monitor_info(module, 0, OSDOPTION_SCREEN "0", 4.0f / 3.0f)
+	{
+		m_pos_size = osd_rect(0, 0, 640, 480);
+		m_usuable_pos_size = m_pos_size;
+		m_is_primary = true;
+	}
+
+	void refresh() override { }
 };
 
 //============================================================
@@ -56,7 +89,7 @@ class mac_monitor_module : public monitor_module_base
 {
 public:
 	mac_monitor_module()
-		: monitor_module_base(OSD_MONITOR_PROVIDER, "sdl")
+		: monitor_module_base(OSD_MONITOR_PROVIDER, "mac")
 	{
 	}
 
@@ -66,7 +99,9 @@ public:
 	std::shared_ptr<osd_monitor_info> monitor_from_rect(const osd_rect& proposed) override
 	{
 		if (!m_initialized)
+		{
 			return nullptr;
+		}
 
 		// Determines whether the first intersects less with the proposed rect than the second
 		auto intersects_less = [&proposed](std::shared_ptr<osd_monitor_info> mon1, std::shared_ptr<osd_monitor_info> mon2)
@@ -84,11 +119,25 @@ public:
 
 	std::shared_ptr<osd_monitor_info> monitor_from_window(const osd_window& window) override
 	{
-//      if (!m_initialized)
+		if (!m_initialized)
+		{
 			return nullptr;
+		}
 
-//      std::uint64_t display = SDL_GetWindowDisplayIndex(static_cast<const mac_window_info &>(window).platform_window());
-//      return monitor_from_handle(display);
+		// look up by the display the native window is currently on
+		void *const controller = static_cast<const mac_window_info &>(window).platform_window();
+		if (controller != nullptr)
+		{
+			const uint32_t display = MacDisplayIDForWindow(controller);
+			for (const auto &monitor : list())
+			{
+				if (monitor->oshandle() == display)
+				{
+					return monitor;
+				}
+			}
+		}
+		return nullptr;
 	}
 
 protected:
@@ -96,16 +145,35 @@ protected:
 	{
 		// make a list of monitors
 		{
-			uint32_t uNumDisplays;
-			CGDirectDisplayID *displayList;
+			uint32_t uNumDisplays = 0;
 
 			osd_printf_verbose("Enter init_monitors\n");
 
 			// pass NULL to get the number of displays
-			CGGetActiveDisplayList(1, NULL, &uNumDisplays);
-
-			displayList = (CGDirectDisplayID *)malloc(sizeof(CGDirectDisplayID) * uNumDisplays);
-			CGGetActiveDisplayList(uNumDisplays, displayList, &uNumDisplays);
+			CGError error = CGGetActiveDisplayList(0, nullptr, &uNumDisplays);
+			std::vector<CGDirectDisplayID> displayList;
+			if ((error == kCGErrorSuccess) && uNumDisplays)
+			{
+				displayList.resize(uNumDisplays);
+				error = CGGetActiveDisplayList(uNumDisplays, displayList.data(), &uNumDisplays);
+			}
+			if ((error != kCGErrorSuccess) || !uNumDisplays)
+			{
+				if (strcmp(options.video(), OSDOPTVAL_NONE) == 0)
+				{
+					add_monitor(std::make_shared<mac_headless_monitor_info>(*this));
+					return 0;
+				}
+				if (error != kCGErrorSuccess)
+				{
+					osd_printf_error("Unable to enumerate active displays\n");
+				}
+				else
+				{
+					osd_printf_error("No active displays available; use -video none for headless operation\n");
+				}
+				return -1;
+			}
 
 			for (uint32_t disp = 0; disp < uNumDisplays; disp++)
 			{
@@ -124,8 +192,6 @@ protected:
 				// hook us into the list
 				add_monitor(monitor);
 			}
-
-			free(displayList);
 		}
 		osd_printf_verbose("Leave init_monitors\n");
 

@@ -220,8 +220,13 @@ void vr0video_device::device_start()
 	save_item(NAME(m_render_start));
 	save_item(NAME(m_dither_mode));
 	save_item(NAME(m_flip_sync));
+	save_item(NAME(m_fb_shift));
+	save_item(NAME(m_draw_dest));
+	save_item(NAME(m_display_dest));
 
 	m_pipeline_timer = timer_alloc(FUNC(vr0video_device::pipeline_cb), this);
+
+	m_fb_shift = 10;
 }
 
 //-------------------------------------------------
@@ -233,8 +238,21 @@ void vr0video_device::device_reset()
 	std::fill(std::begin(m_internal_palette), std::end(m_internal_palette), 0);
 	m_last_pal_update = 0xffffffff;
 
+	// Stop the old display list before the host starts configuring the engine again.
+	m_render_state = render_state_info();
+	m_queue_front = m_queue_rear = 0;
+	m_bank1_select = false;
+	m_display_bank = 0;
+	m_draw_select = false;
+	m_render_reset = false;
+	m_render_start = false;
+	m_dither_mode = 0;
+	m_flip_count = 0;
+	m_flip_sync = false;
 	m_display_dest = m_draw_dest = 0;
 	// 1100 objects per second at ~80 MHz
+	// TODO: stub, move as from_ticks counting inside related functions
+	// depends on actual time it takes to draw each individual render part, and SE3208 CPU actual cycle counts
 	m_pipeline_timer->adjust(attotime::from_hz(this->clock() / 1100), 0, attotime::from_hz(this->clock() / 1100));
 }
 
@@ -383,11 +401,15 @@ void vr0video_device::draw_quad(quad_info &quad)
 	u32 const maskw = quad.twidth - 1;
 	u32 const maskh = quad.theight - 1;
 	u32 const w = quad.twidth >> 3;
-	for (int y = quad.dy, y_tx = quad.tx, y_ty = quad.ty; y <= quad.endy; y++, y_tx += quad.txdy, y_ty += quad.tydy)
+	u32 const width = get_quad_width(quad);
+	u32 const height = get_quad_height(quad);
+	int y_tx = quad.tx, y_ty = quad.ty;
+	for (u32 y = 0; y < height; y++, y_tx += quad.txdy, y_ty += quad.tydy)
 	{
-		for (int x = quad.dx, x_tx = y_tx, x_ty = y_ty; x <= quad.endx; x++, x_tx += quad.txdx, x_ty += quad.tydx)
+		int x_tx = y_tx, x_ty = y_ty;
+		for (u32 x = 0; x < width; x++, x_tx += quad.txdx, x_ty += quad.tydx)
 		{
-			u32 const fb_addr = quad.dest + get_fb_addr(x, y);
+			u32 const fb_addr = quad.dest + get_fb_addr(quad.dx + x, quad.dy + y);
 			u32 tx = x_tx >> 9;
 			u32 ty = x_ty >> 9;
 			if (quad.clamp)
@@ -446,11 +468,13 @@ void vr0video_device::draw_quad(quad_info &quad)
 void vr0video_device::draw_quad_fill(quad_info &quad)
 {
 	u16 const shade_color = RGB32TO16(quad.shade);
-	for (u32 y = quad.dy; y <= quad.endy; y++)
+	u32 const width = get_quad_width(quad);
+	u32 const height = get_quad_height(quad);
+	for (u32 y = 0; y < height; y++)
 	{
-		for (u32 x = quad.dx; x <= quad.endx; x++)
+		for (u32 x = 0; x < width; x++)
 		{
-			u32 const fb_addr = quad.dest + get_fb_addr(x, y);
+			u32 const fb_addr = quad.dest + get_fb_addr(quad.dx + x, quad.dy + y);
 			u16 pixel = m_fbcache.read_word(fb_addr), prev_pixel = pixel;
 			if (quad.src_alpha)
 				pixel = do_alpha(quad, shade_color, pixel);
@@ -479,10 +503,11 @@ int vr0video_device::process_packet(u32 packet_ptr)
 		return packet_0 & 0x81;
 	}
 
+	// texture coordinates and increments are s.11.9 fixed point
 	if (BIT(packet_0, 9))
 	{
-		m_render_state.tx = get_packet(packet_ptr + 5) | ((get_packet(packet_ptr + 6) & 0x1f) << 16);
-		m_render_state.ty = get_packet(packet_ptr + 7) | ((get_packet(packet_ptr + 8) & 0x1f) << 16);
+		m_render_state.tx = util::sext(get_packet(packet_ptr + 5) | ((get_packet(packet_ptr + 6) & 0x1f) << 16), 21);
+		m_render_state.ty = util::sext(get_packet(packet_ptr + 7) | ((get_packet(packet_ptr + 8) & 0x1f) << 16), 21);
 	}
 	else
 	{
@@ -491,10 +516,10 @@ int vr0video_device::process_packet(u32 packet_ptr)
 	}
 	if (BIT(packet_0, 10))
 	{
-		m_render_state.txdx = get_packet(packet_ptr + 9)  | ((get_packet(packet_ptr + 10) & 0x1f) << 16);
-		m_render_state.tydx = get_packet(packet_ptr + 11) | ((get_packet(packet_ptr + 12) & 0x1f) << 16);
-		m_render_state.txdy = get_packet(packet_ptr + 13) | ((get_packet(packet_ptr + 14) & 0x1f) << 16);
-		m_render_state.tydy = get_packet(packet_ptr + 15) | ((get_packet(packet_ptr + 16) & 0x1f) << 16);
+		m_render_state.txdx = util::sext(get_packet(packet_ptr + 9)  | ((get_packet(packet_ptr + 10) & 0x1f) << 16), 21);
+		m_render_state.tydx = util::sext(get_packet(packet_ptr + 11) | ((get_packet(packet_ptr + 12) & 0x1f) << 16), 21);
+		m_render_state.txdy = util::sext(get_packet(packet_ptr + 13) | ((get_packet(packet_ptr + 14) & 0x1f) << 16), 21);
+		m_render_state.tydy = util::sext(get_packet(packet_ptr + 15) | ((get_packet(packet_ptr + 16) & 0x1f) << 16), 21);
 	}
 	else
 	{
@@ -656,9 +681,30 @@ TIMER_CALLBACK_MEMBER(vr0video_device::pipeline_cb)
 	}
 }
 
+// The display start address is a multiple of 1 KB (512 pixels) with an horizontal resolution
+// lower than 512, and of 2 KB in interlace mode with an higher one (STAD1 register), so the
+// frame buffer lines are assumed to be 512 or 1024 pixels long: ddflower draws its scrolling
+// background with X from 44 to 555, wrapping around to 0-43.
+void vr0video_device::set_hres(u32 hdisp)
+{
+	m_fb_shift = (hdisp > 511) ? 10 : 9;
+}
+
 void vr0video_device::execute_flipping()
 {
 	if (!m_render_start)
+		return;
+
+	// A sync packet waits for vblank even when no framebuffer flip is pending.
+	// Keeping the pipeline stopped in that case deadlocks Donghaer's stage 6 transition.
+	m_flip_sync = false;
+
+	// don't execute any flipping if the count is 0
+	// - trivrus cfr. MT08891
+	// - crospuzl disappearing text around service mode RTC test (option 1 then 5)
+	// - topbladv version screen timing (too fast without it)
+	// NOTE: it's not "m_flip_sync", that would make topbladv/donghaer/ddflower stuck at first frame drawn
+	if (!m_flip_count)
 		return;
 
 	u32 const B0 = 0x000000;
@@ -679,7 +725,6 @@ void vr0video_device::execute_flipping()
 	m_draw_dest = m_draw_select ? front : back;
 	m_display_dest = front;
 
-	m_flip_sync = false;
 	if (m_flip_count)
 	{
 		m_flip_count--;
