@@ -32,8 +32,6 @@ NETLIST_START(modyssey)
 	SOLVER(Solver, 1200000)
 	PARAM(Solver.ACCURACY, 1e-5)
 
-	MAINCLOCK(clk, 1000000)
-
 	ANALOG_INPUT(V5, 5.6)
 	ALIAS(VCC, V5)
 
@@ -249,6 +247,7 @@ NETLIST_START(modyssey)
 	//vert_in
 	#if (FAST_VSYNC)
 	// The summer takes active-low sync, and the object generators take active-high triggers.
+	// Buffer the synthesized sync into the summer while retaining the trigger driver load.
 	// Use the same clock tick as horizontal sync so rounding cannot shift the phase.
 	EXTCLOCK(vert_in_CLOCK, 6750000, "220506,4290") // 257 + 5 lines at 858 ticks per line
 	CD4069_GATE(vert_sync_driver)
@@ -257,7 +256,9 @@ NETLIST_START(modyssey)
 	NET_C(vert_sync_driver.Q, vert_in_driver.A)
 	NET_C(GND, vert_sync_driver.VSS, vert_in_driver.VSS)
 	NET_C(VCC, vert_sync_driver.VDD, vert_in_driver.VDD)
-	ALIAS(vert_sync, vert_sync_driver.Q)
+	AFUNC(vert_sync_buffer, 1, "A0")
+	NET_C(vert_sync_buffer.A0, vert_sync_driver.Q)
+	ALIAS(vert_sync, vert_sync_buffer.Q)
 	ALIAS(vert_in, vert_in_driver.Q)
 	#else
 	CAP(C6, CAP_U(100))
@@ -302,7 +303,9 @@ NETLIST_START(modyssey)
 	NET_C(horiz_sync_driver.Q, horiz_in_driver.A)
 	NET_C(GND, horiz_sync_driver.VSS, horiz_in_driver.VSS)
 	NET_C(VCC, horiz_sync_driver.VDD, horiz_in_driver.VDD)
-	ALIAS(horiz_sync, horiz_sync_driver.Q)
+	AFUNC(horiz_sync_buffer, 1, "A0")
+	NET_C(horiz_sync_buffer.A0, horiz_sync_driver.Q)
+	ALIAS(horiz_sync, horiz_sync_buffer.Q)
 	ALIAS(horiz_in, horiz_in_driver.Q)
 	#else
 	CAP(C10_1, CAP_P(470))
