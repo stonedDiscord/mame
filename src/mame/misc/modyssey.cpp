@@ -158,6 +158,10 @@ void modyssey_state::modyssey(machine_config &config)
 	SCREEN(config, "screen");
 	FIXFREQ(config, m_video)
 		.set_mode_ntsc704()
+		.set_fieldcount(1)
+		.set_vert_params(240, 244, 249, 262)
+		.set_threshold(1.2)
+		.set_vsync_threshold(0.5)
 		.set_gain(2.37)
 		.set_horz_scale(4)
 		.set_screen("screen");
