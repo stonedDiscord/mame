@@ -5,6 +5,9 @@
 
   Netlist (modyssey) included from modyssey.cpp
 
+  Magnavox Odyssey 1TL200BLAK schematic:
+  https://www.pong-story.com/1tl200blak_sch.pdf
+
 ***************************************************************************/
 
 //#ifndef __PLIB_PREPROCESSOR__
@@ -247,12 +250,19 @@ NETLIST_START(modyssey)
 
 	//vert_in
 	#if (FAST_VSYNC)
-	CLOCK(vert_in_CLOCK, 60)
-	NET_C(vert_in_CLOCK.GND, GND)
-	NET_C(vert_in_CLOCK.VCC, VCC)
-	ALIAS(vert_in, vert_in_CLOCK.Q)
+	// The summer takes active-low sync, and the object generators take active-high triggers.
+	// Use the same clock tick as horizontal sync so rounding cannot shift the phase.
+	EXTCLOCK(vert_in_CLOCK, 6750000, "220506,4290") // 257 + 5 lines at 858 ticks per line
+	CD4069_GATE(vert_sync_driver)
+	CD4069_GATE(vert_in_driver)
+	NET_C(vert_in_CLOCK.Q, vert_sync_driver.A)
+	NET_C(vert_sync_driver.Q, vert_in_driver.A)
+	NET_C(GND, vert_sync_driver.VSS, vert_in_driver.VSS)
+	NET_C(VCC, vert_sync_driver.VDD, vert_in_driver.VDD)
+	ALIAS(vert_sync, vert_sync_driver.Q)
+	ALIAS(vert_in, vert_in_driver.Q)
 	#else
-	CAP(C6, CAP_P(100))
+	CAP(C6, CAP_U(100))
 	CAP(C9_1, CAP_N(100))
 	CAP(C9_2, CAP_N(100))
 	QBJT_EB(Q9_1, "142N9")
@@ -265,12 +275,12 @@ NETLIST_START(modyssey)
 	RES(R9_5, RES_K(300))
 	RES(R9_6, RES_K(2.2))
 	RES(R9_7, 470)
-	RES(R23, RES_K(200))
+	RES(R23, RES_K(27))
 	RES(R24, 100)
 	POT(RV39, 100000)
 	NET_C(RV39.2, RV39.3, R23.1)
-	NET_C(R24.1, C6.1, RV39.1)
-	NET_C(VCC, R9_1.2, Q9_2.E, Q9_3.C, R24.2)
+	NET_C(R24.1, C6.1, RV39.1, R9_1.2, Q9_2.E, Q9_3.C)
+	NET_C(VCC, R24.2)
 	NET_C(GND, Q9_1.E, R9_6.1, R9_5.1, R9_7.1, C6.2)
 	NET_C(Q9_3.E, R9_7.2)
 	NET_C(C9_1.2, R9_4.2)
@@ -280,15 +290,22 @@ NETLIST_START(modyssey)
 	NET_C(Q9_2.B, C9_2.2, R9_5.2)
 	NET_C(R9_3.1, C9_2.1)
 	NET_C(Q9_2.C, Q9_3.B, R9_4.1, R9_6.2)
+	ALIAS(vert_sync, Q9_1.C)
 	ALIAS(vert_in, Q9_3.E)
 	#endif
 
 	//horiz_in
 	#if (FAST_HSYNC)
-	CLOCK(horiz_in_CLOCK, 15734)
-	NET_C(horiz_in_CLOCK.GND, GND)
-	NET_C(horiz_in_CLOCK.VCC, VCC)
-	ALIAS(horiz_in, horiz_in_CLOCK.Q)
+	// 858 pixels per line, with 63 pixels of sync.
+	EXTCLOCK(horiz_in_CLOCK, 6750000, "795,63")
+	CD4069_GATE(horiz_sync_driver)
+	CD4069_GATE(horiz_in_driver)
+	NET_C(horiz_in_CLOCK.Q, horiz_sync_driver.A)
+	NET_C(horiz_sync_driver.Q, horiz_in_driver.A)
+	NET_C(GND, horiz_sync_driver.VSS, horiz_in_driver.VSS)
+	NET_C(VCC, horiz_sync_driver.VDD, horiz_in_driver.VDD)
+	ALIAS(horiz_sync, horiz_sync_driver.Q)
+	ALIAS(horiz_in, horiz_in_driver.Q)
 	#else
 	CAP(C10_1, CAP_P(470))
 	CAP(C10_2, CAP_P(680))
@@ -321,6 +338,7 @@ NETLIST_START(modyssey)
 	NET_C(L10_1.2, C10_4.1, R10_1.2, Q10_2.E, Q10_3.C)
 	NET_C(R10_6.2, R10_4.1, Q10_2.C, Q10_3.B)
 	NET_C(R10_5.2, C10_2.2, Q10_2.B)
+	ALIAS(horiz_sync, Q10_1.C)
 	ALIAS(horiz_in, Q10_3.E)
 	#endif
 
@@ -347,14 +365,13 @@ NETLIST_START(modyssey)
 	NET_C(R11_2.1, D11_2.K)
 	NET_C(R11_3.1, D11_3.K)
 	NET_C(R11_4.1, D11_4.K)
-	NET_C(R11_7.1, D11_7.A)
 	NET_C(D11_1.A, D11_3.A, R11_7.1, D11_7.A)
 	NET_C(D11_2.A, D11_4.A, R11_6.1, D11_6.A)
 	NET_C(D11_5.K, D11_6.K, D11_7.K)
 	NET_C(R11_5.1, D11_5.A, D11_9.A)//, D11_8.A)
-	//Off board
-	NET_C(R11_4.2, R11_3.2)
-	//IO: R11_4.2, R11_3.2, R11_2.2, R11_1.1, D11_6.K, D11_9.K, R11_5.2, D11_8.K
+	// Main board jumpers JU1 and JU11.
+	NET_C(R11_4.2, R4_1.1)
+	NET_C(R11_1.2, R11_3.2, R3_1.1)
 	
 
 	//SUMMER
@@ -378,9 +395,9 @@ NETLIST_START(modyssey)
 	NET_C(R12_6.1, D12_5.A)
 	NET_C(R12_7.1, D12_6.A)
 	NET_C(R12_1.1, R12_2.1, R12_3.1)
-	NET_C(D12_8.K, R12_2.2)
+	NET_C(D12_8.K, R12_2.2, vert_sync)
 	NET_C(D12_1.K, D12_3.K, D12_5.K, D12_6.K, D12_7.A, D12_8.A, R12_1.2)
-	NET_C(D12_7.K, R12_3.2)
+	NET_C(D12_7.K, R12_3.2, horiz_sync)
 	#endif
 
 	#if (FLIPFLOP)
@@ -458,15 +475,15 @@ NETLIST_START(modyssey)
 
 	#if (MAIN)
 	//MAIN BOARD
-	CAP(C1, CAP_P(220))
-	CAP(C3, CAP_P(10))
-	CAP(C4, CAP_P(47))
-	CAP(C5, CAP_P(10))
-	CAP(C7, CAP_P(10))
-	CAP(C8, CAP_P(47))
-	CAP(C9, CAP_P(10))
-	CAP(C10, CAP_P(10))
-	CAP(C11, 1e-3)	
+	CAP(C1, CAP_U(220))
+	CAP(C3, CAP_U(10))
+	CAP(C4, CAP_U(47))
+	CAP(C5, CAP_U(10))
+	CAP(C7, CAP_U(10))
+	CAP(C8, CAP_U(47))
+	CAP(C9, CAP_U(10))
+	CAP(C10, CAP_U(4.7))
+	CAP(C11, CAP_N(1))
 	CAP(C16, CAP_P(330))
 	CAP(C20, CAP_P(330))
 	DIODE(D2, "SILICON_DIODE")
@@ -519,7 +536,7 @@ NETLIST_START(modyssey)
 	NET_C(RV31.2, RV31.3, Q5_4.B, C5_4.2, C5_5.1)
 	NET_C(RV4.2, RV4.3, C8_4.2, C8_5.1, Q8_4.B)
 	NET_C(RV26.1, R27.1)
-	NET_C(R11_1.2, Q15_3.B, R15_4.2, C15_4.2)
+	NET_C(R4_1.1, Q15_3.B, R15_4.2, C15_4.2)
 	NET_C(R11.1, RV12.1)
 	NET_C(R19.1, C5.1, R7_8.2)
 	NET_C(R30.1, RV31.1)
@@ -535,7 +552,7 @@ NETLIST_START(modyssey)
 	NET_C(RV6.2, RV6.3, C8_2.2, Q8_2.B)
 	NET_C(C16.1, R16.2)
 	NET_C(R44.2, Z2.K, C20.1)
-	NET_C(D12_4.A, D11_1.A)
+	NET_C(D12_2.A, D11_1.A, R11_2.1)
 	NET_C(RV28.2, RV28.3, Q6_4.B, C6_4.2, C6_5.1)
 	NET_C(RV6.1, R7.1)
 	NET_C(C8.1, R6_8.2, RV4_8.2)
@@ -544,7 +561,7 @@ NETLIST_START(modyssey)
 	NET_C(vert_in, D8_2.A, D7_2.A, D6_2.A, D5_2.A)
 	NET_C(R12_7.2, D11_9.K, R7_5.2, Q7_4.C, Q7_2.C)
 	NET_C(R12_4.2, D12_2.K, Q6_4.C, R6_5.2, Q6_2.C)
-	NET_C(D12_2.A, D11_4.A)
+	NET_C(D12_4.A, D11_4.A)
 	NET_C(D3.K, D2.K, Q2.B)
 	NET_C(C7.1, R6_1.2, RV4_61.2)
 	NET_C(R13.2, RV3.2, RV3.3, C1.1, R8_1.2)
@@ -553,7 +570,21 @@ NETLIST_START(modyssey)
 	NET_C(D12_4.K, R12_5.2, Q5_4.C, R5_5.2, Q5_2.C)
 	#endif
 
-	ALIAS(videomix, R12_1.1)
+	// Load at the RF modulator input (J17 pin 6), without the RF carrier.
+	RES(RF_LOAD, RES_K(2.2))
+	NET_C(R12_1.1, RF_LOAD.1)
+	NET_C(GND, RF_LOAD.2)
+	// Condition the monitor feed for the fast clocks. Keep the summer's
+	// picture levels and clip sync to a clean level for the monitor separator.
+	#if (FAST_HSYNC && FAST_VSYNC)
+	AFUNC(composite, 3, "if(min(A1, A2) < 2.8, 0, max(A0 + 0.58, 1.5))")
+	NET_C(horiz_sync, composite.A1)
+	NET_C(vert_sync, composite.A2)
+	#else
+	AFUNC(composite, 1, "A0 + 0.58")
+	#endif
+	NET_C(R12_1.1, composite.A0)
+	ALIAS(videomix, composite.Q)
 
 	// ----------------------------------------------------------------------------------------
 	// power terminals
