@@ -17,7 +17,7 @@ class at_mb_device : public device_t
 public:
 	at_mb_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
-	void map(address_map &map);
+	void map(address_map &map) ATTR_COLD;
 
 	auto kbd_clk() { return m_keybc.lookup()->kbd_clk(); }
 	auto kbd_data() { return m_keybc.lookup()->kbd_data(); }
@@ -30,6 +30,9 @@ public:
 	void portb_w(uint8_t data);
 	void rtcas_nmi_w(uint8_t data);
 	void iochck_w(int state);
+	// 80287/80387 ERROR#: latched onto IRQ13, a write to port F0h clears the latch
+	void fpu_error_w(int state);
+	void fpu_clear_w(uint8_t data);
 
 	void shutdown(int state);
 
@@ -37,9 +40,9 @@ public:
 
 	void at_softlists(machine_config &config);
 protected:
-	void device_start() override;
-	void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	void device_start() override ATTR_COLD;
+	void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 private:
 	void set_dma_channel(int channel, int state);
@@ -65,6 +68,8 @@ private:
 	uint8_t m_at_speaker = 0;
 	uint8_t m_channel_check = 0;
 	uint8_t m_nmi_enabled = 0;
+	uint8_t m_fpu_error = 0;
+	uint8_t m_fpu_irq = 0;
 
 	void pit8254_out2_changed(int state);
 

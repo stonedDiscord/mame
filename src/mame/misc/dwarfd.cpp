@@ -328,8 +328,8 @@ public:
 	void init_dwarfd();
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	/* video-related */
@@ -356,11 +356,11 @@ private:
 	I8275_DRAW_CHARACTER_MEMBER(display_pixels);
 	I8275_DRAW_CHARACTER_MEMBER(pesp_display_pixels);
 	I8275_DRAW_CHARACTER_MEMBER(qc_display_pixels);
-	void io_map(address_map &map);
-	void mem_map(address_map &map);
-	void pokeresp_map(address_map &map);
-	void qc_io_map(address_map &map);
-	void qc_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
+	void mem_map(address_map &map) ATTR_COLD;
+	void pokeresp_map(address_map &map) ATTR_COLD;
+	void qc_io_map(address_map &map) ATTR_COLD;
+	void qc_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -741,7 +741,7 @@ void dwarfd_state::dwarfd(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &dwarfd_state::io_map);
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_size(272*2, 200+4*8);
 	screen.set_visarea(0, 272*2-1, 0, 200-1);

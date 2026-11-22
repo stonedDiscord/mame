@@ -110,13 +110,17 @@ bits(7:4) and bit(24)), X, and Y:
 TODO:
  - look at speed on Konami games (nbapbp, racingj, etc)
  - look at timing issues on IT games
- - bad textures in some Voodoo 3 games (mocapb for example)
  - update callers to use maps
+ - POR strapping callbacks
 
 */
 
 #include "emu.h"
 #include "voodoo.h"
+
+#include "input.h" // for video debug keys
+
+#include "endianness.h"
 
 using namespace voodoo;
 
@@ -674,7 +678,8 @@ generic_voodoo_device::generic_voodoo_device(const machine_config &mconfig, devi
 	m_cpu(*this, finder_base::DUMMY_TAG),
 	m_vblank_cb(*this),
 	m_stall_cb(*this),
-	m_pciint_cb(*this)
+	m_pciint_cb(*this),
+	m_vgapass_cb(*this)
 {
 }
 
@@ -708,7 +713,7 @@ voodoo_1_device::voodoo_1_device(const machine_config &mconfig, device_type type
 	m_flush_flag(false),
 	m_fbram(nullptr),
 	m_fbmask(0),
-	m_rgboffs{ u32(~0), u32(~0), u32(~0) },
+	m_rgboffs{ ~u32(0), ~u32(0), ~u32(0) },
 	m_auxoffs(~0),
 	m_frontbuf(0),
 	m_backbuf(1),
@@ -1043,6 +1048,9 @@ void voodoo_1_device::device_stop()
 void voodoo_1_device::device_reset()
 {
 	soft_reset();
+	// TODO: strapped at POST thru fb_addr bit 4
+	// Voodoo 2 also straps the logic in PCI reset, Banshee and later uses vgaInit0 instead
+	m_vgapass_cb(0);
 }
 
 
@@ -1058,9 +1066,10 @@ void voodoo_1_device::device_post_load()
 	for (tmu_state &tm : m_tmu)
 		tm.post_load();
 
-	// recompute FBI memory FIFO to get the base pointer set
+	// restore the FBI memory FIFO base pointer; reconfiguring the FIFO would
+	// discard the entries queued when the state was saved
 	if (m_fbmem_fifo.configured())
-		recompute_fbmem_fifo();
+		m_fbmem_fifo.set_base((u32 *)(m_fbram + m_reg.fbi_init4().memory_fifo_start_row() * 0x1000));
 }
 
 
@@ -1276,7 +1285,7 @@ void voodoo_1_device::add_to_fifo(u32 offset, u32 data, u32 mem_mask)
 		}
 
 		// if we're above the HWM as a result, stall
-		if (m_reg.fbi_init0().stall_pcie_for_hwm() && m_fbmem_fifo.items() >= 2 * 32 * m_reg.fbi_init0().memory_fifo_hwm())
+		if (m_reg.fbi_init0().stall_pcie_for_hwm() && memory_fifo_free() < 32 * m_reg.fbi_init0().memory_fifo_hwm())
 		{
 			if (LOG_FIFO) logerror("VOODOO.FIFO:hit memory FIFO HWM -- stalling\n");
 			stall_cpu(STALLED_UNTIL_FIFO_LWM);
@@ -1990,7 +1999,7 @@ u32 voodoo_1_device::reg_status_r(u32 chipmask, u32 regnum)
 	if (m_reg.fbi_init0().enable_memory_fifo() == 0)
 		result |= 0xffff << 12;
 	else
-		result |= std::min(m_fbmem_fifo.space() / 2, 0xffff) << 12;
+		result |= memory_fifo_free() << 12;
 
 	// bits 30:28 are the number of pending swaps
 	result |= std::min<s32>(m_swaps_pending, 7) << 28;
@@ -2370,10 +2379,14 @@ u32 voodoo_1_device::reg_fbiinit_w(u32 chipmask, u32 regnum, u32 data)
 		m_reg.write(regnum, data);
 
 		// handle resets written to fbiInit0
-		if (regnum == voodoo_regs::reg_fbiInit0 && m_reg.fbi_init0().graphics_reset())
-			soft_reset();
-		if (regnum == voodoo_regs::reg_fbiInit0 && m_reg.fbi_init0().fifo_reset())
-			m_pci_fifo.reset();
+		if (regnum == voodoo_regs::reg_fbiInit0)
+		{
+			if (m_reg.fbi_init0().graphics_reset())
+				soft_reset();
+			if (m_reg.fbi_init0().fifo_reset())
+				m_pci_fifo.reset();
+			m_vgapass_cb(m_reg.fbi_init0().vga_passthru());
+		}
 
 		// compute FIFO layout when fbiInit0 or fbiInit4 change
 		if (regnum == voodoo_regs::reg_fbiInit0 || regnum == voodoo_regs::reg_fbiInit4)
@@ -2752,15 +2765,15 @@ void voodoo_1_device::recompute_video_timing(u32 hsyncon, u32 hsyncoff, u32 hvis
 	visarea.max_y = std::min<s32>(visarea.max_y, vtotal - 1);
 
 	// compute the new period for standard res, medium res, and VGA res
-	attoseconds_t stdperiod = HZ_TO_ATTOSECONDS(15750) * vtotal;
-	attoseconds_t medperiod = HZ_TO_ATTOSECONDS(25000) * vtotal;
-	attoseconds_t vgaperiod = HZ_TO_ATTOSECONDS(31500) * vtotal;
+	attotime stdperiod = attotime::from_ticks(vtotal, 15750);
+	attotime medperiod = attotime::from_ticks(vtotal, 25000);
+	attotime vgaperiod = attotime::from_ticks(vtotal, 31500);
 
 	// compute a diff against the current refresh period
-	attoseconds_t refresh = screen().frame_period().attoseconds();
-	attoseconds_t stddiff = std::abs(stdperiod - refresh);
-	attoseconds_t meddiff = std::abs(medperiod - refresh);
-	attoseconds_t vgadiff = std::abs(vgaperiod - refresh);
+	attotime refresh = screen().frame_period();
+	attoseconds_t stddiff = std::abs((stdperiod - refresh).as_attoseconds());
+	attoseconds_t meddiff = std::abs((medperiod - refresh).as_attoseconds());
+	attoseconds_t vgadiff = std::abs((vgaperiod - refresh).as_attoseconds());
 
 	logerror("hSync=%d-%d, bp=%d, vis=%d  vSync=%d-%d, bp=%d, vis=%d\n", hsyncon, hsyncoff, hbp, hvis, vsyncon, vsyncoff, vbp, vvis);
 	logerror("Horiz: %d-%d (%d total)  Vert: %d-%d (%d total) -- ", visarea.min_x, visarea.max_x, htotal, visarea.min_y, visarea.max_y, vtotal);
@@ -2769,17 +2782,17 @@ void voodoo_1_device::recompute_video_timing(u32 hsyncon, u32 hsyncoff, u32 hvis
 	if (stddiff < meddiff && stddiff < vgadiff)
 	{
 		screen().configure(htotal, vtotal, visarea, stdperiod);
-		logerror("Standard resolution, %f Hz\n", ATTOSECONDS_TO_HZ(stdperiod));
+		logerror("Standard resolution, %f Hz\n", stdperiod.as_hz());
 	}
 	else if (meddiff < vgadiff)
 	{
 		screen().configure(htotal, vtotal, visarea, medperiod);
-		logerror("Medium resolution, %f Hz\n", ATTOSECONDS_TO_HZ(medperiod));
+		logerror("Medium resolution, %f Hz\n", medperiod.as_hz());
 	}
 	else
 	{
 		screen().configure(htotal, vtotal, visarea, vgaperiod);
-		logerror("VGA resolution, %f Hz\n", ATTOSECONDS_TO_HZ(vgaperiod));
+		logerror("VGA resolution, %f Hz\n", vgaperiod.as_hz());
 	}
 
 	// configure the new framebuffer info
@@ -3104,7 +3117,7 @@ void voodoo_1_device::check_stalled_cpu(attotime current_time)
 		// if there's room in the memory FIFO now, we can proceed
 		if (m_reg.fbi_init0().enable_memory_fifo())
 		{
-			if (m_fbmem_fifo.items() < 2 * 32 * m_reg.fbi_init0().memory_fifo_hwm())
+			if (memory_fifo_free() >= 32 * m_reg.fbi_init0().memory_fifo_hwm())
 				resume = true;
 		}
 		else if (m_pci_fifo.space() > 2 * m_reg.fbi_init0().pci_fifo_lwm())

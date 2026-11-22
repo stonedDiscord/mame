@@ -44,8 +44,8 @@ private:
 	template<int N> void usart_w(offs_t offset, u8 data);
 	u8 keyboard_r(offs_t offset);
 
-	void mem_map(address_map &map);
-	void io_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
+	void io_map(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
 	required_device_array<scn2651_device, 2> m_usart;
@@ -265,7 +265,7 @@ void aaa_state::aaa(machine_config &config)
 	m_usart[1]->rts_handler().set("computer", FUNC(rs232_port_device::write_rts));
 	m_usart[1]->dtr_handler().set("computer", FUNC(rs232_port_device::write_dtr));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(18.414_MHz_XTAL, 990, 0, 800, 310, 0, 240);
 	m_screen->set_screen_update(FUNC(aaa_state::screen_update));
 
@@ -303,4 +303,4 @@ ROM_END
 } // anonymous namespace
 
 
-COMP( 1981, aaa, 0, 0, aaa, aaa, aaa_state, empty_init, "Ann Arbor", "Ambassador", MACHINE_IS_SKELETON )
+COMP( 1981, aaa, 0, 0, aaa, aaa, aaa_state, empty_init, "Ann Arbor", "Ambassador", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

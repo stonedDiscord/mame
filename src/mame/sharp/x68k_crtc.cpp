@@ -148,21 +148,19 @@ void x68k_crtc_device::refresh_mode()
 	m_vtotal = (m_reg[4] + 1) / m_vmultiple; // default is 567 (568 scanlines)
 	m_hbegin = (m_reg[2] * 8) + 1;
 	m_hend = m_reg[3] * 8;
-	m_vbegin = m_reg[6] / m_vmultiple;
-	m_vend = (m_reg[7] - 1) / m_vmultiple;
+	m_vbegin = (m_reg[6] + 1) / m_vmultiple;
+	m_vend = m_reg[7] / m_vmultiple;
 	m_hsync_end = (m_reg[1]) * 8;
 	m_vsync_end = (m_reg[5]) / m_vmultiple;
 	m_hsyncadjust = m_reg[8];
 
-	rectangle scr(0, m_htotal - 8, 0, m_vtotal);
-	if (scr.max_y <= m_vend)
-		scr.max_y = m_vend + 2;
-	if (scr.max_x <= m_hend)
-		scr.max_x = m_hend + 2;
+	rectangle scr(
+			0, ((m_htotal - 8) <= m_hend) ? (m_hend + 2) : (m_htotal - 8),
+			0, (m_vtotal <= m_vend) ? (m_vend + 2) : m_vtotal);
 	rectangle visiblescr(m_hbegin, m_hend, m_vbegin, m_vend);
 
-	if ((visiblescr.max_y > m_height) || (visiblescr.max_x > m_width))
-		logerror("visarea larger then reg[20]: %dx%d, %dx%d\n", visiblescr.max_x, visiblescr.max_y, m_width, m_height);
+	if ((visiblescr.bottom() > m_height) || (visiblescr.right() > m_width))
+		logerror("visarea larger then reg[20]: %dx%d, %dx%d\n", visiblescr.right(), visiblescr.bottom(), m_width, m_height);
 
 	// bounds check
 	if (visiblescr.min_x < 0)
@@ -186,7 +184,6 @@ void x68k_crtc_device::refresh_mode()
 			logerror("Invalid mode %d", m_reg[20] & 0x1f); [[fallthrough]];
 		case 1:
 		case 5:
-		case 0x11:
 			div = 4;
 			break;
 		case 0x16:
@@ -195,6 +192,7 @@ void x68k_crtc_device::refresh_mode()
 		case 0x10:
 			div = 6;
 			break;
+		case 0x11: // aquales intro requires /3 for 0x11, TODO: figure out what wanted /4
 		case 0x15:
 			div = 3;
 			break;
@@ -202,9 +200,9 @@ void x68k_crtc_device::refresh_mode()
 			div = 1.5;
 			break;
 	}
-	attotime refresh = attotime::from_hz((BIT(m_reg[20], 4) ? clock_69m() : clock_39m()) / div) * (scr.max_x * scr.max_y);
-	LOG("screen().configure(%i,%i,[%i,%i,%i,%i],%f)\n", scr.max_x, scr.max_y, visiblescr.min_x, visiblescr.min_y, visiblescr.max_x, visiblescr.max_y, refresh.as_hz());
-	screen().configure(scr.max_x, scr.max_y, visiblescr, refresh.as_attoseconds());
+	attotime refresh = attotime::from_hz((BIT(m_reg[20], 4) ? clock_69m() : clock_39m()) / div) * (scr.right() * scr.bottom());
+	LOG("screen().configure(%i,%i,[%i,%i,%i,%i],%f)\n", scr.right(), scr.bottom(), visiblescr.left(), visiblescr.top(), visiblescr.right(), visiblescr.bottom(), refresh.as_hz());
+	screen().configure(scr.right(), scr.bottom(), visiblescr, refresh);
 }
 
 TIMER_CALLBACK_MEMBER(x68k_crtc_device::hsync)
@@ -278,7 +276,7 @@ TIMER_CALLBACK_MEMBER(x68k_crtc_device::vblank_irq)
 	if (val == 0)  // V-DISP off
 	{
 		m_vblank = 0;
-		vblank_line = m_vend;
+		vblank_line = m_vend + (gfx_double_scan() ? 2 : 1);
 		if (vblank_line > m_vtotal)
 			vblank_line = m_vtotal;
 		irq_time = screen().time_until_pos(vblank_line, 2);

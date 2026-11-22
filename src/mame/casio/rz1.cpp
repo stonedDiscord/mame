@@ -77,8 +77,8 @@ public:
 	void rz1(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<upd7811_device> m_maincpu;
@@ -96,9 +96,9 @@ private:
 	output_finder<> m_led_pattern;
 	output_finder<> m_led_startstop;
 
-	void map(address_map &map);
-	void pg0_map(address_map &map);
-	void pg1_map(address_map &map);
+	void map(address_map &map) ATTR_COLD;
+	void pg0_map(address_map &map) ATTR_COLD;
+	void pg1_map(address_map &map) ATTR_COLD;
 
 	uint8_t key_r();
 
@@ -382,12 +382,6 @@ void rz1_state::port_c_w(uint8_t data)
 
 void rz1_state::machine_start()
 {
-	// resolve output finders
-	m_led_sampling.resolve();
-	m_led_song.resolve();
-	m_led_pattern.resolve();
-	m_led_startstop.resolve();
-
 	// register for save states
 	save_item(NAME(m_port_a));
 	save_item(NAME(m_port_b));
@@ -429,7 +423,7 @@ void rz1_state::rz1(machine_config &config)
 	NVRAM(config, "sample2", nvram_device::DEFAULT_NONE);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device &screen(SCREEN(config, "screen").set_lcd());
 	screen.set_refresh_hz(50);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(6*16+1, 10);
@@ -532,5 +526,5 @@ ROM_END
 //  SYSTEM DRIVERS
 //**************************************************************************
 
-//    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  CLASS      INIT        COMPANY  FULLNAME  FLAGS
-CONS( 1986, rz1,  0,      0,      rz1,     rz1,   rz1_state, empty_init, "Casio", "RZ-1",   MACHINE_SUPPORTS_SAVE )
+//    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  CLASS      INIT        COMPANY  FULLNAME                                 FLAGS
+CONS( 1986, rz1,  0,      0,      rz1,     rz1,   rz1_state, empty_init, "Casio", "RZ-1 Digital Sampling Rhythm Composer", MACHINE_SUPPORTS_SAVE )

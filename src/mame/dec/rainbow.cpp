@@ -338,10 +338,8 @@ W17 pulls J1 serial  port pin 1 to GND when set (chassis to logical GND).
 
 #include "machine/z80sio.h"
 #include "bus/rs232/rs232.h"
-#include "imagedev/bitbngr.h"
 #include "machine/com8116.h"
 #include "bus/rs232/hlemouse.h"
-#include "bus/rs232/terminal.h"
 
 #include "machine/i8251.h"
 #include "lk201.h"
@@ -350,9 +348,8 @@ W17 pulls J1 serial  port pin 1 to GND when set (chassis to logical GND).
 #include "machine/timer.h"
 #include "machine/ram.h"
 
-#include "machine/ds1315.h"
+#include "machine/ds1215.h"
 #include "emupal.h"
-#include "softlist.h"
 #include "screen.h"
 
 #include "rainbow.lh" // BEZEL - LAYOUT with LEDs for diag 1-7, keyboard 8-11 and floppy 20-23
@@ -492,7 +489,6 @@ public:
 		m_p_vol_ram(*this, "vol_ram"),
 		m_p_nvram(*this, "nvram"),
 
-		m_rtc(*this, "rtc"),
 		m_hgdc(*this, "upd7220"), // GDC
 
 		m_screen2(*this, "screen2"),
@@ -508,18 +504,16 @@ public:
 	void rainbow_base(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	TIMER_CALLBACK_MEMBER(command_tick);
 	TIMER_CALLBACK_MEMBER(switch_off_tick);
 
-	void rainbow8088_base_map(address_map &map);
-	void rainbow8088_base_io(address_map &map);
+	void rainbow8088_base_map(address_map &map) ATTR_COLD;
+	void rainbow8088_base_io(address_map &map) ATTR_COLD;
 
 	uint8_t ext_ram_r(offs_t offset);
-
-	void rtc_w(offs_t offset, uint8_t data);
 
 	uint8_t read_video_ram_r(offs_t offset);
 	void video_interrupt(int state);
@@ -589,6 +583,7 @@ protected:
 
 	uint32_t screen_update_rainbow(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	IRQ_CALLBACK_MEMBER(irq_callback);
+	IRQ_CALLBACK_MEMBER(z80_acknowledge_irq);
 
 	TIMER_DEVICE_CALLBACK_MEMBER(hd_motor_tick);
 
@@ -599,9 +594,9 @@ protected:
 	void vram_w(offs_t offset, uint16_t data);
 	void GDC_vblank_irq(int state);
 
-	void rainbowz80_io(address_map &map);
-	void rainbowz80_mem(address_map &map);
-	void upd7220_map(address_map &map);
+	void rainbowz80_io(address_map &map) ATTR_COLD;
+	void rainbowz80_mem(address_map &map) ATTR_COLD;
+	void upd7220_map(address_map &map) ATTR_COLD;
 	enum
 	{   // LOWEST PRIORITY
 		// Mnemonic - - - - - -  TYPE  ADDRESS - Source
@@ -649,8 +644,6 @@ protected:
 	required_shared_ptr<uint8_t> m_p_ram;
 	required_shared_ptr<uint8_t> m_p_vol_ram;
 	required_shared_ptr<uint8_t> m_p_nvram;
-
-	optional_device<ds1315_device> m_rtc;
 
 	required_device<upd7220_device> m_hgdc;  // GDC
 	required_device<screen_device> m_screen2;
@@ -717,7 +710,8 @@ protected:
 	int m_present_drive;
 	floppy_image_device *m_floppy;
 
-	int m_irq_high;
+	uint8_t m_irq_high;
+	uint8_t m_i8088_int_vector;
 	uint32_t m_irq_mask;
 
 	int m_bdl_irq;
@@ -753,44 +747,51 @@ class rainbow_modela_state : public rainbow_base_state
 {
 public:
 	rainbow_modela_state(const machine_config &mconfig, device_type type, const char *tag) :
-		rainbow_base_state(mconfig, type, tag)
+		rainbow_base_state(mconfig, type, tag),
+		m_rtc(*this, "rtc")
 	{
 	}
 
 	void rainbow_modela(machine_config &config);
 
 private:
-	virtual void machine_reset() override;
+	virtual void machine_reset() override ATTR_COLD;
 
-	void rainbow8088_map(address_map &map);
-	void rainbow8088_io(address_map &map);
+	void rainbow8088_map(address_map &map) ATTR_COLD;
+	void rainbow8088_io(address_map &map) ATTR_COLD;
 
 	void ext_ram_w(offs_t offset, uint8_t data);
 	uint8_t rtc_r(offs_t offset);
+	void rtc_w(offs_t offset, uint8_t data);
 	void irq_hi_w(int state);
 	uint8_t system_parameter_r();
+
+	required_device<ds1215_device> m_rtc;
 };
 
 class rainbow_modelb_state : public rainbow_base_state
 {
 public:
 	rainbow_modelb_state(const machine_config &mconfig, device_type type, const char *tag) :
-		rainbow_base_state(mconfig, type, tag)
+		rainbow_base_state(mconfig, type, tag),
+		m_rtc(*this, "rtc")
 	{
 	}
 
 	void rainbow_modelb(machine_config &config);
 
 private:
-	virtual void machine_reset() override;
+	virtual void machine_reset() override ATTR_COLD;
 
-	void rainbow8088_map(address_map &map);
-	void rainbow8088_io(address_map &map);
+	void rainbow8088_map(address_map &map) ATTR_COLD;
+	void rainbow8088_io(address_map &map) ATTR_COLD;
 
 	void ext_ram_w(offs_t offset, uint8_t data);
 	uint8_t rtc_r(offs_t offset);
 	void irq_hi_w(int state);
 	uint8_t system_parameter_r();
+
+	required_device<ds1216e_device> m_rtc;
 };
 
 // It * should be * OK to RESET the SCROLL_BUFFER and the COLOR_MAP (at least with WELL WRITTEN programs)
@@ -900,10 +901,6 @@ void rainbow_base_state::machine_start()
 	switch_off_timer = timer_alloc(FUNC(rainbow_base_state::switch_off_tick), this);
 	switch_off_timer->adjust(attotime::from_msec(10));
 
-	m_digits.resolve();
-	m_leds.resolve();
-	m_driveleds.resolve();
-
 	m_screen_blank = false;
 
 	auto *printer_port = subdevice<rs232_port_device>("printer");
@@ -919,6 +916,7 @@ void rainbow_base_state::machine_start()
 	save_item(NAME(m_kbd_rx_ready));
 	save_item(NAME(m_irq_high));
 	save_item(NAME(m_irq_mask));
+	save_item(NAME(m_i8088_int_vector));
 }
 
 
@@ -1151,7 +1149,7 @@ static INPUT_PORTS_START(rainbow100b_in)
 	PORT_DIPNAME(0x01, 0x00, "W18 (FACTORY TEST D, LEAVE OFF) (8251A: DSR)") PORT_TOGGLE
 	PORT_DIPSETTING(0x00, DEF_STR(Off))
 	PORT_DIPSETTING(0x01, DEF_STR(On))
-	PORT_WRITE_LINE_DEVICE_MEMBER("kbdser", i8251_device, write_dsr)
+	PORT_WRITE_LINE_DEVICE_MEMBER("kbdser", FUNC(i8251_device::write_dsr))
 
 	// J17 jumper on FDC controller board shifts drive select (experimental) -
 	PORT_START("J17")
@@ -1179,8 +1177,6 @@ void rainbow_base_state::machine_reset()
 	popmessage("Reset");
 
 	m_crtc->MHFU(MHFU_RESET_and_DISABLE);
-
-	m_rtc->chip_reset();     // * Reset RTC to a defined state *
 
 	//  *********** HARD DISK CONTROLLERS...
 	address_space &io = m_i8088->space(AS_IO);
@@ -1243,6 +1239,7 @@ void rainbow_base_state::machine_reset()
 
 	m_intz80 = false;
 	m_int88 = false;
+	m_i8088_int_vector = 0;
 
 	// *********** SERIAL COMM. (7201)
 	m_mpsc->reset();
@@ -1350,7 +1347,8 @@ void rainbow_base_state::update_8088_irqs()
 		{
 			if (m_irq_mask & (1 << i))
 			{
-				m_i8088->set_input_line_and_vector(INPUT_LINE_INT0, ASSERT_LINE, vectors[i] | m_irq_high); // I8088
+				m_i8088_int_vector = vectors[i] | m_irq_high;
+				m_i8088->set_input_line(INPUT_LINE_INT0, ASSERT_LINE);
 				break;
 			}
 		}
@@ -1373,7 +1371,6 @@ void rainbow_base_state::lower_8088_irq(int ref)
 	m_irq_mask &= ~(1 << ref);
 	update_8088_irqs();
 }
-
 
 // IRQ service for 7201 (commm / printer)
 void rainbow_base_state::update_mpsc_irq()
@@ -1528,27 +1525,20 @@ void rainbow_modelb_state::ext_ram_w(offs_t offset, uint8_t data)
 
 // Requires a short program from the Suitable Solutions ClikClok distribution disk (CLIKA.COM)
 // - also needed to set time/date (*).                   Reads $ed000, writes ed0fe/ed0ff.
-void rainbow_base_state::rtc_w(offs_t offset, uint8_t data)
+void rainbow_modela_state::rtc_w(offs_t offset, uint8_t data)
 {
 	if (m_inp11->read() == 0x01) // if enabled...
 	{
-		switch (offset)
+		if (m_rtc->ceo_r())
 		{
-		case 0x00: // Write to 0xED0FE
-			if (m_rtc->chip_enable())
-				m_rtc->write_data(offset & 0x01); // Transfer data to DS1315 (data = offset):
-			else
-				m_rtc->read_0(); // (RTC ACTIVATION) read magic pattern 0
-			break;
+			m_rtc->write(offset & 0x01);
 
-		case 0x01: // Write to 0xED0FF
-			if (m_rtc->chip_enable())
-				m_rtc->write_data(offset & 0x01); // Transfer data to DS1315 (data = offset):
-			else
-				m_rtc->read_1(); // (RTC ACTIVATION) read magic pattern 1
-			break;
+			return;
 		}
+
+		m_rtc->write(offset & 0x01);
 	}
+
 	m_p_vol_ram[offset] = data;  // Poke value into VOL_RAM.
 }
 
@@ -1561,10 +1551,10 @@ uint8_t rainbow_modela_state::rtc_r(offs_t offset)
 	{
 		if (offset == 0x00) // read time/date from 0xED000 (ClikClok for 100-A)
 		{
-			if (m_rtc->chip_enable())
-				return m_rtc->read_data() & 0x01;
-			 else
-				m_rtc->chip_reset();
+			if (m_rtc->ceo_r())
+				return m_rtc->read();
+			else
+				m_rtc->read();
 		}
 	}
 
@@ -1575,41 +1565,10 @@ uint8_t rainbow_modelb_state::rtc_r(offs_t offset)
 {
 	if (m_inp11->read() == 0x01) // if enabled...
 	{
-		switch (offset)
-		{
-		// Transfer data to DS1315 (data = offset):
-		case 0x0000:  // RTC_WRITE_DATA_0 0xFC000
-		case 0x2000:  // RTC_WRITE_DATA_0 0xFE000 (MIRROR)
-
-		case 0x0001:  // RTC_WRITE_DATA_1 0xFC001
-		case 0x2001:  // RTC_WRITE_DATA_1 0xFE001 (MIRROR)
-			m_rtc->write_data(offset & 0x01);
-			break;
-
-		// Read actual time/date from ClikClok:
-		case 0x0004:  // 0xFC004
-		case 0x2004:  // 0xFE004 (MIRROR)
-			if (m_rtc->chip_enable())
-				return (m_rtc->read_data() & 0x01);
-			[[fallthrough]]; // FIXME: really?
-		// (RTC ACTIVATION) read magic pattern 0
-		case 0x0100:  // 0xFC100
-		case 0x2100:  // 0xFE100 (MIRROR)
-			m_rtc->read_0();
-			break;
-
-		// (RTC ACTIVATION) read magic pattern 1
-		case 0x0101:  // 0xFC101
-		case 0x2101:  // 0xFE101 (MIRROR)
-			m_rtc->read_1();
-			break;
-
-		// RESET
-		case 0x0104:  // 0xFC104
-		case 0x2104:  // 0xFE104 (MIRROR)
-			m_rtc->chip_reset();
-			break;
-		}
+		if (m_rtc->ceo_r())
+			return m_rtc->read(offset);
+		else
+			m_rtc->read(offset);
 	}
 
 	uint8_t *rom = memregion("maincpu")->base();
@@ -2233,10 +2192,7 @@ void rainbow_base_state::i8088_latch_w(uint8_t data)
 {
 	// logerror("%02x to Z80 mailbox\n", data);
 
-	// The interrupt vector address(F7H) placed on the bus is hardwired into the Z80A interrupt vector encoder.
-	// The F7H interrupt vector address causes the Z80A processor to perform an RST 30 instruction in
-	// interrupt mode 0
-	m_z80->set_input_line_and_vector(0, ASSERT_LINE, 0xf7); // Z80
+	m_z80->set_input_line(0, ASSERT_LINE);
 	m_z80_mailbox = data;
 
 	m_intz80 = true;
@@ -2513,19 +2469,25 @@ uint8_t rainbow_base_state::read_video_ram_r(offs_t offset)
 // CPU acknowledge of VBL IRQ resets counter
 IRQ_CALLBACK_MEMBER(rainbow_base_state::irq_callback)
 {
-	int intnum = -1;
 	for (int i = IRQ_8088_VBL; i >= 0; i--)
 	{
-			if (m_irq_mask & (1 << i))
-			{
-				if (i == IRQ_8088_VBL)  // If VBL IRQ acknowledged...
-					m_crtc->MHFU(MHFU_RESET); // ...reset counter (also: DC012_W)
+		if (m_irq_mask & (1 << i))
+		{
+			if (i == IRQ_8088_VBL)  // If VBL IRQ acknowledged...
+				m_crtc->MHFU(MHFU_RESET); // ...reset counter (also: DC012_W)
 
-				intnum = vectors[i] | m_irq_high;
-				break;
-			}
+			break;
+		}
 	}
-	return intnum;
+	return m_i8088_int_vector;
+}
+
+IRQ_CALLBACK_MEMBER(rainbow_base_state::z80_acknowledge_irq)
+{
+	// The interrupt vector address(F7H) placed on the bus is hardwired into the Z80A interrupt vector encoder.
+	// The F7H interrupt vector address causes the Z80A processor to perform an RST 30 instruction in
+	// interrupt mode 0
+	return 0xf7;
 }
 
 // NEC7220 Vsync IRQ ***************************************** GDC
@@ -3099,7 +3061,7 @@ void rainbow_base_state::GDC_EXTRA_REGISTER_w(offs_t offset, uint8_t data)
 				last_scroll_index = m_gdc_scroll_index;
 				if (data & GDC_MODE_READONLY_SCROLL_MAP) // 0x20
 				   logerror(" SCROLL MAP READ_ONLY. Index : %02x ", m_gdc_scroll_index);
-				 else
+				else
 				   logerror(" SCROLL MAP IS WRITABLE. Index : %02x ", m_gdc_scroll_index);
 			}
 
@@ -3202,9 +3164,10 @@ void rainbow_base_state::rainbow_base(machine_config &config)
 	Z80(config, m_z80, 24.0734_MHz_XTAL / 6);
 	m_z80->set_addrmap(AS_PROGRAM, &rainbow_base_state::rainbowz80_mem);
 	m_z80->set_addrmap(AS_IO, &rainbow_base_state::rainbowz80_io);
+	m_z80->set_irq_acknowledge_callback(FUNC(rainbow_base_state::z80_acknowledge_irq));
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(24.0734_MHz_XTAL / 6, 442, 0, 400, 264, 0, 240); // ~NTSC compatible video timing (?)
 	screen.set_screen_update(FUNC(rainbow_base_state::screen_update_rainbow));
 	screen.set_palette("vt100_video:palette");
@@ -3223,11 +3186,11 @@ void rainbow_base_state::rainbow_base(machine_config &config)
 
 	m_hgdc->set_addrmap(0, &rainbow_base_state::upd7220_map);
 	m_hgdc->set_display_pixels(FUNC(rainbow_base_state::hgdc_display_pixels));
-	m_hgdc->set_screen(m_screen2); // set_screen needs to be added after 7720 device in the machine config, not after the screen.
+	m_hgdc->set_screen(m_screen2); // set_screen needs to be added after 7220 device in the machine config, not after the screen.
 
 	PALETTE(config, m_palette2).set_entries(32);
 
-	SCREEN(config, m_screen2, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen2);
 	m_screen2->set_video_attributes(VIDEO_UPDATE_AFTER_VBLANK | VIDEO_ALWAYS_UPDATE);
 
 	// VR241 color monitor is specified for 20 MHz bandwidth ( 60 Hz / 15.72 kHz horizontal rate )
@@ -3272,13 +3235,11 @@ void rainbow_base_state::rainbow_base(machine_config &config)
 	HARDDISK(config, "decharddisk1");
 	/// ******************************** / HARD DISK CONTROLLER ****************************************
 
-	CORVUS_HDC(config, m_corvus_hdc, 0);
+	CORVUS_HDC(config, m_corvus_hdc);
 	HARDDISK(config, "harddisk1", "corvus_hdd");
 	HARDDISK(config, "harddisk2", "corvus_hdd");
 	HARDDISK(config, "harddisk3", "corvus_hdd");
 	HARDDISK(config, "harddisk4", "corvus_hdd");
-
-	DS1315(config, m_rtc, 0); // DS1315 (ClikClok for DEC-100 B)   * OPTIONAL *
 
 	COM8116_003(config, m_dbrg, 24.0734_MHz_XTAL / 4); // 6.01835 MHz (nominally 6 MHz)
 	m_dbrg->fr_handler().set(FUNC(rainbow_base_state::dbrg_fr_w));
@@ -3310,7 +3271,7 @@ void rainbow_base_state::rainbow_base(machine_config &config)
 	m_kbd8251->rxrdy_handler().set(FUNC(rainbow_base_state::kbd_rxready_w));
 	m_kbd8251->txrdy_handler().set(FUNC(rainbow_base_state::kbd_txready_w));
 
-	LK201(config, m_lk201, 0);
+	LK201(config, m_lk201);
 	m_lk201->tx_handler().set(m_kbd8251, FUNC(i8251_device::write_rxd));
 
 	ripple_counter_device &prtbrg(RIPPLE_COUNTER(config, "prtbrg", 24.0734_MHz_XTAL / 6 / 13)); // 74LS393 at E17 (both halves)
@@ -3330,6 +3291,8 @@ void rainbow_modela_state::rainbow_modela(machine_config &config)
 	m_i8088->set_addrmap(AS_IO, &rainbow_modela_state::rainbow8088_io);
 	RAM(config, m_ram).set_default_size("64K").set_extra_options("64K,128K,192K,256K,320K,384K,448K,512K,576K,640K,704K,768K");
 	m_kbd8251->dtr_handler().set(FUNC(rainbow_modela_state::irq_hi_w));
+
+	DS1215(config, m_rtc); // DS1315 (ClikClok for DEC-100 B)   * OPTIONAL *
 }
 
 void rainbow_modelb_state::rainbow_modelb(machine_config &config)
@@ -3339,6 +3302,8 @@ void rainbow_modelb_state::rainbow_modelb(machine_config &config)
 	m_i8088->set_addrmap(AS_IO, &rainbow_modelb_state::rainbow8088_io);
 	RAM(config, m_ram).set_default_size("128K").set_extra_options("128K,192K,256K,320K,384K,448K,512K,576K,640K,704K,768K,832K,896K");
 	m_kbd8251->dtr_handler().set(FUNC(rainbow_modelb_state::irq_hi_w));
+
+	DS1216E(config, m_rtc); // DS1315 (ClikClok for DEC-100 B)   * OPTIONAL *
 }
 
 //----------------------------------------------------------------------------------------
@@ -3464,6 +3429,6 @@ ROM_END
 /* Driver */
 
 /*   YEAR  NAME         PARENT   COMPAT  MACHINE         INPUT           STATE                 INIT        COMPANY                          FULLNAME         FLAGS */
-COMP(1982, rainbow100a, rainbow, 0,      rainbow_modela, rainbow100b_in, rainbow_modela_state, empty_init, "Digital Equipment Corporation", "Rainbow 100-A", MACHINE_IS_SKELETON)
+COMP(1982, rainbow100a, rainbow, 0,      rainbow_modela, rainbow100b_in, rainbow_modela_state, empty_init, "Digital Equipment Corporation", "Rainbow 100-A", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
 COMP(1983, rainbow,     0,       0,      rainbow_modelb, rainbow100b_in, rainbow_modelb_state, empty_init, "Digital Equipment Corporation", "Rainbow 100-B", MACHINE_IMPERFECT_GRAPHICS | MACHINE_IMPERFECT_COLORS)
 COMP(1985, rainbow190,  rainbow, 0,      rainbow_modelb, rainbow100b_in, rainbow_modelb_state, empty_init, "Digital Equipment Corporation", "Rainbow 190-B", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_COLORS)

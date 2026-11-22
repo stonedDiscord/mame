@@ -54,7 +54,7 @@ void c64_partner_cartridge_device::nmi_w(int state)
 
 static INPUT_PORTS_START( c64_partner )
 	PORT_START("NMI")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Menu") PORT_CODE(KEYCODE_F11) PORT_WRITE_LINE_DEVICE_MEMBER(DEVICE_SELF, c64_partner_cartridge_device, nmi_w)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_NAME("Menu") PORT_CODE(KEYCODE_F11) PORT_WRITE_LINE_DEVICE_MEMBER(DEVICE_SELF, FUNC(c64_partner_cartridge_device::nmi_w))
 INPUT_PORTS_END
 
 
@@ -94,6 +94,9 @@ c64_partner_cartridge_device::c64_partner_cartridge_device(const machine_config 
 
 void c64_partner_cartridge_device::device_start()
 {
+	save_item(NAME(m_a0));
+	save_item(NAME(m_a6));
+	save_item(NAME(m_nmi));
 }
 
 
@@ -191,6 +194,11 @@ int c64_partner_cartridge_device::c64_game_r(offs_t offset, int sphi2, int ba, i
 {
 	int game = 1;
 
+	if ((offset & 0xff00) == 0xde00)
+	{
+		game = 0;
+	}
+
 	if (m_a0 && BIT(offset, 15))
 	{
 		switch ((offset >> 13) & 0x03)
@@ -200,8 +208,6 @@ int c64_partner_cartridge_device::c64_game_r(offs_t offset, int sphi2, int ba, i
 			break;
 		}
 	}
-
-	// TODO if I/O1=0, GAME=0
 
 	return game;
 }

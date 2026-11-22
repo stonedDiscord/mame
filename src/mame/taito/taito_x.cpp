@@ -3,7 +3,6 @@
 // thanks-to:Richard Bush
 /***************************************************************************
 
-
 Taito X-system
 
 driver by Richard Bush, Howie Cohen and Yochizo
@@ -473,14 +472,14 @@ public:
 	void daisenpu(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	u16 dsw_input_r(offs_t offset);
 
-	void taito_x_base_map(address_map &map);
-	void sound_map(address_map &map);
+	void taito_x_base_map(address_map &map) ATTR_COLD;
+	void sound_map(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<cpu_device> m_audiocpu;
@@ -493,11 +492,11 @@ private:
 	void kyustrkr_input_w(offs_t offset, u16 data);
 	void sound_bankswitch_w(u8 data);
 
-	void ballbros_map(address_map &map);
-	void daisenpu_map(address_map &map);
-	void daisenpu_sound_map(address_map &map);
-	void gigandes_map(address_map &map);
-	void kyustrkr_map(address_map &map);
+	void ballbros_map(address_map &map) ATTR_COLD;
+	void daisenpu_map(address_map &map) ATTR_COLD;
+	void daisenpu_sound_map(address_map &map) ATTR_COLD;
+	void gigandes_map(address_map &map) ATTR_COLD;
+	void kyustrkr_map(address_map &map) ATTR_COLD;
 
 	required_memory_bank m_z80bank;
 	required_ioport m_dswa_io;
@@ -522,7 +521,7 @@ private:
 	INTERRUPT_GEN_MEMBER(interrupt);
 	TIMER_DEVICE_CALLBACK_MEMBER(cchip_irq_clear_cb);
 
-	void superman_map(address_map &map);
+	void superman_map(address_map &map) ATTR_COLD;
 
 	required_device<taito_cchip_device> m_cchip;
 	required_device<timer_device> m_cchip_irq_clear;
@@ -530,10 +529,10 @@ private:
 
 void taitox_cchip_state::counters_w(u8 data)
 {
-	machine().bookkeeping().coin_lockout_w(1, data & 0x08);
-	machine().bookkeeping().coin_lockout_w(0, data & 0x04);
-	machine().bookkeeping().coin_counter_w(1, data & 0x02);
-	machine().bookkeeping().coin_counter_w(0, data & 0x01);
+	machine().bookkeeping().coin_lockout_w(1, BIT(data, 3));
+	machine().bookkeeping().coin_lockout_w(0, BIT(data, 2));
+	machine().bookkeeping().coin_counter_w(1, BIT(data, 1));
+	machine().bookkeeping().coin_counter_w(0, BIT(data, 0));
 }
 
 u16 taitox_state::dsw_input_r(offs_t offset)
@@ -549,7 +548,8 @@ u16 taitox_state::dsw_input_r(offs_t offset)
 		case 0x03:
 			return (m_dswb_io->read() & 0xf0) >> 4;
 		default:
-			logerror("taitox unknown dsw read offset: %04x\n", offset);
+			if (!machine().side_effects_disabled())
+				logerror("%s: unknown dsw_input_r offset: %04x\n", machine().describe_context(), offset);
 			return 0x00;
 	}
 }
@@ -566,7 +566,8 @@ u16 taitox_state::input_r(offs_t offset)
 			return m_in_io[2]->read();    // COINn + SERVICE1 + TILT
 
 		default:
-			logerror("taitox unknown input read offset: %04x\n", offset);
+			if (!machine().side_effects_disabled())
+				logerror("%s: unknown input_r offset: %04x\n", machine().describe_context(), offset);
 			return 0x00;
 	}
 }
@@ -576,15 +577,15 @@ void taitox_state::daisenpu_input_w(offs_t offset, u16 data)
 	switch (offset)
 	{
 		case 0x04:  // coin counters and lockout
-			machine().bookkeeping().coin_counter_w(0, data & 0x01);
-			machine().bookkeeping().coin_counter_w(1, data & 0x02);
-			machine().bookkeeping().coin_lockout_w(0, ~data & 0x04);
-			machine().bookkeeping().coin_lockout_w(1, ~data & 0x08);
+			machine().bookkeeping().coin_counter_w(0, BIT(data, 0));
+			machine().bookkeeping().coin_counter_w(1, BIT(data, 1));
+			machine().bookkeeping().coin_lockout_w(0, BIT(~data, 2));
+			machine().bookkeeping().coin_lockout_w(1, BIT(~data, 3));
 //logerror("taitox coin control %04x to offset %04x\n", data, offset);
 			break;
 
 		default:
-			logerror("taitox unknown input write %04x to offset %04x\n", data, offset);
+			logerror("%s: unknown daisenpu_input_w %04x to offset %04x\n", machine().describe_context(), data, offset);
 	}
 }
 
@@ -594,15 +595,15 @@ void taitox_state::kyustrkr_input_w(offs_t offset, u16 data)
 	switch (offset)
 	{
 		case 0x04:  // coin counters and lockout
-			machine().bookkeeping().coin_counter_w(0, data & 0x01);
-			machine().bookkeeping().coin_counter_w(1, data & 0x02);
-			machine().bookkeeping().coin_lockout_w(0, data & 0x04);
-			machine().bookkeeping().coin_lockout_w(1, data & 0x08);
+			machine().bookkeeping().coin_counter_w(0, BIT(data, 0));
+			machine().bookkeeping().coin_counter_w(1, BIT(data, 1));
+			machine().bookkeeping().coin_lockout_w(0, BIT(data, 2));
+			machine().bookkeeping().coin_lockout_w(1, BIT(data, 3));
 //logerror("taitox coin control %04x to offset %04x\n", data, offset);
 			break;
 
 		default:
-			logerror("taitox unknown input write %04x to offset %04x\n", data, offset);
+			logerror("%s: unknown kyustrkr_input_w %04x to offset %04x\n", machine().describe_context(), data, offset);
 	}
 }
 
@@ -699,7 +700,7 @@ void taitox_state::kyustrkr_map(address_map &map)
 void taitox_state::sound_map(address_map &map)
 {
 	map(0x0000, 0x3fff).rom();
-	map(0x4000, 0x7fff).bankr("z80bank");
+	map(0x4000, 0x7fff).bankr(m_z80bank);
 	map(0xc000, 0xdfff).ram();
 	map(0xe000, 0xe003).rw("ymsnd", FUNC(ym2610_device::read), FUNC(ym2610_device::write));
 	map(0xe200, 0xe200).nopr().w("tc0140syt", FUNC(tc0140syt_device::slave_port_w));
@@ -714,7 +715,7 @@ void taitox_state::sound_map(address_map &map)
 void taitox_state::daisenpu_sound_map(address_map &map)
 {
 	map(0x0000, 0x3fff).rom();
-	map(0x4000, 0x7fff).bankr("z80bank");
+	map(0x4000, 0x7fff).bankr(m_z80bank);
 	map(0xc000, 0xdfff).ram();
 	map(0xe000, 0xe001).rw("ymsnd", FUNC(ym2151_device::read), FUNC(ym2151_device::write));
 	map(0xe200, 0xe200).nopr().w("ciu", FUNC(pc060ha_device::slave_port_w));
@@ -1038,7 +1039,7 @@ void taitox_cchip_state::superman(machine_config &config)
 	m_spritegen->set_bg_yoffsets(0x1, -0x1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(57.43);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(52*8, 32*8);
@@ -1049,17 +1050,16 @@ void taitox_cchip_state::superman(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xRGB_555, 2048);
 
 	// sound hardware
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	ym2610_device &ymsnd(YM2610(config, "ymsnd", 16_MHz_XTAL / 2));   // verified on PCB
 	ymsnd.irq_handler().set_inputline(m_audiocpu, 0);
-	ymsnd.add_route(0, "lspeaker", 0.25);
-	ymsnd.add_route(0, "rspeaker", 0.25);
-	ymsnd.add_route(1, "lspeaker", 1.0);
-	ymsnd.add_route(2, "rspeaker", 1.0);
+	ymsnd.add_route(0, "speaker", 0.75, 0);
+	ymsnd.add_route(0, "speaker", 0.75, 1);
+	ymsnd.add_route(1, "speaker", 1.0, 0);
+	ymsnd.add_route(2, "speaker", 1.0, 1);
 
-	tc0140syt_device &tc0140syt(TC0140SYT(config, "tc0140syt", 0));
+	tc0140syt_device &tc0140syt(TC0140SYT(config, "tc0140syt"));
 	tc0140syt.nmi_callback().set_inputline(m_audiocpu, INPUT_LINE_NMI);
 	tc0140syt.reset_callback().set_inputline(m_audiocpu, INPUT_LINE_RESET);
 }
@@ -1082,7 +1082,7 @@ void taitox_state::daisenpu(machine_config &config)
 	m_spritegen->set_bg_yoffsets(0x1, -0x1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(52*8, 32*8);
@@ -1093,15 +1093,14 @@ void taitox_state::daisenpu(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xRGB_555, 2048);
 
 	// sound hardware
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	ym2151_device &ymsnd(YM2151(config, "ymsnd", 16_MHz_XTAL / 4)); // verified on PCB
 	ymsnd.irq_handler().set_inputline(m_audiocpu, 0);
-	ymsnd.add_route(0, "lspeaker", 0.45);
-	ymsnd.add_route(1, "rspeaker", 0.45);
+	ymsnd.add_route(0, "speaker", 0.45, 0);
+	ymsnd.add_route(1, "speaker", 0.45, 1);
 
-	pc060ha_device &ciu(PC060HA(config, "ciu", 0));
+	pc060ha_device &ciu(PC060HA(config, "ciu"));
 	ciu.nmi_callback().set_inputline(m_audiocpu, INPUT_LINE_NMI);
 	ciu.reset_callback().set_inputline(m_audiocpu, INPUT_LINE_RESET);
 }
@@ -1123,8 +1122,8 @@ void taitox_state::gigandes(machine_config &config)
 	m_spritegen->set_bg_yoffsets(0x1, -0x1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_refresh_hz(60);
+	screen_device &screen(SCREEN(config, "screen"));
+	screen.set_refresh_hz(57.43);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(52*8, 32*8);
 	screen.set_visarea(0*8, 48*8-1, 1*8, 31*8-1);
@@ -1134,17 +1133,16 @@ void taitox_state::gigandes(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xRGB_555, 2048);
 
 	// sound hardware
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	ym2610_device &ymsnd(YM2610(config, "ymsnd", 8000000));
 	ymsnd.irq_handler().set_inputline(m_audiocpu, 0);
-	ymsnd.add_route(0, "lspeaker", 0.25);
-	ymsnd.add_route(0, "rspeaker", 0.25);
-	ymsnd.add_route(1, "lspeaker", 1.0);
-	ymsnd.add_route(2, "rspeaker", 1.0);
+	ymsnd.add_route(0, "speaker", 0.75, 0);
+	ymsnd.add_route(0, "speaker", 0.75, 1);
+	ymsnd.add_route(1, "speaker", 1.0, 0);
+	ymsnd.add_route(2, "speaker", 1.0, 1);
 
-	tc0140syt_device &tc0140syt(TC0140SYT(config, "tc0140syt", 0));
+	tc0140syt_device &tc0140syt(TC0140SYT(config, "tc0140syt"));
 	tc0140syt.nmi_callback().set_inputline(m_audiocpu, INPUT_LINE_NMI);
 	tc0140syt.reset_callback().set_inputline(m_audiocpu, INPUT_LINE_RESET);
 }
@@ -1167,7 +1165,7 @@ void taitox_state::ballbros(machine_config &config)
 	m_spritegen->set_bg_yoffsets(0x1, -0x1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(52*8, 32*8);
@@ -1178,17 +1176,16 @@ void taitox_state::ballbros(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xRGB_555, 2048);
 
 	// sound hardware
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	ym2610_device &ymsnd(YM2610(config, "ymsnd", 8000000));
 	ymsnd.irq_handler().set_inputline(m_audiocpu, 0);
-	ymsnd.add_route(0, "lspeaker", 0.25);
-	ymsnd.add_route(0, "rspeaker", 0.25);
-	ymsnd.add_route(1, "lspeaker", 1.0);
-	ymsnd.add_route(2, "rspeaker", 1.0);
+	ymsnd.add_route(0, "speaker", 0.75, 0);
+	ymsnd.add_route(0, "speaker", 0.75, 1);
+	ymsnd.add_route(1, "speaker", 1.0, 0);
+	ymsnd.add_route(2, "speaker", 1.0, 1);
 
-	tc0140syt_device &tc0140syt(TC0140SYT(config, "tc0140syt", 0));
+	tc0140syt_device &tc0140syt(TC0140SYT(config, "tc0140syt"));
 	tc0140syt.nmi_callback().set_inputline(m_audiocpu, INPUT_LINE_NMI);
 	tc0140syt.reset_callback().set_inputline(m_audiocpu, INPUT_LINE_RESET);
 }
@@ -1422,13 +1419,13 @@ ROM_END
 } // Anonymous namespace
 
 
-GAME( 1988, superman,  0,        superman, superman,  taitox_cchip_state, empty_init, ROT0,   "Taito Corporation",         "Superman (World)", MACHINE_SUPPORTS_SAVE )
-GAME( 1988, supermanu, superman, superman, supermanu, taitox_cchip_state, empty_init, ROT0,   "Taito Corporation",         "Superman (US)", MACHINE_SUPPORTS_SAVE )
-GAME( 1988, supermanj, superman, superman, supermanj, taitox_cchip_state, empty_init, ROT0,   "Taito Corporation",         "Superman (Japan)", MACHINE_SUPPORTS_SAVE )
-GAME( 1989, twinhawk,  0,        daisenpu, twinhawk,  taitox_state,       empty_init, ROT270, "Taito Corporation Japan",   "Twin Hawk (World)", MACHINE_SUPPORTS_SAVE )
-GAME( 1989, twinhawku, twinhawk, daisenpu, twinhawku, taitox_state,       empty_init, ROT270, "Taito America Corporation", "Twin Hawk (US)", MACHINE_SUPPORTS_SAVE )
-GAME( 1989, daisenpu,  twinhawk, daisenpu, daisenpu,  taitox_state,       empty_init, ROT270, "Taito Corporation",         "Daisenpu (Japan)", MACHINE_SUPPORTS_SAVE )
-GAME( 1989, gigandes,  0,        gigandes, gigandes,  taitox_state,       empty_init, ROT0,   "East Technology",           "Gigandes", MACHINE_SUPPORTS_SAVE )
-GAME( 1989, gigandesa, gigandes, gigandes, gigandes,  taitox_state,       empty_init, ROT0,   "East Technology",           "Gigandes (earlier)", MACHINE_SUPPORTS_SAVE )
-GAME( 1989, kyustrkr,  0,        kyustrkr, kyustrkr,  taitox_state,       empty_init, ROT180, "East Technology",           "Last Striker / Kyuukyoku no Striker", MACHINE_SUPPORTS_SAVE )
-GAME( 1992, ballbros,  0,        ballbros, ballbros,  taitox_state,       empty_init, ROT0,   "East Technology",           "Balloon Brothers", MACHINE_SUPPORTS_SAVE )
+GAME( 1988, superman,  0,        superman, superman,  taitox_cchip_state, empty_init, ROT0,   "Taito",                   "Superman (World)",                    MACHINE_SUPPORTS_SAVE )
+GAME( 1988, supermanu, superman, superman, supermanu, taitox_cchip_state, empty_init, ROT0,   "Taito",                   "Superman (US)",                       MACHINE_SUPPORTS_SAVE )
+GAME( 1988, supermanj, superman, superman, supermanj, taitox_cchip_state, empty_init, ROT0,   "Taito",                   "Superman (Japan)",                    MACHINE_SUPPORTS_SAVE )
+GAME( 1989, twinhawk,  0,        daisenpu, twinhawk,  taitox_state,       empty_init, ROT270, "Toaplan / Taito",         "Twin Hawk (World)",                   MACHINE_SUPPORTS_SAVE )
+GAME( 1989, twinhawku, twinhawk, daisenpu, twinhawku, taitox_state,       empty_init, ROT270, "Toaplan / Taito America", "Twin Hawk (US)",                      MACHINE_SUPPORTS_SAVE )
+GAME( 1989, daisenpu,  twinhawk, daisenpu, daisenpu,  taitox_state,       empty_init, ROT270, "Toaplan / Taito",         "Daisenpu (Japan)",                    MACHINE_SUPPORTS_SAVE )
+GAME( 1989, gigandes,  0,        gigandes, gigandes,  taitox_state,       empty_init, ROT0,   "East Technology",         "Gigandes",                            MACHINE_SUPPORTS_SAVE )
+GAME( 1989, gigandesa, gigandes, gigandes, gigandes,  taitox_state,       empty_init, ROT0,   "East Technology",         "Gigandes (earlier)",                  MACHINE_SUPPORTS_SAVE )
+GAME( 1989, kyustrkr,  0,        kyustrkr, kyustrkr,  taitox_state,       empty_init, ROT180, "East Technology",         "Last Striker / Kyuukyoku no Striker", MACHINE_SUPPORTS_SAVE )
+GAME( 1992, ballbros,  0,        ballbros, ballbros,  taitox_state,       empty_init, ROT0,   "East Technology",         "Balloon Brothers",                    MACHINE_SUPPORTS_SAVE )

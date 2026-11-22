@@ -27,10 +27,10 @@ public:
 	{ }
 
 protected:
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// device_t implementation
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 private:
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
@@ -44,7 +44,7 @@ void msx_cart_franky_device::device_add_mconfig(machine_config &config)
 {
 	SPEAKER(config, "franky").front_center();
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 
 	m_screen->set_raw(XTAL(10'738'635)/2,
 		sega315_5124_device::WIDTH,

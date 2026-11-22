@@ -36,10 +36,10 @@ public:
 	{ }
 
 protected:
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual const tiny_rom_entry *device_rom_region() const override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
 
 private:
 	required_device<amd_29f010_device> m_flash;
@@ -106,8 +106,6 @@ const tiny_rom_entry *msx_cart_sunrise_ataide_device::device_rom_region() const
 
 void msx_cart_sunrise_ataide_device::device_start()
 {
-	m_activity_led.resolve();
-
 	save_item(NAME(m_control));
 	save_item(NAME(m_bank_base));
 	save_item(NAME(m_data));
@@ -160,17 +158,17 @@ void msx_cart_sunrise_ataide_device::device_start()
 	m_view[1].install_write_handler(0x7e00, 0x7e0f, write8sm_delegate(*this, [this] (offs_t offset, u8 data)
 		{
 			if (BIT(offset, 3))
-				m_ata->cs1_w(offset & 0x07, data, 0xff);
+				m_ata->cs1_w(offset & 0x07, data);
 			else
-				m_ata->cs0_w(offset & 0x07, data, 0xff);
+				m_ata->cs0_w(offset & 0x07, data);
 		}, "write_ide")
 	);
 	m_view[1].install_read_handler(0x7e00, 0x7e0f, read8sm_delegate(*this, [this] (offs_t offset)
 		{
 			if (BIT(offset, 3))
-				return m_ata->cs1_r(offset & 0x07, 0xff);
+				return m_ata->cs1_r(offset & 0x07);
 			else
-				return m_ata->cs0_r(offset & 0x07, 0xff);
+				return m_ata->cs0_r(offset & 0x07);
 		}, "read_ide")
 	);
 

@@ -155,7 +155,7 @@
 #include "mgt.h"
 #include "softlist_dev.h"
 
-#include "formats/coupedsk.h"
+#include "formats/coupe_mgt.h"
 
 
 //**************************************************************************
@@ -171,7 +171,7 @@ DEFINE_DEVICE_TYPE(SPECTRUM_DISCIPLE, spectrum_disciple_device, "spectrum_discip
 
 INPUT_PORTS_START(plusd)
 	PORT_START("BUTTON")
-	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON1) PORT_NAME("Snapshot Button") PORT_CODE(KEYCODE_MINUS_PAD) PORT_CHANGED_MEMBER(DEVICE_SELF, spectrum_plusd_device, snapshot_button, 0)
+	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON1) PORT_NAME("Snapshot Button") PORT_CODE(KEYCODE_MINUS_PAD) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(spectrum_plusd_device::snapshot_button), 0)
 INPUT_PORTS_END
 
 //-------------------------------------------------
@@ -199,7 +199,7 @@ INPUT_PORTS_START(disciple)
 	PORT_BIT(0x10, IP_ACTIVE_LOW, IPT_BUTTON1)                  PORT_PLAYER(2) PORT_NAME("Sinclair P2 Button 1") PORT_CODE(KEYCODE_0_PAD)
 
 	PORT_START("INH")
-	PORT_CONFNAME(0x01, 0x01, "Inhibit Button") PORT_CHANGED_MEMBER(DEVICE_SELF, spectrum_disciple_device, inhibit_button, 0)
+	PORT_CONFNAME(0x01, 0x01, "Inhibit Button") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(spectrum_disciple_device::inhibit_button), 0)
 	PORT_CONFSETTING(0x01, "Off (Disciple enabled)")
 	PORT_CONFSETTING(0x00, "On (Disciple disabled)")
 INPUT_PORTS_END
@@ -234,7 +234,7 @@ static void plusd_floppies(device_slot_interface &device)
 void spectrum_plusd_device::floppy_formats(format_registration &fr)
 {
 	fr.add_mfm_containers();
-	fr.add(FLOPPY_MGT_FORMAT);
+	fr.add(FLOPPY_COUPE_MGT_FORMAT);
 }
 
 //-------------------------------------------------

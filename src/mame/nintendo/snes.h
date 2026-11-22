@@ -319,8 +319,8 @@ public:
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	/* misc */
 	uint16_t                m_hblank_offset = 0;
@@ -400,8 +400,10 @@ protected:
 	void hdma_init(address_space &space);
 	void hdma_update(address_space &space, int dma);
 	void hirq_tick();
+	void hirq_schedule();
 	virtual void write_joy_latch(uint8_t data);
 	virtual void wrio_write(uint8_t data);
+	virtual void hblank_w(int state) { }
 	inline uint8_t snes_rom_access(uint32_t offset);
 
 	void snes_init_ram();

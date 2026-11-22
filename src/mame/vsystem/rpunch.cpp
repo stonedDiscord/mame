@@ -150,7 +150,7 @@ public:
 	void rpunch(machine_config &config);
 	void svolleybl(machine_config &config);
 
-	DECLARE_CUSTOM_INPUT_MEMBER(hi_bits_r) { return m_hi_bits->read(); }
+	ioport_value hi_bits_r() { return m_hi_bits->read(); }
 
 protected:
 	required_device<cpu_device> m_maincpu;
@@ -172,13 +172,13 @@ protected:
 	void set_sprite_palette(int val) { m_sprite_palette = val; }
 	void set_sprite_xoffs(int val) { m_sprite_xoffs = val; }
 
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
-	void svolley_map(address_map &map);
-	void rpunch_map(address_map &map);
-	void svolleybl_main_map(address_map &map);
-	void sound_map(address_map &map);
-	void svolleybl_sound_map(address_map &map);
+	void svolley_map(address_map &map) ATTR_COLD;
+	void rpunch_map(address_map &map) ATTR_COLD;
+	void svolleybl_main_map(address_map &map) ATTR_COLD;
+	void sound_map(address_map &map) ATTR_COLD;
+	void svolleybl_sound_map(address_map &map) ATTR_COLD;
 
 private:
 	// hardware configuration
@@ -224,7 +224,7 @@ public:
 	void svolley(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 };
 
 
@@ -414,8 +414,8 @@ void rpunch_state::draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect)
 		const bool yflip = data1 & 0x0800;
 		const u32 color = ((data1 >> 13) & 7) | ((m_videoflags & 0x0040) >> 3);
 
-		if (x > cliprect.max_x) x -= 512;
-		if (y > cliprect.max_y) y -= 512;
+		if (x > cliprect.right()) x -= 512;
+		if (y > cliprect.bottom()) y -= 512;
 
 		m_gfxdecode->gfx(2)->prio_transpen(bitmap,cliprect,
 				code, color + (m_sprite_palette / 16), xflip, yflip, x + m_sprite_xoffs, y,
@@ -434,11 +434,11 @@ void rpunch_state::draw_bitmap(bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	const u32 colourbase = 512 + ((m_videoflags & 0x000f) << 4);
 
-	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
+	for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
 	{
 		u16 const *const src = &m_pixmap->pix(y & 0xff);
 		u16 *const dst = &bitmap.pix(y);
-		for(int x = cliprect.min_x / 4; x <= cliprect.max_x; x++)
+		for (int x = cliprect.left() / 4; x <= cliprect.right(); x++)
 		{
 			const u16 pix = src[(x + 4) & 0x1ff];
 			if ((pix & 0xf) != 0xf)
@@ -621,7 +621,7 @@ static INPUT_PORTS_START( rpunch )
 	PORT_BIT( 0x0010, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_PLAYER(1)
 	PORT_BIT( 0x0020, IP_ACTIVE_HIGH, IPT_BUTTON2 ) PORT_PLAYER(1)
 	PORT_BIT( 0x00c0, IP_ACTIVE_HIGH, IPT_UNUSED )
-	PORT_BIT( 0xff00, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(rpunch_state, hi_bits_r)
+	PORT_BIT( 0xff00, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(FUNC(rpunch_state::hi_bits_r))
 
 	PORT_START("P2")    // c001a lower 8 bits
 	PORT_BIT( 0x0001, IP_ACTIVE_HIGH, IPT_JOYSTICK_UP ) PORT_8WAY PORT_PLAYER(2)
@@ -631,7 +631,7 @@ static INPUT_PORTS_START( rpunch )
 	PORT_BIT( 0x0010, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_PLAYER(2)
 	PORT_BIT( 0x0020, IP_ACTIVE_HIGH, IPT_BUTTON2 ) PORT_PLAYER(2)
 	PORT_BIT( 0x00c0, IP_ACTIVE_HIGH, IPT_UNUSED )
-	PORT_BIT( 0xff00, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(rpunch_state, hi_bits_r)
+	PORT_BIT( 0xff00, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(FUNC(rpunch_state::hi_bits_r))
 
 	PORT_START("SERVICE")   // c0018/c001a upper 8 bits
 	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_SERVICE1 )
@@ -826,7 +826,7 @@ void rpunch_state::rpunch(machine_config &config)
 	// video hardware
 	set_sprite_palette(0x300);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_size(304, 224);
 	m_screen->set_visarea(8, 303-8, 0, 223-8);
@@ -880,7 +880,7 @@ void rpunch_state::svolleybl(machine_config &config)
 	// video hardware
 	set_sprite_palette(0x080);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_size(304, 224);
 	m_screen->set_visarea(8, 303-8, 0, 223-8);

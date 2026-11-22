@@ -53,12 +53,12 @@ public:
 	void mccpm(machine_config &config);
 
 protected:
-	virtual void machine_reset() override;
-	virtual void machine_start() override;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
-	void io_map(address_map &map);
-	void mem_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
+	void mem_map(address_map &map) ATTR_COLD;
 	void port44_w(u8);
 	u8 port44_r();
 	void fdc_irq(bool);
@@ -150,7 +150,6 @@ void mccpm_state::port44_w(u8 data)
 	}
 	// side select comes from fdc pin 25
 	m_fdc->set_unscaled_clock(BIT(data, 5) ? 1e6 : 2e6);  // 13 or 20cm clock select
-	m_maincpu->set_input_line_vector(0, 0xD7 ); // Z80 - jump to 0x0010 upon interrupt acknowledge IM 0 (or should it say 0x10?)
 }
 
 u8 mccpm_state::port44_r()

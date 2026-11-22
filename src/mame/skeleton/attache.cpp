@@ -139,9 +139,6 @@ public:
 	uint8_t dma_mem_r(offs_t offset);
 	void dma_mem_w(offs_t offset, uint8_t data);
 
-	uint8_t fdc_dma_r();
-	void fdc_dma_w(uint8_t data);
-
 	void hreq_w(int state);
 	void eop_w(int state);
 	[[maybe_unused]] void fdc_dack_w(int state);
@@ -174,9 +171,8 @@ protected:
 	};
 
 	// overrides
-	virtual void driver_start() override;
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	uint8_t rom_r(offs_t offset);
 	void rom_w(offs_t offset, uint8_t data);
@@ -190,13 +186,14 @@ protected:
 	uint8_t memmap_r();
 	void memmap_w(uint8_t data);
 
+	void set_latch(uint8_t data);
 	void operation_strobe(uint8_t data);
 	void keyboard_clock_w(bool state);
 	uint8_t keyboard_data_r();
 	uint16_t get_key();
 
-	void attache_io(address_map &map);
-	void attache_map(address_map &map);
+	void attache_io(address_map &map) ATTR_COLD;
+	void attache_map(address_map &map) ATTR_COLD;
 
 	required_device<z80_device> m_maincpu;
 	required_memory_region m_rom;
@@ -273,13 +270,14 @@ private:
 	uint8_t z80_comms_status_r();
 	void z80_comms_ctrl_w(uint8_t data);
 	void ppi_irq(int state);
+	IRQ_CALLBACK_MEMBER(extcpu_acknowledge_irq);
 	void x86_dsr(int state);
 
-	virtual void machine_reset() override;
+	virtual void machine_reset() override ATTR_COLD;
 
-	[[maybe_unused]] void attache816_io(address_map &map);
-	void attache_x86_io(address_map &map);
-	void attache_x86_map(address_map &map);
+	[[maybe_unused]] void attache816_io(address_map &map) ATTR_COLD;
+	void attache_x86_io(address_map &map) ATTR_COLD;
+	void attache_x86_map(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_extcpu;
 	required_device<i8255_device> m_ppi;
@@ -554,6 +552,16 @@ uint8_t attache_state::pio_portB_r()
 	return ret;
 }
 
+void attache_state::set_latch(uint8_t data)
+{
+	m_pio_latch = data;
+	m_rom_active = ~data & 0x04;
+	m_floppy0->mon_w((data & 0x01) ? 0 : 1);
+	m_floppy1->mon_w((data & 0x01) ? 0 : 1);
+	m_gfx_enabled = data & 0x02;
+	// TODO: display brightness
+}
+
 void attache_state::operation_strobe(uint8_t data)
 {
 	//logerror("PIO: Port A write operation %i, data %02x\n",m_pio_select,data);
@@ -590,12 +598,7 @@ void attache_state::operation_strobe(uint8_t data)
 		logerror("CMOS: write %01x to byte %02x (read)\n",data & 0x0f, m_cmos_select);
 		break;
 	case PIO_SEL_LATCH:
-		m_pio_latch = data;
-		m_rom_active = ~data & 0x04;
-		m_floppy0->mon_w((data & 0x01) ? 0 : 1);
-		m_floppy1->mon_w((data & 0x01) ? 0 : 1);
-		m_gfx_enabled = data & 0x02;
-		// TODO: display brightness
+		set_latch(data);
 		break;
 	case PIO_SEL_NOP:
 		logerror("PIO: NOP write\n");
@@ -779,17 +782,6 @@ void attache_state::dma_mask_w(uint8_t data)
 	m_dma->write(0x0f,data);
 }
 
-uint8_t attache_state::fdc_dma_r()
-{
-	uint8_t ret = m_fdc->dma_r();
-	return ret;
-}
-
-void attache_state::fdc_dma_w(uint8_t data)
-{
-	m_fdc->dma_w(data);
-}
-
 uint8_t attache_state::dma_mem_r(offs_t offset)
 {
 	return m_maincpu->space(AS_PROGRAM).read_byte(offset);
@@ -906,7 +898,12 @@ void attache816_state::z80_comms_ctrl_w(uint8_t data)
 void attache816_state::ppi_irq(int state)
 {
 	if(m_x86_irq_enable & 0x01)
-		m_extcpu->set_input_line_and_vector(0,state,0x03); // I8086
+		m_extcpu->set_input_line(0,state);
+}
+
+IRQ_CALLBACK_MEMBER(attache816_state::extcpu_acknowledge_irq)
+{
+	return 0x03;
 }
 
 void attache816_state::x86_dsr(int state)
@@ -1067,7 +1064,7 @@ static void attache_floppies(device_slot_interface &device)
 	device.option_add("525dd", FLOPPY_525_DD);
 }
 
-void attache_state::driver_start()
+void attache_state::machine_start()
 {
 	uint8_t *RAM = m_ram->pointer();
 
@@ -1099,10 +1096,7 @@ void attache_state::driver_start()
 	save_pointer(m_attr_ram,"Attribute RAM",128*32);
 	save_pointer(m_gfx_ram,"Graphics RAM",128*32*5);
 	save_pointer(m_cmos_ram,"CMOS RAM",64);
-}
 
-void attache_state::machine_start()
-{
 	// initialise RAM
 	memset(m_cmos_ram,0,64);
 	memset(m_attr_ram,0,128*32);
@@ -1113,6 +1107,7 @@ void attache_state::machine_start()
 void attache_state::machine_reset()
 {
 	m_kb_bitpos = 0;
+	set_latch(0);
 }
 
 void attache816_state::machine_reset()
@@ -1129,7 +1124,7 @@ void attache_state::attache(machine_config &config)
 
 	config.set_maximum_quantum(attotime::from_hz(60));
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen_device &screen(SCREEN(config, "screen").set_color(rgb_t::green()));
 	screen.set_raw(12.324_MHz_XTAL, 784, 0, 640, 262, 0, 240);
 	screen.set_screen_update(FUNC(attache_state::screen_update));
 
@@ -1175,8 +1170,8 @@ void attache_state::attache(machine_config &config)
 	m_dma->out_eop_callback().set(FUNC(attache_state::eop_w));
 	m_dma->in_memr_callback().set(FUNC(attache_state::dma_mem_r));
 	m_dma->out_memw_callback().set(FUNC(attache_state::dma_mem_w));
-	m_dma->in_ior_callback<0>().set(FUNC(attache_state::fdc_dma_r));
-	m_dma->out_iow_callback<0>().set(FUNC(attache_state::fdc_dma_w));
+	m_dma->in_ior_callback<0>().set(m_fdc, FUNC(upd765a_device::dma_r));
+	m_dma->out_iow_callback<0>().set(m_fdc, FUNC(upd765a_device::dma_w));
 	// m_dma->out_dack_callback<0>().set(FUNC(attache_state::fdc_dack_w));
 
 	UPD765A(config, m_fdc, 8_MHz_XTAL, true, true);
@@ -1209,9 +1204,10 @@ void attache816_state::attache816(machine_config &config)
 	I8086(config, m_extcpu, 24_MHz_XTAL / 3);
 	m_extcpu->set_addrmap(AS_PROGRAM, &attache816_state::attache_x86_map);
 	m_extcpu->set_addrmap(AS_IO, &attache816_state::attache_x86_io);
+	m_extcpu->set_irq_acknowledge_callback(FUNC(attache816_state::extcpu_acknowledge_irq));
 	config.set_perfect_quantum(m_extcpu);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen_device &screen(SCREEN(config, "screen").set_color(rgb_t::green()));
 	screen.set_raw(12.324_MHz_XTAL, 784, 0, 640, 262, 0, 240);
 	screen.set_screen_update(FUNC(attache_state::screen_update));
 
@@ -1264,8 +1260,8 @@ void attache816_state::attache816(machine_config &config)
 	m_dma->out_eop_callback().set(FUNC(attache_state::eop_w));
 	m_dma->in_memr_callback().set(FUNC(attache_state::dma_mem_r));
 	m_dma->out_memw_callback().set(FUNC(attache_state::dma_mem_w));
-	m_dma->in_ior_callback<0>().set(FUNC(attache_state::fdc_dma_r));
-	m_dma->out_iow_callback<0>().set(FUNC(attache_state::fdc_dma_w));
+	m_dma->in_ior_callback<0>().set(m_fdc, FUNC(upd765a_device::dma_r));
+	m_dma->out_iow_callback<0>().set(m_fdc, FUNC(upd765a_device::dma_w));
 	// m_dma->out_dack_callback<0>().set(FUNC(attache_state::fdc_dack_w));
 
 	UPD765A(config, m_fdc, 8_MHz_XTAL, true, true);

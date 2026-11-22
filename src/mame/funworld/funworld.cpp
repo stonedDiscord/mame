@@ -108,6 +108,7 @@
   * Power Card (Ver 0263, encrypted),                              Fun World,            1993.
   * Mega Card (Ver.0210, encrypted),                               Fun World,            1993.
   * Mega Card (Ver.0053, encrypted),                               Fun World,            1992.
+  * Joker Card (encrypted),                                        Fun World,            1993.
   * Joker Card 300 (Ver.A267BC, encrypted),                        Amatic Trading,       1993.
   * Royal Card (Evona, Polish, encrypted),                         Evona Electronic,     1991.
   * Saloon (French, encrypted),                                    unknown,              199?.
@@ -143,9 +144,6 @@
   * Royal Card (stealth with MSX multigame),                       bootleg,              1991.
 
 
-  Supported games: 123
-
-
 **********************************************************************************************
 
   The hardware is generally composed by:
@@ -175,7 +173,7 @@
   The hardware was designed to manage 4096 tiles with a size of 8x4 pixels each.
   Also support 4bpp graphics and the palette limitation is 8 bits for color codes (256 x 16 colors).
   It means the hardware was designed for more elaborated graphics than Jolly Card games...
-  Color PROMs from current games are 512 bytes lenght, but they only can use the first or the last 256 bytes.
+  Color PROMs from current games are 512 bytes length, but they only can use the first or the last 256 bytes.
 
   Normal hardware capabilities:
 
@@ -755,12 +753,14 @@
 *********************************************************************************************/
 
 #include "emu.h"
+
 #include "funworld.h"
 
-#include "cpu/m6502/m65sc02.h"
+#include "cpu/m6502/g65sc02.h"
 #include "cpu/m6502/r65c02.h"
 #include "machine/6821pia.h"
 #include "machine/nvram.h"
+
 #include "screen.h"
 #include "speaker.h"
 
@@ -852,26 +852,30 @@ void funworld_state::funworld_map(address_map &map)
 	map(0xc000, 0xffff).rom();
 }
 
-static uint8_t funquiz_question_bank = 0x80;
-
-uint8_t funworld_state::questions_r(offs_t offset)
+void multiwin_state::multiwinb_map(address_map &map)
 {
-	uint8_t* quiz = memregion("questions")->base();
-	int extraoffset = ((funquiz_question_bank & 0x1f) * 0x8000);
+	funworld_map(map);
 
-	// if 0x80 is set, read the 2nd half of the question rom (contains header info)
-	if (funquiz_question_bank & 0x80) extraoffset += 0x4000;
-
-	return quiz[offset + extraoffset];
+	map(0x1000, 0x1000).lr8(NAME([] () -> uint8_t { return 0xff; })); // or it doesn't boot (AI says some 1-Wire device - maybe iButton)
 }
 
-void funworld_state::question_bank_w(uint8_t data)
+
+void funquiz_state::machine_start()
+{
+	funworld_state::machine_start();
+
+	m_questions_bank->configure_entries(0, 64, memregion("questions")->base(), 0x4000);
+	m_questions_bank->set_entry(1);
+}
+
+void funquiz_state::question_bank_w(uint8_t data)
 {
 //  printf("question bank write %02x\n", data);
-	funquiz_question_bank = data;
+
+	m_questions_bank->set_entry(bitswap<6>(data, 4, 3, 2, 1, 0, 7));
 }
 
-void funworld_state::funquiz_map(address_map &map)
+void funquiz_state::funquiz_map(address_map &map)
 {
 	map(0x0000, 0x07ff).ram().share("nvram");
 	map(0x0800, 0x0803).rw("pia0", FUNC(pia6821_device::read), FUNC(pia6821_device::write));
@@ -881,11 +885,11 @@ void funworld_state::funquiz_map(address_map &map)
 	map(0x0e00, 0x0e00).w("crtc", FUNC(mc6845_device::address_w));
 	map(0x0e01, 0x0e01).rw("crtc", FUNC(mc6845_device::register_r), FUNC(mc6845_device::register_w));
 
-	map(0x1800, 0x1800).w(FUNC(funworld_state::question_bank_w));
+	map(0x1800, 0x1800).w(FUNC(funquiz_state::question_bank_w));
 
-	map(0x2000, 0x2fff).ram().w(FUNC(funworld_state::funworld_videoram_w)).share("videoram");
-	map(0x3000, 0x3fff).ram().w(FUNC(funworld_state::funworld_colorram_w)).share("colorram");
-	map(0x4000, 0x7fff).r(FUNC(funworld_state::questions_r));
+	map(0x2000, 0x2fff).ram().w(FUNC(funquiz_state::funworld_videoram_w)).share("videoram");
+	map(0x3000, 0x3fff).ram().w(FUNC(funquiz_state::funworld_colorram_w)).share("colorram");
+	map(0x4000, 0x7fff).bankr(m_questions_bank);
 
 	map(0xc000, 0xffff).rom();
 }
@@ -2531,14 +2535,14 @@ static INPUT_PORTS_START( saloon )
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_UNUSED )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_UNUSED )
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_UNUSED )
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("i2cmem" , i2cmem_device, write_scl)    // Serial Clock
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("i2cmem", FUNC(i2cmem_device::write_scl))    // Serial Clock
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_UNUSED )
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_UNUSED )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNUSED )
 
 	PORT_START("I2C_DI")  // 1000h Input
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_READ_LINE_DEVICE_MEMBER("i2cmem", i2cmem_device, read_sda)      // Serial Data In
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_OTHER ) PORT_READ_LINE_DEVICE_MEMBER("i2cmem", FUNC(i2cmem_device::read_sda))      // Serial Data In
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
@@ -2548,7 +2552,7 @@ static INPUT_PORTS_START( saloon )
 
 	PORT_START("I2C_DO")  // 1000h Output
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_UNKNOWN )
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("i2cmem", i2cmem_device, write_sda)   // Serial Data Out
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("i2cmem", FUNC(i2cmem_device::write_sda))   // Serial Data Out
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNKNOWN )
@@ -3270,12 +3274,12 @@ GFXDECODE_END
 
 
 // these ports are set to output anyway, but this quietens the log
-uint8_t funworld_state::funquiz_ay8910_a_r()
+uint8_t funquiz_state::ay8910_a_r()
 {
 	return 0x00;
 }
 
-uint8_t funworld_state::funquiz_ay8910_b_r()
+uint8_t funquiz_state::ay8910_b_r()
 {
 	return 0x00;
 }
@@ -3308,7 +3312,7 @@ void lunapark_state::machine_reset()
 void funworld_state::fw1stpal(machine_config &config)
 {
 	// basic machine hardware
-	M65SC02(config, m_maincpu, CPU_CLOCK);  // 2 MHz.
+	G65SC02(config, m_maincpu, CPU_CLOCK);  // 2 MHz.
 	m_maincpu->set_addrmap(AS_PROGRAM, &funworld_state::funworld_map);
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
@@ -3324,7 +3328,7 @@ void funworld_state::fw1stpal(machine_config &config)
 
 	// video hardware
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size((124+1)*4, (30+1)*8);           // Taken from MC6845 init, registers 00 & 04. Normally programmed with (value-1)
@@ -3362,16 +3366,16 @@ void funworld_state::fw2ndpal(machine_config &config)
 
 
 
-void funworld_state::funquiz(machine_config &config)
+void funquiz_state::funquiz(machine_config &config)
 {
 	fw1stpal(config);  // gray background.
 //  fw2ndpal(config);  // blue background.
 
 	R65C02(config.replace(), m_maincpu, CPU_CLOCK); // 2 MHz.
-	m_maincpu->set_addrmap(AS_PROGRAM, &funworld_state::funquiz_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &funquiz_state::funquiz_map);
 
-	subdevice<ay8910_device>("ay8910")->port_a_read_callback().set(FUNC(funworld_state::funquiz_ay8910_a_r));
-	subdevice<ay8910_device>("ay8910")->port_b_read_callback().set(FUNC(funworld_state::funquiz_ay8910_b_r));
+	subdevice<ay8910_device>("ay8910")->port_a_read_callback().set(FUNC(funquiz_state::ay8910_a_r));
+	subdevice<ay8910_device>("ay8910")->port_b_read_callback().set(FUNC(funquiz_state::ay8910_b_r));
 }
 
 
@@ -3429,7 +3433,7 @@ void funworld_state::saloon(machine_config &config)
 	config.device_remove("pia1");
 
 	// Serial Memory
-	I2C_24C02(config, "i2cmem", 0).set_e0(1); // ? or maybe 2nd half of 24C04?
+	I2C_24C02(config, "i2cmem").set_e0(1); // ? or maybe 2nd half of 24C04?
 }
 
 
@@ -3472,7 +3476,7 @@ void intergames_state::intrgmes(machine_config &config)
 {
 	fw1stpal(config);
 
-	M65SC02(config.replace(), m_maincpu, CPU_CLOCK);    // 2 MHz.
+	G65SC02(config.replace(), m_maincpu, CPU_CLOCK);    // 2 MHz.
 	m_maincpu->set_addrmap(AS_PROGRAM, &intergames_state::intergames_map);
 	//m_maincpu->set_periodic_int(FUNC(intergames_state::nmi_line_pulse), attotime::from_hz(60));
 
@@ -3559,12 +3563,12 @@ uint8_t royalcrdf_state::royalcrdf_opcode_r(offs_t offset)
 		0x02, 0x02, 0xa6, 0x82, 0x02, 0x02, 0x06, 0x82, 0x02, 0x02, 0xa6, 0x00, 0x02, 0x02, 0x06, 0x00
 	};
 
-	uint8_t data {m_maincpu->space(AS_PROGRAM).read_byte(offset)};
+	uint8_t data = m_maincpu->space(AS_PROGRAM).read_byte(offset);
 
 	if(offset < 0x800)
 		data = bitswap<8>(data ^ 0x22, 2, 6, 7, 4, 3, 1, 5, 0);
 
-	unsigned idx {bitswap<4>(offset, 8, 5, 2, 1)};
+	auto const idx = bitswap<4>(unsigned(offset), 8, 5, 2, 1);
 
 	return bitswap<8>(data, bs[idx][3], 6, bs[idx][2], 4, 3, bs[idx][1], bs[idx][0], 0) ^ xm[idx];
 }
@@ -3624,8 +3628,8 @@ uint8_t multiwin_state::multiwin_opcode_r(offs_t offset)
 		0x00, 0x00, 0x10, 0x00, 0x20, 0x00, 0x30, 0x00, 0x00, 0xb5, 0x10, 0xb5, 0x20, 0xb5, 0x30, 0xb5
 	};
 
-	uint8_t data {m_maincpu->space(AS_PROGRAM).read_byte(offset)};
-	unsigned idx {bitswap<4>(offset, 6,9,5,3)};
+	uint8_t const data = m_maincpu->space(AS_PROGRAM).read_byte(offset);
+	auto const idx = bitswap<4>(unsigned(offset), 6,9,5,3);
 
 	return bitswap<8>(data, bs[idx&7][4],6,bs[idx&7][3],bs[idx&7][2],3,bs[idx&7][1],1,bs[idx&7][0]) ^ xm[idx];
 }
@@ -3651,6 +3655,12 @@ void multiwin_state::multiwin(machine_config &config)
 	m_maincpu->set_addrmap(AS_OPCODES, &multiwin_state::multiwin_opcodes_map);
 }
 
+void multiwin_state::multiwinb(machine_config &config)
+{
+	clubcard(config);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &multiwin_state::multiwinb_map);
+}
 
 class multiwina_state : public funworld_state
 {
@@ -3668,7 +3678,7 @@ private:
 
 	uint8_t opcode_r(offs_t offset);
 
-	void opcodes_map(address_map& map);
+	void opcodes_map(address_map &map) ATTR_COLD;
 };
 
 uint8_t multiwina_state::opcode_r(offs_t offset)
@@ -3704,7 +3714,7 @@ public:
 private:
 	uint8_t jokercrd_opcode_r(offs_t offset);
 
-	void jokercrd_opcodes_map(address_map& map);
+	void jokercrd_opcodes_map(address_map &map) ATTR_COLD;
 };
 
 uint8_t jokercrd_state::jokercrd_opcode_r(offs_t offset)
@@ -3742,8 +3752,8 @@ uint8_t jokercrd_state::jokercrd_opcode_r(offs_t offset)
 	// it should be noted, however, that the subroutine @c0da seems to be called just from here:
 	//  c044: 64 6a     stz $6a
 	//  c046: 20 da c0  jsr $c0da
-	// and, if no interrupt is messing with the accesed data, the STZ @c044 should make the BEQ @c0ef
-	// become an inconditional jump, converting the opcode @c0f1 in dead code
+	// and, if no interrupt is messing with the accessed data, the STZ @c044 should make the BEQ @c0ef
+	// become an unconditional jump, converting the opcode @c0f1 in dead code
 
 
 	constexpr uint8_t UNKN {0xfc};
@@ -5150,7 +5160,7 @@ ROM_START( pool10b ) // 1st set nominated for parent
 	ROM_LOAD( "n82s147an_p10.u25",   0x0000, 0x0200, CRC(1de03d14) SHA1(d8eda20865c1d885a428931f4380032e103b252c) )
 
 	ROM_REGION( 0x0600, "plds", 0 )
-	ROM_LOAD( "palce16v8h_p10b.u5",  0x0000, 0x0117, NO_DUMP ) // PLD is read protected
+	ROM_LOAD( "palce16v8h_p10b.u5",  0x0000, 0x0117, CRC(41d7d732) SHA1(65cdd5405c3fa24304598defdbfe1c971510c1bd) ) // bruteforced, file can be written to GAL16V8
 	ROM_LOAD( "palce20v8h_p10b.u22", 0x0200, 0x0157, NO_DUMP ) // PLD is read protected
 	ROM_LOAD( "palce20v8h_p10b.u23", 0x0400, 0x0157, NO_DUMP ) // PLD is read protected
 ROM_END
@@ -6147,6 +6157,22 @@ ROM_START( lluck4x1 )
 
 	ROM_REGION( 0x0200, "proms", 0 )
 	ROM_LOAD( "n82s147.bin", 0x0000, 0x0200, CRC(8bc86f48) SHA1(4c677ab9314a1f571e35104b22659e6811aeb194) )
+ROM_END
+
+
+ROM_START( lluckasd ) // all label hand-written, no locations on PCB. Very similar to lluck3x3
+	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_LOAD( "lucky_lady.bin", 0x8000, 0x8000, CRC(986c5225) SHA1(5f6cf97f81e12199762281ae245455463970c4d0) )
+
+	ROM_REGION( 0x10000, "gfx1", 0 )
+	ROM_LOAD( "lady_ch2.bin", 0x0000, 0x8000, CRC(730fd4c9) SHA1(1fb36f72a27d75ceea248c6a8b8860d89d79939a) )
+	ROM_LOAD( "lady_ch1.bin", 0x8000, 0x8000, CRC(2af6fd7c) SHA1(0827731efa28342a64329403211b8890a2f77fc1) )
+
+	ROM_REGION( 0x0800, "nvram", 0 )    // default NVRAM
+	ROM_LOAD( "lluckasd_nvram.bin", 0x0000, 0x0800, CRC(486ab861) SHA1(e93f49599f119345398bfdab829c68e3671f6755) )
+
+	ROM_REGION( 0x0200, "proms", 0 )
+	ROM_LOAD( "n82s147an.bin", 0x0000, 0x0200, CRC(8bc86f48) SHA1(4c677ab9314a1f571e35104b22659e6811aeb194) )
 ROM_END
 
 
@@ -7164,11 +7190,11 @@ ROM_END
   Program roms are encrypted. Seems to be a Big Deal clone, running in
   Fun World Multi Win hardware.
 
-  Unfortunatelly, the graphics ROM vesely_zg_1.ic10 has address 8 line (leg 25) shorted.
+  Unfortunately, the graphics ROM vesely_zg_1.ic10 has address 8 line (leg 25) shorted.
   Seems that the protection diode was blown due to a bad handling.
 
   With forensics techniques, a special device was constructed to process
-  the faulty ROM and try to read the contents. Fortunatelly after all these
+  the faulty ROM and try to read the contents. Fortunately after all these
   efforts, we got a perfect and complete dump.
 
 
@@ -7236,6 +7262,22 @@ ROM_START( jokercrd )
 	ROM_LOAD( "ic13.bin", 0x0000, 0x0200, CRC(e59fc06e) SHA1(88a3bb89f020fe2b20f768ca010a082e0b974831) )
 ROM_END
 
+ROM_START( jokercrdf )
+	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_LOAD( "bc4_t.ic38", 0x4000, 0x4000, CRC(2c1701b2) SHA1(1457bc1c0c7845173ebb930dfe3d313a4866b9ad) )
+	ROM_LOAD( "bc4_p.ic12", 0xc000, 0x4000, CRC(b5fde2a2) SHA1(508c881267447c06d0d65e9ca2517574d2b73fcc) )
+
+	ROM_REGION( 0x0800, "decode", 0 )   // inside of the custom CPU
+	ROM_LOAD( "internal_table.bin",  0x0000, 0x0800, CRC(f1d8f35d) SHA1(2b5f9222a81a627d43fd8448385f85c71c24b914) )
+
+	ROM_REGION( 0x10000, "gfx1", 0 )
+	ROM_LOAD( "2.ic11", 0x0000, 0x8000, CRC(ba994fc3) SHA1(95d2a802c38d7249f10eb2bbe46edfb9b14b6faa) )
+	ROM_LOAD( "1.ic10", 0x8000, 0x8000, CRC(367db105) SHA1(400b82dc9e0be4c17a02add009aab3c43dd901f8) )
+
+	ROM_REGION( 0x0200, "proms", 0 )
+	// PROM was broken beyond repair on this PCB, using the one from jokcrdep since GFX ROMs match 100%
+	ROM_LOAD( "ic13.bin", 0x0000, 0x0200, BAD_DUMP CRC(f990a9ae) SHA1(f7133798b5f20dd5b8dbe5d1a6876341710d93a8) )
+ROM_END
 
 /*
     Mongolfier New
@@ -8210,6 +8252,7 @@ void funworld_state::init_tabblue()
 
 void magicrd2_state::init_magicd2b()
 {
+	// HACK: smells like copy protection
 	/*****************************************************************
 
 	  For a serie of Mexican Rockwell's 65c02
@@ -8253,7 +8296,7 @@ void magicrd2_state::init_magicd2c()
 
 void funworld_state::init_mongolnw()
 {
-//  temporary patch to avoid hardware errors for debug purposes
+	// HACK: temporary patch to avoid hardware errors for debug purposes
 	uint8_t *ROM = memregion("maincpu")->base();
 
 	ROM[0x9115] = 0xa5;
@@ -8265,7 +8308,7 @@ void funworld_state::init_mongolnw()
 
 void funworld_state::init_soccernw()
 {
-//  temporary patch to avoid hardware errors for debug purposes
+	// HACK: temporary patch to avoid hardware errors for debug purposes
 	uint8_t *ROM = memregion("maincpu")->base();
 
 	ROM[0x80b2] = 0xa9;
@@ -8776,6 +8819,8 @@ void chinatow_state::init_rcdinch()
 
 void funworld_state::init_jolycdig()
 {
+	// HACK: smells like copy protection
+
 	// covering two values in ROM space checked for hardware errors.
 	// maybe some virtual or physically mapped there.
 
@@ -8787,6 +8832,7 @@ void funworld_state::init_jolycdig()
 
 void intergames_state::init_novop_a()
 {
+	// HACK: smells like copy protection
 	// NOP'ing some values in ROM space to avoid the hardware error.
 
 	uint8_t *rom = memregion("maincpu")->base();
@@ -8797,6 +8843,7 @@ void intergames_state::init_novop_a()
 
 void intergames_state::init_novop_b()
 {
+	// HACK: smells like copy protection
 	// NOP'ing some values in ROM space to avoid the hardware error.
 
 	uint8_t *rom = memregion("maincpu")->base();
@@ -8807,6 +8854,7 @@ void intergames_state::init_novop_b()
 
 void intergames_state::init_intgms()
 {
+	// HACK: smells like copy protection
 	// NOP'ing some values in ROM space to avoid the hardware error.
 
 	uint8_t *rom = memregion("maincpu")->base();
@@ -8864,6 +8912,31 @@ void funworld_state::init_impera16()
 		gfx8rom[j] = gfx16rom[i];
 		gfx8rom[j + (sizeg / 2)] = gfx16rom[i + 1];
 		j++;
+	}
+}
+
+void multiwin_state::init_multiwinb()
+{
+	uint8_t *rom = memregion("maincpu")->base();
+	std::vector<uint8_t> buffer(&rom[0x8000], &rom[0x10000]);
+
+	for (int i = 0; i < 0x8000; i++)
+	{
+		int const addr = (i & 0x7000)
+				| (BIT(i, 0) ^ BIT(i, 5) ^ BIT(i, 6)) << 0
+				| (BIT(i, 0) ^ BIT(i, 1) ^ BIT(i, 7) ^ BIT(i, 8)) << 1
+				| (BIT(i, 2) ^ BIT(i, 3) ^ BIT(i, 8) ^ BIT(i, 11)) << 2
+				| (BIT(i, 2) ^ BIT(i, 3) ^ BIT(i, 9) ^ BIT(i, 10)) << 3
+				| (BIT(i, 2) ^ BIT(i, 4) ^ BIT(i, 5) ^ BIT(i, 10)) << 4
+				| (BIT(i, 4) ^ BIT(i, 5) ^ BIT(i, 6) ^ BIT(i, 11)) << 5
+				| (BIT(i, 0) ^ BIT(i, 3) ^ BIT(i, 6) ^ BIT(i, 7)) << 6
+				| (BIT(i, 0) ^ BIT(i, 3) ^ BIT(i, 7) ^ BIT(i, 9)) << 7
+				| (BIT(i, 1) ^ BIT(i, 4) ^ BIT(i, 8) ^ BIT(i, 10)) << 8
+				| (BIT(i, 2) ^ BIT(i, 3) ^ BIT(i, 8) ^ BIT(i, 9)) << 9
+				| (BIT(i, 0) ^ BIT(i, 1) ^ BIT(i, 4) ^ BIT(i, 10)) << 10
+				| (BIT(i, 1) ^ BIT(i, 2) ^ BIT(i, 7) ^ BIT(i, 11)) << 11;
+
+		rom[0x8000 + i] = buffer[addr];
 	}
 }
 
@@ -8949,6 +9022,7 @@ GAMEL( 199?, witchryl,   0,        witchryl, witchryl,  funworld_state, empty_in
 // Lucky Lady based...
 GAMEL( 1991, lluck3x3,   royalcrd, cuoreuno, royalcrd,  funworld_state, empty_init,    ROT0, "TAB Austria",       "Lucky Lady (3x3 deal)",                           0,                       layout_jollycrd )
 GAMEL( 1991, lluck4x1,   royalcrd, royalcd1, royalcrd,  funworld_state, empty_init,    ROT0, "TAB Austria",       "Lucky Lady (4x1 aces)",                           0,                       layout_jollycrd )
+GAMEL( 1991, lluckasd,   royalcrd, cuoreuno, royalcrd,  funworld_state, empty_init,    ROT0, "ASD",               "Lucky Lady (ASD)",                                MACHINE_NOT_WORKING,     layout_jollycrd ) // needs inputs checking
 
 // Magic Card 2 based...
 GAMEL( 1996, magicrd2,   0,        magicrd2, magicrd2,  magicrd2_state, empty_init,    ROT0, "Impera",            "Magic Card II (Bulgarian)",                       0,                       layout_jollycrd )
@@ -8977,10 +9051,11 @@ GAMEL( 199?, jolyjokrm,  jolyjokr, fw1stpal, funworld,  funworld_state, empty_in
 // Encrypted games...
 GAME(  1992, multiwin,   0,        multiwin, funworld,  multiwin_state, driver_init,   ROT0, "Fun World",         "Multi Win (Ver.0167, encrypted)",                 0 ) // original funworld, encrypted.
 GAME(  1991, multiwina,  multiwin, multiwina,funworld,  multiwina_state,empty_init,    ROT0, "Fun World",         "Multi Win (Ver.0091, encrypted)",                 MACHINE_IMPERFECT_GRAPHICS ) // different encryption scheme, different tilemap / screen parameters
-GAME(  2001, multiwinb,  multiwin, fw2ndpal, funworld,  funworld_state, empty_init,    ROT0, "Amatic",            "Multi Win (EPM7032, encrypted)",                  MACHINE_NOT_WORKING ) // daughterboard with R65C02 + Altera EPM7032.
+GAME(  2001, multiwinb,  multiwin, multiwinb,funworld,  multiwin_state, init_multiwinb,ROT0, "Amatic",            "Multi Win (EPM7032, encrypted)",                  MACHINE_NOT_WORKING ) // daughterboard with R65C02 + Altera EPM7032.
 GAME(  1993, powercrd,   0,        multiwina,funworld,  multiwina_state,empty_init,    ROT0, "Fun World",         "Power Card (Ver 0263, encrypted)",                0 ) // clone of Bonus Card.
 GAME(  1993, megacard,   0,        multiwina,funworld,  multiwina_state,empty_init,    ROT0, "Fun World",         "Mega Card (Ver.0210, encrypted)",                 0 )
 GAME(  1993, megacarda,  megacard, multiwina,funworld,  multiwina_state,empty_init,    ROT0, "Fun World",         "Mega Card (Ver.0053, encrypted)",                 0 )
+GAME(  1993, jokercrdf,  0,        multiwina,funworld,  multiwina_state,empty_init,    ROT0, "Fun World",         "Joker Card (encrypted)",                          0 )
 GAME(  1993, jokercrd,   0,        jokercrd, funworld,  jokercrd_state, empty_init,    ROT0, "Amatic Trading",    "Joker Card 300 (Ver.A267BC, encrypted)",          0 )
 GAME(  1991, royalcrdf,  royalcrd, royalcrdf,royalcrdf, royalcrdf_state,driver_init,   ROT0, "Evona Electronic",  "Royal Card (Evona, Polish, encrypted)",           0 )
 GAME(  198?, saloon,     0,        saloon,   saloon,    funworld_state, init_saloon,   ROT0, "<unknown>",         "Saloon (French, encrypted)",                      0 )
@@ -9003,15 +9078,15 @@ GAME(  199?, mongolnw,   0,        royalcd1, royalcrd,  funworld_state, init_mon
 GAME(  199?, soccernw,   0,        royalcd1, royalcrd,  funworld_state, init_soccernw, ROT0, "<unknown>",         "Soccer New (Italian)",                            MACHINE_UNEMULATED_PROTECTION )
 
 // Quiz games...
-GAME(  199?, funquiz,    0,        funquiz,  funquiz,   funworld_state, empty_init,    ROT0, "Fun World",         "Fun World Quiz (German)",                         0 )
-GAME(  1990, funquiza,   0,        funquiz,  funquiza,  funworld_state, empty_init,    ROT0, "Fun World",         "Fun World Quiz (German, 12-11-1990)",             0 )
-GAME(  1990, funquizb,   0,        funquiz,  funquiza,  funworld_state, empty_init,    ROT0, "Fun World",         "Fun World Quiz (German, 27-04-1990)",             0 )
+GAME(  199?, funquiz,    0,        funquiz,  funquiz,   funquiz_state,      empty_init,    ROT0, "Fun World",         "Fun World Quiz (German)",                         0 )
+GAME(  1990, funquiza,   0,        funquiz,  funquiza,  funquiz_state,      empty_init,    ROT0, "Fun World",         "Fun World Quiz (German, 12-11-1990)",             0 )
+GAME(  1990, funquizb,   0,        funquiz,  funquiza,  funquiz_state,      empty_init,    ROT0, "Fun World",         "Fun World Quiz (German, 27-04-1990)",             0 )
 
 // Other games...
 GAMEL( 1986, novoplay,   0,        fw2ndpal,   novoplay,  funworld_state,   empty_init,   ROT0, "Admiral / Novomatic",      "Novo Play Multi Card / Club Card",      0,                       layout_novoplay )
 GAMEL( 1992, novoplaya,  novoplay, intrgmes,   novop_ab,  intergames_state, init_novop_a, ROT0, "Novo Play International",  "Novo Play Club Card (V6.2H)",           0,                       layout_novoplay )
 GAMEL( 1991, novoplayb,  novoplay, intrgmes,   novop_ab,  intergames_state, init_novop_b, ROT0, "Novo Play International",  "Novo Play Club Card (V3.3H)",           0,                       layout_novoplay )
-GAME(  1991, intrgmes,   0,        intrgmes,   intrgmes,  intergames_state, init_intgms,  ROT0, "Inter Games",             "Joker Card (Inter Games)",               0 )
+GAME(  1991, intrgmes,   0,        intrgmes,   intrgmes,  intergames_state, init_intgms,  ROT0, "Inter Games",              "Joker Card (Inter Games)",              0 )
 GAMEL( 1985, fw_a7_11,   0,        fw_brick_2, fw_brick1, funworld_state,   empty_init,   ROT0, "Fun World",          "unknown Fun World A7-11 game 1",              MACHINE_NOT_WORKING,     layout_jollycrd )
 GAMEL( 1985, fw_a7_11a,  fw_a7_11, fw_brick_2, fw_brick1, funworld_state,   empty_init,   ROT0, "Fun World",          "unknown Fun World A7-11 game 2",              MACHINE_NOT_WORKING,     layout_jollycrd )
 GAMEL( 1991, fw_a0_1,    0,        fw_brick_2, fw_brick1, funworld_state,   empty_init,   ROT0, "Fun World",          "unknown Fun World A0-1 game",                 MACHINE_NOT_WORKING,     layout_jollycrd )

@@ -30,34 +30,36 @@ public:
 protected:
 	bandit_host_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock);
 
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	virtual void reset_all_mappings() override;
 
 	virtual void map_extra(u64 memory_window_start, u64 memory_window_end, u64 memory_offset, address_space *memory_space,
 						   u64 io_window_start, u64 io_window_end, u64 io_offset, address_space *io_space) override;
 
-	virtual void config_map(address_map &map) override;
+	virtual void config_map(address_map &map) override ATTR_COLD;
 
 	virtual space_config_vector memory_space_config() const override;
 
 	u32 m_last_config_address;
+	address_space *m_cpu_space;
 
 private:
-	void cpu_map(address_map &map);
+	void cpu_map(address_map &map) ATTR_COLD;
 	virtual u32 be_config_address_r();
 	virtual void be_config_address_w(offs_t offset, u32 data, u32 mem_mask = ~0);
-	u32 be_config_data_r(offs_t offset, u32 mem_mask = ~0);
-	void be_config_data_w(offs_t offset, u32 data, u32 mem_mask = ~0);
+	virtual u32 be_config_data_r(offs_t offset, u32 mem_mask = ~0);
+	virtual void be_config_data_w(offs_t offset, u32 data, u32 mem_mask = ~0);
 	template <u32 Base> u32 pci_memory_r(offs_t offset, u32 mem_mask);
 	template <u32 Base> void pci_memory_w(offs_t offset, u32 data, u32 mem_mask);
 	template <u32 Base> u32 pci_io_r(offs_t offset, u32 mem_mask);
 	template <u32 Base> void pci_io_w(offs_t offset, u32 data, u32 mem_mask);
+	template <u32 Base> u32 cpu_memory_r(offs_t offset, u32 mem_mask);
+	template <u32 Base> void cpu_memory_w(offs_t offset, u32 data, u32 mem_mask);
 
 	address_space_config m_mem_config, m_io_config;
 	required_device<device_memory_interface> m_cpu;
-	address_space *m_cpu_space;
 	int m_dev_offset;
 };
 
@@ -72,12 +74,46 @@ public:
 	}
 	aspen_host_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
 
+protected:
+	virtual void device_start() override ATTR_COLD;
+
 private:
-	virtual u32 be_config_address_r() override;
 	virtual void be_config_address_w(offs_t offset, u32 data, u32 mem_mask = ~0) override;
+
+	u32 regs_r(offs_t offset, u32 mem_mask = ~0);
+	void regs_w(offs_t offset, u32 data, u32 mem_mask = ~0);
+};
+
+class applpsx_host_device : public bandit_host_device
+{
+public:
+	template <typename T>
+	applpsx_host_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock, T &&cpu_tag)
+		: applpsx_host_device(mconfig, tag, owner, clock)
+	{
+		set_cpu_tag(std::forward<T>(cpu_tag));
+	}
+	applpsx_host_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+
+	// System ID register: bits 17-16 are straps sampled at reset, which the ROM and Open Firmware
+	// use as the board type (0 = Alchemy/Gazelle, 1 = Hooper/Comet (3400/2400), 2 = Tanzania)
+	void set_system_id(u32 id) { m_system_id = id; }
+
+protected:
+	virtual void device_start() override ATTR_COLD;
+
+private:
+	// registers on PSX appear to be aligned to 64 bit boundaries
+
+	u64 regs_r(offs_t offset, u64 mem_mask = ~0);
+	void regs_w(offs_t offset, u64 data, u64 mem_mask = ~0);
+
+	u64 m_sys_config;
+	u32 m_system_id;
 };
 
 DECLARE_DEVICE_TYPE(BANDIT, bandit_host_device)
 DECLARE_DEVICE_TYPE(ASPEN, aspen_host_device)
+DECLARE_DEVICE_TYPE(APPLPSX, applpsx_host_device)
 
 #endif // MAME_APPLE_BANDIT_H

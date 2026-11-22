@@ -89,10 +89,10 @@ public:
 	void iqunlim(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
-	void mem_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
@@ -193,13 +193,13 @@ void iqunlim_state::iqunlim(machine_config &config)
 	RAM(config, RAM_TAG).set_default_size("2M");
 
 	// Video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_LCD);
+	SCREEN(config, m_screen).set_lcd();
 	m_screen->set_refresh_hz(60);
 	m_screen->set_size(480, 260);
 	m_screen->set_visarea(0, 480 - 1, 0, 260 - 1);
 	m_screen->set_screen_update(FUNC(iqunlim_state::screen_update));
 
-	MC68328_LCD(config, m_lcdctrl, 0);
+	MC68328_LCD(config, m_lcdctrl);
 
 	GENERIC_CARTSLOT(config, m_cart, generic_plain_slot, "iqunlim_cart");
 	m_cart->set_width(GENERIC_ROM16_WIDTH);
@@ -220,5 +220,5 @@ ROM_END
 
 } // anonymous namespace
 
-COMP( 1995, iqunlim,         0, 0, iqunlim, iqunlim, iqunlim_state, empty_init, "VTech / Integrated Systems Inc.", "IQ Unlimited",           MACHINE_IS_SKELETON) // COPYRIGHT 1995 INTERGRATED SYSTEMS, INC.
-COMP( 1995, iqunlimgr, iqunlim, 0, iqunlim, iqunlim, iqunlim_state, empty_init, "VTech / Integrated Systems Inc.", "IQ Unlimited (Germany)", MACHINE_IS_SKELETON) // COPYRIGHT 1995 INTERGRATED SYSTEMS, INC.
+COMP( 1995, iqunlim,         0, 0, iqunlim, iqunlim, iqunlim_state, empty_init, "VTech / Integrated Systems Inc.", "IQ Unlimited",           MACHINE_NO_SOUND | MACHINE_NOT_WORKING) // COPYRIGHT 1995 INTERGRATED SYSTEMS, INC.
+COMP( 1995, iqunlimgr, iqunlim, 0, iqunlim, iqunlim, iqunlim_state, empty_init, "VTech / Integrated Systems Inc.", "IQ Unlimited (Germany)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING) // COPYRIGHT 1995 INTERGRATED SYSTEMS, INC.

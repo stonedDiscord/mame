@@ -32,9 +32,9 @@
  *
  *************************************/
 
-#define RSHIFT      16
-#define GSHIFT      8
-#define BSHIFT      0
+static constexpr unsigned RSHIFT = 16;
+static constexpr unsigned GSHIFT = 8;
+static constexpr unsigned BSHIFT = 0;
 
 
 
@@ -46,19 +46,19 @@
 
 TILE_GET_INFO_MEMBER(atarigt_state::get_alpha_tile_info)
 {
-	uint16_t data = m_alpha_tilemap->basemem_read(tile_index);
-	int code = data & 0xfff;
-	int color = (data >> 12) & 0x0f;
+	uint16_t const data = m_alpha_tilemap->basemem_read(tile_index);
+	int const code = data & 0xfff;
+	int const color = (data >> 12) & 0x0f;
 	tileinfo.set(1, code, color, 0);
 }
 
 
 TILE_GET_INFO_MEMBER(atarigt_state::get_playfield_tile_info)
 {
-	uint16_t data = m_playfield_tilemap->basemem_read(tile_index);
-	int code = (m_playfield_tile_bank << 12) | (data & 0xfff);
-	int color = (data >> 12) & 7;
-	tileinfo.set(0, code, color, (data >> 15) & 1);
+	uint16_t const data = m_playfield_tilemap->basemem_read(tile_index);
+	int const code = (m_playfield_tile_bank << 12) | (data & 0xfff);
+	int const color = (data >> 12) & 7;
+	tileinfo.set(0, code, color, BIT(data, 15));
 }
 
 
@@ -105,25 +105,26 @@ void atarigt_state::video_start()
 
 void atarigt_state::colorram_w(offs_t address, uint16_t data, uint16_t mem_mask)
 {
-	uint16_t olddata;
-
-	/* update the raw data */
+	// update the raw data
 	address = (address & 0x7ffff) >> 1;
-	olddata = m_colorram[address];
+	uint16_t const olddata = m_colorram[address];
 	COMBINE_DATA(&m_colorram[address]);
 
-	/* update the TRAM checksum */
 	if (address >= 0x10000 && address < 0x14000)
+	{
+		// update the TRAM checksum
 		m_tram_checksum += m_colorram[address] - olddata;
-
-	/* update expanded MRAM */
+	}
 	else if (address >= 0x20000 && address < 0x28000)
 	{
+		// update expanded MRAM
 		m_palette->set_pen_red_level(address & 0x7fff, (m_colorram[address] >> 8));
 		m_palette->set_pen_green_level(address & 0x7fff, (m_colorram[address] & 0xff));
 	}
 	else if (address >= 0x30000 && address < 0x38000)
+	{
 		m_palette->set_pen_blue_level(address & 0x7fff, (m_colorram[address] & 0xff));
+	}
 }
 
 
@@ -143,7 +144,7 @@ uint16_t atarigt_state::colorram_r(offs_t address)
 
 TIMER_DEVICE_CALLBACK_MEMBER(atarigt_state::scanline_update)
 {
-	int scanline = param;
+	int const scanline = param;
 
 	/* keep in range */
 	int offset = ((scanline & ~7) << 3) + 48;
@@ -154,11 +155,10 @@ TIMER_DEVICE_CALLBACK_MEMBER(atarigt_state::scanline_update)
 	for (int i = 0; i < 8; i++)
 	{
 		uint16_t word = m_alpha_tilemap->basemem_read(offset++);
-
-		if (word & 0x8000)
+		if (BIT(word, 15))
 		{
-			int newscroll = (word >> 5) & 0x3ff;
-			int newbank = (word >> 0) & 0x1f;
+			int const newscroll = (word >> 5) & 0x3ff;
+			int const newbank = (word >> 0) & 0x1f;
 			if (newscroll != m_playfield_xscroll)
 			{
 				if (scanline + i > 0)
@@ -176,10 +176,10 @@ TIMER_DEVICE_CALLBACK_MEMBER(atarigt_state::scanline_update)
 		}
 
 		word = m_alpha_tilemap->basemem_read(offset++);
-		if (word & 0x8000)
+		if (BIT(word, 15))
 		{
-			int newscroll = ((word >> 6) - (scanline + i)) & 0x1ff;
-			int newbank = word & 15;
+			int const newscroll = ((word >> 6) - (scanline + i)) & 0x1ff;
+			int const newbank = word & 15;
 			if (newscroll != m_playfield_yscroll)
 			{
 				if (scanline + i > 0)
@@ -482,7 +482,7 @@ PrimRage GALs:
 */
 
 
-uint32_t atarigt_state::screen_update_atarigt(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
+uint32_t atarigt_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	bitmap_ind16 &mo_bitmap = m_rle->vram(0);
 	bitmap_ind16 &tm_bitmap = m_rle->vram(1);
@@ -513,9 +513,9 @@ uint32_t atarigt_state::screen_update_atarigt(screen_device &screen, bitmap_rgb3
 		{
 			for (int x = cliprect.left(); x <= cliprect.right(); x++)
 			{
-				uint8_t pfpri = (pf[x] >> 10) & 7;
-				uint8_t mopri = mo[x] >> ATARIRLE_PRIORITY_SHIFT;
-				uint8_t mgep = (mopri >= pfpri) && !(pfpri & 4);
+				uint8_t const pfpri = (pf[x] >> 10) & 7;
+				uint8_t const mopri = mo[x] >> atari_rle_objects_device::PRIORITY_SHIFT;
+				uint8_t const mgep = (mopri >= pfpri) && !(pfpri & 4);
 
 				/* compute CRA -- unlike T-Mek, MVID11 enforces MO priority and is ignored */
 				uint16_t cra;
@@ -533,10 +533,52 @@ uint32_t atarigt_state::screen_update_atarigt(screen_device &screen, bitmap_rgb3
 				rgb |= mram[((cra >>  5) & 0x01f)] & 0x00ff00;
 				rgb |= mram[((cra >>  0) & 0x01f)] & 0x0000ff;
 
-				/* final override */
+				/* final override — GAL 22E lightning flash effect.
+				   The color latch low 3 bits (LCR) drive two independent effects:
+				     far_fx: applied to the playfield layer only (sprites drawn over it)
+				       LCR==1 → black,  LCR==3 → wash
+				     all_fx: applied to the entire composited picture
+				       LCR==2 → black,  LCR>=4 → wash
+				   The wash function compresses each channel toward a warm white:
+				     channel/3 + bias  (R bias=149, G bias=163, B bias=144)
+				   This produces the staggered bright/dark lightning bolt flash. */
 				if (color_latch & 7)
-					if (!(pf[x] & 0x3f) || !(pf[x] & 0x2000))
-						rgb = (0xff << RSHIFT) | (0xff << GSHIFT) | (0xff << BSHIFT);
+				{
+					int const lcr = color_latch & 7;
+					int const far_fx = (lcr == 1) ? 1 : (lcr == 3) ? 2 : 0;
+					int const all_fx = (lcr == 2) ? 1 : (lcr >= 4) ? 2 : 0;
+
+					/* far_fx: only where PF is the visible source */
+					if (far_fx && !(an[x] & 0x8f) && !((mo[x] & 0x3f) && ((mo[x] & 0x800) || mgep || !(pf[x] & 0x3f))))
+					{
+						if (!(pf[x] & 0x3f) || !(pf[x] & 0x2000))
+						{
+							if (far_fx == 1)
+								rgb = 0;
+							else
+							{
+								uint32_t const r = ((rgb >> RSHIFT) & 0xff) / 3 + 149;
+								uint32_t const g = ((rgb >> GSHIFT) & 0xff) / 3 + 163;
+								uint32_t const b = ((rgb >> BSHIFT) & 0xff) / 3 + 144;
+								rgb = (r << RSHIFT) | (g << GSHIFT) | (b << BSHIFT);
+							}
+						}
+					}
+
+					/* all_fx: every pixel */
+					if (all_fx)
+					{
+						if (all_fx == 1)
+							rgb = 0;
+						else
+						{
+							uint32_t const r = ((rgb >> RSHIFT) & 0xff) / 3 + 149;
+							uint32_t const g = ((rgb >> GSHIFT) & 0xff) / 3 + 163;
+							uint32_t const b = ((rgb >> BSHIFT) & 0xff) / 3 + 144;
+							rgb = (r << RSHIFT) | (g << GSHIFT) | (b << BSHIFT);
+						}
+					}
+				}
 
 				dst[x] = rgb;
 			}
@@ -548,7 +590,7 @@ uint32_t atarigt_state::screen_update_atarigt(screen_device &screen, bitmap_rgb3
 			for (int x = cliprect.left(); x <= cliprect.right(); x++)
 			{
 				uint8_t const pfpri = (pf[x] >> 10) & 7;
-				uint8_t const mopri = mo[x] >> ATARIRLE_PRIORITY_SHIFT;
+				uint8_t const mopri = mo[x] >> atari_rle_objects_device::PRIORITY_SHIFT;
 				uint8_t const mgep = (mopri >= pfpri) && !(pfpri & 4);
 
 				/* compute CRA/TRA */
@@ -575,11 +617,11 @@ uint32_t atarigt_state::screen_update_atarigt(screen_device &screen, bitmap_rgb3
 				uint16_t const mra = (tm[x] & 0xe00) << 1;
 
 				/* turn off CRA/TRA as appropriate */
-				int no_tra = 0, no_cra = 0;
+				bool no_tra = false, no_cra = false;
 				if (!(pf[x] & 0x1000) && (tra & 0x8000))
-					no_cra = 1;
+					no_cra = true;
 				if (!(!(cra & 0x8000) && (!(pf[x] & 0x1000) || !(pf[x] & 0x3f))))
-					no_tra = 1;
+					no_tra = true;
 				if (no_cra)
 					cra = 0;
 				if (no_tra)

@@ -72,7 +72,7 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// device_rtc_interface overrides
 	virtual void rtc_clock_updated(int year, int month, int day, int day_of_week, int hour, int minute, int second) override;
@@ -94,6 +94,7 @@ private:
 	void update_standard();
 	inline int read_counter(int counter);
 	inline void write_counter(int counter, int value);
+	void registers_updated();
 
 	int m_year0;
 	bool m_default_24h;

@@ -30,8 +30,8 @@ public:
 	void sigmab88(machine_config &config);
 
 private:
-	void h16_map(address_map &map);
-	void hd63484_map(address_map &map);
+	void h16_map(address_map &map) ATTR_COLD;
+	void hd63484_map(address_map &map) ATTR_COLD;
 
 	required_device<hd641016_device> m_maincpu;
 	required_device<palette_device> m_palette;
@@ -79,7 +79,7 @@ void sigmab88_state::sigmab88(machine_config &config)
 	PTM6840(config, "ptm", XTAL(20'000'000)/2/16);
 	//ptm.irq_callback().set_inputline(m_maincpu, hd641016_device::IRQ1_LINE);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(1024, 1024);
@@ -120,5 +120,5 @@ ROM_END
 
 } // anonymous namespace
 
-GAME( 1997, cool104,  0,        sigmab88, sigmab88, sigmab88_state, empty_init, ROT0, "Sigma", "Cool 104", MACHINE_IS_SKELETON )
-GAME( 1997, freedeal, 0,        sigmab88, sigmab88, sigmab88_state, empty_init, ROT0, "Sigma", "Free Deal Twin Jokers Progressive", MACHINE_IS_SKELETON )
+GAME( 1997, cool104,  0,        sigmab88, sigmab88, sigmab88_state, empty_init, ROT0, "Sigma", "Cool 104", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 1997, freedeal, 0,        sigmab88, sigmab88, sigmab88_state, empty_init, ROT0, "Sigma", "Free Deal Twin Jokers Progressive", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

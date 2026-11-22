@@ -80,8 +80,8 @@ public:
 	void pn8800fxb(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<z80180_device> m_maincpu;
@@ -111,8 +111,8 @@ private:
 
 	uint8_t m_mem_change;
 
-	void mem_map(address_map &map);
-	void io_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
+	void io_map(address_map &map) ATTR_COLD;
 
 	uint8_t keyboard_r();
 	void keyboard_w(uint8_t data);
@@ -211,7 +211,7 @@ void pn8800fxb_state::io_map(address_map &map)
 static INPUT_PORTS_START( pn8800fxb )
 	PORT_START("misc")
 	// 0x01 sp3
-	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_CUSTOM) PORT_READ_LINE_MEMBER(pn8800fxb_state, floppy_index_r)
+	PORT_BIT(0x02, IP_ACTIVE_LOW, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(pn8800fxb_state::floppy_index_r))
 	PORT_CONFNAME(0x04, 0x00, "AC Adaptor")
 	PORT_CONFSETTING(   0x00, "Good")
 	PORT_CONFSETTING(   0x04, "Not Good")
@@ -732,7 +732,7 @@ void pn8800fxb_state::pn8800fxb(machine_config &config)
 
 	TIMER(config, "1khz").configure_periodic(FUNC(pn8800fxb_state::int1_timer), attotime::from_hz(1000));
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device &screen(SCREEN(config, "screen").set_lcd());
 	screen.set_size(640, 200);
 	screen.set_visarea_full();
 	screen.set_refresh_hz(70.23);

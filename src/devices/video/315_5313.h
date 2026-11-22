@@ -29,13 +29,15 @@ public:
 	typedef device_delegate<void (int scanline)> md_32x_scanline_helper_delegate;
 
 	auto snd_irq() { return m_sndirqline_callback.bind(); }
-	auto lv6_irq() { return m_lv6irqline_callback.bind(); }
-	auto lv4_irq() { return m_lv4irqline_callback.bind(); }
+	auto vint_cb() { return m_lv6irqline_callback.bind(); }
+	auto hint_cb() { return m_lv4irqline_callback.bind(); }
 
 	void set_lcm_scaling(bool lcm_scaling) { m_lcm_scaling = lcm_scaling; }
 	void set_alt_timing(int use_alt_timing) { m_use_alt_timing = use_alt_timing; }
 	void set_pal_write_base(int palwrite_base) { m_palwrite_base = palwrite_base; }
 	template <typename T> void set_ext_palette(T &&tag) { m_ext_palette.set_tag(std::forward<T>(tag)); }
+
+	void reconfigure_video(bool pal);
 
 	// Temporary solution while 32x VDP mixing and scanline interrupting is moved outside MD VDP
 	template <typename... T> void set_md_32x_scanline(T &&... args) { m_32x_scanline_func.set(std::forward<T>(args)...); }
@@ -73,8 +75,22 @@ public:
 	TIMER_CALLBACK_MEMBER(irq4_on_timer_callback);
 	void vdp_handle_eof();
 	void device_reset_old();
-	void vdp_clear_irq6_pending() { m_irq6_pending = 0; }
-	void vdp_clear_irq4_pending() { m_irq4_pending = 0; }
+	void irq_ack()
+	{
+		if (machine().side_effects_disabled())
+			return;
+
+		if (m_irq6_pending && BIT(m_regs[0x01], 5))
+		{
+			m_irq6_pending = 0;
+			m_lv6irqline_callback(false);
+		}
+		else if (m_irq4_pending && BIT(m_regs[0x00], 4))
+		{
+			m_irq4_pending = 0;
+			m_lv4irqline_callback(false);
+		}
+	}
 
 	// set some VDP variables at start (shall be moved to a device interface?)
 	void set_scanline_counter(int scanline) { m_scanline_counter = scanline; }
@@ -103,10 +119,14 @@ public:
 	inline u16 vdp_get_word_from_68k_mem(u32 source);
 
 protected:
+	sega315_5313_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, u32 vram_size, u32 cram_size);
+
 	virtual void device_post_load() override;
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+
+	void vdp_set_register(int regnum, u8 value);
 
 	// called when we hit 240 and 241 (used to control the z80 irq line on genesis, or the main irq on c2)
 	devcb_write_line m_sndirqline_callback;
@@ -116,6 +136,22 @@ protected:
 	md_32x_scanline_delegate m_32x_scanline_func;
 	md_32x_interrupt_delegate m_32x_interrupt_func;
 	md_32x_scanline_helper_delegate m_32x_scanline_helper_func;
+
+	required_device<m68000_base_device> m_cpu68k;
+	address_space *m_space68k;
+	std::unique_ptr<u16[]> m_vram;
+	std::unique_ptr<u8[]> m_regs;
+	std::unique_ptr<u16[]> m_cram;
+	std::unique_ptr<u16[]> m_vsram;
+
+	u8  m_vdp_code;
+	u32 m_vdp_address;
+	bool m_command_pending; // 2nd half of command pending..
+	bool m_vram_fill_pending;
+
+	// config
+	u32 m_vram_size;
+	u32 m_cram_size;
 
 	virtual int screen_hpos() override;
 private:
@@ -145,12 +181,8 @@ private:
 	inline void draw_tile(nametable_t tile, int start, int end, int &dpos, bool is_fg);
 
 	inline u8 get_hres();
-	int m_command_pending; // 2nd half of command pending..
 	u16 m_command_part1;
 	u16 m_command_part2;
-	u8  m_vdp_code;
-	u16 m_vdp_address;
-	u8  m_vram_fill_pending;
 	u16 m_vram_fill_length;
 	int m_irq4counter;
 	int m_imode_odd_frame;
@@ -175,10 +207,6 @@ private:
 	int m_use_cram; // c2 uses it's own palette ram, so it sets this to 0
 	int m_dma_delay;    // SVP and SegaCD have some 'lag' in DMA transfers
 
-	std::unique_ptr<u16[]> m_regs;
-	std::unique_ptr<u16[]> m_vram;
-	std::unique_ptr<u16[]> m_cram;
-	std::unique_ptr<u16[]> m_vsram;
 	/* The VDP keeps a 0x400 byte on-chip cache of the Sprite Attribute Table
 	   to speed up processing, Castlevania Bloodlines abuses this on the upside down level */
 	std::unique_ptr<u16[]> m_internal_sprite_attribute_table;
@@ -204,13 +232,13 @@ private:
 	void vdp_vsram_write(u16 data);
 
 	void vdp_address_inc();
-	void vdp_set_register(int regnum, u8 value);
 
 	void handle_dma_bits();
 
 	u16 get_hposition();
 	u16 megadriv_read_hv_counters();
 
+	virtual u8 ctrl_port_vdp_pal();
 	u16 ctrl_port_r();
 	u16 data_port_r();
 	void data_port_w(int data);
@@ -228,8 +256,6 @@ private:
 	std::unique_ptr<u32[]> m_video_renderline;
 	std::unique_ptr<u16[]> m_palette_lookup;
 
-	address_space *m_space68k;
-	required_device<m68000_base_device> m_cpu68k;
 	optional_device<palette_device> m_ext_palette;
 
 	// debug functions

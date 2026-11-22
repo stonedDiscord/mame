@@ -37,17 +37,22 @@ void i82371sb_isa_device::internal_io_map(address_map &map)
 	map(0x0000, 0x001f).rw("dma8237_1", FUNC(am9517a_device::read), FUNC(am9517a_device::write));
 	map(0x0020, 0x0021).rw("pic8259_master", FUNC(pic8259_device::read), FUNC(pic8259_device::write));
 //  map(0x002e, 0x002f) Super I/O config
-	map(0x0040, 0x005f).rw("pit8254", FUNC(pit8254_device::read), FUNC(pit8254_device::write));
+	map(0x0040, 0x0043).rw("pit8254", FUNC(pit8254_device::read), FUNC(pit8254_device::write));
+//  map(0x004e, 0x004f) Alt Super I/O config, watchdog-ish in thinkpad600e
 	map(0x0061, 0x0061).rw(FUNC(i82371sb_isa_device::at_portb_r), FUNC(i82371sb_isa_device::at_portb_w));
 //  map(0x0070, 0x0070) RTC address, bit 7 NMI enable
 //  map(0x0071, 0x0071) RTC data
 //  map(0x0078, 0x0079) Board Configuration
+	// TODO: should be 0x80, 0x8f
+	// (0x92 canonically for fast init, which this chipset don't use)
 	map(0x0080, 0x009f).rw(FUNC(i82371sb_isa_device::at_page8_r), FUNC(i82371sb_isa_device::at_page8_w));
 	map(0x00a0, 0x00a1).rw("pic8259_slave", FUNC(pic8259_device::read), FUNC(pic8259_device::write));
 	map(0x00b2, 0x00b3).rw(FUNC(i82371sb_isa_device::read_apmcapms), FUNC(i82371sb_isa_device::write_apmcapms));
 	// Up to $de according to TC430HX spec?
 	map(0x00c0, 0x00df).rw(FUNC(i82371sb_isa_device::at_dma8237_2_r), FUNC(i82371sb_isa_device::at_dma8237_2_w));
-	map(0x00e0, 0x00ef).noprw();
+//  map(0x00e0, 0x00ef) MCA bus (cfr. Bochs) or PnP
+	map(0x00ed, 0x00ed).lw8(NAME([] (offs_t offset, u8 data) { }));
+
 //  map(0x00f0, 0x00f0) Reset Numeric Error
 //  map(0x0270, 0x0273) I/O read port for PnP
 	map(0x04d0, 0x04d1).rw(FUNC(i82371sb_isa_device::eisa_irq_read), FUNC(i82371sb_isa_device::eisa_irq_write));
@@ -114,7 +119,7 @@ void i82371sb_isa_device::device_add_mconfig(machine_config &config)
 	SPEAKER(config, "mono").front_center();
 	SPEAKER_SOUND(config, m_speaker).add_route(ALL_OUTPUTS, "mono", 0.50);
 
-	ISA16(config, m_isabus, 0);
+	ISA16(config, m_isabus);
 	m_isabus->irq3_callback().set(FUNC(i82371sb_isa_device::pc_irq3_w));
 	m_isabus->irq4_callback().set(FUNC(i82371sb_isa_device::pc_irq4_w));
 	m_isabus->irq5_callback().set(FUNC(i82371sb_isa_device::pc_irq5_w));
@@ -260,6 +265,7 @@ void i82371sb_isa_device::xbcs_w(offs_t offset, uint16_t data, uint16_t mem_mask
 {
 	COMBINE_DATA(&xbcs);
 	logerror("xbcs = %04x\n", xbcs);
+	// TODO: likely needs a remap_cb
 }
 
 uint8_t i82371sb_isa_device::pirqrc_r(offs_t offset)
@@ -687,17 +693,17 @@ uint8_t i82371sb_isa_device::pc_dma8237_0_dack_r() { return m_isabus->dack_r(0);
 uint8_t i82371sb_isa_device::pc_dma8237_1_dack_r() { return m_isabus->dack_r(1); }
 uint8_t i82371sb_isa_device::pc_dma8237_2_dack_r() { return m_isabus->dack_r(2); }
 uint8_t i82371sb_isa_device::pc_dma8237_3_dack_r() { return m_isabus->dack_r(3); }
-uint8_t i82371sb_isa_device::pc_dma8237_5_dack_r() { return m_isabus->dack_r(5); }
-uint8_t i82371sb_isa_device::pc_dma8237_6_dack_r() { return m_isabus->dack_r(6); }
-uint8_t i82371sb_isa_device::pc_dma8237_7_dack_r() { return m_isabus->dack_r(7); }
+uint8_t i82371sb_isa_device::pc_dma8237_5_dack_r() { uint16_t ret = m_isabus->dack16_r(5); m_dma_high_byte = ret & 0xff00; return ret; }
+uint8_t i82371sb_isa_device::pc_dma8237_6_dack_r() { uint16_t ret = m_isabus->dack16_r(6); m_dma_high_byte = ret & 0xff00; return ret; }
+uint8_t i82371sb_isa_device::pc_dma8237_7_dack_r() { uint16_t ret = m_isabus->dack16_r(7); m_dma_high_byte = ret & 0xff00; return ret; }
 
 void i82371sb_isa_device::pc_dma8237_0_dack_w(uint8_t data) { m_isabus->dack_w(0, data); }
 void i82371sb_isa_device::pc_dma8237_1_dack_w(uint8_t data) { m_isabus->dack_w(1, data); }
 void i82371sb_isa_device::pc_dma8237_2_dack_w(uint8_t data) { m_isabus->dack_w(2, data); }
 void i82371sb_isa_device::pc_dma8237_3_dack_w(uint8_t data) { m_isabus->dack_w(3, data); }
-void i82371sb_isa_device::pc_dma8237_5_dack_w(uint8_t data) { m_isabus->dack_w(5, data); }
-void i82371sb_isa_device::pc_dma8237_6_dack_w(uint8_t data) { m_isabus->dack_w(6, data); }
-void i82371sb_isa_device::pc_dma8237_7_dack_w(uint8_t data) { m_isabus->dack_w(7, data); }
+void i82371sb_isa_device::pc_dma8237_5_dack_w(uint8_t data) { m_isabus->dack16_w(5, m_dma_high_byte | data); }
+void i82371sb_isa_device::pc_dma8237_6_dack_w(uint8_t data) { m_isabus->dack16_w(6, m_dma_high_byte | data); }
+void i82371sb_isa_device::pc_dma8237_7_dack_w(uint8_t data) { m_isabus->dack16_w(7, m_dma_high_byte | data); }
 
 void i82371sb_isa_device::at_dma8237_out_eop(int state)
 {
@@ -972,7 +978,7 @@ int i82371sb_isa_device::pin_mapper(int pin)
 
 void i82371sb_isa_device::irq_handler(int line, int state)
 {
-	if(line < 0 && line >= 16)
+	if(line < 0 || line >= 16)
 		return;
 
 	logerror("irq_handler %d %d\n", line, state);

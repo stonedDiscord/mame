@@ -108,6 +108,14 @@
 #include "nec.h"
 #include "necdasm.h"
 
+#include <algorithm>
+#include <iterator>
+
+#define LOG_BUSLOCK (1 << 1)
+//#define VERBOSE (...)
+
+#include "logmacro.h"
+
 typedef uint8_t BOOLEAN;
 typedef uint8_t BYTE;
 typedef uint16_t WORD;
@@ -121,26 +129,28 @@ DEFINE_DEVICE_TYPE(V33,  v33_device,  "v33",  "NEC V33")
 DEFINE_DEVICE_TYPE(V33A, v33a_device, "v33a", "NEC V33A")
 
 
-nec_common_device::nec_common_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, bool is_16bit, uint8_t prefetch_size, uint8_t prefetch_cycles, uint32_t chip_type, address_map_constructor internal_port_map)
+nec_common_device::nec_common_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, bool is_16bit, uint8_t prefetch_size, uint8_t prefetch_cycles, uint32_t chip_type, bool has_div_quirk, bool has_v30_quirks, address_map_constructor internal_port_map)
 	: cpu_device(mconfig, type, tag, owner, clock)
 	, m_program_config("program", ENDIANNESS_LITTLE, is_16bit ? 16 : 8, chip_type == V33_TYPE ? 24 : 20, 0, 20, chip_type == V33_TYPE ? 14 : 0)
 	, m_io_config("io", ENDIANNESS_LITTLE, is_16bit ? 16 : 8, 16, 0, internal_port_map)
 	, m_prefetch_size(prefetch_size)
 	, m_prefetch_cycles(prefetch_cycles)
 	, m_chip_type(chip_type)
+	, m_has_v30_quirks(has_v30_quirks)
+	, m_has_div_quirk(has_div_quirk)
 	, m_v33_transtable(*this, "v33_transtable")
 {
 }
 
 
 v20_device::v20_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: nec_common_device(mconfig, V20, tag, owner, clock, false, 4, 4, V20_TYPE)
+	: nec_common_device(mconfig, V20, tag, owner, clock, false, 4, 4, V20_TYPE, true, false)
 {
 }
 
 
 v30_device::v30_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: nec_common_device(mconfig, V30, tag, owner, clock, true, 6, 2, V30_TYPE)
+	: nec_common_device(mconfig, V30, tag, owner, clock, true, 6, 2, V30_TYPE, true, true)
 {
 }
 
@@ -157,7 +167,7 @@ device_memory_interface::space_config_vector nec_common_device::memory_space_con
  * complete guess below, nbbatman will not work
  * properly without. */
 v33_base_device::v33_base_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, address_map_constructor internal_port_map)
-	: nec_common_device(mconfig, type, tag, owner, clock, true, 6, 1, V33_TYPE, internal_port_map)
+	: nec_common_device(mconfig, type, tag, owner, clock, true, 6, 1, V33_TYPE, false, false, internal_port_map)
 {
 }
 
@@ -217,21 +227,19 @@ void nec_common_device::prefetch()
 	m_prefetch_count--;
 }
 
-void nec_common_device::do_prefetch(int previous_ICount)
+void nec_common_device::do_prefetch()
 {
-	int diff = previous_ICount - (int) m_icount;
-
 	/* The implementation is not accurate, but comes close.
 	 * It does not respect that the V30 will fetch two bytes
 	 * at once directly, but instead uses only 2 cycles instead
 	 * of 4. There are however only very few sources publicly
 	 * available and they are vague.
 	 */
-	while (m_prefetch_count<0)
+	while (m_prefetch_count < 0)
 	{
 		m_prefetch_count++;
-		if (diff>m_prefetch_cycles)
-			diff -= m_prefetch_cycles;
+		if (m_cur_cycles > m_prefetch_cycles)
+			m_cur_cycles -= m_prefetch_cycles;
 		else
 			m_icount -= m_prefetch_cycles;
 	}
@@ -243,18 +251,17 @@ void nec_common_device::do_prefetch(int previous_ICount)
 		return;
 	}
 
-	while (diff>=m_prefetch_cycles && m_prefetch_count < m_prefetch_size)
+	while (m_cur_cycles >= m_prefetch_cycles && m_prefetch_count < m_prefetch_size)
 	{
-		diff -= m_prefetch_cycles;
+		m_cur_cycles -= m_prefetch_cycles;
 		m_prefetch_count++;
 	}
-
 }
 
 uint8_t nec_common_device::fetch()
 {
 	prefetch();
-	return m_dr8((Sreg(PS)<<4)+m_ip++);
+	return m_dr8((Sreg(PS)<<4) + m_ip++);
 }
 
 uint16_t nec_common_device::fetchword()
@@ -274,7 +281,7 @@ static uint8_t parity_table[256];
 uint8_t nec_common_device::fetchop()
 {
 	prefetch();
-	return m_dr8((Sreg(PS)<<4)+m_ip++);
+	return m_dr8((Sreg(PS)<<4) + m_ip++);
 }
 
 
@@ -283,10 +290,13 @@ uint8_t nec_common_device::fetchop()
 
 void nec_common_device::device_reset()
 {
-	memset( &m_regs.w, 0, sizeof(m_regs.w));
+	// the V30 leaves its general registers undefined on reset; unverified on the other variants
+	if (!has_v30_quirks())
+		std::fill(std::begin(m_regs.w), std::end(m_regs.w), 0);
 
 	m_ip = 0;
 	m_prev_ip = 0;
+	m_rep_ip = 0;
 	m_TF = 0;
 	m_IF = 0;
 	m_DF = 0;
@@ -303,6 +313,10 @@ void nec_common_device::device_reset()
 	m_irq_state = 0;
 	m_poll_state = 1;
 	m_halted = 0;
+	m_rep_params = 0;
+	m_io_retry = false;
+	m_io_word_pending = false;
+	m_io_word_latch = 0;
 
 	if (m_chip_type == V33_TYPE)
 		m_xa = false;
@@ -320,6 +334,7 @@ void nec_common_device::nec_interrupt(unsigned int_num, int/*INTSOURCES*/ source
 {
 	uint32_t dest_seg, dest_off;
 
+	m_rep_params = 0;
 	i_pushf();
 	m_TF = m_IF = 0;
 	m_MF = 1;
@@ -457,6 +472,7 @@ void nec_common_device::device_start()
 	}
 
 	m_no_interrupt = 0;
+	m_cur_cycles = 0;
 	m_prefetch_count = 0;
 	m_prefetch_reset = 0;
 	m_prefix_base = 0;
@@ -467,6 +483,10 @@ void nec_common_device::device_start()
 	m_debugger_temp = 0;
 	m_ip = 0;
 	m_prev_ip = 0;
+	m_rep_ip = 0;
+	m_io_retry = false;
+	m_io_word_pending = false;
+	m_io_word_latch = 0;
 
 	memset(m_regs.w, 0x00, sizeof(m_regs.w));
 	memset(m_sregs, 0x00, sizeof(m_sregs));
@@ -476,6 +496,7 @@ void nec_common_device::device_start()
 
 	save_item(NAME(m_ip));
 	save_item(NAME(m_prev_ip));
+	save_item(NAME(m_rep_ip));
 	save_item(NAME(m_TF));
 	save_item(NAME(m_IF));
 	save_item(NAME(m_DF));
@@ -492,6 +513,11 @@ void nec_common_device::device_start()
 	save_item(NAME(m_poll_state));
 	save_item(NAME(m_no_interrupt));
 	save_item(NAME(m_halted));
+	save_item(NAME(m_rep_params));
+	save_item(NAME(m_prefix_base));
+	save_item(NAME(m_io_retry));
+	save_item(NAME(m_io_word_pending));
+	save_item(NAME(m_io_word_latch));
 	save_item(NAME(m_prefetch_count));
 	save_item(NAME(m_prefetch_reset));
 
@@ -542,7 +568,7 @@ void nec_common_device::device_start()
 	if (m_chip_type == V33_TYPE)
 		state_add(NEC_XA, "XA", m_xa);
 
-	state_add( STATE_GENPC, "GENPC", m_debugger_temp).callexport().noshow();
+	state_add( STATE_GENPC, "GENPC", m_debugger_temp).callimport().callexport().noshow();
 	state_add( STATE_GENPCBASE, "CURPC", m_debugger_temp).callexport().noshow();
 	state_add( STATE_GENFLAGS, "GENFLAGS", m_debugger_temp).formatstr("%16s").noshow();
 
@@ -592,6 +618,7 @@ void nec_common_device::state_import(const device_state_entry &entry)
 				m_ip = m_debugger_temp & 0x0000f;
 			}
 			m_prev_ip = m_ip;
+			CHANGE_PC;
 			break;
 
 		case NEC_PSW:
@@ -620,22 +647,60 @@ void nec_common_device::state_export(const device_state_entry &entry)
 }
 
 
-void nec_common_device::execute_run()
+u16 nec_common_device::io_read_word(offs_t a)
 {
-	int prev_ICount;
+	if (!(a & 1) && m_io->data_width() == 16)
+		return m_io->read_word(a);
 
-	if (m_halted)
+	// an odd word (or an 8-bit bus) takes two cycles; keep the first byte if the second is retried
+	if (!m_io_word_pending)
 	{
-		m_icount = 0;
-		debugger_instruction_hook((Sreg(PS)<<4) + m_ip);
+		m_io_word_latch = io_read_byte(a);
+		if (access_to_be_redone_noclear())
+			return 0;
+		m_io_word_pending = true;
+	}
+	const u16 result = m_io_word_latch | (io_read_byte((a + 1) & 0xffff) << 8);
+	if (!access_to_be_redone_noclear())
+		m_io_word_pending = false;
+	return result;
+}
+
+void nec_common_device::io_write_word(offs_t a, u16 v)
+{
+	if (!(a & 1) && m_io->data_width() == 16)
+	{
+		m_io->write_word(a, v);
 		return;
 	}
 
-	while(m_icount>0) {
+	if (!m_io_word_pending)
+	{
+		io_write_byte(a, v);
+		if (access_to_be_redone_noclear())
+			return;
+		m_io_word_pending = true;
+	}
+	io_write_byte((a + 1) & 0xffff, v >> 8);
+	if (!access_to_be_redone_noclear())
+		m_io_word_pending = false;
+}
+
+void nec_common_device::execute_run()
+{
+	if (m_halted)
+	{
+		debugger_wait_hook();
+		m_icount = 0;
+		return;
+	}
+
+	while(m_icount>0)
+	{
 		m_prev_ip = m_ip;
 
-		/* Dispatch IRQ */
-		if (m_pending_irq && m_no_interrupt==0)
+		// Dispatch IRQ
+		if (!m_io_retry && m_pending_irq && m_no_interrupt==0)
 		{
 			if (m_pending_irq & NMI_IRQ)
 				external_int();
@@ -643,16 +708,33 @@ void nec_common_device::execute_run()
 				external_int();
 		}
 
-		/* No interrupt allowed between last instruction and this one */
-		if (m_no_interrupt)
+		// No interrupt allowed between last instruction and this one
+		if (!m_io_retry && m_no_interrupt)
 			m_no_interrupt--;
 
 		debugger_instruction_hook((Sreg(PS)<<4) + m_ip);
-		prev_ICount = m_icount;
-		if (m_MF)
-			(this->*s_nec_instruction[fetchop()])();
+		m_cur_cycles = 0;
+
+		if (m_rep_params)
+			cont_rep();
 		else
-			(this->*s_nec80_instruction[fetchop()])();
-		do_prefetch(prev_ICount);
+		{
+			if (m_MF)
+				(this->*s_nec_instruction[fetchop()])();
+			else
+				(this->*s_nec80_instruction[fetchop()])();
+		}
+		// only I/O accesses may be retried; other instructions would repeat their side effects
+		m_io_retry = access_to_be_redone();
+		if (m_io_retry)
+		{
+			m_ip = m_prev_ip;
+			m_icount -= 4; // the attempted bus cycle
+			m_prefetch_reset = 1;
+		}
+		else
+		{
+			do_prefetch();
+		}
 	}
 }

@@ -1,5 +1,5 @@
 // license:BSD-3-Clause
-// copyright-holders:Olivier Galibert
+// copyright-holders:Olivier Galibert, R. Belmont
 #pragma once
 
 #ifndef MAME_NEXT_NEXT_H
@@ -10,7 +10,7 @@
 #include "imagedev/floppy.h"
 #include "machine/nscsi_bus.h"
 #include "machine/mccs1850.h"
-#include "machine/8530scc.h"
+#include "machine/z80scc.h"
 #include "nextkbd.h"
 #include "machine/upd765.h"
 #include "machine/ncr53c90.h"
@@ -29,7 +29,7 @@ public:
 			scc(*this, "scc"),
 			keyboard(*this, "keyboard"),
 			scsibus(*this, "scsibus"),
-			scsi(*this, "scsibus:7:ncr53c90"),
+			scsi(*this, "ncr53c90"),
 			net(*this, "net"),
 			mo(*this, "mo"),
 			fdc(*this, "fdc"),
@@ -44,9 +44,7 @@ public:
 	void next_mo_fdc_base(machine_config &config);
 	void nextst(machine_config &config);
 	void nextsc(machine_config &config);
-	void nextct(machine_config &config);
 	void nexts2(machine_config &config);
-	void nextctc(machine_config &config);
 	void next(machine_config &config);
 	void nextc(machine_config &config);
 	void nextstc(machine_config &config);
@@ -64,8 +62,8 @@ public:
 
 private:
 	required_device<cpu_device> maincpu;
-	required_device<mccs1850_device> rtc;
-	required_device<scc8530_legacy_device> scc;
+	required_device<motorola_serial_rtc_device_base> rtc;
+	required_device<scc8530_device> scc;
 	required_device<nextkbd_device> keyboard;
 	required_device<nscsi_bus_device> scsibus;
 	required_device<ncr53c90_device> scsi;
@@ -74,8 +72,10 @@ private:
 	optional_device<n82077aa_device> fdc; // 040 only
 	optional_device<floppy_connector> floppy0; // 040 only
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+
+	void next_turbo_config(machine_config &config) ATTR_COLD;
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
@@ -108,11 +108,14 @@ private:
 
 	uint32_t scr1 = 0;
 	uint32_t scr2 = 0;
+	uint32_t tmc_scr1 = 0;
+	uint8_t tmc_video = 0;
 	uint32_t irq_status = 0;
 	uint32_t irq_mask = 0;
 	int irq_level = 0;
 	required_shared_ptr<uint32_t> vram;
 	uint8_t scsictrl = 0, scsistat = 0;
+	bool scsi_irq_state = false;
 
 	uint32_t phy[2]{};
 
@@ -146,18 +149,16 @@ private:
 
 	void vblank_w(int state);
 
-	void ncr53c90(device_t *device);
-	void next_0b_m_mem(address_map &map);
-	void next_0b_m_mo_mem(address_map &map);
-	void next_0b_m_nofdc_mem(address_map &map);
-	void next_0c_c_mem(address_map &map);
-	void next_0c_m_mem(address_map &map);
-	void next_0c_c_mo_mem(address_map &map);
-	void next_0c_m_mo_mem(address_map &map);
-	void next_2c_c_mem(address_map &map);
-	void next_fdc_mem(address_map &map);
-	void next_mo_mem(address_map &map);
-	void next_mem(address_map &map);
+	void next_0b_m_mem(address_map &map) ATTR_COLD;
+	void next_0b_m_mo_mem(address_map &map) ATTR_COLD;
+	void next_0b_m_nofdc_mem(address_map &map) ATTR_COLD;
+	void next_0c_c_mem(address_map &map) ATTR_COLD;
+	void next_0c_m_mem(address_map &map) ATTR_COLD;
+	void next_2c_c_mem(address_map &map) ATTR_COLD;
+	void next_fdc_mem(address_map &map) ATTR_COLD;
+	void next_mo_mem(address_map &map) ATTR_COLD;
+	void next_mem(address_map &map) ATTR_COLD;
+	void next_turbo_mem(address_map &map) ATTR_COLD;
 
 	struct dma_slot {
 		uint32_t start = 0;
@@ -215,6 +216,8 @@ private:
 	void dma_read(int slot, uint8_t &val, bool &eof, bool &err);
 	void dma_write(int slot, uint8_t val, bool eof, bool &err);
 	void dma_check_update(int slot);
+	uint32_t dma_limit(int slot) const;
+	uint32_t dma_tx_padding(int slot) const;
 	void dma_check_end(int slot, bool eof);
 	void dma_end(int slot);
 };

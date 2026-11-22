@@ -82,8 +82,8 @@ public:
 	void executive10(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<i8088_cpu_device> m_maincpu;
@@ -98,8 +98,8 @@ private:
 	required_shared_ptr<uint8_t> m_aram;
 	required_region_ptr<uint8_t> m_chargen;
 
-	void mem_map(address_map &map);
-	void io_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
+	void io_map(address_map &map) ATTR_COLD;
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 };
@@ -291,7 +291,7 @@ void executive10_state::executive10(machine_config &config)
 	PIC8259(config, m_pic);
 	m_pic->out_int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_color(rgb_t::green());
 	m_screen->set_raw(16.960_MHz_XTAL, 890, 0, 720, 320, 0, 300); // maybe
 	m_screen->set_screen_update(FUNC(executive10_state::screen_update));

@@ -79,7 +79,7 @@ Known official Novag Super System (or compatible) peripherals:
 #include "sound/dac.h"
 #include "video/pwm.h"
 
-#include "screen.h"
+#include "screen_svg.h"
 #include "speaker.h"
 
 // internal artwork
@@ -106,11 +106,11 @@ public:
 	void svip(machine_config &config);
 
 	DECLARE_INPUT_CHANGED_MEMBER(power_off) { if (newval) m_power = false; }
-	DECLARE_CUSTOM_INPUT_MEMBER(power_r) { return m_power ? 1 : 0; }
+	ioport_value power_r() { return m_power ? 1 : 0; }
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override { m_power = true; }
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD { m_power = true; }
 
 private:
 	// devices/pointers
@@ -126,8 +126,8 @@ private:
 	u8 m_inp_mux = 0;
 	u8 m_select = 0;
 
-	void vip_map(address_map &map);
-	void svip_map(address_map &map);
+	void vip_map(address_map &map) ATTR_COLD;
+	void svip_map(address_map &map) ATTR_COLD;
 
 	// I/O handlers
 	void lcd_pwm_w(offs_t offset, u8 data);
@@ -139,8 +139,6 @@ private:
 
 void vip_state::machine_start()
 {
-	m_out_lcd.resolve();
-
 	// register for savestates
 	save_item(NAME(m_power));
 	save_item(NAME(m_lcd_strobe));
@@ -268,10 +266,10 @@ static INPUT_PORTS_START( vip )
 	PORT_CONFNAME( 0x01, 0x00, "Keyboard Lock")
 	PORT_CONFSETTING(    0x00, DEF_STR( Off ) )
 	PORT_CONFSETTING(    0x01, DEF_STR( On ) )
-	PORT_BIT(0x08, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(vip_state, power_r)
+	PORT_BIT(0x08, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(FUNC(vip_state::power_r))
 
 	PORT_START("POWER") // needs to be triggered for nvram to work
-	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_OTHER) PORT_CODE(KEYCODE_F1) PORT_CHANGED_MEMBER(DEVICE_SELF, vip_state, power_off, 0) PORT_NAME("Power Off")
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_POWER_OFF) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(vip_state::power_off), 0)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( svip )
@@ -294,7 +292,7 @@ static INPUT_PORTS_START( svip )
 	PORT_BIT(0x80, IP_ACTIVE_HIGH, IPT_KEYPAD) PORT_CODE(KEYCODE_U) PORT_NAME("King / Referee / Board")
 
 	PORT_MODIFY("IN.3")
-	PORT_BIT(0x04, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(vip_state, power_r)
+	PORT_BIT(0x04, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(FUNC(vip_state::power_r))
 	PORT_BIT(0x08, IP_ACTIVE_HIGH, IPT_UNUSED)
 INPUT_PORTS_END
 
@@ -323,10 +321,9 @@ void vip_state::vip(machine_config &config)
 	PWM_DISPLAY(config, m_lcd_pwm).set_size(4, 10);
 	m_lcd_pwm->output_x().set(FUNC(vip_state::lcd_pwm_w));
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_SVG));
+	screen_svg_device &screen(SCREEN_SVG(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_size(1920/3, 606/3);
-	screen.set_visarea_full();
 
 	config.set_default_layout(layout_novag_vip);
 
@@ -421,9 +418,9 @@ ROM_END
 *******************************************************************************/
 
 //    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT  CLASS      INIT        COMPANY, FULLNAME, FLAGS
-SYST( 1987, nvip,   0,      0,      vip,     vip,   vip_state, empty_init, "Novag Industries", "VIP (Novag)", MACHINE_SUPPORTS_SAVE )
+SYST( 1987, nvip,   0,      0,      vip,     vip,   vip_state, empty_init, "Novag Industries / Intelligent Heuristic Programming", "VIP (Novag)", MACHINE_SUPPORTS_SAVE )
 
-SYST( 1989, nsvip,  0,      0,      svip,    svip,  vip_state, empty_init, "Novag Industries", "Super VIP (v3.7)", MACHINE_SUPPORTS_SAVE )
-SYST( 1989, nsvipa, nsvip,  0,      svip,    svip,  vip_state, empty_init, "Novag Industries", "Super VIP (v3.6)", MACHINE_SUPPORTS_SAVE )
-SYST( 1989, nsvipb, nsvip,  0,      svip,    svip,  vip_state, empty_init, "Novag Industries", "Super VIP (v1.03)", MACHINE_SUPPORTS_SAVE )
-SYST( 1989, nsvipc, nsvip,  0,      svip,    svip,  vip_state, empty_init, "Novag Industries", "Super VIP (v1.01)", MACHINE_SUPPORTS_SAVE )
+SYST( 1989, nsvip,  0,      0,      svip,    svip,  vip_state, empty_init, "Novag Industries / Intelligent Heuristic Programming", "Super VIP (v3.7)", MACHINE_SUPPORTS_SAVE )
+SYST( 1989, nsvipa, nsvip,  0,      svip,    svip,  vip_state, empty_init, "Novag Industries / Intelligent Heuristic Programming", "Super VIP (v3.6)", MACHINE_SUPPORTS_SAVE )
+SYST( 1989, nsvipb, nsvip,  0,      svip,    svip,  vip_state, empty_init, "Novag Industries / Intelligent Heuristic Programming", "Super VIP (v1.03)", MACHINE_SUPPORTS_SAVE )
+SYST( 1989, nsvipc, nsvip,  0,      svip,    svip,  vip_state, empty_init, "Novag Industries / Intelligent Heuristic Programming", "Super VIP (v1.01)", MACHINE_SUPPORTS_SAVE )

@@ -77,8 +77,8 @@ public:
 	void visual50(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<z80_device> m_maincpu;
@@ -91,9 +91,9 @@ private:
 	required_shared_ptr<uint8_t> m_vram;
 	required_region_ptr<uint8_t> m_chargen;
 
-	void mem_map(address_map &map);
-	void io_map(address_map &map);
-	void char_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
+	void io_map(address_map &map) ATTR_COLD;
+	void char_map(address_map &map) ATTR_COLD;
 
 	SCN2672_DRAW_CHARACTER_MEMBER(draw_character);
 
@@ -286,7 +286,7 @@ void visual50_state::visual50(machine_config &config)
 
 	X2210(config, m_novram);
 
-	PIT8253(config, m_pit, 0);
+	PIT8253(config, m_pit);
 	m_pit->set_clk<0>(17.320_MHz_XTAL / 8);
 	m_pit->set_clk<1>(17.320_MHz_XTAL / 8);
 	m_pit->set_clk<2>(17.320_MHz_XTAL / 8);
@@ -300,7 +300,7 @@ void visual50_state::visual50(machine_config &config)
 	ppi.out_pb_callback().set(FUNC(visual50_state::ppi_portb_w));
 	ppi.out_pc_callback().set(FUNC(visual50_state::ppi_portc_w));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(17.320_MHz_XTAL, 900, 0, 720, 321, 0, 300);
 	m_screen->set_screen_update(m_pvtc, FUNC(scn2672_device::screen_update));
 

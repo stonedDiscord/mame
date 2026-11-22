@@ -44,7 +44,7 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// device_rtc_interface overrides
 	virtual void rtc_clock_updated(int year, int month, int day, int day_of_week, int hour, int minute, int second) override;
@@ -66,6 +66,7 @@ private:
 	int m_state;
 	int m_bits_left;
 	bool m_dio;
+	bool m_dout;
 	bool m_reset;
 
 	offs_t get_address() { return (m_reg_latch >> 1) & 0x07; }

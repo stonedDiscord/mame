@@ -28,10 +28,10 @@ public:
 
 protected:
 	// device_t implementation
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual const tiny_rom_entry *device_rom_region() const override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
 
 private:
 	void char_w(u8 data) { m_avdc->buffer_w(data); }
@@ -43,15 +43,15 @@ private:
 	void vram_w(offs_t offset, u8 data);
 	u8 vram_r(offs_t offset);
 	void msl_w(u8 data);
-	void gdc_map(address_map &map);
+	void gdc_map(address_map &map) ATTR_COLD;
 	void int_w(int state) { m_bus->int_w(state); }
 	void nmi_w(int state) { m_bus->nmi_w(state); }
 
 	SCN2674_DRAW_CHARACTER_MEMBER(draw_character);
 	TIMER_DEVICE_CALLBACK_MEMBER(scanline) { m_gdc->update_scanline(param); }
 
-	void char_map(address_map &map);
-	void attr_map(address_map &map);
+	void char_map(address_map &map) ATTR_COLD;
+	void attr_map(address_map &map) ATTR_COLD;
 
 	required_device<ef9365_device> m_gdc;
 	memory_share_creator<u8> m_vram;
@@ -194,7 +194,7 @@ SCN2674_DRAW_CHARACTER_MEMBER( idpartner_gdp_device::draw_character )
 
 void idpartner_gdp_device::device_add_mconfig(machine_config &config)
 {
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen_device &screen(SCREEN(config, "screen").set_color(rgb_t::green()));
 	screen.set_screen_update(m_gdc, FUNC(ef9365_device::screen_update));
 	screen.set_size(1024, 512);
 	screen.set_visarea(0, 1024-1, 0, 512-1);
@@ -202,7 +202,7 @@ void idpartner_gdp_device::device_add_mconfig(machine_config &config)
 	PALETTE(config, "palette", palette_device::MONOCHROME_INVERTED);
 
 
-	screen_device &screen2(SCREEN(config, "screen2", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen_device &screen2(SCREEN(config, "screen2").set_color(rgb_t::green()));
 	screen2.set_screen_update(m_avdc, FUNC(scn2674_device::screen_update));
 	screen2.set_size(1024, 512);
 	screen2.set_visarea(0, 1024-1, 0, 512-1);

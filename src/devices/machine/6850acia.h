@@ -41,8 +41,8 @@ protected:
 	acia6850_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	virtual void update_irq();
 	int calculate_txirq();
@@ -122,6 +122,7 @@ private:
 	int m_rxc;
 	int m_rxd;
 	int m_rx_state;
+	bool m_rx_wait_mark;   // after a stop bit sampled low, wait for the line to go high
 	int m_rx_bits;
 	int m_rx_shift;
 	int m_rx_parity;

@@ -60,7 +60,7 @@ void mac_video_sonora_device::device_reset()
 
 void mac_video_sonora_device::device_add_mconfig(machine_config &config)
 {
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	// dot clock, htotal, hstart, hend, vtotal, vstart, vend
 	m_screen->set_raw(31334400, 896, 0, 640, 525, 0, 480);
 	m_screen->set_screen_update(FUNC(mac_video_sonora_device::screen_update));
@@ -203,6 +203,32 @@ uint32_t mac_video_sonora_device::screen_update(screen_device &screen, bitmap_rg
 			}
 			break;
 
+		case 1: // 2bpp
+			for (uint32_t y = 0; y != vres; y++)
+			{
+				uint32_t *scanline = &bitmap.pix(y);
+				for (uint32_t x = 0; x != hres; x += 32)
+				{
+					uint64_t pixels = *vram++;
+					for (int32_t bit = 62; bit >= 0; bit -= 2)
+						*scanline ++ = pens[(((pixels >> bit) & 0x3) << 6) | 0x3f];
+				}
+			}
+			break;
+
+		case 2: // 4bpp
+			for (uint32_t y = 0; y != vres; y++)
+			{
+				uint32_t *scanline = &bitmap.pix(y);
+				for (uint32_t x = 0; x != hres; x += 16)
+				{
+					uint64_t pixels = *vram++;
+					for (int32_t bit = 60; bit >= 0; bit -= 4)
+						*scanline ++ = pens[(((pixels >> bit) & 0x0f) << 4) | 0x0f];
+				}
+			}
+			break;
+
 		case 3: // 8bpp
 			for(uint32_t y = 0; y != vres; y++) {
 				uint32_t *scanline = &bitmap.pix(y);
@@ -210,6 +236,21 @@ uint32_t mac_video_sonora_device::screen_update(screen_device &screen, bitmap_rg
 					uint64_t pixels = *vram ++;
 					for(int32_t bit = 56; bit >= 0; bit -= 8)
 						*scanline ++ = pens[((pixels >> bit) & 0xff)];
+				}
+			}
+			break;
+
+		case 4: // 16bpp
+			for (uint32_t y = 0; y != vres; y++)
+			{
+				uint32_t *scanline = &bitmap.pix(y);
+				for (uint32_t x = 0; x != hres; x += 4)
+				{
+					const uint64_t pixels = *vram++;
+					*scanline++ = rgb_t(((pixels >> 58) & 0x1f) << 3, ((pixels >> 53) & 0x1f) << 3, ((pixels >> 48) & 0x1f) << 3);
+					*scanline++ = rgb_t(((pixels >> 42) & 0x1f) << 3, ((pixels >> 37) & 0x1f) << 3, ((pixels >> 32) & 0x1f) << 3);
+					*scanline++ = rgb_t(((pixels >> 26) & 0x1f) << 3, ((pixels >> 21) & 0x1f) << 3, ((pixels >> 16) & 0x1f) << 3);
+					*scanline++ = rgb_t(((pixels >> 10) & 0x1f) << 3, ((pixels >> 5) & 0x1f) << 3, (pixels & 0x1f) << 3);
 				}
 			}
 			break;
@@ -279,9 +320,9 @@ void mac_video_sonora_device::vctrl_w(offs_t offset, uint8_t data)
 			const modeline &m = modelines[m_modeline_id];
 			rectangle visarea(0, m.htot - m.hfp - m.hs - m.hbp - 1, 0, m.vtot - m.vfp - m.vs - m.vbp - 1);
 			if (m_isPDM) {
-				m_screen->configure(m.htot, m.vtot, visarea, attotime::from_ticks(m.htot*m.vtot, m.dotclock).as_attoseconds());
+				m_screen->configure(m.htot, m.vtot, visarea, attotime::from_ticks(m.htot*m.vtot, m.dotclock));
 			} else {
-				m_screen->configure(m.htot, m.vtot, visarea, attotime::from_ticks(m.htot * m.vtot, m_extPixelClock).as_attoseconds());
+				m_screen->configure(m.htot, m.vtot, visarea, attotime::from_ticks(m.htot * m.vtot, m_extPixelClock));
 			}
 		}
 		break;

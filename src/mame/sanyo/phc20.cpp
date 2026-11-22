@@ -41,7 +41,7 @@ private:
 	required_shared_ptr<uint8_t> m_vram;
 	required_device<cassette_image_device> m_cassette;
 
-	void mem_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
 
 	uint8_t system_r();
 	void system_w(uint8_t data);
@@ -174,7 +174,7 @@ uint8_t phc20_state::system_r()
 
 	uint8_t data = 0x00;
 
-	data |= (m_cassette->input() < +0.3) << 0;
+	data |= (m_cassette->input() > +0.3) << 0;
 	data |= m_vdg->fs_r() << 1;
 
 	return data;
@@ -209,9 +209,11 @@ void phc20_state::phc20(machine_config &config)
 	Z80(config, m_maincpu, 3.579545_MHz_XTAL);
 	m_maincpu->set_addrmap(AS_PROGRAM, &phc20_state::mem_map);
 
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	screen_device &screen(SCREEN(config, "screen"));
+	screen.set_raw(XTAL(3'579'545) * 2, 456, 0, 372, 262, 0, 243);
+	screen.set_screen_update(m_vdg, FUNC(m5c6847p1_device::screen_update));
 
-	MC6847_PAL(config, m_vdg, 3.579545_MHz_XTAL);
+	M5C6847P1(config, m_vdg, 3.579545_MHz_XTAL);
 	m_vdg->set_screen("screen");
 	m_vdg->input_callback().set(FUNC(phc20_state::video_ram_r));
 	m_vdg->set_black_and_white(true);

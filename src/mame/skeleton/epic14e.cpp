@@ -44,7 +44,7 @@ public:
 	void epic14e(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	SCN2672_DRAW_CHARACTER_MEMBER(draw_character);
@@ -57,9 +57,9 @@ private:
 	u8 vram_r(offs_t offset);
 	void vram_w(offs_t offset, u8 data);
 
-	void cpu_map(address_map &map);
-	void char_map(address_map &map);
-	void attr_map(address_map &map);
+	void cpu_map(address_map &map) ATTR_COLD;
+	void char_map(address_map &map) ATTR_COLD;
+	void attr_map(address_map &map) ATTR_COLD;
 
 	required_device<m6502_device> m_maincpu;
 	required_device<via6522_device> m_via;
@@ -274,7 +274,7 @@ void epic14e_state::epic14e(machine_config &config)
 
 	I8748(config, "keybmcu", 4608000).set_disable();
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_color(rgb_t::green());
 	screen.set_raw(17.01_MHz_XTAL, 900, 0, 720, 315, 0, 300);
 	screen.set_screen_update("pvtc", FUNC(scn2672_device::screen_update));

@@ -2,7 +2,7 @@
 // copyright-holders:Curt Coder
 /**********************************************************************
 
-    RCA COSMAC CPU emulation
+	RCA "COSMAC" CDP1800 series CPU emulation
 
 **********************************************************************
                             _____   _____
@@ -158,6 +158,9 @@ public:
 
 	auto wait_cb() { return m_read_wait.bind(); }
 	auto clear_cb() { return m_read_clear.bind(); }
+	auto int_cb() { return m_read_int.bind(); }
+	auto dma_in_cb() { return m_read_dma_in.bind(); }
+	auto dma_out_cb() { return m_read_dma_out.bind(); }
 	auto ef1_cb() { return m_read_ef[0].bind(); }
 	auto ef2_cb() { return m_read_ef[1].bind(); }
 	auto ef3_cb() { return m_read_ef[2].bind(); }
@@ -166,6 +169,7 @@ public:
 	auto dma_rd_cb() { return m_read_dma.bind(); }
 	auto dma_wr_cb() { return m_write_dma.bind(); }
 	auto sc_cb() { return m_write_sc.bind(); }
+	auto tpa_cb() { return m_write_tpa.bind(); }
 	auto tpb_cb() { return m_write_tpb.bind(); }
 
 	// public interfaces
@@ -183,16 +187,15 @@ public:
 
 protected:
 	// construction/destruction
-	cosmac_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+	cosmac_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, address_map_constructor internal_map = address_map_constructor());
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// device_execute_interface overrides
 	virtual uint32_t execute_min_cycles() const noexcept override;
 	virtual uint32_t execute_max_cycles() const noexcept override;
-	virtual uint32_t execute_input_lines() const noexcept override;
 	virtual void execute_run() override;
 	virtual void execute_set_input(int inputnum, int state) override;
 
@@ -208,7 +211,22 @@ protected:
 	virtual uint8_t get_p() const override { return m_p; }
 	virtual uint8_t get_x() const override { return m_x; }
 
+	// counter modes
+	enum : uint8_t
+	{
+		CNT_STOPPED = 0,
+		CNT_TIMER,
+		CNT_EVENT1,
+		CNT_EVENT2,
+		CNT_PULSE1,
+		CNT_PULSE2
+	};
+
 	// helpers
+	virtual bool idle_stops_clock() const;
+	virtual bool has_test_mode() const;
+	virtual void test_mode_changed();
+	virtual bool internal_address(offs_t address) const;
 	inline uint8_t read_opcode(offs_t pc);
 	inline uint8_t read_byte(offs_t address);
 	inline uint8_t read_io_byte(offs_t address);
@@ -225,19 +243,27 @@ protected:
 	inline void dma_input();
 	inline void dma_output();
 	inline void interrupt();
-	virtual bool check_irq() { return m_ie && m_irq; }
+	virtual bool check_irq() { return m_ie && sample_interrupt(); }
 	inline void sample_wait_clear();
+	inline void ems_cycle(offs_t address);
+	void set_ems(int state);
+	bool sample_interrupt();
+	inline void sample_dma_io();
 	inline void sample_ef_lines();
 	virtual void output_state_code();
 	inline void set_q_flag(int state);
 	inline void put_low_reg(int reg, uint8_t data);
 	inline void put_high_reg(int reg, uint8_t data);
+	inline uint8_t execute_cycles() const;
+	inline bool idle_stopped() const;
 
 	// arithmetic handlers
 	void add(int left, int right);
 	void add_with_carry(int left, int right);
 	void subtract(int left, int right);
 	void subtract_with_borrow(int left, int right);
+	void decimal_add(int left, int right, int carry);
+	void decimal_subtract(int left, int right, int carry);
 
 	// condition handlers
 	void short_branch(int taken);
@@ -324,6 +350,7 @@ protected:
 
 	// control instructions opcode handlers
 	void idl();
+	void idl_1801();
 	void nop();
 	void und();
 	void sep();
@@ -344,22 +371,39 @@ protected:
 	void rlxa();
 	void rsxd();
 	void rnx();
+	void dbnz();
 	void bci();
 	void bxi();
 	void ldc();
+	void ldc_1804();
 	void gec();
 
 	void stpc();
+	void dtc();
 	void stm();
 	void scm1();
 	void scm2();
 	void spm1();
 	void spm2();
+	void etq();
 
 	void xie();
 	void xid();
 	void cie();
 	void cid();
+	void dsav();
+
+	void scal();
+	void sret();
+
+	void dadd();
+	void dadi();
+	void dadc();
+	void daci();
+	void dsm();
+	void dsmi();
+	void dsmb();
+	void dsbi();
 
 	const address_space_config      m_program_config;
 	const address_space_config      m_io_config;
@@ -367,12 +411,17 @@ protected:
 	// device callbacks
 	devcb_read_line        m_read_wait;
 	devcb_read_line        m_read_clear;
+	devcb_read_line        m_read_int;
+	devcb_read_line        m_read_dma_in;
+	devcb_read_line        m_read_dma_out;
 	devcb_read_line::array<4> m_read_ef;
 	devcb_write_line       m_write_q;
 	devcb_read8            m_read_dma;
 	devcb_write8           m_write_dma;
 	devcb_write8           m_write_sc;
+	devcb_write_line       m_write_tpa;
 	devcb_write_line       m_write_tpb;
+	devcb_write_line       m_write_ems;
 
 	// control modes
 	enum class cosmac_mode : u8
@@ -401,10 +450,14 @@ protected:
 	uint16_t            m_op;               // current opcode
 	uint8_t             m_flagsio;          // flags storage for state saving
 	cosmac_state        m_state;            // state
+	uint8_t             m_exec_cycle;       // execute cycle within instruction
 	cosmac_mode         m_mode;             // control mode
 	cosmac_mode         m_pmode;            // previous control mode
 	bool m_wait;
 	bool m_clear;
+	bool m_test;
+	bool m_tpb_held;
+	uint8_t m_ems;
 	int                 m_irq;              // interrupt request
 	int                 m_dmain;            // DMA input request
 	int                 m_dmaout;           // DMA output request
@@ -427,16 +480,20 @@ protected:
 	int                 m_cie;              // counter interrupt enable
 	int                 m_xie;              // external interrupt enable
 	int                 m_cil;              // counter interrupt latch
+	uint8_t             m_etq;              // enable toggle Q
 	int                 m_q;                // output flip-flop
 
 	uint8_t             m_cnt_mode;         // counter mode
 	uint8_t             m_cnt_load;         // counter reload value
 	uint8_t             m_cnt_count;        // active counter value
-	emu_timer           *m_cnt_timer;       // counter mode 1 timer handler
+	uint8_t             m_cnt_prescaler;    // timer mode TPA prescaler
+	uint8_t             m_cnt_ef[2];        // counter EF1/EF2 input levels
 
-	TIMER_CALLBACK_MEMBER(cnt_timerout);
-	uint8_t get_count();
+	void set_counter_mode(uint8_t mode);
 	void stop_count();
+	void counter_decrement();
+	void counter_ef_w(int line, uint8_t state);
+	inline void counter_clock();
 
 	// internal stuff
 	int                 m_icount;
@@ -481,7 +538,7 @@ public:
 	cdp1802_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
 protected:
-	cdp1802_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+	cdp1802_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, address_map_constructor internal_map = address_map_constructor());
 
 	// device_disasm_interface overrides
 	virtual std::unique_ptr<util::disasm_interface> create_disassembler() override;
@@ -501,42 +558,88 @@ public:
 	// construction/destruction
 	cdp1804_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-protected:
-	cdp1804_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+	// mask options: address bits clear in mask are don't care
+	void set_rom_select(uint16_t mask, uint16_t value) { m_rom_mask = mask & 0xf800; m_rom_value = value & m_rom_mask; }
+	void set_ram_select(uint16_t mask, uint16_t value) { m_ram_mask = mask & 0xffc0; m_ram_value = value & m_ram_mask; }
 
-	virtual cosmac_device::ophandler get_ophandler(uint16_t opcode) const override;
-	virtual bool has_extended_opcodes() override { return true; }
-	virtual bool check_irq() override { return m_ie && ((m_irq && m_xie) || (m_cil && m_cie)); }
-	virtual void reset_state() override;
-
-private:
-	static const ophandler s_opcodetable_ex[256];
-};
-
-
-// ======================> cdp1805_device
-
-class cdp1805_device : public cdp1804_device
-{
-public:
-	// construction/destruction
-	cdp1805_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	auto ems_cb() { return m_write_ems.bind(); }
 
 protected:
-	cdp1805_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
+	cdp1804_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, address_map_constructor internal_map);
+
+	// device_t implementation
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_post_load() override ATTR_COLD;
+
+	// device_execute_interface overrides
+	virtual uint32_t execute_max_cycles() const noexcept override;
 
 	// device_disasm_interface overrides
 	virtual std::unique_ptr<util::disasm_interface> create_disassembler() override;
+
+	virtual cosmac_device::ophandler get_ophandler(uint16_t opcode) const override;
+	virtual bool has_extended_opcodes() override { return true; }
+	virtual bool check_irq() override { return m_ie && ((sample_interrupt() && m_xie) || (m_cil && m_cie)); }
+	virtual void reset_state() override;
+	virtual bool has_test_mode() const override;
+	virtual void test_mode_changed() override;
+	virtual bool internal_address(offs_t address) const override;
+
+	memory_view m_internal;
+	uint16_t m_rom_mask;
+	uint16_t m_rom_value;
+	uint16_t m_ram_mask;
+	uint16_t m_ram_value;
+
+private:
+	static const ophandler s_opcodetable_ex[256];
+
+	void internal_map(address_map &map) ATTR_COLD;
 };
 
 
 // ======================> cdp1806_device
 
-class cdp1806_device : public cdp1805_device
+class cdp1806_device : public cdp1804_device
 {
 public:
 	// construction/destruction
 	cdp1806_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+protected:
+	cdp1806_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, address_map_constructor internal_map);
+
+	// device_disasm_interface overrides
+	virtual std::unique_ptr<util::disasm_interface> create_disassembler() override;
+
+	virtual cosmac_device::ophandler get_ophandler(uint16_t opcode) const override;
+	virtual bool idle_stops_clock() const override;
+	virtual bool has_test_mode() const override;
+
+	// hidden here, re-exposed by CDP1805
+	using cdp1804_device::set_ram_select;
+
+private:
+	static const ophandler s_opcodetable_ex[256];
+
+	using cdp1804_device::set_rom_select;
+	using cdp1804_device::ems_cb;
+};
+
+
+// ======================> cdp1805_device
+
+class cdp1805_device : public cdp1806_device
+{
+public:
+	// construction/destruction
+	cdp1805_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+
+	// internal RAM location, decoded externally through ME
+	using cdp1806_device::set_ram_select;
+
+private:
+	void internal_map(address_map &map) ATTR_COLD;
 };
 
 

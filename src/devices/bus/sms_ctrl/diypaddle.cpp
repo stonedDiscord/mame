@@ -60,12 +60,11 @@ public:
 protected:
 	virtual tiny_rom_entry const *device_rom_region() const override { return ROM_NAME(sms_diy_paddle); }
 	virtual ioport_constructor device_input_ports() const override { return INPUT_PORTS_NAME(sms_diy_paddle); }
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual void device_start() override;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual void device_start() override ATTR_COLD;
 
 private:
-	void program_map(address_map &map);
-	void data_map(address_map &map);
+	void program_map(address_map &map) ATTR_COLD;
 
 	u8 portb_in();
 	u8 portc_in();
@@ -127,7 +126,6 @@ void sms_diy_paddle_device::device_add_mconfig(machine_config &config)
 {
 	ATMEGA168(config, m_mcu, 8'000'000); // internally-generated clock
 	m_mcu->set_addrmap(AS_PROGRAM, &sms_diy_paddle_device::program_map);
-	m_mcu->set_addrmap(AS_DATA, &sms_diy_paddle_device::data_map);
 	m_mcu->set_eeprom_tag("eeprom");
 	m_mcu->set_low_fuses(0xe2);
 	m_mcu->set_high_fuses(0xdd);
@@ -158,12 +156,6 @@ void sms_diy_paddle_device::device_start()
 void sms_diy_paddle_device::program_map(address_map &map)
 {
 	map(0x0000, 0x3fff).rom();
-}
-
-
-void sms_diy_paddle_device::data_map(address_map &map)
-{
-	map(0x0100, 0x04ff).ram();
 }
 
 

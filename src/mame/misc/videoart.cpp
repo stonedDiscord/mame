@@ -62,10 +62,10 @@ public:
 		m_led(*this, "led")
 	{ }
 
-	void videoart(machine_config &config);
+	void videoart(machine_config &config) ATTR_COLD;
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	required_device<m6805r2_device> m_maincpu;
@@ -92,7 +92,7 @@ private:
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void palette(palette_device &palette) const;
 
-	void vram_map(address_map &map);
+	void vram_map(address_map &map) ATTR_COLD;
 	void vram_w(offs_t offset, u8 data);
 	u8 vram_r(offs_t offset);
 	void msl_w(u8 data) { m_pixel_offset = data & 7; }
@@ -112,8 +112,6 @@ private:
 
 void videoart_state::machine_start()
 {
-	m_led.resolve();
-
 	// register for savestates
 	save_item(NAME(m_porta));
 	save_item(NAME(m_portb));
@@ -180,9 +178,12 @@ u32 videoart_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, c
 	else
 	{
 		// width of 512 compressed down to 128
-		for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
-			for (int x = cliprect.min_x; x <= cliprect.max_x; x++)
-				bitmap.pix(y, x) = m_vram[(y << 7 | x >> 2) & 0x7fff] & 0xf;
+		for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
+		{
+			auto *const dst = &bitmap.pix(y);
+			for (int x = cliprect.left(); x <= cliprect.right(); x++)
+				dst[x] = m_vram[(y << 7 | x >> 2) & 0x7fff] & 0xf;
+		}
 	}
 
 	return 0;
@@ -379,7 +380,7 @@ void videoart_state::videoart(machine_config &config)
 
 	TIMER(config, "scanline").configure_scanline(FUNC(videoart_state::scanline), "screen", 0, 1);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(m_ef9367->clock() / (262.0 * 96.0));
 	m_screen->set_screen_update(FUNC(videoart_state::screen_update));
 	m_screen->set_size(512, 256);

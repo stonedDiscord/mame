@@ -285,25 +285,13 @@ Rev. 3
 Mark Gordon
 */
 
-/*
-
-    TODO:
-
-    - spinner INT
-    - printer
-    - SPI
-
-    http://drushel.cwru.edu/atm/atm.html
-    http://rich.dirocco.org/Coleco/adam/ADAM.htm
-    http://users.stargate.net/~drushel/pub/coleco/twwmca/index.html
-
-*/
-
 #include "emu.h"
 #include "adam.h"
 #include "screen.h"
 #include "softlist_dev.h"
 #include "speaker.h"
+
+#include <algorithm>
 
 
 //**************************************************************************
@@ -351,7 +339,7 @@ uint8_t adam_state::mreq_r(offs_t offset)
 {
 	int bmreq = 0, biorq = 1, eos_enable = 1, boot_rom_cs = 1, aux_decode_1 = 1, aux_rom_cs = 1, cas1 = 1, cas2 = 1, cs1 = 1, cs2 = 1, cs3 = 1, cs4 = 1;
 
-	uint8_t data = 0;
+	uint8_t data = 0xff;
 
 	if (offset < 0x8000)
 	{
@@ -552,9 +540,9 @@ uint8_t adam_state::iorq_r(offs_t offset)
 
 	case 7:
 		if (BIT(offset, 1))
-			data = m_joy2->read();
+			data = (m_joy2->read() & 0x7f) | (m_spinner_q[1] << 7);
 		else
-			data = m_joy1->read();
+			data = (m_joy1->read() & 0x7f) | (m_spinner_q[0] << 7);
 		break;
 	}
 
@@ -889,28 +877,36 @@ void adam_state::adam_io(address_map &map)
 //-------------------------------------------------
 
 static INPUT_PORTS_START( adam )
-	// defined in bus/adamnet/kb.c
+	PORT_START("RESET") // switches on either side of cartridge slot
+	PORT_BIT(1, IP_ACTIVE_LOW, IPT_OTHER) PORT_NAME("Computer Reset") PORT_CODE(KEYCODE_F11) PORT_WRITE_LINE_MEMBER(FUNC(adam_state::computer_reset_w))
+	PORT_BIT(2, IP_ACTIVE_LOW, IPT_OTHER) PORT_NAME("Cartridge Reset") PORT_CODE(KEYCODE_F12) PORT_WRITE_LINE_MEMBER(FUNC(adam_state::game_reset_w))
 INPUT_PORTS_END
+
+
+void adam_state::computer_reset_w(int state)
+{
+	if (!state)
+		mioc_reset(false);
+
+	m_maincpu->set_input_line(INPUT_LINE_RESET, state ? CLEAR_LINE : ASSERT_LINE);
+	m_netcpu->set_input_line(INPUT_LINE_RESET, state ? CLEAR_LINE : ASSERT_LINE);
+}
+
+
+void adam_state::game_reset_w(int state)
+{
+	if (!state)
+		mioc_reset(true);
+
+	m_maincpu->set_input_line(INPUT_LINE_RESET, state ? CLEAR_LINE : ASSERT_LINE);
+	m_netcpu->set_input_line(INPUT_LINE_RESET, state ? CLEAR_LINE : ASSERT_LINE);
+}
 
 
 
 //**************************************************************************
 //  DEVICE CONFIGURATION
 //**************************************************************************
-
-//-------------------------------------------------
-//  TMS9928A_INTERFACE( vdc_intf )
-//-------------------------------------------------
-
-void adam_state::vdc_int_w(int state)
-{
-	if (state && !m_vdp_nmi)
-	{
-		m_maincpu->pulse_input_line(INPUT_LINE_NMI, attotime::zero);
-	}
-
-	m_vdp_nmi = state;
-}
 
 //-------------------------------------------------
 //  M6801_INTERFACE( m6801_intf )
@@ -939,14 +935,36 @@ void adam_state::os3_w(int state)
 }
 
 
-void adam_state::joy1_irq_w(int state)
+template <unsigned N>
+void adam_state::spinner_w(int state)
 {
-	// TODO
+	if (state && !m_spinner_a[N] && !m_spinner_q[N])
+	{
+		m_spinner_q[N] = 1;
+		m_spinner_timer[N]->adjust(attotime::from_usec(470));
+
+		m_irqs->in_w<N + 2>(1);
+		m_spinner_int_timer[N]->adjust(attotime::from_usec(15));
+	}
+	else if (!state && !m_spinner_timer[N]->enabled())
+	{
+		m_spinner_q[N] = 0;
+	}
+
+	m_spinner_a[N] = state;
 }
 
-void adam_state::joy2_irq_w(int state)
+template <unsigned N>
+TIMER_CALLBACK_MEMBER(adam_state::spinner_one_shot)
 {
-	// TODO
+	if (!m_spinner_a[N])
+		m_spinner_q[N] = 0;
+}
+
+template <unsigned N>
+TIMER_CALLBACK_MEMBER(adam_state::spinner_int_off)
+{
+	m_irqs->in_w<N + 2>(0);
 }
 
 
@@ -961,6 +979,14 @@ void adam_state::joy2_irq_w(int state)
 
 void adam_state::machine_start()
 {
+	m_spinner_timer[0] = timer_alloc(FUNC(adam_state::spinner_one_shot<0>), this);
+	m_spinner_timer[1] = timer_alloc(FUNC(adam_state::spinner_one_shot<1>), this);
+	m_spinner_int_timer[0] = timer_alloc(FUNC(adam_state::spinner_int_off<0>), this);
+	m_spinner_int_timer[1] = timer_alloc(FUNC(adam_state::spinner_int_off<1>), this);
+
+	std::fill(std::begin(m_spinner_a), std::end(m_spinner_a), 0);
+	std::fill(std::begin(m_spinner_q), std::end(m_spinner_q), 0);
+
 	// state saving
 	save_item(NAME(m_mioc));
 	save_item(NAME(m_game));
@@ -971,31 +997,35 @@ void adam_state::machine_start()
 	save_item(NAME(m_data_in));
 	save_item(NAME(m_data_out));
 	save_item(NAME(m_spindis));
-	save_item(NAME(m_vdp_nmi));
+	save_item(NAME(m_spinner_a));
+	save_item(NAME(m_spinner_q));
 }
 
 
 void adam_state::machine_reset()
 {
-	if (m_cart->exists())
+	// reset to computer mode at power up
+	mioc_reset(false);
+}
+
+
+void adam_state::mioc_reset(bool game)
+{
+	if (game)
 	{
-		// game reset
+		// game mode
 		m_game = 1;
-		m_mioc = (HI_CARTRIDGE_ROM << 2) | LO_OS7_ROM_INTERNAL_RAM;
+		mioc_w((HI_CARTRIDGE_ROM << 2) | LO_OS7_ROM_INTERNAL_RAM);
 	}
 	else
 	{
-		// computer reset
+		// computer mode
 		m_game = 0;
-		m_mioc = 0;
+		mioc_w(0);
 	}
 
 	m_an = 0;
-
-	m_maincpu->reset();
-	m_netcpu->reset();
 }
-
 
 
 //**************************************************************************
@@ -1035,23 +1065,27 @@ void adam_state::adam(machine_config &config)
 	// video hardware
 	TMS9928A(config, m_vdc, XTAL(10'738'635)).set_screen("screen");
 	m_vdc->set_vram_size(0x4000);
-	m_vdc->int_callback().set(FUNC(adam_state::vdc_int_w));
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	m_vdc->int_callback().set_inputline(m_maincpu, INPUT_LINE_NMI);
+	SCREEN(config, "screen");
 
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
 	SN76489A(config, m_psg, XTAL(7'159'090)/2);
 	m_psg->add_route(ALL_OUTPUTS, "mono", 1.00);
-	// TODO: enable when Z80 has better WAIT pin emulation
-	//m_psg->ready_cb().set_inputline(m_maincpu, Z80_INPUT_LINE_WAIT).invert();
+	m_psg->ready_cb().set_inputline(m_maincpu, Z80_INPUT_LINE_WAIT).invert();
 
 	// devices
-	ADAMNET(config, m_adamnet, 0);
+	ADAMNET(config, m_adamnet);
 	ADAMNET_SLOT(config, "net1", m_adamnet, adamnet_devices, "kb");
 	ADAMNET_SLOT(config, "net2", m_adamnet, adamnet_devices, "prn");
 	ADAMNET_SLOT(config, "net3", m_adamnet, adamnet_devices, "ddp");
 	ADAMNET_SLOT(config, "net4", m_adamnet, adamnet_devices, "fdc");
-	ADAMNET_SLOT(config, "net5", m_adamnet, adamnet_devices, "fdc").set_option_device_input_defaults("fdc", device_iptdef_drive2);
+	adamnet_slot_device &net5(ADAMNET_SLOT(config, "net5", m_adamnet, adamnet_devices, "fdc"));
+	net5.set_option_device_input_defaults("fdc", device_iptdef_drive2);
+	net5.set_option_device_input_defaults("fdc_320kb", device_iptdef_drive2);
+	net5.set_option_device_input_defaults("fdc_a720dipi", device_iptdef_drive2);
+	net5.set_option_device_input_defaults("fdc_fp720at", device_iptdef_drive2);
+	net5.set_option_device_input_defaults("fdc_mihddd", device_iptdef_drive2);
 	ADAMNET_SLOT(config, "net6", m_adamnet, adamnet_devices, nullptr);
 	ADAMNET_SLOT(config, "net7", m_adamnet, adamnet_devices, nullptr);
 	ADAMNET_SLOT(config, "net8", m_adamnet, adamnet_devices, nullptr);
@@ -1063,17 +1097,19 @@ void adam_state::adam(machine_config &config)
 	ADAMNET_SLOT(config, "net14", m_adamnet, adamnet_devices, nullptr);
 	ADAMNET_SLOT(config, "net15", m_adamnet, adamnet_devices, nullptr);
 
+	INPUT_MERGER_ANY_HIGH(config, m_irqs).output_handler().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+
 	COLECOVISION_CARTRIDGE_SLOT(config, m_cart, colecovision_cartridges, nullptr);
 	ADAM_EXPANSION_SLOT(config, m_slot[0], XTAL(7'159'090)/2, adam_slot1_devices, "adamlink"); // left
-	m_slot[0]->irq().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+	m_slot[0]->irq().set(m_irqs, FUNC(input_merger_device::in_w<0>));
 	ADAM_EXPANSION_SLOT(config, m_slot[1], XTAL(7'159'090)/2, adam_slot2_devices, nullptr); // center
-	m_slot[1]->irq().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
+	m_slot[1]->irq().set(m_irqs, FUNC(input_merger_device::in_w<1>));
 	ADAM_EXPANSION_SLOT(config, m_slot[2], XTAL(7'159'090)/2, adam_slot3_devices, "ram"); // right
 
 	COLECOVISION_CONTROL_PORT(config, m_joy1, colecovision_control_port_devices, "hand");
-	m_joy1->irq().set(FUNC(adam_state::joy1_irq_w));
+	m_joy1->irq().set(FUNC(adam_state::spinner_w<0>));
 	COLECOVISION_CONTROL_PORT(config, m_joy2, colecovision_control_port_devices, nullptr);
-	m_joy2->irq().set(FUNC(adam_state::joy2_irq_w));
+	m_joy2->irq().set(FUNC(adam_state::spinner_w<1>));
 
 	// internal ram
 	RAM(config, m_ram).set_default_size("64K");

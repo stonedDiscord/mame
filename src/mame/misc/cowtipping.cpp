@@ -51,14 +51,14 @@ public:
 	void cowtipping(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
-	void main_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -91,7 +91,7 @@ void cowtipping_state::cowtipping(machine_config &config)
 
 //  TODO: AMD_29LV640MB (64 MBit with Boot Sector)
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));  // wrong
+	screen_device &screen(SCREEN(config, "screen"));  // wrong
 	screen.set_refresh_hz(60);
 	screen.set_screen_update(FUNC(cowtipping_state::screen_update));
 	screen.set_size(1024, 256);
@@ -99,8 +99,7 @@ void cowtipping_state::cowtipping(machine_config &config)
 
 	PALETTE(config, "palette").set_entries(65536); // wrong
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 }
 
 
@@ -125,5 +124,5 @@ ROM_END
 } // anonymous namespace
 
 
-GAME( 2004, cowtipp,  0,       cowtipping, cowtipping, cowtipping_state, empty_init, ROT270, "Game Refuge / Team Play", "Cow Tipping - Shake Cattle & Roll (set 1)", MACHINE_IS_SKELETON )
-GAME( 2004, cowtippa, cowtipp, cowtipping, cowtipping, cowtipping_state, empty_init, ROT270, "Game Refuge / Team Play", "Cow Tipping - Shake Cattle & Roll (set 2)", MACHINE_IS_SKELETON )
+GAME( 2004, cowtipp,  0,       cowtipping, cowtipping, cowtipping_state, empty_init, ROT270, "Game Refuge / Team Play", "Cow Tipping - Shake Cattle & Roll (set 1)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 2004, cowtippa, cowtipp, cowtipping, cowtipping, cowtipping_state, empty_init, ROT270, "Game Refuge / Team Play", "Cow Tipping - Shake Cattle & Roll (set 2)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

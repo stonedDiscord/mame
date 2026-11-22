@@ -12,6 +12,7 @@
 #include "cpu/z80/z80.h"
 #include "cpu/m6800/m6801.h"
 #include "coleco_m.h"
+#include "machine/input_merger.h"
 #include "machine/ram.h"
 #include "sound/sn76496.h"
 #include "video/tms9928a.h"
@@ -34,6 +35,7 @@ public:
 		m_vdc(*this, TMS9928A_TAG),
 		m_psg(*this, SN76489A_TAG),
 		m_ram(*this, RAM_TAG),
+		m_irqs(*this, "irqs"),
 		m_adamnet(*this, "adamnet"),
 		m_slot(*this, "slot%u", 1U),
 		m_cart(*this, COLECOVISION_CARTRIDGE_SLOT_TAG),
@@ -51,12 +53,16 @@ public:
 
 	void adam(machine_config &config);
 
+	void computer_reset_w(int state);
+	void game_reset_w(int state);
+
 private:
 	required_device<cpu_device> m_maincpu;
 	required_device<m6801_cpu_device> m_netcpu;
 	required_device<tms9928a_device> m_vdc;
 	required_device<sn76489a_device> m_psg;
 	required_device<ram_device> m_ram;
+	required_device<input_merger_device> m_irqs;
 	required_device<adamnet_device> m_adamnet;
 	required_device_array<adam_expansion_slot_device, 3> m_slot;
 	required_device<colecovision_cartridge_slot_device> m_cart;
@@ -65,8 +71,8 @@ private:
 	required_memory_region m_boot_rom;
 	required_memory_region m_os7_rom;
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	uint8_t mreq_r(offs_t offset);
 	void mreq_w(offs_t offset, uint8_t data);
@@ -85,12 +91,13 @@ private:
 	void m6801_p3_w(uint8_t data);
 	void m6801_p4_w(uint8_t data);
 
-	void vdc_int_w(int state);
-
 	void os3_w(int state);
 
-	void joy1_irq_w(int state);
-	void joy2_irq_w(int state);
+	template <unsigned N> void spinner_w(int state);
+	template <unsigned N> TIMER_CALLBACK_MEMBER(spinner_one_shot);
+	template <unsigned N> TIMER_CALLBACK_MEMBER(spinner_int_off);
+
+	void mioc_reset(bool game);
 
 	// memory state
 	uint8_t m_mioc;
@@ -108,11 +115,14 @@ private:
 
 	// paddle state
 	int m_spindis;
+	uint8_t m_spinner_a[2];
+	uint8_t m_spinner_q[2];
+	emu_timer *m_spinner_timer[2];
+	emu_timer *m_spinner_int_timer[2];
 
 	// video state
-	int m_vdp_nmi = 0;
-	void adam_io(address_map &map);
-	void adam_mem(address_map &map);
+	void adam_io(address_map &map) ATTR_COLD;
+	void adam_mem(address_map &map) ATTR_COLD;
 };
 
 #endif // MAME_COLECO_ADAM_H

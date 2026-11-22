@@ -72,17 +72,25 @@ public:
 		m_rs232(*this, "rs232"),
 		m_printer_uart(*this, "printuart"),
 		m_p_ram(*this, "p_ram"),
+		m_attr_ram(*this, "attr_ram"),
 		m_phosphor(*this, "phosphor")
 	{
 	}
 
-	void vt100(machine_config &config);
-	void vt100ac(machine_config &config);
-	void vt101(machine_config &config);
-	void vt102(machine_config &config);
-	void vt180(machine_config &config);
+	void vt100(machine_config &config) ATTR_COLD;
+	void vt100ac(machine_config &config) ATTR_COLD;
+	void vt101(machine_config &config) ATTR_COLD;
+	void vt102(machine_config &config) ATTR_COLD;
+	void vt105(machine_config &config) ATTR_COLD;
+	void vt180(machine_config &config) ATTR_COLD;
 
 private:
+	// Options fitted to this model, reported to the firmware through the
+	// flag buffer (E42).  flags_r() turns them into the bus bits.
+	static constexpr u8 OPT_AVO = 0x01; // Advanced Video Option
+	static constexpr u8 OPT_GRAPHICS = 0x02; // VT105 waveform graphics board
+	static constexpr u8 OPT_STP = 0x04; // option on the Standard Terminal Port
+
 	required_device<cpu_device> m_maincpu;
 	required_device<vt100_video_device> m_crtc;
 	required_device<vt100_keyboard_device> m_keyboard;
@@ -93,8 +101,11 @@ private:
 	required_device<rs232_port_device> m_rs232;
 	optional_device<ins8250_device> m_printer_uart;
 	required_shared_ptr<u8> m_p_ram;
+	optional_shared_ptr<u8> m_attr_ram; // VT102/VT131 only
 
 	required_ioport m_phosphor;
+	u8 m_options = 0; // set by each model's machine config
+	bool m_even_field_high = false; // VT101/VT102 board wires EVEN FIELD L to +5 V
 
 	u8 flags_r();
 	u8 modem_r();
@@ -102,19 +113,22 @@ private:
 	u8 printer_r(offs_t offset);
 	void printer_w(offs_t offset, u8 data);
 	u8 video_ram_r(offs_t offset);
+	u8 attr_ram_r(offs_t offset);
 	void uart_clock_w(u8 data);
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 	u32 screen_update_vt100(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	IRQ_CALLBACK_MEMBER(vt102_irq_callback);
-	void vt100_mem(address_map &map);
-	void vt100_io(address_map &map);
-	void vt102_io(address_map &map);
-	void stp_mem(address_map &map);
-	void stp_io(address_map &map);
-	void vt180_mem(address_map &map);
-	void vt180_io(address_map &map);
+	void vt100_mem(address_map &map) ATTR_COLD;
+	void vt101_mem(address_map &map) ATTR_COLD;
+	void vt102_mem(address_map &map) ATTR_COLD;
+	void vt100_io(address_map &map) ATTR_COLD;
+	void vt102_io(address_map &map) ATTR_COLD;
+	void stp_mem(address_map &map) ATTR_COLD;
+	void stp_io(address_map &map) ATTR_COLD;
+	void vt180_mem(address_map &map) ATTR_COLD;
+	void vt180_io(address_map &map) ATTR_COLD;
 };
 
 
@@ -139,25 +153,74 @@ void vt100_state::vt180_mem(address_map &map)
 	map(0x2000, 0xffff).ram();
 }
 
+// VT101/VT102/VT131 board (5414185), from MP-01066, the VT101 Family Field
+// Maintenance Print Set.  The memory decoder (E60, sheet 2) looks only at A13
+// and A15, so A14 is ignored and everything repeats at +4000.
+//
+// The VT101 has 3K of RAM at 2000-2BFF, the 3K a VT100 has without its
+// Advanced Video Option (AVO).  The VT102 and VT131 have on the board what
+// the AVO adds to a VT100: RAM up to 2FFF (set by the RAM jumpers on sheet
+// 2), attribute RAM at 3000-3FFF, and ROM sockets at 8000-BFFF.  The last two
+// are on sheet 6, which is fitted only on the VT102 and VT131.
+void vt100_state::vt101_mem(address_map &map)
+{
+	map.unmap_value_high();
+	map(0x0000, 0x1fff).mirror(0x4000).rom(); // 8K firmware ROM
+	map(0x2000, 0x2bff).mirror(0x4000).ram().share(m_p_ram); // screen and scratch RAM
+	// Nothing on the VT101 board answers here, but the firmware still writes
+	// screen and attribute bytes up to 3FFF, as with an AVO, and reads the
+	// cursor cell's attribute and the option ROM area.  Reading all ones is an
+	// assumption.
+	map(0x2c00, 0x3fff).mirror(0x4000).noprw();
+	map(0x8000, 0xbfff).mirror(0x4000).noprw();
+}
+
+void vt100_state::vt102_mem(address_map &map)
+{
+	map(0x0000, 0x1fff).mirror(0x4000).rom(); // 8K firmware ROM
+	// Screen and scratch RAM, 4K.  W31, fitted on the VT102/VT131, grounds A10
+	// at the RAM decoder so that it selects 2K x 8 parts (sheet 2 RAM jumper
+	// table).
+	map(0x2000, 0x2fff).mirror(0x4000).ram().share(m_p_ram);
+	// one attribute nibble per screen RAM byte (underline, blink, bold, alternate
+	// character set), in four 1K x 4 2114s
+	map(0x3000, 0x3fff).mirror(0x4000).ram().share(m_attr_ram).r(FUNC(vt100_state::attr_ram_r));
+	// option ROMs: 8K (E69) at 8000 on both, and on the VT131 2K (E67) at A000;
+	// jumpers on sheet 6 can place the four sockets otherwise
+	map(0x8000, 0xbfff).mirror(0x4000).rom();
+}
+
 void vt100_state::vt180_io(address_map &map)
 {
 	map.unmap_value_high();
 	map.global_mask(0xff);
 }
 
+// Flag buffer E42, read at port 42 (basic video schematic D-CS-5413009):
 // 0 - XMIT flag H
-// 1 - Advance Video L
-// 2 - Graphics Flag L
-// 3 - Option present H
-// 4 - Even field L
+// 1 - Advanced Video L: low when an AVO is fitted.  The VT100 and VT101
+//     firmware use it to decide how much RAM to test.
+// 2 - Graphics Flag L: low when a graphics board is fitted
+// 3 - Option Present H: high when an option on the STP is fitted
+// 4 - Even Field L: low on the VT100 board (without interlace every field
+//     is even); wired high on the VT101/VT102 board.  The firmware never
+//     reads it.
 // 5 - NVR data H
 // 6 - LBA 7 H
 // 7 - Keyboard TBMT H
+// The firmware reports bits 1-3 in its reply to DA (ESC [ c) as
+// ESC [ ? 1 ; N c, adding 1 for an STP option, 2 for an AVO and 4 for a
+// graphics board.
 u8 vt100_state::flags_r()
 {
 	u8 ret = 0;
 
 	ret |= m_pusart->txrdy_r();
+	// ADVANCED VIDEO L and GRAPHICS FLAG L read high when nothing drives them
+	ret |= (m_options & OPT_AVO) ? 0 : 0x02;
+	ret |= (m_options & OPT_GRAPHICS) ? 0 : 0x04;
+	ret |= (m_options & OPT_STP) ? 0x08 : 0;
+	ret |= m_even_field_high ? 0x10 : 0;
 	ret |= !m_nvr->data_r() << 5;
 	ret |= m_crtc->lba7_r() << 6;
 	ret |= m_kbduart->tbmt_r() << 7;
@@ -301,7 +364,21 @@ void vt100_state::machine_reset()
 
 u8 vt100_state::video_ram_r(offs_t offset)
 {
-	return m_p_ram[offset];
+	// The video fetches from 2000 up: characters below 3000 and their
+	// attributes 1000 above them.  On the VT102/VT131 the attributes are in
+	// their own RAM.  Past the end of the RAM a model has fitted, return all
+	// ones as for an empty bus (an assumption, see vt101_mem); the attribute
+	// bits are active low, so that means no attributes.
+	if (m_attr_ram && (offset >= 0x1000))
+		return attr_ram_r(offset & 0x0fff);
+	return (offset < m_p_ram.bytes()) ? m_p_ram[offset] : 0xff;
+}
+
+u8 vt100_state::attr_ram_r(offs_t offset)
+{
+	// only D0-D3 reach the bus (buffers E38 and E1); the pull-up pack E51
+	// holds D4-D7 high (sheet 6)
+	return m_attr_ram[offset] | 0xf0;
 }
 
 void vt100_state::uart_clock_w(u8 data)
@@ -335,6 +412,8 @@ GFXDECODE_END
 
 void vt100_state::vt100(machine_config &config)
 {
+	m_options = OPT_AVO;
+
 	/* basic machine hardware */
 	I8080(config, m_maincpu, XTAL(24'883'200) / 9);
 	m_maincpu->set_addrmap(AS_PROGRAM, &vt100_state::vt100_mem);
@@ -342,7 +421,7 @@ void vt100_state::vt100(machine_config &config)
 	m_maincpu->set_irq_acknowledge_callback("rstbuf", FUNC(rst_pos_buffer_device::inta_cb));
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER, rgb_t::green()));
+	screen_device &screen(SCREEN(config, "screen").set_color(rgb_t::green()));
 	screen.set_raw(XTAL(24'073'400)*2/3, 102*10, 0, 80*10, 262, 0, 25*10);
 	//screen.set_raw(XTAL(24'073'400), 170*9, 0, 132*9, 262, 0, 25*10);
 	screen.set_screen_update(FUNC(vt100_state::screen_update_vt100));
@@ -377,13 +456,13 @@ void vt100_state::vt100(machine_config &config)
 
 	ER1400(config, m_nvr);
 
-	VT100_KEYBOARD(config, m_keyboard, 0).signal_out_callback().set(m_kbduart, FUNC(ay31015_device::write_si));
+	VT100_KEYBOARD(config, m_keyboard).signal_out_callback().set(m_kbduart, FUNC(ay31015_device::write_si));
 
-	AY31015(config, m_kbduart, 0);
+	AY31015(config, m_kbduart);
 	m_kbduart->write_dav_callback().set(m_rstbuf, FUNC(rst_pos_buffer_device::rst1_w));
 	m_kbduart->set_auto_rdav(true);
 
-	RST_POS_BUFFER(config, m_rstbuf, 0).int_callback().set_inputline(m_maincpu, 0);
+	RST_POS_BUFFER(config, m_rstbuf).int_callback().set_inputline(m_maincpu, 0);
 }
 
 void vt100_state::stp_mem(address_map &map)
@@ -406,6 +485,8 @@ void vt100_state::stp_io(address_map &map)
 void vt100_state::vt100ac(machine_config &config)
 {
 	vt100(config);
+
+	m_options |= OPT_STP;
 
 	i8085a_cpu_device &stpcpu(I8085A(config, "stpcpu", 4915200));
 	stpcpu.set_addrmap(AS_PROGRAM, &vt100_state::stp_mem);
@@ -445,12 +526,30 @@ void vt100_state::vt180(machine_config &config)
 	z80cpu.set_io_map(&vt100_state::vt180_io);
 }
 
+// VT105: the M7071 waveform graphics board pulls GRAPHICS FLAG low to say
+// it is fitted, then drives it high while busy storing a character
+// (TM-003 6.4.1).  The board isn't emulated, so the flag stays low:
+// fitted and never busy.
+void vt100_state::vt105(machine_config &config)
+{
+	vt100(config);
+
+	m_options |= OPT_GRAPHICS;
+}
+
 void vt100_state::vt101(machine_config &config)
 {
 	vt100(config);
 
+	// The VT101/VT102 board (MP-01066 sheet 1) ties GRAPHICS FLAG L and
+	// EVEN FIELD L high.  The VT102 and VT131 always have the AVO built onto
+	// the board, and jumper W5 grounds ADVANCED VIDEO L to report it.  The
+	// VT101 has no AVO and leaves W5 out, so R8 pulls the line high.
+	m_options = 0;
+	m_even_field_high = true;
+
 	I8085A(config.replace(), m_maincpu, XTAL(24'073'400) / 4);
-	m_maincpu->set_addrmap(AS_PROGRAM, &vt100_state::vt100_mem);
+	m_maincpu->set_addrmap(AS_PROGRAM, &vt100_state::vt101_mem);
 	m_maincpu->set_addrmap(AS_IO, &vt100_state::vt100_io);
 	m_maincpu->set_irq_acknowledge_callback(FUNC(vt100_state::vt102_irq_callback));
 
@@ -468,6 +567,9 @@ void vt100_state::vt102(machine_config &config)
 {
 	vt101(config);
 
+	m_options |= OPT_AVO; // always built in; W5 fitted
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &vt100_state::vt102_mem);
 	m_maincpu->set_addrmap(AS_IO, &vt100_state::vt102_io);
 
 	ins8250_device &printuart(INS8250(config, "printuart", XTAL(24'073'400) / 16));
@@ -614,7 +716,7 @@ ROM_START( vt100 ) // This is from the schematics at http://www.bitsavers.org/pd
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e4", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL("23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional ?word processing? alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional ?word processing? alternate character set ROM
 ROM_END
 
 #if 0
@@ -674,7 +776,7 @@ ROM_START( vt132 ) // This is from anecdotal evidence and vt100.net, as the vt13
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e4", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 ROM_END
 #endif
 
@@ -704,7 +806,7 @@ ROM_START( vt100ac ) // This is from the VT180 technical manual at http://www.bi
 
 	ROM_REGION(0x1000, "chargen",0)
 	ROM_LOAD( "23-018e2-00.e4", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional ?word processing? alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional ?word processing? alternate character set ROM
 	ROM_REGION(0x10000, "stpcpu",ROMREGION_ERASEFF)
 /* The intelligent STP board: Below is limited information for an ?older version? or prototype of the board
 // expansion board for a vt100 with a processor on it and dma, intended to act as a RAM/send buffer for the STP printer board.
@@ -736,13 +838,13 @@ ROM_START( vt103 ) // This is from the schematics at http://www.bitsavers.org/pd
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e4", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 
 	ROM_REGION(0x0800, "tapecpu", 0) // ROM for the 8085 CPU in the integrated serial tu58-xa drive
 	ROM_LOAD( "23-089e2.e1", 0x0000, 0x0800, CRC(8614dd4c) SHA1(1b554e6c98bddfc6bc48d81c990deea43cf9df7f)) // Label: "23-089E2 // P8316E - AMD // 35227 8008NPP"
 
 	ROM_REGION(0x80000, "lsi11cpu", 0) // ROM for the LSI-11 CPU board
-	ROM_LOAD_OPTIONAL( "unknown.bin", 0x00000, 0x80000, NO_DUMP)
+	ROM_LOAD( "unknown.bin", 0x00000, 0x80000, NO_DUMP)
 ROM_END
 #endif
 
@@ -758,7 +860,7 @@ ROM_START( vt105 ) // This is from anecdotal evidence and vt100.net, as the vt10
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e4", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 ROM_END
 
 #if 0
@@ -774,7 +876,7 @@ ROM_START( vt110 )
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e4", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL ( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 //DECDataway board ROMs go here!
 ROM_END
 
@@ -791,7 +893,7 @@ ROM_START( vt125 ) // This is from bitsavers and vt100.net, as the vt125 schemat
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e4", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL ( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 
 	// "GPO" aka vt125 "mono board" ROMs and PROMs
 	ROM_REGION(0x10000, "monocpu", ROMREGION_ERASEFF) // ROMs for the 8085 sub-CPU
@@ -815,7 +917,7 @@ ROM_START( vt125 ) // This is from bitsavers and vt100.net, as the vt125 schemat
 ROM_END
 #endif
 
-ROM_START( vt101 ) // p/n 5414185-01 'unupgradable/low cost' vt101/vt102/vt131 mainboard
+ROM_START( vt101 ) // p/n 5414185-00 'unupgradable/low cost' vt101/vt102/vt131 mainboard
 // does not have integrated STP or AVO populated
 // 8085 based instead of I8080
 	ROM_REGION( 0x10000, "maincpu", ROMREGION_ERASEFF )
@@ -826,7 +928,7 @@ ROM_START( vt101 ) // p/n 5414185-01 'unupgradable/low cost' vt101/vt102/vt131 m
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e3", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL( "23-094e2-00.e4", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e4", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 ROM_END
 
 
@@ -846,7 +948,7 @@ ROM_START( vt102 ) // p/n 5414185-01 'unupgradable/low cost' vt101/vt102/vt131 m
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e3", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL( "23-094e2-00.e4", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e4", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 ROM_END
 
 ROM_START( vt131 ) // p/n 5414185-01 'unupgradable/low cost' vt101/vt131 mainboard with vt132-style block serial mode
@@ -865,7 +967,7 @@ ROM_START( vt131 ) // p/n 5414185-01 'unupgradable/low cost' vt101/vt131 mainboa
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e3", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL( "23-094e2-00.e4", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e4", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 ROM_END
 
 ROM_START( vt180 )
@@ -879,7 +981,7 @@ ROM_START( vt180 )
 
 	ROM_REGION(0x1000, "chargen", 0)
 	ROM_LOAD( "23-018e2-00.e4", 0x0000, 0x0800, CRC(6958458b) SHA1(103429674fc01c215bbc2c91962ae99231f8ae53))
-	ROM_LOAD_OPTIONAL ( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
+	ROM_LOAD( "23-094e2-00.e9", 0x0800, 0x0800, NO_DUMP) // optional (comes default with some models) alternate character set ROM
 
 	ROM_REGION(0x10000, "z80cpu", 0) // z80 daughterboard
 	ROM_LOAD( "23-021e3-00.bin", 0x0000, 0x1000, CRC(a2a575d2) SHA1(47a2c40aaec89e8476240f25515d75ab157f2911))
@@ -898,7 +1000,7 @@ COMP( 1979, vt100ac, vt100,  0,      vt100ac, vt100, vt100_state, empty_init, "D
 COMP( 1981, vt101,   vt102,  0,      vt101,   vt100, vt100_state, empty_init, "Digital Equipment Corporation", "VT101",    MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS)
 COMP( 1981, vt102,   0,      0,      vt102,   vt100, vt100_state, empty_init, "Digital Equipment Corporation", "VT102",    MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS)
 //COMP( 1979, vt103,   vt100,  0,      vt100,   vt100, vt100_state, empty_init, "Digital Equipment Corporation", "VT103",    MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS)
-COMP( 1978, vt105,   vt100,  0,      vt100,   vt100, vt100_state, empty_init, "Digital Equipment Corporation", "VT105",    MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS)
+COMP( 1978, vt105,   vt100,  0,      vt105,   vt100, vt100_state, empty_init, "Digital Equipment Corporation", "VT105",    MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS)
 //COMP( 1978, vt110,   vt100,  0,      vt100,   vt100, vt100_state, empty_init, "Digital Equipment Corporation", "VT110",    MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS)
 //COMP( 1981, vt125,   vt100,  0,      vt100,   vt100, vt100_state, empty_init, "Digital Equipment Corporation", "VT125",    MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS)
 COMP( 1981, vt131,   vt102,  0,      vt102,   vt100, vt100_state, empty_init, "Digital Equipment Corporation", "VT131",    MACHINE_NOT_WORKING | MACHINE_IMPERFECT_GRAPHICS)

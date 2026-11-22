@@ -37,15 +37,15 @@ public:
 	virtual void input_txd(int state) override { m_mpsc->rxa_w(state); }
 
 protected:
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual const tiny_rom_entry *device_rom_region() const override;
-	virtual ioport_constructor device_input_ports() const override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 
 private:
-	void io_map(address_map &map);
-	void mem_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
+	void mem_map(address_map &map) ATTR_COLD;
 	I8275_DRAW_CHARACTER_MEMBER(display_pixels);
 
 	uint8_t memory_read_byte(offs_t offset) { return m_program.read_byte(offset); }
@@ -164,7 +164,7 @@ void idpart_video_device::device_add_mconfig(machine_config &config)
 	m_dma->out_iow_cb<3>().set(m_mpsc, FUNC(i8274_device::da_w));
 
 	// PIT
-	PIT8254(config, m_pit, 0);
+	PIT8254(config, m_pit);
 	m_pit->set_clk<0>(XTAL(6'144'000) / 2);
 	m_pit->set_clk<1>(XTAL(6'144'000) / 2);
 	m_pit->set_clk<2>(XTAL(6'144'000) / 2);
@@ -182,7 +182,7 @@ void idpart_video_device::device_add_mconfig(machine_config &config)
 	m_crtc->drq_wr_callback().append(*this, FUNC(idpart_video_device::dreq0_w));
 	m_crtc->irq_wr_callback().set_inputline(m_maincpu, I8085_RST55_LINE);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(XTAL(22'680'000) / 2, 728, 0, 560, 310, 0, 270);
 	screen.set_screen_update(m_crtc, FUNC(i8275_device::screen_update));
 }
@@ -197,9 +197,9 @@ ioport_constructor idpart_video_device::device_input_ports() const
 
 ROM_START(idpart_video)
 	ROM_REGION( 0x1000, "maincpu", ROMREGION_ERASEFF )
-	ROM_LOAD( "video.e34",  0x0000, 0x0800, CRC(67e2c351) SHA1(1ca86b1b35d9a213db0c3f291dc839fc3621269c))
+	ROM_LOAD( "18-052-044.e34",  0x0000, 0x0800, CRC(67e2c351) SHA1(1ca86b1b35d9a213db0c3f291dc839fc3621269c))
 	ROM_REGION( 0x0800, "chargen",0 )
-	ROM_LOAD( "video.e4",   0x0000, 0x0800, CRC(5fe52e0d) SHA1(c6067e3fdda84e673aaa74ae6561b535157a8281))
+	ROM_LOAD( "18-051-044.e4",   0x0000, 0x0800, CRC(5fe52e0d) SHA1(c6067e3fdda84e673aaa74ae6561b535157a8281))
 ROM_END
 
 const tiny_rom_entry *idpart_video_device::device_rom_region() const

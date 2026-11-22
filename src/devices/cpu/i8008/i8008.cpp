@@ -92,7 +92,7 @@ void i8008_device::device_start()
 	state_add(I8008_L,        "L",        m_L);
 
 	for (int addrnum = 0; addrnum < 8; addrnum++)
-		state_add(I8008_ADDR1 + addrnum, string_format("ADDR%d", addrnum + 1).c_str(), m_ADDR[addrnum].w.l).mask(0xfff);
+		state_add(I8008_ADDR1 + addrnum, string_format("ADDR%d", addrnum + 1), m_ADDR[addrnum].w.l).mask(0xfff);
 
 	init_tables();
 }
@@ -261,7 +261,7 @@ void i8008_device::execute_run()
 
 inline void i8008_device::illegal(uint8_t opcode)
 {
-	if ((machine().debug_flags & DEBUG_FLAG_ENABLED) != 0)
+	if (debugger_enabled())
 	{
 		logerror("I8008 illegal instruction %04X $%02X\n", m_PC.w.l, opcode);
 	}

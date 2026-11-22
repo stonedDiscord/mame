@@ -85,13 +85,16 @@ std::pair<std::error_condition, std::string> colecovision_cartridge_slot_device:
 
 		if (!loaded_through_softlist())
 		{
-			fread(m_card->m_rom, size);
+			if (fread(m_card->m_rom, size) != size)
+				return std::make_pair(image_error::UNSPECIFIED, "Error reading cartridge file");
 		}
 		else
 		{
-			// TODO 8000/a000/c000/e000
 			memcpy(m_card->m_rom, get_software_region("rom"), size);
 		}
+
+		// signal cartridge that rom data is now available
+		m_card->load_done();
 	}
 
 	return std::make_pair(std::error_condition(), std::string());
@@ -107,13 +110,14 @@ std::string colecovision_cartridge_slot_device::get_default_card_software(get_de
 	if (hook.image_file())
 	{
 		uint64_t length;
-		hook.image_file()->length(length); // FIXME: check error return
+		if (!hook.image_file()->length(length))
+		{
+			if (length == 0x100000 || length == 0x200000)
+				return software_get_default_slot("xin1");
 
-		if (length == 0x100000 || length == 0x200000)
-			return software_get_default_slot("xin1");
-
-		if (length > 0x8000) // Assume roms longer than 32K are megacarts.
-			return software_get_default_slot("megacart");
+			if (length > 0x8000) // Assume roms longer than 32K are megacarts.
+				return software_get_default_slot("megacart");
+		}
 	}
 
 	return software_get_default_slot("standard");
@@ -152,6 +156,7 @@ void colecovision_cartridge_slot_device::write(offs_t offset, uint8_t data, int 
 
 #include "activision.h"
 #include "megacart.h"
+#include "sgc.h"
 #include "std.h"
 #include "xin1.h"
 
@@ -162,6 +167,9 @@ void colecovision_cartridges(device_slot_interface &device)
 	device.option_add_internal("activision_256b", COLECOVISION_ACTIVISION_256B);
 	device.option_add_internal("activision_32k", COLECOVISION_ACTIVISION_32K);
 	device.option_add_internal("megacart", COLECOVISION_MEGACART);
+	device.option_add_internal("sgc_1mbit", COLECOVISION_SGC_1MBIT);
+	device.option_add_internal("sgc_2mbit", COLECOVISION_SGC_2MBIT);
+	device.option_add_internal("sgc_4mbit", COLECOVISION_SGC_4MBIT);
 	device.option_add_internal("standard", COLECOVISION_STANDARD);
 	device.option_add_internal("xin1", COLECOVISION_XIN1);
 }

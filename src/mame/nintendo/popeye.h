@@ -48,7 +48,7 @@ public:
 	DECLARE_INPUT_CHANGED_MEMBER(change_il);
 	int dsw1_read();
 
-	virtual void config(machine_config &config);
+	virtual void config(machine_config &config) ATTR_COLD;
 
 protected:
 	required_device<z80_device> m_maincpu;
@@ -94,8 +94,8 @@ protected:
 	virtual void background_w(offs_t offset, uint8_t data);
 	void popeye_portB_w(uint8_t data);
 	TILE_GET_INFO_MEMBER(get_fg_tile_info);
-	virtual void driver_start() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 	virtual void tnx1_palette(palette_device &palette);
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	virtual void screen_vblank(int state);
@@ -105,9 +105,9 @@ protected:
 	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void draw_field(bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	void maincpu_common_map(address_map &map);
-	virtual void maincpu_program_map(address_map &map);
-	void maincpu_io_map(address_map &map);
+	void maincpu_common_map(address_map &map) ATTR_COLD;
+	virtual void maincpu_program_map(address_map &map) ATTR_COLD;
+	void maincpu_io_map(address_map &map) ATTR_COLD;
 
 	virtual bool bootleg_sprites() const { return false; }
 };
@@ -132,12 +132,12 @@ class popeyebl_state : public tpp1_state
 	using tpp1_state::tpp1_state;
 
 public:
-	virtual void config(machine_config& config) override;
+	virtual void config(machine_config& config) override ATTR_COLD;
 
 protected:
-	virtual void decrypt_rom() override;
-	virtual void maincpu_program_map(address_map &map) override;
-	void decrypted_opcodes_map(address_map& map);
+	virtual void decrypt_rom() override ATTR_COLD;
+	virtual void maincpu_program_map(address_map &map) override ATTR_COLD;
+	void decrypted_opcodes_map(address_map &map) ATTR_COLD;
 
 	virtual bool bootleg_sprites() const override { return true; }
 };
@@ -147,16 +147,16 @@ class tpp2_state : public tpp1_state
 	using tpp1_state::tpp1_state;
 
 public:
-	virtual void config(machine_config &config) override;
+	virtual void config(machine_config &config) override ATTR_COLD;
 
 protected:
 	bool m_watchdog_enabled = false;
 	uint8_t m_watchdog_counter = 0;
 
-	virtual void driver_start() override;
+	virtual void machine_start() override ATTR_COLD;
 	virtual void refresh_w(offs_t offset, uint8_t data) override;
 	virtual void screen_vblank(int state) override;
-	virtual void maincpu_program_map(address_map &map) override;
+	virtual void maincpu_program_map(address_map &map) override ATTR_COLD;
 	virtual void decrypt_rom() override;
 	virtual void draw_background(bitmap_ind16 &bitmap, const rectangle &cliprect) override;
 	virtual void background_w(offs_t offset, uint8_t data) override;
@@ -167,7 +167,7 @@ class tpp2_noalu_state : public tpp2_state
 	using tpp2_state::tpp2_state;
 
 protected:
-	virtual void maincpu_program_map(address_map &map) override;
+	virtual void maincpu_program_map(address_map &map) override ATTR_COLD;
 };
 
 #endif // MAME_NINTENDO_POPEYE_H

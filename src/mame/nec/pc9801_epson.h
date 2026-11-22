@@ -23,26 +23,29 @@ public:
 	}
 
 	void pc286vs(machine_config &config);
+	void pc286u(machine_config &config);
 	void pc386m(machine_config &config);
+	void pc386v(machine_config &config);
 	void pc486mu(machine_config &config);
 	void pc486se(machine_config &config);
 
 protected:
 	void config_base_epson(machine_config &config);
 
-	void pc386m_ipl_bank(address_map &map);
+	void pc386m_ipl_bank(address_map &map) ATTR_COLD;
 
-	void epson_base_io(address_map &map);
+	void epson_base_io(address_map &map) ATTR_COLD;
 
-	void pc286vs_io(address_map &map);
-	void pc286vs_map(address_map &map);
-	void pc386m_io(address_map &map);
-	void pc386m_map(address_map &map);
-	void pc486se_io(address_map &map);
-	void pc486se_map(address_map &map);
+	void pc286u_map(address_map &map) ATTR_COLD;
+	void pc286vs_io(address_map &map) ATTR_COLD;
+	void pc286vs_map(address_map &map) ATTR_COLD;
+	void pc386m_io(address_map &map) ATTR_COLD;
+	void pc386m_map(address_map &map) ATTR_COLD;
+	void pc486se_io(address_map &map) ATTR_COLD;
+	void pc486se_map(address_map &map) ATTR_COLD;
 
-//  virtual void machine_start() override;
-//  virtual void machine_reset() override;
+//  virtual void machine_start() override ATTR_COLD;
+//  virtual void machine_reset() override ATTR_COLD;
 
 	DECLARE_MACHINE_START(pc98_epson);
 	DECLARE_MACHINE_RESET(pc98_epson);
@@ -60,6 +63,26 @@ private:
 	u8 m_shadow_ipl_bank = 0;
 	bool m_itf_bank_enable = false;
 //  u8 m_itf_bank;
+};
+
+class pc98_epson_laptop_state : public pc98_epson_state
+{
+public:
+	pc98_epson_laptop_state(const machine_config &mconfig, device_type type, const char *tag)
+		: pc98_epson_state(mconfig, type, tag)
+	{
+	}
+
+	void pc286ls(machine_config &config);
+
+protected:
+	virtual void palette_init(palette_device &palette) const override ATTR_COLD;
+
+	void pc286ls_io(address_map &map) ATTR_COLD;
+
+	void pc286ls_a0_w(offs_t offset, uint8_t data);
+private:
+	uint8_t rgb_to_luma(const uint8_t r, const uint8_t g, const uint8_t b);
 };
 
 #endif // MAME_NEC_PC9801_EPSON_H

@@ -321,7 +321,7 @@ As far as I know, the KC compact used HD6845S only.
 //  PORT_CONFSETTING(M6845_PERSONALITY_PREASIC, "Type 4 - Pre-ASIC")
 
 	PORT_START("green_display")
-	PORT_CONFNAME( 0x01, 0x00, "Monitor" ) PORT_CHANGED_MEMBER(DEVICE_SELF, amstrad_state,  cpc_monitor_changed, 0 )
+	PORT_CONFNAME( 0x01, 0x00, "Monitor" ) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(amstrad_state::cpc_monitor_changed), 0)
 	PORT_CONFSETTING(0x00, "CTM640 Colour Monitor" )
 	PORT_CONFSETTING(0x01, "GT64 Green Monitor" )
 
@@ -916,7 +916,7 @@ void amstrad_state::amstrad_base(machine_config &config)
 	ppi.out_pc_callback().set(FUNC(amstrad_state::amstrad_ppi_portc_w));
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(16_MHz_XTAL, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15);
 	m_screen->set_screen_update(FUNC(amstrad_state::screen_update_amstrad));
 	m_screen->screen_vblank().set(FUNC(amstrad_state::screen_vblank_amstrad));
@@ -1040,7 +1040,7 @@ void amstrad_state::cpcplus(machine_config &config)
 	ppi.out_pc_callback().set(FUNC(amstrad_state::amstrad_ppi_portc_w));
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw((40_MHz_XTAL * 2) / 5, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15);
 	m_screen->set_screen_update(FUNC(amstrad_state::screen_update_amstrad));
 	m_screen->screen_vblank().set(FUNC(amstrad_state::screen_vblank_amstrad));
@@ -1117,7 +1117,7 @@ void amstrad_state::gx4000(machine_config &config)
 	ppi.out_pc_callback().set(FUNC(amstrad_state::amstrad_ppi_portc_w));
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw((40_MHz_XTAL * 2) / 5, 1024, 32, 32 + 640 + 64, 312, 56 + 15, 200 + 15);
 	m_screen->set_screen_update(FUNC(amstrad_state::screen_update_amstrad));
 	m_screen->screen_vblank().set(FUNC(amstrad_state::screen_vblank_amstrad));

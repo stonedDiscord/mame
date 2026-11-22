@@ -37,13 +37,13 @@ public:
 	void tx81z(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	HD44780_PIXEL_UPDATE(lcd_pixel_update);
 	void palette_init(palette_device &palette);
 
-	void mem_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
 
 	u8 p2_r();
 	void midi_rx_r(int state) { m_rx_data = state; }
@@ -141,7 +141,7 @@ void ymtx81z_state::tx81z(machine_config &config)
 	auto &mdout(MIDI_PORT(config, "mdout", midiout_slot, "midiout"));
 	m_maincpu->out_ser_tx_cb().set(mdout, FUNC(midi_port_device::write_txd));
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device &screen(SCREEN(config, "screen").set_lcd());
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	screen.set_screen_update("lcdc", FUNC(hd44780_device::screen_update));
@@ -157,13 +157,12 @@ void ymtx81z_state::tx81z(machine_config &config)
 	lcdc.set_lcd_size(2, 16);
 	lcdc.set_pixel_update_cb(FUNC(ymtx81z_state::lcd_pixel_update));
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	ym2414_device &ymsnd(YM2414(config, "ymsnd", 7.15909_MHz_XTAL / 2));
 	ymsnd.irq_handler().set_inputline(m_maincpu, HD6301_IRQ1_LINE);
-	ymsnd.add_route(0, "lspeaker", 0.60);
-	ymsnd.add_route(1, "rspeaker", 0.60);
+	ymsnd.add_route(0, "speaker", 0.60, 0);
+	ymsnd.add_route(1, "speaker", 0.60, 1);
 }
 
 ROM_START(tx81z)

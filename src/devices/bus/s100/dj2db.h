@@ -34,13 +34,13 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// optional information overrides
-	virtual const tiny_rom_entry *device_rom_region() const override;
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual ioport_constructor device_input_ports() const override;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 
 	// device_s100_card_interface overrides
 	virtual uint8_t s100_smemr_r(offs_t offset) override;
@@ -52,6 +52,9 @@ protected:
 private:
 	void fdc_intrq_w(int state);
 	void fdc_drq_w(int state);
+
+	bool stall_data_access();
+	void release_stall();
 
 	// internal state
 	required_device<mb8866_device> m_fdc;
@@ -78,6 +81,7 @@ private:
 	int m_access_enbl;          // access enable
 	int m_board_enbl;           // board enable
 	int m_phantom;              // phantom
+	int m_stalled;              // RDY held low waiting for DRQ/INTRQ
 };
 
 

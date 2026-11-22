@@ -7,10 +7,47 @@
  */
 #include "emu.h"
 #include "pci.h"
+
 #include "bus/pci/pci_slot.h"
+
+#include <bit>
+
 
 DEFINE_DEVICE_TYPE(PCI_ROOT,   pci_root_device,   "pci_root",   "PCI virtual root")
 DEFINE_DEVICE_TYPE(PCI_BRIDGE, pci_bridge_device, "pci_bridge", "PCI-PCI Bridge")
+
+
+// the functions on a bus, indexed by (device << 3) | function: cards in the PCI slots under bus_root,
+// and its children tagged "dd.f"
+static void find_functions(device_t &requester, device_t &bus_root, pci_device *(&functions)[32*8])
+{
+	for(auto & elem : functions)
+		elem = nullptr;
+
+	for (device_t &d : bus_root.subdevices())
+	{
+		if(d.type() == PCI_SLOT) {
+			pci_slot_device &slot = downcast<pci_slot_device &>(d);
+			pci_device *card = slot.get_card();
+			if(card) {
+				int id = slot.get_slot();
+				functions[id << 3] = card;
+			}
+
+		} else {
+			const char *t = d.tag();
+			int l = strlen(t);
+			if(l <= 4 || t[l-5] != ':' || t[l-2] != '.') {
+				requester.logerror("Device %s unhandled\n", t);
+				continue;
+			}
+			int id = strtol(t+l-4, nullptr, 16);
+			int fct = t[l-1] - '0';
+			functions[(id << 3) | fct] = downcast<pci_device *>(&d);
+		}
+	}
+}
+
 
 
 void pci_device::config_map(address_map &map)
@@ -34,6 +71,8 @@ void pci_device::config_map(address_map &map)
 	map(0x34, 0x34).r(FUNC(pci_device::capptr_r));
 	map(0x3c, 0x3c).rw(FUNC(pci_device::interrupt_line_r), FUNC(pci_device::interrupt_line_w));
 	map(0x3d, 0x3d).rw(FUNC(pci_device::interrupt_pin_r), FUNC(pci_device::interrupt_pin_w));
+	map(0x3e, 0x3e).r(FUNC(pci_device::minimum_grant_r));
+	map(0x3f, 0x3f).r(FUNC(pci_device::maximum_latency_r));
 }
 
 void pci_bridge_device::config_map(address_map &map)
@@ -97,7 +136,7 @@ pci_device::pci_device(const machine_config &mconfig, device_type type, const ch
 // main_id & 0xffff = device ID ($02-$03)
 // revision = board versioning ($08)
 // pclass = programming interface/sub class code/base class code ($09-$0b)
-// subsystem_id << 16 = sub vendor ID ($2c-$2d)    - NB: not all cards have these
+// subsystem_id << 16 = sub vendor ID ($2c-$2d)    - NOTE: not all cards have these
 // subsystem_id & 0xffff = sub device ID ($2e-$2f) /
 void pci_device::set_ids(uint32_t _main_id, uint8_t _revision, uint32_t _pclass, uint32_t _subsystem_id)
 {
@@ -112,11 +151,15 @@ void pci_device::device_start()
 	command = 0x0000;
 	command_mask = 0x01bf;
 	status = 0x0000;
+	minimum_grant = 0;
+	maximum_latency = 0;
 
 	bank_count = 0;
 	bank_reg_count = 0;
 
 	save_item(STRUCT_MEMBER(bank_infos, adr));
+	save_item(STRUCT_MEMBER(bank_infos, size));
+	save_item(STRUCT_MEMBER(bank_infos, flags));
 	save_item(NAME(command));
 	save_item(NAME(command_mask));
 	save_item(NAME(status));
@@ -172,7 +215,7 @@ uint32_t pci_device::address_base_r(offs_t offset)
 	return (bank_infos[bid].adr & ~(bank_infos[bid].size - 1)) | (flags & M_IO ? 1 : 0) | (flags & M_64A ? 4 : 0) | (flags & M_PREF ? 8 : 0);
 }
 
-void pci_device::address_base_w(offs_t offset, uint32_t data)
+void pci_device::address_base_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
 	if(bank_reg_infos[offset].bank == -1) {
 		logerror("write to address base (%d, %08x) not linked to any bank\n", offset, data);
@@ -180,9 +223,12 @@ void pci_device::address_base_w(offs_t offset, uint32_t data)
 	}
 
 	int bid = bank_reg_infos[offset].bank;
-	if(bank_reg_infos[offset].hi)
+	if(bank_reg_infos[offset].hi) {
+		data = ((bank_infos[bid].adr >> 32) & ~mem_mask) | (data & mem_mask);
 		bank_infos[bid].adr = (bank_infos[bid].adr & 0xffffffff) | (uint64_t(data) << 32);
+	}
 	else {
+		data = (bank_infos[bid].adr & ~mem_mask) | (data & mem_mask);
 		bank_infos[bid].adr = (bank_infos[bid].adr & 0xffffffff00000000U) | data;
 	}
 	remap_cb();
@@ -209,7 +255,7 @@ void pci_device::command_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 
 	mem_mask &= command_mask;
 	COMBINE_DATA(&command);
-	logerror("command = %04x\n", command);
+	logerror("command = %04x (%04x & %04x)\n", command, data, command_mask);
 	if ((old ^ command) & 3)
 		remap_cb();
 }
@@ -224,11 +270,13 @@ uint32_t pci_device::class_rev_r()
 	return (pclass << 8) | revision;
 }
 
+// vendor defined, writeable with optional "fallback to zero" if unsupported
 uint8_t pci_device::cache_line_size_r()
 {
 	return 0x00;
 }
 
+// latency timer in PCI bus clocks, optionally writeable if supported
 uint8_t pci_device::latency_timer_r()
 {
 	return 0x00;
@@ -317,6 +365,20 @@ void pci_device::interrupt_pin_w(offs_t offset, uint8_t data, uint8_t mem_mask)
 	logerror("interrupt_pin_w = %02x\n", data);
 }
 
+// value x 0.25 usec to complete a burst
+uint8_t pci_device::minimum_grant_r()
+{
+	logerror("minimum_grant_r = %02x\n", minimum_grant);
+	return minimum_grant;
+}
+
+// value x 0.25 usec between request cycles
+uint8_t pci_device::maximum_latency_r()
+{
+	logerror("maximum_latency_r = %02x\n", maximum_latency);
+	return maximum_latency;
+}
+
 void pci_device::set_remap_cb(mapper_cb _remap_cb)
 {
 	remap_cb = _remap_cb;
@@ -328,6 +390,35 @@ void pci_device::reset_all_mappings()
 
 void pci_device::map_device(uint64_t memory_window_start, uint64_t memory_window_end, uint64_t memory_offset, address_space *memory_space,
 							uint64_t io_window_start, uint64_t io_window_end, uint64_t io_offset, address_space *io_space)
+{
+	map_bars(memory_window_start, memory_window_end, memory_offset, memory_space,
+				io_window_start, io_window_end, io_offset, io_space);
+
+	map_extra(memory_window_start, memory_window_end, memory_offset, memory_space,
+				io_window_start, io_window_end, io_offset, io_space);
+
+	if(expansion_rom_base & 1) {
+		logerror("map expansion rom at %08x-%08x\n", expansion_rom_base & ~1, (expansion_rom_base & ~1) + expansion_rom_size - 1);
+		uint32_t start = (expansion_rom_base & ~1) + memory_offset;
+		uint32_t end = start + expansion_rom_size - 1;
+		if(end > memory_window_end)
+			end = memory_window_end;
+		memory_space->install_rom(start, end, (void *)expansion_rom);
+	}
+}
+
+void pci_device::map_extra(uint64_t memory_window_start, uint64_t memory_window_end, uint64_t memory_offset, address_space *memory_space,
+							uint64_t io_window_start, uint64_t io_window_end, uint64_t io_offset, address_space *io_space)
+{
+}
+
+void pci_device::map_config(uint8_t device, address_space *config_space)
+{
+	config_space->install_device(device << 12, (device << 12) | 0xfff, *this, &pci_device::config_map);
+}
+
+void pci_device::map_bars(uint64_t memory_window_start, uint64_t memory_window_end, uint64_t memory_offset, address_space *memory_space,
+						  uint64_t io_window_start, uint64_t io_window_end, uint64_t io_offset, address_space *io_space)
 {
 	for(int i=0; i<bank_count; i++) {
 		bank_info &bi = bank_infos[i];
@@ -366,28 +457,6 @@ void pci_device::map_device(uint64_t memory_window_start, uint64_t memory_window
 		space->install_device_delegate(start, end, *bi.device, bi.map);
 		logerror("map %s at %0*x-%0*x\n", bi.map.name(), bi.flags & M_IO ? 4 : 8, uint32_t(start), bi.flags & M_IO ? 4 : 8, uint32_t(end));
 	}
-
-	map_extra(memory_window_start, memory_window_end, memory_offset, memory_space,
-				io_window_start, io_window_end, io_offset, io_space);
-
-	if(expansion_rom_base & 1) {
-		logerror("map expansion rom at %08x-%08x\n", expansion_rom_base & ~1, (expansion_rom_base & ~1) + expansion_rom_size - 1);
-		uint32_t start = (expansion_rom_base & ~1) + memory_offset;
-		uint32_t end = start + expansion_rom_size - 1;
-		if(end > memory_window_end)
-			end = memory_window_end;
-		memory_space->install_rom(start, end, (void *)expansion_rom);
-	}
-}
-
-void pci_device::map_extra(uint64_t memory_window_start, uint64_t memory_window_end, uint64_t memory_offset, address_space *memory_space,
-							uint64_t io_window_start, uint64_t io_window_end, uint64_t io_offset, address_space *io_space)
-{
-}
-
-void pci_device::map_config(uint8_t device, address_space *config_space)
-{
-	config_space->install_device(device << 12, (device << 12) | 0xfff, *this, &pci_device::config_map);
 }
 
 void pci_device::skip_map_regs(int count)
@@ -489,6 +558,11 @@ uint8_t pci_bridge_device::header_type_r()
 	return 0x01;
 }
 
+uint8_t pci_host_device::header_type_r()
+{
+	return pci_device::header_type_r();
+}
+
 device_memory_interface::space_config_vector pci_bridge_device::memory_space_config() const
 {
 	return space_config_vector {
@@ -513,31 +587,7 @@ void pci_bridge_device::device_start()
 {
 	pci_device::device_start();
 
-	for(auto & elem : sub_devices)
-		elem = nullptr;
-
-	for (device_t &d : bus_root()->subdevices())
-	{
-		if(d.type() == PCI_SLOT) {
-			pci_slot_device &slot = downcast<pci_slot_device &>(d);
-			pci_device *card = slot.get_card();
-			if(card) {
-				int id = slot.get_slot();
-				sub_devices[id << 3] = card;
-			}
-
-		} else {
-			const char *t = d.tag();
-			int l = strlen(t);
-			if(l <= 4 || t[l-5] != ':' || t[l-2] != '.') {
-				logerror("Device %s unhandled\n", t);
-				continue;
-			}
-			int id = strtol(t+l-4, nullptr, 16);
-			int fct = t[l-1] - '0';
-			sub_devices[(id << 3) | fct] = downcast<pci_device *>(&d);
-		}
-	}
+	find_functions(*this, *bus_root(), sub_devices);
 
 	mapper_cb cf_cb(&pci_bridge_device::regenerate_config_mapping, this);
 
@@ -677,7 +727,7 @@ void pci_bridge_device::config_write(uint8_t bus, uint8_t device, uint16_t reg, 
 uint32_t pci_bridge_device::b_address_base_r(offs_t offset)
 {
 	logerror("b_address_base_r %d\n", offset);
-	return 0xffffffff;
+	return 0;
 }
 
 void pci_bridge_device::b_address_base_w(offs_t offset, uint32_t data)
@@ -918,6 +968,8 @@ void pci_host_device::device_start()
 
 	save_item(NAME(config_address));
 
+	// the BARs come back from a saved state, the address maps built from them don't
+	machine().save().register_postload(save_prepost_delegate(FUNC(pci_host_device::regenerate_mapping), this));
 }
 
 void pci_host_device::device_reset()
@@ -944,7 +996,7 @@ void pci_host_device::regenerate_mapping()
 				io_window_start, io_window_end, io_offset, io_space);
 }
 
-uint32_t pci_host_device::config_address_r()
+uint32_t pci_host_device::config_address_r(offs_t offset, uint32_t mem_mask)
 {
 	return config_address;
 }
@@ -970,7 +1022,7 @@ uint32_t pci_host_device::config_data_ex_r(offs_t offset, uint32_t mem_mask)
 	// is this a Type 0 or Type 1 configuration address? (page 31, PCI 2.2 Specification)
 	if ((config_address & 3) == 0)
 	{
-		const int devnum = 31 - count_leading_zeros_32(config_address & 0xfffff800);
+		const int devnum = std::bit_width(config_address & 0xfffff800) - 1;
 		return root_config_read(0, devnum << 3, config_address & 0xfc, mem_mask);
 	}
 	else if ((config_address & 3) == 1)
@@ -985,7 +1037,7 @@ void pci_host_device::config_data_ex_w(offs_t offset, uint32_t data, uint32_t me
 	// is this a Type 0 or Type 1 configuration address? (page 31, PCI 2.2 Specification)
 	if ((config_address & 3) == 0)
 	{
-		const int devnum = 31 - count_leading_zeros_32(config_address & 0xfffff800);
+		const int devnum = std::bit_width(config_address & 0xfffff800) - 1;
 		root_config_write(0, devnum << 3, config_address & 0xfc, data, mem_mask);
 	}
 	else if ((config_address & 3) == 1)
@@ -1016,19 +1068,134 @@ void pci_host_device::root_config_write(uint8_t bus, uint8_t device, uint16_t re
 
 
 pci_root_device::pci_root_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: device_t(mconfig, PCI_ROOT, tag, owner, clock),
-	  m_pin_mapper(*this),
-	  m_irq_handler(*this),
-	  m_pci_busmaster_space(nullptr)
+	: device_t(mconfig, PCI_ROOT, tag, owner, clock)
+	, device_memory_interface(mconfig, *this)
+	, m_pin_mapper(*this)
+	, m_irq_handler(*this)
+	, m_pci_busmaster_space(nullptr)
+	, m_pci_busmaster_io_space(nullptr)
+	, m_hostless(false)
+	, m_config_config("configuration_space", ENDIANNESS_LITTLE, 32, 20)
+	, m_memory_config("memory_space", ENDIANNESS_LITTLE, 32, 32)
+	, m_io_config("io_space", ENDIANNESS_LITTLE, 32, 32)
+	, m_sub_devices()
 {
+}
+
+device_memory_interface::space_config_vector pci_root_device::memory_space_config() const
+{
+	// with a host bridge, the bridge owns the bus spaces
+	if(!m_hostless)
+		return space_config_vector();
+
+	return space_config_vector {
+		std::make_pair(AS_PCI_CONFIG, &m_config_config),
+		std::make_pair(AS_PCI_MEMORY, &m_memory_config),
+		std::make_pair(AS_PCI_IO, &m_io_config)
+	};
+}
+
+void pci_root_device::device_validity_check(validity_checker &valid) const
+{
+	if(!m_hostless)
+		return;
+
+	for(const device_t &d : subdevices())
+		if(dynamic_cast<const pci_host_device *>(&d))
+			osd_printf_error("Host bridge %s on a hostless PCI bus\n", d.tag());
 }
 
 void pci_root_device::device_start()
 {
+	if(!m_hostless)
+		return;
+
+	m_pci_busmaster_space = &space(AS_PCI_MEMORY);
+	m_pci_busmaster_io_space = &space(AS_PCI_IO);
+
+	find_functions(*this, *this, m_sub_devices);
+
+	const pci_device::mapper_cb cf_cb(&pci_root_device::regenerate_config_mapping, this);
+	const pci_device::mapper_cb map_cb(&pci_root_device::regenerate_mapping, this);
+	for(int i=0; i<32*8; i++)
+		if(m_sub_devices[i]) {
+			if((i & 7) && m_sub_devices[i & ~7])
+				m_sub_devices[i & ~7]->set_multifunction_device(true);
+
+			m_all_devices.push_back(m_sub_devices[i]);
+			m_sub_devices[i]->remap_config_cb = cf_cb;
+			m_sub_devices[i]->set_remap_cb(map_cb);
+		}
+
+	for(pci_device *d : m_all_devices)
+		d->reset_all_mappings();
+
+	// the BARs come back from a saved state, the address maps built from them don't
+	machine().save().register_postload(save_prepost_delegate(FUNC(pci_root_device::regenerate_mapping), this));
 }
 
 void pci_root_device::device_reset()
 {
+	for(pci_device *d : m_all_devices)
+		d->reset_all_mappings();
+}
+
+void pci_root_device::interface_post_reset()
+{
+	if(!m_hostless)
+		return;
+
+	regenerate_config_mapping();
+	regenerate_mapping();
+}
+
+void pci_root_device::regenerate_config_mapping()
+{
+	address_space &config_space = space(AS_PCI_CONFIG);
+	config_space.unmap_readwrite(0x00000, 0xfffff);
+	for(int i=0; i<32*8; i++)
+		if(m_sub_devices[i])
+			m_sub_devices[i]->map_config(i, &config_space);
+}
+
+void pci_root_device::regenerate_mapping()
+{
+	address_space &memory_space = space(AS_PCI_MEMORY);
+	address_space &io_space = space(AS_PCI_IO);
+	memory_space.unmap_readwrite(0x00000000, 0xffffffff);
+	io_space.unmap_readwrite(0x00000000, 0xffffffff);
+
+	// same order as pci_bridge_device::map_device
+	for(bool first : { true, false })
+		for(auto it = m_all_devices.rbegin(); it != m_all_devices.rend(); ++it)
+			if((*it)->map_first() == first)
+				(*it)->map_device(0x00000000, 0xffffffff, 0, &memory_space, 0x00000000, 0xffffffff, 0, &io_space);
+}
+
+// TODO: type 1 cycles (bus != 0) to the buses behind PCI-PCI bridges
+bool pci_root_device::config_claimed(uint8_t bus, uint8_t device) const
+{
+	return m_hostless && bus == 0x00 && m_sub_devices[device];
+}
+
+uint32_t pci_root_device::config_read(uint8_t bus, uint8_t device, uint16_t reg, uint32_t mem_mask)
+{
+	if(!config_claimed(bus, device))
+		return 0xffffffff;
+
+	uint32_t data = space(AS_PCI_CONFIG).read_dword((device << 12) | reg, mem_mask);
+	if(!machine().side_effects_disabled())
+		logerror("config_read %02x:%02x.%x:%02x %08x @ %08x\n", bus, device >> 3, device & 7, reg, data, mem_mask);
+	return data;
+}
+
+void pci_root_device::config_write(uint8_t bus, uint8_t device, uint16_t reg, uint32_t data, uint32_t mem_mask)
+{
+	if(!config_claimed(bus, device))
+		return;
+
+	space(AS_PCI_CONFIG).write_dword((device << 12) | reg, data, mem_mask);
+	logerror("config_write %02x:%02x.%x:%02x %08x @ %08x\n", bus, device >> 3, device & 7, reg, data, mem_mask);
 }
 
 void pci_root_device::irq_pin_w(int pin, int state)

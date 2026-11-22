@@ -175,8 +175,13 @@ int sega315_5313_device::screen_hpos() { return screen().hpos() / (m_lcm_scaling
 DEFINE_DEVICE_TYPE(SEGA315_5313, sega315_5313_device, "sega315_5313", "Sega 315-5313 Megadrive VDP")
 
 sega315_5313_device::sega315_5313_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock)
+	: sega315_5313_device(mconfig, SEGA315_5313, tag, owner, clock, 0x10000, 0x80)
+{
+}
+
+sega315_5313_device::sega315_5313_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, u32 vram_size, u32 cram_size)
 	// mode 4 support, for SMS compatibility, is implemented in 315_5124.cpp
-	: sega315_5313_mode4_device(mconfig, SEGA315_5313, tag, owner, clock, SEGA315_5124_CRAM_SIZE, 0x00, 0x1f, 0, 0, line_315_5313_mode4)
+	: sega315_5313_mode4_device(mconfig, type, tag, owner, clock, SEGA315_5124_CRAM_SIZE, 0x00, 0x1f, 0, 0, line_315_5313_mode4)
 	, device_gfx_interface(mconfig, *this, nullptr, "gfx_palette")
 	, m_render_bitmap(nullptr)
 	, m_render_line(nullptr)
@@ -188,12 +193,20 @@ sega315_5313_device::sega315_5313_device(const machine_config &mconfig, const ch
 	, m_32x_scanline_func(*this)
 	, m_32x_interrupt_func(*this)
 	, m_32x_scanline_helper_func(*this)
-	, m_command_pending(0)
-	, m_command_part1(0)
-	, m_command_part2(0)
+	, m_cpu68k(*this, finder_base::DUMMY_TAG)
+	, m_space68k(nullptr)
+	, m_vram(nullptr)
+	, m_regs(nullptr)
+	, m_cram(nullptr)
+	, m_vsram(nullptr)
 	, m_vdp_code(0)
 	, m_vdp_address(0)
-	, m_vram_fill_pending(0)
+	, m_command_pending(false)
+	, m_vram_fill_pending(false)
+	, m_vram_size(vram_size)
+	, m_cram_size(cram_size)
+	, m_command_part1(0)
+	, m_command_part2(0)
 	, m_vram_fill_length(0)
 	, m_irq4counter(0)
 	, m_imode_odd_frame(0)
@@ -213,10 +226,6 @@ sega315_5313_device::sega315_5313_device(const machine_config &mconfig, const ch
 	, m_vdp_pal(0)
 	, m_use_cram(0)
 	, m_dma_delay(0)
-	, m_regs(nullptr)
-	, m_vram(nullptr)
-	, m_cram(nullptr)
-	, m_vsram(nullptr)
 	, m_internal_sprite_attribute_table(nullptr)
 	, m_irq6_on_timer(nullptr)
 	, m_irq4_on_timer(nullptr)
@@ -225,8 +234,6 @@ sega315_5313_device::sega315_5313_device(const machine_config &mconfig, const ch
 	, m_highpri_renderline(nullptr)
 	, m_video_renderline(nullptr)
 	, m_palette_lookup(nullptr)
-	, m_space68k(nullptr)
-	, m_cpu68k(*this, finder_base::DUMMY_TAG)
 	, m_ext_palette(*this, finder_base::DUMMY_TAG)
 	, m_gfx_palette(*this, "gfx_palette")
 	, m_gfx_palette_shadow(*this, "gfx_palette_shadow")
@@ -245,7 +252,7 @@ void sega315_5313_device::device_add_mconfig(machine_config &config)
 {
 	sega315_5313_mode4_device::device_add_mconfig(config);
 
-	SEGAPSG(config.replace(), m_snsnd, DERIVED_CLOCK(1, 15)).add_route(ALL_OUTPUTS, *this, 0.5, AUTO_ALLOC_INPUT, 0);
+	SEGAPSG(config.replace(), m_snsnd, DERIVED_CLOCK(1, 15)).add_route(ALL_OUTPUTS, *this, 0.5, 0);
 
 	PALETTE(config, m_gfx_palette, palette_device::BLACK).set_entries(PALETTE_PER_FRAME);
 	PALETTE(config, m_gfx_palette_shadow, palette_device::BLACK).set_entries(PALETTE_PER_FRAME);
@@ -303,22 +310,22 @@ void sega315_5313_device::device_start()
 	m_32x_interrupt_func.resolve();
 	m_32x_scanline_helper_func.resolve();
 
-	m_vram  = std::make_unique<u16[]>(0x10000 / 2);
-	m_cram  = std::make_unique<u16[]>(0x80 / 2);
+	m_vram  = std::make_unique<u16[]>(m_vram_size / 2);
+	m_cram  = std::make_unique<u16[]>(m_cram_size / 2);
 	m_vsram = std::make_unique<u16[]>(0x80 / 2);
-	m_regs  = std::make_unique<u16[]>(0x40 / 2);
+	m_regs  = std::make_unique<u8[]>(0x20);
 	m_internal_sprite_attribute_table = std::make_unique<u16[]>(0x400 / 2);
 
-	memset(m_vram.get(), 0x00, 0x10000);
-	memset(m_cram.get(), 0x00, 0x80);
+	memset(m_vram.get(), 0x00, m_vram_size);
+	memset(m_cram.get(), 0x00, m_cram_size);
 	memset(m_vsram.get(), 0x00, 0x80);
-	memset(m_regs.get(), 0x00, 0x40);
+	memset(m_regs.get(), 0x00, 0x20);
 	memset(m_internal_sprite_attribute_table.get(), 0x00, 0x400);
 
-	save_pointer(NAME(m_vram), 0x10000 / 2);
-	save_pointer(NAME(m_cram), 0x80 / 2);
+	save_pointer(NAME(m_vram), m_vram_size / 2);
+	save_pointer(NAME(m_cram), m_cram_size / 2);
 	save_pointer(NAME(m_vsram), 0x80 / 2);
-	save_pointer(NAME(m_regs), 0x40 / 2);
+	save_pointer(NAME(m_regs), 0x20);
 	save_pointer(NAME(m_internal_sprite_attribute_table), 0x400 / 2);
 
 	save_item(NAME(m_command_pending));
@@ -384,12 +391,12 @@ void sega315_5313_device::device_start()
 
 void sega315_5313_device::device_reset()
 {
-	m_command_pending = 0;
+	m_command_pending = false;
 	m_command_part1 = 0;
 	m_command_part2 = 0;
 	m_vdp_code = 0;
 	m_vdp_address = 0;
-	m_vram_fill_pending = 0;
+	m_vram_fill_pending = false;
 	m_vram_fill_length = 0;
 	m_irq4counter = -1;
 	m_imode_odd_frame = 0;
@@ -485,7 +492,7 @@ void sega315_5313_device::vdp_cram_write(u16 data)
 
 void sega315_5313_device::data_port_w(int data)
 {
-	m_command_pending = 0;
+	m_command_pending = false;
 
 	/*
 	0000b : VRAM read
@@ -585,30 +592,37 @@ void sega315_5313_device::vdp_set_register(int regnum, u8 value)
 	{
 	//osd_printf_debug("setting reg 0, irq enable is now %d\n", MEGADRIVE_REG0_IRQ4_ENABLE);
 
-		// fatalrew and sesame are very fussy about pending interrupts.
-		// Former in particular will quickly enable both after the EA logo (cfr. killshow at PC=0x2267a),
-		// and irq 6 will jump to illegal addresses because the correlated routine isn't set in stack
-		// but delayed a bit.
-		// Note that irq 6 is masked for about 5 frames, leaving the assumption that it mustn't
-		// be left on during all this time.
-		if (m_irq4_pending)
+		// fatalrew/killshow and sesame are very fussy about pending interrupts.
+		// https://jsgroth.dev/blog/posts/emulator-bugs-fatal-rewind/
+		// https://gendev.spritesmind.net/forum/viewtopic.php?t=2202
+		// this gets 1 cycle delay on both HINT and VINT for gen_test_int_delay.bin
+		// TODO: first time around said test prints HINT=20, pressing start gives the correct value
+		if (m_irq4_pending && MEGADRIVE_REG0_IRQ4_ENABLE)
 		{
-			if (MEGADRIVE_REG0_IRQ4_ENABLE)
-				m_lv4irqline_callback(true);
-			else
-				m_lv4irqline_callback(false);
+			m_irq4_on_timer->adjust(attotime::from_ticks(16, clock() / 4));
+//          if (MEGADRIVE_REG0_IRQ4_ENABLE)
+//              m_lv4irqline_callback(true);
+//          else
+//              m_lv4irqline_callback(false);
 		}
+		else
+			m_lv4irqline_callback(false);
+
 	}
 
 	if (regnum == 0x01)
 	{
-		if (m_irq6_pending)
+		if (m_irq6_pending && MEGADRIVE_REG01_IRQ6_ENABLE)
 		{
-			if (MEGADRIVE_REG01_IRQ6_ENABLE)
-				m_lv6irqline_callback(true);
-			else
-				m_lv6irqline_callback(false);
+			m_irq6_on_timer->adjust(attotime::from_ticks(16, clock() / 4));
+
+//          if (MEGADRIVE_REG01_IRQ6_ENABLE)
+//              m_lv6irqline_callback(true);
+//          else
+//              m_lv6irqline_callback(false);
 		}
+		else
+			m_lv6irqline_callback(false);
 	}
 
 //  if (regnum == 0x0a)
@@ -815,7 +829,7 @@ void sega315_5313_device::handle_dma_bits()
 			//osd_printf_debug("vram fill length %02x %02x other regs! %02x %02x %02x(Mode Bits %02x) Enable %02x\n", MEGADRIVE_REG13_DMALENGTH1, MEGADRIVE_REG14_DMALENGTH2, MEGADRIVE_REG15_DMASOURCE1, MEGADRIVE_REG16_DMASOURCE2, MEGADRIVE_REG17_DMASOURCE3, MEGADRIVE_REG17_DMATYPE, MEGADRIVE_REG01_DMA_ENABLE);
 			if (MEGADRIVE_REG01_DMA_ENABLE)
 			{
-				m_vram_fill_pending = 1;
+				m_vram_fill_pending = true;
 				m_vram_fill_length = (MEGADRIVE_REG13_DMALENGTH1 | (MEGADRIVE_REG14_DMALENGTH2 << 8));
 			}
 		}
@@ -844,12 +858,12 @@ void sega315_5313_device::handle_dma_bits()
 void sega315_5313_device::ctrl_port_w(int data)
 {
 //  logerror("write to vdp control port %04x\n",data);
-	m_vram_fill_pending = 0; // ??
+	m_vram_fill_pending = false; // ??
 
 	if (m_command_pending)
 	{
 		/* 2nd part of 32-bit command */
-		m_command_pending = 0;
+		m_command_pending = false;
 		m_command_part2 = data;
 
 		update_code_and_address();
@@ -867,13 +881,17 @@ void sega315_5313_device::ctrl_port_w(int data)
 
 			if (regnum & 0x20) osd_printf_debug("reg error\n");
 
-			vdp_set_register(regnum & 0x1f, value);
+			// in mode 4 all writes beyond register 10 are ignored
+			// bassmpro relies on this at Sega startup logo
+			if (BIT(m_regs[0x01], 2) || (regnum & 0x1f) <= 10)
+				vdp_set_register(regnum & 0x1f, value);
+
 			m_vdp_code = 0;
 			m_vdp_address = 0;
 		}
 		else
 		{
-			m_command_pending = 1;
+			m_command_pending = true;
 			m_command_part1 = data;
 			update_code_and_address();
 			//logerror("VDP Write Part 1 setting Code %02x Address %04x\n", m_vdp_code, m_vdp_address);
@@ -949,10 +967,8 @@ u16 sega315_5313_device::data_port_r()
 {
 	u16 retdata = 0;
 
-	//return machine().rand();
-
 	if (!machine().side_effects_disabled())
-		m_command_pending = 0;
+		m_command_pending = false;
 
 	switch (m_vdp_code & 0x000f)
 	{
@@ -1065,7 +1081,10 @@ PAL, 256x224
 
 */
 
-
+u8 sega315_5313_device::ctrl_port_vdp_pal()
+{
+	return m_vdp_pal;
+}
 
 u16 sega315_5313_device::ctrl_port_r()
 {
@@ -1099,29 +1118,29 @@ u16 sega315_5313_device::ctrl_port_r()
 	/* extra case */
 	if (MEGADRIVE_REG01_DISP_ENABLE == 0) vblank = 1;
 
-/*
+	/*
 
-// these aren't *always* 0/1 some of them are open bus return
- d15 - Always 0
- d14 - Always 0
- d13 - Always 1
- d12 - Always 1
+	// these aren't *always* 0/1 some of them are open bus return
+	 d15 - Always 0
+	 d14 - Always 0
+	 d13 - Always 1
+	 d12 - Always 1
 
- d11 - Always 0
- d10 - Always 1
- d9  - FIFO Empty
- d8  - FIFO Full
+	 d11 - Always 0
+	 d10 - Always 1
+	 d9  - FIFO Empty
+	 d8  - FIFO Full
 
- d7  - Vertical interrupt pending
- d6  - Sprite overflow on current scan line
- d5  - Sprite collision
- d4  - Odd frame
+	 d7  - Vertical interrupt pending
+	 d6  - Sprite overflow on current scan line
+	 d5  - Sprite collision
+	 d4  - Odd frame
 
- d3  - Vertical blanking
- d2  - Horizontal blanking
- d1  - DMA in progress
- d0  - PAL mode flag
-*/
+	 d3  - Vertical blanking
+	 d2  - Horizontal blanking
+	 d1  - DMA in progress
+	 d0  - PAL mode flag
+	*/
 
 	return (1 << 13) | // ALWAYS 1
 			(1 << 12) | // ALWAYS 1
@@ -1135,7 +1154,7 @@ u16 sega315_5313_device::ctrl_port_r()
 			(vblank << 3) |
 			(hblank_flag << 2) |
 			(dma_active << 1) |
-			(m_vdp_pal << 0); // PAL MODE FLAG checked by striker for region prot..
+			(ctrl_port_vdp_pal() << 0); // PAL MODE FLAG checked by striker for region prot..
 }
 
 static const u8 vc_ntsc_224[] =
@@ -1302,6 +1321,9 @@ u16 sega315_5313_device::megadriv_read_hv_counters()
 
 u16 sega315_5313_device::vdp_r(offs_t offset, u16 mem_mask)
 {
+	if (!machine().side_effects_disabled() && ((offset & 0x0e) == 0x02)) // control port read clears the pending command
+		m_command_pending = false;
+
 	u16 retvalue = 0;
 
 	switch (offset << 1)
@@ -2254,15 +2276,15 @@ void sega315_5313_device::vdp_handle_scanline_callback(int scanline)
 		if (get_scanline_counter() == m_irq6_scanline)
 		{
 		//  osd_printf_debug("x %d", get_scanline_counter());
-			m_irq6_on_timer->adjust(attotime::from_usec(6));
+			m_irq6_on_timer->adjust(attotime::from_ticks(32, clock() / 4));
 			m_irq6_pending = 1;
 			m_vblank_flag = 1;
-
 		}
 
 	//  if (get_scanline_counter() == 0) m_irq4counter = MEGADRIVE_REG0A_HINT_VALUE;
 		// m_irq4counter = MEGADRIVE_REG0A_HINT_VALUE;
 
+		// TODO: V30 mode (PAL) runs the V counter up to 240
 		if (get_scanline_counter() <= 224)
 		{
 			m_irq4counter--;
@@ -2276,8 +2298,7 @@ void sega315_5313_device::vdp_handle_scanline_callback(int scanline)
 
 				if (MEGADRIVE_REG0_IRQ4_ENABLE)
 				{
-					// TODO: arbitrary timing
-					m_irq4_on_timer->adjust(attotime::from_usec(1));
+					m_irq4_on_timer->adjust(attotime::from_ticks(32, clock() / 4));
 					//osd_printf_debug("irq4 on scanline %d reload %d\n", get_scanline_counter(), MEGADRIVE_REG0A_HINT_VALUE);
 				}
 				else
@@ -2320,7 +2341,7 @@ void sega315_5313_device::vdp_handle_eof()
 
 	m_vblank_flag = 0;
 	// Not here, breaks warlock
-	//m_irq6_pending = 0;
+//  m_irq6_pending = 0;
 
 	/* Set it to -1 here, so it becomes 0 when the first timer kicks in */
 	if (!m_use_alt_timing) m_scanline_counter = -1;
@@ -2360,7 +2381,7 @@ void sega315_5313_device::vdp_handle_eof()
 
 	visarea.set(0, scr_width - 1, 0, m_visible_scanlines - 1);
 
-	screen().configure(480 * scr_mul, m_total_scanlines, visarea, screen().frame_period().attoseconds());
+	screen().configure(480 * scr_mul, m_total_scanlines, visarea, screen().frame_period());
 }
 
 

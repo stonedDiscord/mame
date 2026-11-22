@@ -19,7 +19,7 @@
     COBRA/603 GN645-PWB(A)   CPU Board
     ----------------------------------
         IBM PowerPC 603EV
-        Motorola XPC105ARX66CD
+        Motorola XPC105ARX66CD (MPC105)
 
     COBRA/403 GN645-PWB(B)   SUB Board
     ----------------------------------
@@ -33,7 +33,7 @@
     COBRA/604 GN645-PWB(C)   GFX Board
     ----------------------------------
         IBM PowerPC 604
-        Motorola XPC105ARX66CD
+        Motorola XPC105ARX66CD (MPC105)
         Toshiba TMP47P241VM MCU (internal ROM?)
         4x CY7C4231 FIFO (2K x 9)
         Xilinx XC4300E FPGA
@@ -323,7 +323,7 @@
 #include "bus/ata/ataintf.h"
 #include "bus/ata/hdd.h"
 #include "cpu/powerpc/ppc.h"
-#include "machine/lpci.h"
+#include "machine/mpc105.h"
 #include "machine/timekpr.h"
 #include "sound/dmadac.h"
 #include "sound/rf5c400.h"
@@ -333,6 +333,8 @@
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+
+#include "corefloat.h"
 
 #define LOG_DEBUG_STATES   (1U << 1)
 
@@ -354,6 +356,8 @@ namespace {
 #define DMA_SOUND_BUFFER_SIZE       16000
 
 
+class cobra_state;
+
 /* Cobra Renderer class */
 
 struct cobra_polydata
@@ -367,8 +371,9 @@ struct cobra_polydata
 class cobra_renderer : public poly_manager<float, cobra_polydata, 8>
 {
 public:
-	cobra_renderer(screen_device &screen)
+	cobra_renderer(cobra_state &cobra, screen_device &screen)
 		: poly_manager<float, cobra_polydata, 8>(screen.machine())
+		, m_cobra(cobra)
 		, m_screen(screen)
 		, m_framebuffer_size(0, 511, 0, 399)
 	{
@@ -414,7 +419,9 @@ public:
 
 	void display(bitmap_rgb32 *bitmap, const rectangle &cliprect);
 	inline rgb_t texture_fetch(uint32_t *texture, int u, int v, int width, int format);
+
 private:
+	cobra_state &m_cobra;
 	screen_device &m_screen;
 	std::unique_ptr<bitmap_rgb32> m_framebuffer;
 	std::unique_ptr<bitmap_rgb32> m_backbuffer;
@@ -518,14 +525,16 @@ public:
 		m_ata(*this, "ata"),
 		m_screen(*this, "screen"),
 		m_palette(*this, "palette"),
-		m_legacy_pci(*this, "pcibus"),
+		m_host(*this, "pci:00.0"),
 		m_jvs_host(*this, "jvs_host"),
 		m_dmadac(*this, "dac%u", 1U),
 		m_generic_paletteram_32(*this, "paletteram"),
-		m_main_ram(*this, "main_ram"),
+		m_main_ram(*this, "main_ram", 0x800000, ENDIANNESS_BIG), // TODO: Verify the physical RAM size.
 		m_sub_ram(*this, "sub_ram"),
 		m_gfx_ram0(*this, "gfx_main_ram_0"),
-		m_gfx_ram1(*this, "gfx_main_ram_1")
+		m_gfx_ram1(*this, "gfx_main_ram_1"),
+		m_mailbox_timeout(nullptr),
+		m_mailbox_posted(false)
 	{
 	}
 
@@ -537,11 +546,11 @@ public:
 	required_device<ata_interface_device> m_ata;
 	required_device<screen_device> m_screen;
 	required_device<palette_device> m_palette;
-	required_device<pci_bus_legacy_device> m_legacy_pci;
+	required_device<mpc105_host_device> m_host;
 	required_device<konppc_jvs_host_device> m_jvs_host;
 	required_device_array<dmadac_sound_device, 2> m_dmadac;
 	required_shared_ptr<uint32_t> m_generic_paletteram_32;
-	required_shared_ptr<uint64_t> m_main_ram;
+	memory_share_creator<uint64_t> m_main_ram;
 	required_shared_ptr<uint32_t> m_sub_ram;
 	required_shared_ptr<uint64_t> m_gfx_ram0;
 	required_shared_ptr<uint64_t> m_gfx_ram1;
@@ -551,6 +560,7 @@ public:
 	uint64_t main_fifo_r(offs_t offset, uint64_t mem_mask = ~0);
 	void main_fifo_w(offs_t offset, uint64_t data, uint64_t mem_mask = ~0);
 	void main_cpu_dc_store(offs_t offset, uint32_t data);
+	TIMER_CALLBACK_MEMBER(mailbox_release);
 
 	uint32_t sub_comram_r(offs_t offset);
 	void sub_comram_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
@@ -608,6 +618,13 @@ public:
 
 	uint8_t m_main_int_active = 0;
 
+	// The BIOS handshakes between the main and GFX CPUs through one word near the top of GFX RAM bank 1
+	static constexpr offs_t MAILBOX_MAIN_ADDR = 0xc7ff7ffc;     // as the main CPU sees it
+	static constexpr offs_t MAILBOX_GFX_ADDR = 0x07ff7ffc;      // as the GFX CPU sees it
+	static constexpr int MAILBOX_TRIGGER = 7120;
+
+	emu_timer *m_mailbox_timeout;
+	bool m_mailbox_posted;                                      // main CPU is held until the GFX CPU reads the mailbox
 
 	std::unique_ptr<uint32_t[]> m_comram[2];
 	int m_comram_page = 0;
@@ -645,25 +662,20 @@ public:
 	void init_racjamdx();
 	void init_bujutsu();
 	void init_cobra();
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 	uint32_t screen_update_cobra(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	INTERRUPT_GEN_MEMBER(cobra_vblank);
 	void cobra_video_exit();
 	int decode_debug_state_value(int v);
 	void cobra(machine_config &config);
 	void bujutsu(machine_config &config);
-	void cobra_gfx_map(address_map &map);
-	void cobra_main_map(address_map &map);
-	void cobra_sub_map(address_map &map);
+	void cobra_gfx_map(address_map &map) ATTR_COLD;
+	void cobra_main_map(address_map &map) ATTR_COLD;
+	void cobra_sub_map(address_map &map) ATTR_COLD;
 
-	void rf5c400_map(address_map& map);
-
-	uint32_t mpc106_pci_r(int function, int reg, uint32_t mem_mask);
-	void mpc106_pci_w(int function, int reg, uint32_t data, uint32_t mem_mask);
-
-	uint32_t m_mpc106_regs[256/4];
+	void rf5c400_map(address_map &map) ATTR_COLD;
 };
 
 void cobra_renderer::render_color_scan(int32_t scanline, const extent_t &extent, const cobra_polydata &extradata, int threadid)
@@ -932,7 +944,7 @@ void cobra_state::video_start()
 {
 	machine().add_notifier(MACHINE_NOTIFY_EXIT, machine_notify_delegate(&cobra_state::cobra_video_exit, this));
 
-	m_renderer = std::make_unique<cobra_renderer>(*m_screen);
+	m_renderer = std::make_unique<cobra_renderer>(*this, *m_screen);
 	m_renderer->gfx_init();
 }
 
@@ -1119,8 +1131,12 @@ void cobra_state::m2sfifo_event_callback(cobra_fifo::EventType event)
 		{
 			m_subcpu->set_input_line(INPUT_LINE_IRQ0, CLEAR_LINE);
 
-			// give sub cpu a bit more time to stabilize on the current fifo status
-			m_maincpu->spin_until_time(attotime::from_usec(1));
+			// Give sub cpu time to see what was written, unless the main CPU is being
+			// held for the mailbox.
+			if (!m_mailbox_posted)
+			{
+				m_maincpu->spin_until_time(attotime::from_usec(1));
+			}
 
 			if (m_m2s_int_enable & 0x80)
 			{
@@ -1196,23 +1212,6 @@ void cobra_state::gfxfifo_out_event_callback(cobra_fifo::EventType event)
 // 0x01: M2S FIFO
 // 0x02: S2M FIFO
 // 0x04: Vblank?
-
-uint32_t cobra_state::mpc106_pci_r(int function, int reg, uint32_t mem_mask)
-{
-	//printf("MPC106: PCI read %d, %02X, %08X\n", function, reg, mem_mask);
-
-	switch (reg)
-	{
-	}
-
-	return m_mpc106_regs[reg/4];
-}
-
-void cobra_state::mpc106_pci_w(int function, int reg, uint32_t data, uint32_t mem_mask)
-{
-	//printf("MPC106: PCI write %d, %02X, %08X, %08X\n", function, reg, data, mem_mask);
-	COMBINE_DATA(&m_mpc106_regs[reg/4]);
-}
 
 uint64_t cobra_state::main_fifo_r(offs_t offset, uint64_t mem_mask)
 {
@@ -1445,6 +1444,18 @@ void cobra_state::main_fifo_w(offs_t offset, uint64_t data, uint64_t mem_mask)
 			// racjamdx
 			else if (strcmp(machine().system().name, "racjamdx") == 0)
 			{
+				uint32_t *main_ram = (uint32_t*)(uint64_t*)m_main_ram;
+				uint32_t *sub_ram = (uint32_t*)m_sub_ram;
+				uint32_t *gfx_ram = (uint32_t*)(uint64_t*)m_gfx_ram0;
+
+				main_ram[(0x001a48^4) / 4] = 0x60000000;    // don't wait for the sub board's ready message
+
+				sub_ram[0x2394 / 4] = 0x4800001c;           // skip sound_init() status check (RF5C400 sample RAM checksum + DSP upload)
+				sub_ram[0x23f4 / 4] = 0x4800001c;           // skip "Lanc Fpga2 Initialize error"
+				sub_ram[0x246c / 4] = 0x60000000;           // skip external interrupt setup
+				sub_ram[0x2510 / 4] = 0x48000014;           // skip config-dependent setup
+
+				gfx_ram[(0x386354^4) / 4] = 0x38600000;     // skip check_one_scene() in drawcheck()
 			}
 		}
 
@@ -1487,18 +1498,28 @@ void cobra_state::main_comram_w(offs_t offset, uint64_t data, uint64_t mem_mask)
 
 void cobra_state::main_cpu_dc_store(offs_t offset, uint32_t data)
 {
-	if ((offset & 0xf0000000) == 0xc0000000)
+	// The main CPU caches GFX RAM write-back, so the BIOS flushes each value it posts in the mailbox
+	// with dcbst.  It then assumes the GFX CPU sees that value before the next one replaces it, which
+	// can be well under 100 usec later, while the GFX CPU only polls between redraws of its progress
+	// display.  Hold the main CPU until the GFX CPU has read the mailbox, with a timeout in case it
+	// isn't polling.
+	if ((offset & ~0x1f) == (MAILBOX_MAIN_ADDR & ~0x1f))
 	{
-		// force sync when writing to GFX board main ram
-		m_maincpu->spin_until_time(attotime::from_usec(80));
+		m_mailbox_posted = true;
+		m_mailbox_timeout->adjust(attotime::from_msec(1));
+		m_maincpu->spin_until_trigger(MAILBOX_TRIGGER);
 	}
+}
+
+TIMER_CALLBACK_MEMBER(cobra_state::mailbox_release)
+{
+	m_mailbox_posted = false;
+	m_mailbox_timeout->adjust(attotime::never);
+	machine().scheduler().trigger(MAILBOX_TRIGGER);
 }
 
 void cobra_state::cobra_main_map(address_map &map)
 {
-	map(0x00000000, 0x003fffff).ram().share("main_ram");
-	map(0x07c00000, 0x07ffffff).ram();
-	map(0x80000cf8, 0x80000cff).rw(m_legacy_pci, FUNC(pci_bus_legacy_device::read_64be), FUNC(pci_bus_legacy_device::write_64be));
 	map(0xc0000000, 0xc03fffff).ram().share("gfx_main_ram_0");              // GFX board main ram, bank 0
 	map(0xc7c00000, 0xc7ffffff).ram().share("gfx_main_ram_1");              // GFX board main ram, bank 1
 	map(0xfff00000, 0xfff7ffff).rom().region("user1", 0);                   /* Boot ROM */
@@ -1877,9 +1898,7 @@ void cobra_renderer::gfx_exit()
 
 void cobra_renderer::gfx_reset()
 {
-	cobra_state *cobra = screen().machine().driver_data<cobra_state>();
-
-	cobra->m_gfx_re_status = RE_STATUS_IDLE;
+	m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 }
 
 uint32_t cobra_renderer::gfx_read_gram(uint32_t address)
@@ -1977,38 +1996,36 @@ void cobra_renderer::gfx_write_reg(uint64_t data)
 
 void cobra_renderer::gfx_fifo_exec()
 {
-	cobra_state *cobra = screen().machine().driver_data<cobra_state>();
-
-	if (cobra->m_gfx_fifo_loopback != 0)
+	if (m_cobra.m_gfx_fifo_loopback != 0)
 		return;
 
 	vertex_t vert[32];
 
-	cobra_fifo *fifo_in = cobra->m_gfxfifo_in.get();
-	cobra_fifo *fifo_out = cobra->m_gfxfifo_out.get();
+	cobra_fifo *fifo_in = m_cobra.m_gfxfifo_in.get();
+	cobra_fifo *fifo_out = m_cobra.m_gfxfifo_out.get();
 
 	while (fifo_in->current_num() >= 2)
 	{
 		uint64_t in1, in2 = 0;
 		uint32_t w1, w2;
 
-		if (cobra->m_gfx_re_status == RE_STATUS_IDLE)
+		if (m_cobra.m_gfx_re_status == RE_STATUS_IDLE)
 		{
 			fifo_in->pop(nullptr, &in1);
 			fifo_in->pop(nullptr, &in2);
 			w1 = (uint32_t)(in1);
 			w2 = (uint32_t)(in2);
 
-			cobra->m_gfx_re_command_word1 = w1;
-			cobra->m_gfx_re_command_word2 = w2;
-			cobra->m_gfx_re_word_count = 0;
+			m_cobra.m_gfx_re_command_word1 = w1;
+			m_cobra.m_gfx_re_command_word2 = w2;
+			m_cobra.m_gfx_re_word_count = 0;
 
-			cobra->m_gfx_re_status = RE_STATUS_COMMAND;
+			m_cobra.m_gfx_re_status = RE_STATUS_COMMAND;
 		}
 		else
 		{
-			w1 = cobra->m_gfx_re_command_word1;
-			w2 = cobra->m_gfx_re_command_word2;
+			w1 = m_cobra.m_gfx_re_command_word1;
+			w2 = m_cobra.m_gfx_re_command_word2;
 		}
 
 
@@ -2063,10 +2080,10 @@ void cobra_renderer::gfx_fifo_exec()
 				}
 				else
 				{
-					cobra->logerror("gfxfifo_exec: unknown %08X %08X\n", w1, w2);
+					m_cobra.logerror("gfxfifo_exec: unknown %08X %08X\n", w1, w2);
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 			case 0x0f:
@@ -2084,7 +2101,7 @@ void cobra_renderer::gfx_fifo_exec()
 
 				if (w1 != 0x0f600000 && w1 != 0xf0600000)
 				{
-					cobra->logerror("gfxfifo_exec: unknown %08X %08X\n", w1, w2);
+					m_cobra.logerror("gfxfifo_exec: unknown %08X %08X\n", w1, w2);
 				}
 
 				//printf("gfxfifo_exec: unhandled %08X %08X\n", w1, w2);
@@ -2104,7 +2121,7 @@ void cobra_renderer::gfx_fifo_exec()
 					fifo_out->push(nullptr, in4);
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 
@@ -2113,7 +2130,7 @@ void cobra_renderer::gfx_fifo_exec()
 			{
 				//printf("gfxfifo_exec: unhandled %08X %08X\n", w1, w2);
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 
@@ -2171,7 +2188,7 @@ void cobra_renderer::gfx_fifo_exec()
 					vp_center_x = 256.0f;
 				}
 
-				if (LOG_DRAW_COMMANDS) cobra->logerror("--- Draw command %08X %08X ---\n", w1, w2);
+				if (LOG_DRAW_COMMANDS) m_cobra.logerror("--- Draw command %08X %08X ---\n", w1, w2);
 
 				// extract vertex data
 				for (int i=0; i < units; i++)
@@ -2224,36 +2241,36 @@ void cobra_renderer::gfx_fifo_exec()
 
 					if (w2 & 0x40000000)
 					{
-						if (LOG_DRAW_COMMANDS) cobra->logerror("    ?: %08X\n", (uint32_t)in[0]);
+						if (LOG_DRAW_COMMANDS) m_cobra.logerror("    ?: %08X\n", (uint32_t)in[0]);
 					}
 					if (w2 & 0x20000000)
 					{
-						if (LOG_DRAW_COMMANDS) cobra->logerror("    ?: %08X\n", (uint32_t)in[1]);
+						if (LOG_DRAW_COMMANDS) m_cobra.logerror("    ?: %08X\n", (uint32_t)in[1]);
 					}
 
-					if (LOG_DRAW_COMMANDS) cobra->logerror("    x: %f\n", x);
-					if (LOG_DRAW_COMMANDS) cobra->logerror("    y: %f\n", y);
-					if (LOG_DRAW_COMMANDS) cobra->logerror("    ?: %08X\n", (uint32_t)in[2]);
-					if (LOG_DRAW_COMMANDS) cobra->logerror("    z: %f\n", z);
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("    x: %f\n", x);
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("    y: %f\n", y);
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("    ?: %08X\n", (uint32_t)in[2]);
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("    z: %f\n", z);
 
 					if (w2 & 0x00200000)
 					{
-						if (LOG_DRAW_COMMANDS) cobra->logerror("    w: %f\n", w);
-						if (LOG_DRAW_COMMANDS) cobra->logerror("    u: %f\n", vert[i].p[POLY_U]);
-						if (LOG_DRAW_COMMANDS) cobra->logerror("    v: %f\n", vert[i].p[POLY_V]);
+						if (LOG_DRAW_COMMANDS) m_cobra.logerror("    w: %f\n", w);
+						if (LOG_DRAW_COMMANDS) m_cobra.logerror("    u: %f\n", vert[i].p[POLY_U]);
+						if (LOG_DRAW_COMMANDS) m_cobra.logerror("    v: %f\n", vert[i].p[POLY_V]);
 					}
 
-					if (LOG_DRAW_COMMANDS) cobra->logerror("    a: %f\n", a);
-					if (LOG_DRAW_COMMANDS) cobra->logerror("    r: %f\n", r);
-					if (LOG_DRAW_COMMANDS) cobra->logerror("    g: %f\n", g);
-					if (LOG_DRAW_COMMANDS) cobra->logerror("    b: %f\n", b);
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("    a: %f\n", a);
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("    r: %f\n", r);
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("    g: %f\n", g);
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("    b: %f\n", b);
 
 					if (w2 & 0x00000001)
 					{
-						if (LOG_DRAW_COMMANDS) cobra->logerror("    ?: %08X\n", (uint32_t)in[3]);
+						if (LOG_DRAW_COMMANDS) m_cobra.logerror("    ?: %08X\n", (uint32_t)in[3]);
 					}
 
-					if (LOG_DRAW_COMMANDS) cobra->logerror("\n");
+					if (LOG_DRAW_COMMANDS) m_cobra.logerror("\n");
 				}
 
 
@@ -2323,7 +2340,7 @@ void cobra_renderer::gfx_fifo_exec()
 					}
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 
@@ -2383,7 +2400,7 @@ void cobra_renderer::gfx_fifo_exec()
 					y++;
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 
@@ -2428,7 +2445,7 @@ void cobra_renderer::gfx_fifo_exec()
 					fifo_out->push(nullptr, buffer[x+3]);
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 
@@ -2438,10 +2455,10 @@ void cobra_renderer::gfx_fifo_exec()
 
 				if (w1 != 0x8fff0000 || w2 != 0x00000000)
 				{
-					cobra->logerror("gfxfifo_exec: buf_flush: %08X %08X\n", w1, w2);
+					m_cobra.logerror("gfxfifo_exec: buf_flush: %08X %08X\n", w1, w2);
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 
@@ -2496,10 +2513,10 @@ void cobra_renderer::gfx_fifo_exec()
 
 				if (reg != 0x118 && reg != 0x114 && reg != 0x11c)
 				{
-					if (LOG_GFX_RAM_WRITES) cobra->logerror("gfxfifo_exec: ram write %05X (mask %08X): %08X (%f)\n", reg, mask, w2, u2f(w2));
+					if (LOG_GFX_RAM_WRITES) m_cobra.logerror("gfxfifo_exec: ram write %05X (mask %08X): %08X (%f)\n", reg, mask, w2, u2f(w2));
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 
@@ -2529,7 +2546,7 @@ void cobra_renderer::gfx_fifo_exec()
 					gfx_write_gram(reg + (i*4), 0xffffffff, value);
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 
@@ -2549,7 +2566,7 @@ void cobra_renderer::gfx_fifo_exec()
 
 		//      printf("GFX: reg read %08X\n", reg);
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 			case 0xd0:
@@ -2575,7 +2592,7 @@ void cobra_renderer::gfx_fifo_exec()
 					fifo_out->push(nullptr, value);
 				}
 
-				cobra->m_gfx_re_status = RE_STATUS_IDLE;
+				m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				break;
 			}
 			case 0xed:
@@ -2585,32 +2602,32 @@ void cobra_renderer::gfx_fifo_exec()
 				//int reg = (w1 >> 8) & 0xff;
 				int num = w2;
 
-				int num_left = num - cobra->m_gfx_re_word_count;
+				int num_left = num - m_cobra.m_gfx_re_word_count;
 
 				if (fifo_in->current_num() < num_left)
 				{
 					num_left = fifo_in->current_num();
 				}
 
-				cobra->m_gfx_unk_status |= 0x400;
+				m_cobra.m_gfx_unk_status |= 0x400;
 
-				if (cobra->m_gfx_re_word_count == 0 && num_left > 0)
-					printf("gfxfifo_exec: tex_ints %d words left\n", num - cobra->m_gfx_re_word_count);
+				if (m_cobra.m_gfx_re_word_count == 0 && num_left > 0)
+					printf("gfxfifo_exec: tex_ints %d words left\n", num - m_cobra.m_gfx_re_word_count);
 
 				for (int i=0; i < num_left; i++)
 				{
 					uint64_t param = 0;
 					fifo_in->pop(nullptr, &param);
-					cobra->m_gfx_re_word_count++;
+					m_cobra.m_gfx_re_word_count++;
 
 					m_texture_ram[m_texram_ptr] = (uint32_t)(param);
 					m_texram_ptr++;
 				}
 
 
-				if (cobra->m_gfx_re_word_count >= num)
+				if (m_cobra.m_gfx_re_word_count >= num)
 				{
-					cobra->m_gfx_re_status = RE_STATUS_IDLE;
+					m_cobra.m_gfx_re_status = RE_STATUS_IDLE;
 				}
 				break;
 			}
@@ -2641,7 +2658,7 @@ void cobra_renderer::gfx_fifo_exec()
 						c = 0;
 					}
 				};
-				cobra->logerror("\n");
+				m_cobra.logerror("\n");
 			}
 		}
 
@@ -2915,18 +2932,43 @@ INTERRUPT_GEN_MEMBER(cobra_state::cobra_vblank)
 
 void cobra_state::machine_start()
 {
+	m_host->set_ram_info(reinterpret_cast<uint8_t *>(&m_main_ram[0]), m_main_ram.bytes());
+
+	// The GFX board's shared RAM takes priority over the host's PCI memory window.
+	m_maincpu->space(AS_PROGRAM).install_device(0, 0xffffffff, *this, &cobra_state::cobra_main_map);
+
 	/* configure fast RAM regions for DRC */
 	m_maincpu->ppcdrc_add_fastram(0x00000000, 0x003fffff, false, m_main_ram);
 
 	m_subcpu->ppcdrc_add_fastram(0x00000000, 0x003fffff, false, m_sub_ram);
 
 	m_gfxcpu->ppcdrc_add_fastram(0x00000000, 0x003fffff, false, m_gfx_ram0);
-	m_gfxcpu->ppcdrc_add_fastram(0x07c00000, 0x07ffffff, false, m_gfx_ram1);
+
+	// the GFX CPU's reads of the mailbox release the main CPU, so keep its page off the fast path
+	const offs_t mailbox_page = MAILBOX_GFX_ADDR & ~0xfff;
+	m_gfxcpu->ppcdrc_add_fastram(0x07c00000, mailbox_page - 1, false, m_gfx_ram1);
+	m_gfxcpu->ppcdrc_add_fastram(mailbox_page + 0x1000, 0x07ffffff, false, &m_gfx_ram1[(mailbox_page + 0x1000 - 0x07c00000) / 8]);
+
+	// the mailbox is the low half of its doubleword on this big-endian bus
+	m_gfxcpu->space(AS_PROGRAM).install_read_tap(MAILBOX_GFX_ADDR & ~7, MAILBOX_GFX_ADDR | 7, "mailbox_r",
+			[this] (offs_t offset, uint64_t &data, uint64_t mem_mask)
+			{
+				if (m_mailbox_posted && ACCESSING_BITS_0_31)
+				{
+					mailbox_release(0);
+				}
+			});
+
+	m_mailbox_timeout = timer_alloc(FUNC(cobra_state::mailbox_release), this);
 }
 
 void cobra_state::machine_reset()
 {
 	m_sub_interrupt = 0xff;
+
+	// a reset abandons any mailbox handshake in progress
+	m_mailbox_posted = false;
+	m_mailbox_timeout->adjust(attotime::never);
 
 	ide_hdd_device *hdd = m_ata->subdevice<ata_slot_device>("0")->subdevice<ide_hdd_device>("hdd");
 	uint16_t *identify_device = hdd->identify_device_buffer();
@@ -2963,36 +3005,35 @@ void cobra_state::cobra(machine_config &config)
 
 	config.set_maximum_quantum(attotime::from_hz(55005));
 
-	PCI_BUS_LEGACY(config, m_legacy_pci, 0, 0);
-	m_legacy_pci->set_device(0, FUNC(cobra_state::mpc106_pci_r), FUNC(cobra_state::mpc106_pci_w));
+	PCI_ROOT(config, "pci");
+	MPC105(config, m_host, mpc105_host_device::MAP_TYPE_A, m_maincpu, nullptr);
 
 	ATA_INTERFACE(config, m_ata).options(ata_devices, "hdd", nullptr, true);
 	m_ata->irq_handler().set(FUNC(cobra_state::ide_interrupt));
 
 	/* video hardware */
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_size(1024, 1024);
 	m_screen->set_visarea(40, 511+40, 31, 399+31);
 	m_screen->set_screen_update(FUNC(cobra_state::screen_update_cobra));
 	PALETTE(config, m_palette).set_entries(65536);
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	rf5c400_device &rfsnd(RF5C400(config, "rfsnd", XTAL(16'934'400)));
 	rfsnd.set_addrmap(0, &cobra_state::rf5c400_map);
-	rfsnd.add_route(0, "lspeaker", 1.0);
-	rfsnd.add_route(1, "rspeaker", 1.0);
+	rfsnd.add_route(0, "speaker", 1.0, 0);
+	rfsnd.add_route(1, "speaker", 1.0, 1);
 
-	DMADAC(config, m_dmadac[0]).add_route(ALL_OUTPUTS, "lspeaker", 1.0);
+	DMADAC(config, m_dmadac[0]).add_route(ALL_OUTPUTS, "speaker", 1.0, 0);
 
-	DMADAC(config, m_dmadac[1]).add_route(ALL_OUTPUTS, "rspeaker", 1.0);
+	DMADAC(config, m_dmadac[1]).add_route(ALL_OUTPUTS, "speaker", 1.0, 1);
 
-	M48T58(config, "m48t58", 0);
+	M48T58(config, "m48t58");
 
-	K001604(config, m_k001604, 0);     // on the LAN board in Racing Jam DX
+	K001604(config, m_k001604);     // on the LAN board in Racing Jam DX
 	m_k001604->set_palette(m_palette);
 
 	KONPPC_JVS_HOST(config, m_jvs_host, 4000000);
@@ -3002,7 +3043,7 @@ void cobra_state::cobra(machine_config &config)
 void cobra_state::bujutsu(machine_config &config)
 {
 	cobra(config);
-	KONAMI_WINDY2_JVS_IO_2L12B_PANEL(config, "windy2_jvsio", 0, m_jvs_host);
+	KONAMI_WINDY2_JVS_IO_2L12B_PANEL(config, "windy2_jvsio", m_jvs_host);
 }
 
 void cobra_state::rf5c400_map(address_map& map)
@@ -3069,7 +3110,7 @@ void cobra_state::init_bujutsu()
 {
 	init_cobra();
 
-	// rom hacks for sub board...
+	// HACK: ROM hacks for sub board...
 	{
 		uint32_t *rom = (uint32_t*)memregion("user2")->base();
 
@@ -3077,7 +3118,7 @@ void cobra_state::init_bujutsu()
 	}
 
 
-	// rom hacks for gfx board...
+	// HACK: ROM hacks for gfx board...
 	{
 		int i;
 		uint32_t sum = 0;
@@ -3101,7 +3142,7 @@ void cobra_state::init_bujutsu()
 
 
 
-	// fill in M48T58 data for now...
+	// HACK: fill in M48T58 data for now...
 	{
 		uint8_t *rom = (uint8_t*)memregion("m48t58")->base();
 		rom[0x00] = 0x47;       // G
@@ -3151,7 +3192,7 @@ void cobra_state::init_racjamdx()
 {
 	init_cobra();
 
-	// rom hacks for sub board...
+	// HACK: ROM hacks for sub board...
 	{
 		uint32_t *rom = (uint32_t*)memregion("user2")->base();
 
@@ -3174,7 +3215,7 @@ void cobra_state::init_racjamdx()
 	}
 
 
-	// rom hacks for gfx board...
+	// HACK: ROM hacks for gfx board...
 	{
 		uint32_t sum = 0;
 
@@ -3198,7 +3239,7 @@ void cobra_state::init_racjamdx()
 	}
 
 
-	// fill in M48T58 data for now...
+	// HACK: fill in M48T58 data for now...
 	{
 		uint8_t *rom = (uint8_t*)memregion("m48t58")->base();
 		rom[0x00] = 0x47;       // G

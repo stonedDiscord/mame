@@ -59,8 +59,8 @@ public:
 	void fwheel(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -69,11 +69,11 @@ private:
 	required_memory_region m_ipl;
 	required_device<sega315_5124_device> m_vdp;
 
-	void main_io_map(address_map &map);
-	void main_prg_map(address_map &map);
-	void sound_prg_map(address_map &map);
-	void sound_io_map(address_map &map);
-	void wheel_prg_map(address_map &map);
+	void main_io_map(address_map &map) ATTR_COLD;
+	void main_prg_map(address_map &map) ATTR_COLD;
+	void sound_prg_map(address_map &map) ATTR_COLD;
+	void sound_io_map(address_map &map) ATTR_COLD;
+	void wheel_prg_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -195,7 +195,7 @@ void fwheel_state::fwheel(machine_config &config)
 
 	SPEAKER(config, "mono").front_center();
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(XTAL(10'738'000) / 2,
 			sega315_5124_device::WIDTH , sega315_5124_device::LBORDER_START + sega315_5124_device::LBORDER_WIDTH - 2, sega315_5124_device::LBORDER_START + sega315_5124_device::LBORDER_WIDTH + 256 + 10,
 			sega315_5124_device::HEIGHT_NTSC, sega315_5124_device::TBORDER_START + sega315_5124_device::NTSC_224_TBORDER_HEIGHT, sega315_5124_device::TBORDER_START + sega315_5124_device::NTSC_224_TBORDER_HEIGHT + 224);

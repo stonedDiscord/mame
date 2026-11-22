@@ -12,6 +12,7 @@
 #include "cr1510.h"
 #include "ide.h"
 #include "multifont.h"
+#include "semidisk.h"
 #include "sound_card.h"
 
 DEFINE_DEVICE_TYPE(EPSON_QX_OPTION_BUS_SLOT, bus::epson_qx::option_slot_device, "epson_qx_option_slot", "QX-10 Option slot")
@@ -100,6 +101,11 @@ void option_bus_device::add_slot(option_slot_device &slot)
 //-------------------------------------------------
 void option_bus_device::device_start()
 {
+	save_item(NAME(m_inth1));
+	save_item(NAME(m_inth2));
+	save_item(NAME(m_drqf));
+	save_item(NAME(m_rdyf));
+	save_item(NAME(m_rdys));
 }
 
 //-------------------------------------------------
@@ -198,6 +204,7 @@ void option_bus_devices(device_slot_interface &device)
 	device.option_add("cr1510", EPSON_QX_OPTION_CR1510);
 	device.option_add("ide", EPSON_QX_OPTION_IDE);
 	device.option_add("multifont", EPSON_QX_OPTION_MULTIFONT);
+	device.option_add("semidisk", EPSON_QX_OPTION_SEMIDISK);
 	device.option_add("ym2149", EPSON_QX_OPTION_YM2149);
 }
 

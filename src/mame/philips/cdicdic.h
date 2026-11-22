@@ -58,11 +58,13 @@ public:
 	void ram_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	uint8_t intack_r();
+	void atten_w(uint32_t state);
 
 protected:
 	// device_t implementation
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_post_load() override ATTR_COLD;
 
 	// internal callbacks
 	TIMER_CALLBACK_MEMBER(sector_tick);
@@ -116,6 +118,8 @@ private:
 		SUBMODE_AUDIO      = 0x04,
 		SUBMODE_VIDEO      = 0x02,
 		SUBMODE_EOR        = 0x01,
+
+		CODING_EMPHASIS    = 0x40,
 
 		CODING_BPS_MASK    = 0x30,
 		CODING_4BPS        = 0x00,
@@ -186,14 +190,19 @@ private:
 	bool m_decoding_audio_map;
 	uint16_t m_decode_addr;
 
+	// Audio Attenuation (L->L, L->R, R->R, R->L)
+	uint8_t m_atten[4];
 	int16_t m_xa_last[4];
+	float m_deemph_x1[2];
+	float m_deemph_y1[2];
 	std::unique_ptr<uint8_t[]> m_ram;
 	std::unique_ptr<int16_t[]> m_samples[2];
 
+	void decode_xa_unit(const uint8_t param, int16_t sample, int16_t &sample0, int16_t &sample1, int16_t &out_buffer);
 	void decode_8bit_xa_unit(int channel, uint8_t param, const uint8_t *data, int16_t *out_buffer);
 	void decode_4bit_xa_unit(int channel, uint8_t param, const uint8_t *data, uint8_t shift, int16_t *out_buffer);
 	void play_raw_group(const uint8_t *data);
-	void play_xa_group(const uint8_t coding, const uint8_t *data);
+	void play_xa_group(const uint8_t coding, const uint8_t *data, const uint16_t idx);
 	void play_audio_sector(const uint8_t coding, const uint8_t *data);
 	void play_cdda_sector(const uint8_t *data);
 	void process_audio_map();
@@ -204,7 +213,7 @@ private:
 	bool is_mode2_audio_selected(const uint8_t *buffer);
 
 	void process_disc_sector();
-	void process_sector_data(const uint8_t *buffer, const uint8_t *subcode_buffer);
+	void process_sector_data(const uint8_t *buffer, const uint8_t *subcode_buffer, const uint8_t *raw_subcode);
 	void init_disc_read(uint8_t disc_mode);
 	void cancel_disc_read();
 	void handle_cdic_command();
@@ -214,10 +223,6 @@ private:
 	uint32_t lba_from_time();
 
 	static uint8_t get_sector_count_for_coding(uint8_t coding);
-	static void decode_xa_mono(int16_t *cdic_xa_last, const uint8_t *xa, int16_t *dp);
-	static void decode_xa_mono8(int16_t *cdic_xa_last, const uint8_t *xa, int16_t *dp);
-	static void decode_xa_stereo(int16_t *cdic_xa_last, const uint8_t *xa, int16_t *dp);
-	static void decode_xa_stereo8(int16_t *cdic_xa_last, const uint8_t *xa, int16_t *dp);
 
 	static const int16_t s_xa_filter_coef[4][2];
 	static const int32_t s_samples_per_sector;

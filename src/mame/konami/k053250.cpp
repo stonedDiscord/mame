@@ -4,14 +4,21 @@
 #include "k053250.h"
 #include "screen.h"
 
+#include <algorithm>
+#include <type_traits>
 
-DEFINE_DEVICE_TYPE(K053250, k053250_device, "k053250", "K053250 LVC")
+DEFINE_DEVICE_TYPE(K053250, k053250_device, "k053250", "Konami 053250 LVC")
 
-k053250_device::k053250_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: device_t(mconfig, K053250, tag, owner, clock),
-		device_gfx_interface(mconfig, *this),
-		device_video_interface(mconfig, *this),
-		m_rom(*this, DEVICE_SELF)
+k053250_device::k053250_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	device_t(mconfig, K053250, tag, owner, clock),
+	device_gfx_interface(mconfig, *this),
+	device_video_interface(mconfig, *this),
+	m_offx(0),
+	m_offy(0),
+	m_ram_bank(0),
+	m_dma_delay(true),
+	m_rom(*this, DEVICE_SELF),
+	m_shared_ram(*this, finder_base::DUMMY_TAG)
 {
 }
 
@@ -28,6 +35,9 @@ void k053250_device::unpack_nibbles()
 
 void k053250_device::device_start()
 {
+	if (m_shared_ram && m_ram_bank >= m_shared_ram.length() / 0x800)
+		throw emu_fatalerror("K053250 descriptor table exceeds shared RAM");
+
 	m_ram.resize(0x6000/2);
 	m_buffer[0] = &m_ram[0x2000];
 	m_buffer[1] = &m_ram[0x2800];
@@ -48,22 +58,23 @@ void k053250_device::device_reset()
 }
 
 // utility function to render a clipped scanline vertically or horizontally
-inline void k053250_device::pdraw_scanline32(bitmap_rgb32 &bitmap, const pen_t *pal_base, uint8_t *source,
-										const rectangle &cliprect, int linepos, int scroll, int zoom,
-										uint32_t clipmask, uint32_t wrapmask, uint32_t orientation, bitmap_ind8 &priority, uint8_t pri)
+template <typename BitmapType>
+void k053250_device::pdraw_scanline(BitmapType &bitmap, const pen_t *pal_base, uint32_t colorbase, uint8_t *source,
+		const rectangle &cliprect, int linepos, int scroll, int zoom,
+		uint32_t clipmask, uint32_t wrapmask, uint32_t orientation, bitmap_ind8 &priority, uint8_t pri, bool compare_priority)
 {
-// a sixteen-bit fixed point resolution should be adequate to our application
-#define FIXPOINT_PRECISION      16
-#define FIXPOINT_PRECISION_HALF (1<<(FIXPOINT_PRECISION-1))
+	// a sixteen-bit fixed point resolution should be adequate to our application
+	constexpr uint32_t FIXPOINT_PRECISION = 16;
+	constexpr uint32_t FIXPOINT_PRECISION_HALF = 1 << (FIXPOINT_PRECISION-1);
 
 	int end_pixel, flip, dst_min, dst_max, dst_start, dst_length;
 
 	uint32_t src_wrapmask;
-	uint8_t  *src_base;
+	uint8_t *src_base;
 	int src_fx, src_fdx;
 	int pix_data, dst_offset;
-	uint8_t  *pri_base;
-	uint32_t *dst_base;
+	uint8_t *pri_base;
+	typename BitmapType::pixel_t *dst_base;
 	int dst_adv;
 
 	// flip X and flip Y also switch role when the X Y coordinates are swapped
@@ -115,8 +126,10 @@ inline void k053250_device::pdraw_scanline32(bitmap_rgb32 &bitmap, const pen_t *
 			src_fx = end_pixel * src_fdx + FIXPOINT_PRECISION_HALF;
 		}
 		else
+		{
 			// the point five bias is to ensure even distribution of stretched or shrinked pixels
 			src_fx = FIXPOINT_PRECISION_HALF;
+		}
 
 		// adjust flipped source
 		if (flip)
@@ -172,7 +185,7 @@ inline void k053250_device::pdraw_scanline32(bitmap_rgb32 &bitmap, const pen_t *
 
 	dst_offset = -dst_offset; // negate target offset in order to terminated draw loop at 0 condition
 
-	if (pri)
+	if (pri || compare_priority)
 	{
 		// draw scanline and update priority bitmap
 		do
@@ -180,11 +193,13 @@ inline void k053250_device::pdraw_scanline32(bitmap_rgb32 &bitmap, const pen_t *
 			pix_data = src_base[(src_fx>>FIXPOINT_PRECISION) & src_wrapmask];
 			src_fx += src_fdx;
 
-			if (pix_data)
+			if (pix_data && (!compare_priority || pri <= pri_base[dst_offset]))
 			{
-				pix_data = pal_base[pix_data];
 				pri_base[dst_offset] = pri;
-				dst_base[dst_offset] = pix_data;
+				if constexpr (std::is_same_v<BitmapType, bitmap_rgb32>)
+					dst_base[dst_offset] = pal_base[pix_data];
+				else
+					dst_base[dst_offset] = colorbase + pix_data;
 			}
 		}
 		while (dst_offset += dst_adv);
@@ -199,17 +214,28 @@ inline void k053250_device::pdraw_scanline32(bitmap_rgb32 &bitmap, const pen_t *
 
 			if (pix_data)
 			{
-				dst_base[dst_offset] = pal_base[pix_data];
+				if constexpr (std::is_same_v<BitmapType, bitmap_rgb32>)
+					dst_base[dst_offset] = pal_base[pix_data];
+				else
+					dst_base[dst_offset] = colorbase + pix_data;
 			}
 		}
 		while (dst_offset += dst_adv);
 	}
-
-#undef FIXPOINT_PRECISION
-#undef FIXPOINT_PRECISION_HALF
 }
 
-void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int colorbase, int flags, bitmap_ind8 &priority_bitmap, int priority )
+void k053250_device::draw(bitmap_rgb32 &bitmap, const rectangle &cliprect, int colorbase, int flags, bitmap_ind8 &priority_bitmap, int priority)
+{
+	draw_common(bitmap, cliprect, colorbase, flags, priority_bitmap, priority);
+}
+
+void k053250_device::draw(bitmap_ind16 &bitmap, const rectangle &cliprect, int colorbase, int flags, bitmap_ind8 &priority_bitmap, int priority)
+{
+	draw_common(bitmap, cliprect, colorbase, flags, priority_bitmap, priority);
+}
+
+template <typename BitmapType>
+void k053250_device::draw_common(BitmapType &bitmap, const rectangle &cliprect, int colorbase, int flags, bitmap_ind8 &priority_bitmap, int priority)
 {
 	uint8_t *pix_ptr;
 	const pen_t *pal_base, *pal_ptr;
@@ -218,29 +244,34 @@ void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int 
 	int color, offset, zoom, scroll, passes, i;
 	bool wrap500 = false;
 
-	uint16_t *line_ram = m_buffer[m_page];                // pointer to physical line RAM
+	// m_page is the next DMA destination. overdriv uses the completed transfer
+	// immediately; keep the one-transfer delay for other boards pending investigation.
+	uint16_t *line_ram = m_buffer[m_page ^ !m_dma_delay];
 	int map_scrollx = short(m_regs[0] << 8 | m_regs[1]) - m_offx; // signed horizontal scroll value
 	int map_scrolly = short(m_regs[2] << 8 | m_regs[3]) - m_offy; // signed vertical scroll value
-	uint8_t ctrl = m_regs[4];                                   // register four is the main control register
+	uint8_t ctrl = m_regs[4];                                     // register four is the main control register
 
 	// copy visible boundary values to more accessible locations
-	int dst_minx  = cliprect.min_x;
-	int dst_maxx  = cliprect.max_x;
-	int dst_miny  = cliprect.min_y;
-	int dst_maxy  = cliprect.max_y;
+	int dst_minx = cliprect.left();
+	int dst_maxx = cliprect.right();
+	int dst_miny = cliprect.top();
+	int dst_maxy = cliprect.bottom();
 
-	int orientation  = 0;   // orientation defaults to no swapping and no flipping
-	int dst_height   = 512; // virtual bitmap height defaults to 512 pixels
+	int orientation = 0;    // orientation defaults to no swapping and no flipping
+	int dst_height = 512;   // virtual bitmap height defaults to 512 pixels
 	int linedata_adv = 4;   // line info packets are four words(eight bytes) apart
 
 	// switch X and Y parameters when the first bit of the control register is cleared
-	if (!(ctrl & 0x01)) orientation |= ORIENTATION_SWAP_XY;
+	if (!(ctrl & 0x01))
+		orientation |= ORIENTATION_SWAP_XY;
 
 	// invert X parameters when the forth bit of the control register is set
-	if   (ctrl & 0x08)  orientation |= ORIENTATION_FLIP_X;
+	if (ctrl & 0x08)
+		orientation |= ORIENTATION_FLIP_X;
 
 	// invert Y parameters when the fifth bit of the control register is set
-	if   (ctrl & 0x10)  orientation |= ORIENTATION_FLIP_Y;
+	if (ctrl & 0x10)
+		orientation |= ORIENTATION_FLIP_Y;
 
 	switch (ctrl >> 5) // the upper four bits of the control register select source and target dimensions
 	{
@@ -258,6 +289,11 @@ void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int 
 
 			// the source offset is cropped to 0 and 511 inclusive
 			src_wrapmask = src_clipmask = 0x1ff;
+		break;
+		case 3 :
+			// overdriv: 1024-pixel road lines with an 11-bit destination scroll.
+			src_wrapmask = src_clipmask = 0x3ff;
+			dst_height = 0x800;
 		break;
 		case 4 :
 			// Xexex: L1 sky and boss, L3 planet, L5 poly-face, L7 battle ship patches
@@ -278,24 +314,25 @@ void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int 
 	}
 
 	// disable source clipping when the third bit of the control register is set
-	if (ctrl & 0x04) src_clipmask = 0;
+	if (ctrl & 0x04)
+		src_clipmask = 0;
 
-	if (!(orientation & ORIENTATION_SWAP_XY))   // normal orientaion with no X Y switching
+	if (!(orientation & ORIENTATION_SWAP_XY)) // normal orientaion with no X Y switching
 	{
 		line_start = dst_miny;          // the first scanline starts at the minimum Y clip location
-		line_end   = dst_maxy;          // the last scanline ends at the maximum Y clip location
+		line_end = dst_maxy;            // the last scanline ends at the maximum Y clip location
 		scroll_corr = map_scrollx;      // concentrate global X scroll
 		linedata_offs = map_scrolly;    // determine where to get info for the first line
 
 		if (orientation & ORIENTATION_FLIP_X)
 		{
-			scroll_corr = -scroll_corr; // X scroll adjustment should be negated in X flipped scenarioes
+			scroll_corr = -scroll_corr; // X scroll adjustment should be negated in X flipped scenarios
 		}
 
 		if (orientation & ORIENTATION_FLIP_Y)
 		{
-			linedata_adv = -linedata_adv;           // traverse line RAM backward in Y flipped scenarioes
-			linedata_offs += bitmap.height() - 1;   // and get info for the first line from the bottom
+			linedata_adv = -linedata_adv;                   // traverse line RAM backward in Y flipped scenarios
+			linedata_offs += screen().visible_area().max_y; // and get info for the first line from the bottom
 		}
 
 		dst_wrapmask = ~0;  // scanlines don't seem to wrap horizontally in normal orientation
@@ -304,13 +341,13 @@ void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int 
 	else  // orientaion with X and Y parameters switched
 	{
 		line_start = dst_minx;          // the first scanline starts at the minimum X clip location
-		line_end   = dst_maxx;          // the last scanline ends at the maximum X clip location
+		line_end = dst_maxx;            // the last scanline ends at the maximum X clip location
 		scroll_corr = map_scrolly;      // concentrate global Y scroll
 		linedata_offs = map_scrollx;    // determine where to get info for the first line
 
 		if (orientation & ORIENTATION_FLIP_Y)
 		{
-			scroll_corr = 0x100 - scroll_corr;  // apply common vertical correction
+			scroll_corr = 0x100 - scroll_corr; // apply common vertical correction
 
 			// Y correction (ref: 1st and 5th boss)
 			scroll_corr -= 2;   // apply unique vertical correction
@@ -321,8 +358,8 @@ void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int 
 
 		if (orientation & ORIENTATION_FLIP_X)
 		{
-			linedata_adv = -linedata_adv;       // traverse line RAM backward in X flipped scenarioes
-			linedata_offs += bitmap.width() - 1;    // and get info for the first line from the bottom
+			linedata_adv = -linedata_adv;                   // traverse line RAM backward in X flipped scenarios
+			linedata_offs += screen().visible_area().max_x; // and get info for the first line from the bottom
 		}
 
 		if (src_clipmask)
@@ -347,14 +384,14 @@ void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int 
 	pal_base = palette().pens() + (colorbase << 4) % palette().entries();
 
 	// walk the target bitmap within the visible area vertically or horizontally, one line at a time
-	for (line_pos=line_start; line_pos <= line_end; linedata_offs += linedata_adv, line_pos++)
+	for (line_pos = line_start; line_pos <= line_end; linedata_offs += linedata_adv, line_pos++)
 	{
 		linedata_offs &= 0x7ff;                     // line info data wraps at the four-kilobyte boundary
 
-		color  = line_ram[linedata_offs];           // get scanline color code
+		color = line_ram[linedata_offs];            // get scanline color code
 		if (color == 0xffff) continue;              // reject scanline if color code equals minus one
 
-		offset   = line_ram[linedata_offs + 1];     // get first pixel offset in ROM
+		offset = line_ram[linedata_offs + 1];       // get first pixel offset in ROM
 		if (!(color & 0xff) && !offset) continue;   // reject scanline if both color and pixel offset are 0
 
 		// calculate physical palette location
@@ -369,12 +406,13 @@ void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int 
 		// For example, 0x20 doubles the length, 0x40 maintains a one-to-one length,
 		// and 0x80 halves the length. The zoom center is at the beginning of the
 		// scanline therefore it is not necessary to adjust render start position
-		zoom    = line_ram[linedata_offs + 2];
+		zoom = line_ram[linedata_offs + 2];
 
-		scroll  = (short)line_ram[linedata_offs + 3];   // get signed local scroll value for the current scanline
+		scroll = short(line_ram[linedata_offs + 3]); // get signed local scroll value for the current scanline
 
 		// scavenged from old code; improves Xexex' first level sky
-		if (wrap500 && scroll >= 0x500) scroll -= 0x800;
+		if (wrap500 && scroll >= 0x500)
+			scroll -= 0x800;
 
 		scroll += scroll_corr;  // apply final scroll correction
 		scroll &= dst_wrapmask; // wraparound scroll value if necessary
@@ -401,8 +439,9 @@ void k053250_device::draw( bitmap_rgb32 &bitmap, const rectangle &cliprect, int 
 			    orientation  : flags indicating whether scanlines should be drawn horizontally, vertically, forward or backward
 			    priority     : value to be written to the priority bitmap, no effect when equals 0
 			*/
-			pdraw_scanline32(bitmap, pal_ptr, pix_ptr, cliprect,
-				line_pos, scroll, zoom, src_clipmask, src_wrapmask, orientation, priority_bitmap, (uint8_t)priority);
+			pdraw_scanline(bitmap, pal_ptr, pal_ptr - palette().pens(), pix_ptr, cliprect,
+					line_pos, scroll, zoom, src_clipmask, src_wrapmask, orientation, priority_bitmap,
+					(flags & DRAW_FLAG_USE_PRIORITY) ? ((color >> 8) & 0x3f) : uint8_t(priority), flags & DRAW_FLAG_USE_PRIORITY);
 
 			// shift scanline position one virtual screen upward to render the wrapped end if necessary
 			scroll -= dst_height;
@@ -419,7 +458,9 @@ void k053250_device::dma(int limiter)
 		return; // make sure we only do DMA transfer once per frame
 
 	m_frame = current_frame;
-	memcpy(m_buffer[m_page], &m_ram[0], 0x1000);
+	// Over Drive's paired chips select different tables in their shared RAM.
+	const uint16_t *source = m_shared_ram ? &m_shared_ram[m_ram_bank * 0x800] : &m_ram[0];
+	std::copy_n(source, 0x800, m_buffer[m_page]);
 	m_page ^= 1;
 }
 

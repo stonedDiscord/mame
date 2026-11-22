@@ -29,10 +29,6 @@ static const int index_shift[8] = { -1, -1, -1, -1, 2, 4, 6, 8 };
 /* lookup table for the precomputed difference */
 static int diff_lookup[49*16];
 
-/* tables computed? */
-static int tables_computed = 0;
-
-
 
 // device type definition
 DEFINE_DEVICE_TYPE(OKIM6258, okim6258_device, "okim6258", "OKI MSM6258 ADPCM")
@@ -99,8 +95,6 @@ static void compute_tables()
 					stepval/8);
 		}
 	}
-
-	tables_computed = 1;
 }
 
 
@@ -147,15 +141,13 @@ void okim6258_device::device_reset()
 //  sound_stream_update - handle a stream update
 //-------------------------------------------------
 
-void okim6258_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
+void okim6258_device::sound_stream_update(sound_stream &stream)
 {
-	auto &buffer = outputs[0];
-
 	if (m_status & STATUS_PLAYING)
 	{
 		int nibble_shift = m_nibble_shift;
 
-		for (int sampindex = 0; sampindex < buffer.samples(); sampindex++)
+		for (int sampindex = 0; sampindex < stream.samples(); sampindex++)
 		{
 			/* Compute the new amplitude and update the current step */
 			int nibble = (m_data_in >> nibble_shift) & 0xf;
@@ -165,15 +157,11 @@ void okim6258_device::sound_stream_update(sound_stream &stream, std::vector<read
 
 			nibble_shift ^= 4;
 
-			buffer.put_int(sampindex, sample, 32768);
+			stream.put_int(0, sampindex, sample, 32768);
 		}
 
 		/* Update the parameters */
 		m_nibble_shift = nibble_shift;
-	}
-	else
-	{
-		buffer.fill(0);
 	}
 }
 

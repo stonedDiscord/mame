@@ -116,14 +116,14 @@ protected:
 	static constexpr int fd179x_step_times[4] = {  6000, 12000, 20000, 30000 };
 	static constexpr int fd176x_step_times[4] = { 12000, 24000, 40000, 60000 };
 
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	virtual int calc_sector_size(uint8_t size, uint8_t command) const;
 	virtual int settle_time() const;
 
 	virtual void pll_reset(bool fm, bool enmf, const attotime &when) = 0;
-	virtual void pll_start_writing(const attotime &tm) = 0;
+	virtual void pll_start_writing(const attotime &tm, floppy_image_device *floppy) = 0;
 	virtual void pll_commit(floppy_image_device *floppy, const attotime &tm) = 0;
 	virtual void pll_stop_writing(floppy_image_device *floppy, const attotime &tm) = 0;
 	virtual int pll_get_next_bit(attotime &tm, floppy_image_device *floppy, const attotime &limit) = 0;
@@ -253,10 +253,10 @@ private:
 		enum { PT_NONE, PT_CRC_1, PT_CRC_2 };
 
 		attotime tm;
-		int state, next_state;
+		int32_t state, next_state;
 		uint32_t shift_reg;
 		uint16_t crc;
-		int bit_counter, byte_counter, previous_type;
+		int32_t bit_counter, byte_counter, previous_type;
 		bool data_separator_phase, data_bit_context;
 		uint8_t data_reg;
 		uint8_t idbuf[6];
@@ -299,7 +299,7 @@ private:
 	uint8_t command, track, sector, data, status, intrq_cond;
 	int last_dir;
 
-	int counter, motor_timeout, sector_size;
+	int32_t counter, motor_timeout, sector_size;
 
 	int cmd_buffer, track_buffer, sector_buffer;
 
@@ -314,6 +314,7 @@ private:
 	std::string format_description_string;
 
 	bool delay_int;
+	bool delay_cmd;
 
 	void delay_cycles(emu_timer *tm, int cycles);
 
@@ -374,14 +375,17 @@ private:
 	void drop_hld();
 
 	void update_sso();
+	void set_sso(int side);
 };
 
 class wd_fdc_analog_device_base : public wd_fdc_device_base {
 protected:
 	wd_fdc_analog_device_base(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
+	virtual void device_start() override ATTR_COLD;
+
 	virtual void pll_reset(bool fm, bool enmf, const attotime &when) override;
-	virtual void pll_start_writing(const attotime &tm) override;
+	virtual void pll_start_writing(const attotime &tm, floppy_image_device *floppy) override;
 	virtual void pll_commit(floppy_image_device *floppy, const attotime &tm) override;
 	virtual void pll_stop_writing(floppy_image_device *floppy, const attotime &tm) override;
 	virtual int pll_get_next_bit(attotime &tm, floppy_image_device *floppy, const attotime &limit) override;
@@ -399,8 +403,10 @@ protected:
 
 	static constexpr int wd_digital_step_times[4] = { 12000, 24000, 40000, 60000 };
 
+	virtual void device_start() override ATTR_COLD;
+
 	virtual void pll_reset(bool fm, bool enmf, const attotime &when) override;
-	virtual void pll_start_writing(const attotime &tm) override;
+	virtual void pll_start_writing(const attotime &tm, floppy_image_device *floppy) override;
 	virtual void pll_commit(floppy_image_device *floppy, const attotime &tm) override;
 	virtual void pll_stop_writing(floppy_image_device *floppy, const attotime &tm) override;
 	virtual int pll_get_next_bit(attotime &tm, floppy_image_device *floppy, const attotime &limit) override;
@@ -420,15 +426,11 @@ private:
 
 		attotime delays[42];
 
-		attotime write_start_time;
-		attotime write_buffer[32];
-		int write_position;
-
 		void set_clock(const attotime &period);
 		void reset(const attotime &when);
 		int get_next_bit(attotime &tm, floppy_image_device *floppy, const attotime &limit);
 		bool write_next_bit(bool bit, attotime &tm, floppy_image_device *floppy, const attotime &limit);
-		void start_writing(const attotime &tm);
+		void start_writing(const attotime &tm, floppy_image_device *floppy);
 		void commit(floppy_image_device *floppy, const attotime &tm);
 		void stop_writing(floppy_image_device *floppy, const attotime &tm);
 	};

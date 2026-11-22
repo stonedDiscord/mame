@@ -214,6 +214,7 @@ public:
 
 	// configuration
 	void configure(u32 *base, u32 size);
+	void set_base(u32 *base) { m_base = base; }
 
 	// state saving
 	void register_save(save_proxy &save);
@@ -401,6 +402,7 @@ public:
 	auto vblank_callback() { return m_vblank_cb.bind(); }
 	auto stall_callback() { return m_stall_cb.bind(); }
 	auto pciint_callback() { return m_pciint_cb.bind(); }
+	auto vgapass_callback() { return m_vgapass_cb.bind(); }
 
 	// getters
 	voodoo::voodoo_model model() const { return m_model; }
@@ -421,7 +423,7 @@ protected:
 	generic_voodoo_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, voodoo::voodoo_model model);
 
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// configuration
 	const voodoo::voodoo_model m_model;      // which voodoo model
@@ -433,6 +435,7 @@ protected:
 	devcb_write_line m_vblank_cb;            // VBLANK callback
 	devcb_write_line m_stall_cb;             // stalling callback
 	devcb_write_line m_pciint_cb;            // PCI interrupt callback
+	devcb_write_line m_vgapass_cb;           // VGA passthrough callback
 };
 
 
@@ -490,7 +493,7 @@ public:
 	virtual ~voodoo_1_device();
 
 	// address map and read/write helpers
-	virtual void core_map(address_map &map) override;
+	virtual void core_map(address_map &map) override ATTR_COLD;
 	virtual u32 read(offs_t offset, u32 mem_mask = ~0) override;
 	virtual void write(offs_t offset, u32 data, u32 mem_mask = ~0) override;
 
@@ -502,9 +505,9 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_stop() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_stop() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 	virtual void device_post_load() override;
 
 	// system management
@@ -524,6 +527,11 @@ protected:
 	void prepare_for_read();
 	bool prepare_for_write();
 	void recompute_fbmem_fifo();
+
+	// the memory FIFO free count reads 0xffff when empty, whatever the FIFO's size,
+	// and the high water mark compares against it; Glide subtracts the unusable part itself
+	u32 memory_fifo_free() const { return std::max(0xffff - m_fbmem_fifo.items() / 2, 0); }
+
 	void add_to_fifo(u32 offset, u32 data, u32 mem_mask);
 	void flush_fifos(attotime current_time);
 	virtual u32 execute_fifos();
@@ -724,7 +732,7 @@ inline u32 voodoo::register_table_entry::write(voodoo_1_device &device, u32 chip
 		if (regnum < voodoo_regs::reg_fvertexAx || regnum > voodoo_regs::reg_fdWdY)
 			device.logerror("VOODOO.REG:%s(%d) write = %08X\n", m_name, chipmask, data);
 		else
-			device.logerror("VOODOO.REG:%s(%d) write = %f\n", m_name, chipmask, double(u2f(data)));
+			device.logerror("VOODOO.REG:%s(%d) write = %f\n", m_name, chipmask, std::bit_cast<float>(data));
 	}
 	return m_write(chipmask & m_chipmask_flags, regnum, data & m_mask);
 }

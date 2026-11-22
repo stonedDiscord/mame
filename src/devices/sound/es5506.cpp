@@ -834,8 +834,8 @@ void es550x_device::generate_ulaw(es550x_voice *voice, s32 *dest)
 			s32 val2 = read_sample(voice, get_integer_addr(accum, 1));
 
 			// decompress u-law
-			val1 = m_ulaw_lookup[val1 >> (16 - ULAW_MAXBITS)];
-			val2 = m_ulaw_lookup[val2 >> (16 - ULAW_MAXBITS)];
+			val1 = m_ulaw_lookup[val1 >> (16 - ULAW_MAXBITS)] << filter_shift();
+			val2 = m_ulaw_lookup[val2 >> (16 - ULAW_MAXBITS)] << filter_shift();
 
 			// interpolate
 			val1 = interpolate(val1, val2, accum);
@@ -849,6 +849,7 @@ void es550x_device::generate_ulaw(es550x_voice *voice, s32 *dest)
 				update_envelopes(voice);
 
 			// apply volumes and add
+			val1 >>= filter_shift();
 			dest[0] += get_sample(val1, voice->lvol);
 			dest[1] += get_sample(val1, voice->rvol);
 
@@ -864,8 +865,8 @@ void es550x_device::generate_ulaw(es550x_voice *voice, s32 *dest)
 			s32 val2 = read_sample(voice, get_integer_addr(accum, 1));
 
 			// decompress u-law
-			val1 = m_ulaw_lookup[val1 >> (16 - ULAW_MAXBITS)];
-			val2 = m_ulaw_lookup[val2 >> (16 - ULAW_MAXBITS)];
+			val1 = m_ulaw_lookup[val1 >> (16 - ULAW_MAXBITS)] << filter_shift();
+			val2 = m_ulaw_lookup[val2 >> (16 - ULAW_MAXBITS)] << filter_shift();
 
 			// interpolate
 			val1 = interpolate(val1, val2, accum);
@@ -879,6 +880,7 @@ void es550x_device::generate_ulaw(es550x_voice *voice, s32 *dest)
 				update_envelopes(voice);
 
 			// apply volumes and add
+			val1 >>= filter_shift();
 			dest[0] += get_sample(val1, voice->lvol);
 			dest[1] += get_sample(val1, voice->rvol);
 
@@ -916,8 +918,8 @@ void es550x_device::generate_pcm(es550x_voice *voice, s32 *dest)
 		if (!(voice->control & CONTROL_DIR))
 		{
 			// fetch two samples
-			s32 val1 = (s16)read_sample(voice, get_integer_addr(accum));
-			s32 val2 = (s16)read_sample(voice, get_integer_addr(accum, 1));
+			s32 val1 = (s16)read_sample(voice, get_integer_addr(accum)) << filter_shift();
+			s32 val2 = (s16)read_sample(voice, get_integer_addr(accum, 1)) << filter_shift();
 
 			// interpolate
 			val1 = interpolate(val1, val2, accum);
@@ -931,6 +933,7 @@ void es550x_device::generate_pcm(es550x_voice *voice, s32 *dest)
 				update_envelopes(voice);
 
 			// apply volumes and add
+			val1 >>= filter_shift();
 			dest[0] += get_sample(val1, voice->lvol);
 			dest[1] += get_sample(val1, voice->rvol);
 
@@ -942,8 +945,8 @@ void es550x_device::generate_pcm(es550x_voice *voice, s32 *dest)
 		else
 		{
 			// fetch two samples
-			s32 val1 = (s16)read_sample(voice, get_integer_addr(accum));
-			s32 val2 = (s16)read_sample(voice, get_integer_addr(accum, 1));
+			s32 val1 = (s16)read_sample(voice, get_integer_addr(accum)) << filter_shift();
+			s32 val2 = (s16)read_sample(voice, get_integer_addr(accum, 1)) << filter_shift();
 
 			// interpolate
 			val1 = interpolate(val1, val2, accum);
@@ -957,6 +960,7 @@ void es550x_device::generate_pcm(es550x_voice *voice, s32 *dest)
 				update_envelopes(voice);
 
 			// apply volumes and add
+			val1 >>= filter_shift();
 			dest[0] += get_sample(val1, voice->lvol);
 			dest[1] += get_sample(val1, voice->rvol);
 
@@ -1009,10 +1013,10 @@ inline void es550x_device::generate_irq(es550x_voice *voice, int v)
 
 ***********************************************************************************************/
 
-void es5506_device::generate_samples(std::vector<write_stream_view> &outputs)
+void es5506_device::generate_samples(sound_stream &stream)
 {
 	// loop while we still have samples to generate
-	for (int sampindex = 0; sampindex < outputs[0].samples(); sampindex++)
+	for (int sampindex = 0; sampindex < stream.samples(); sampindex++)
 	{
 		// loop over voices
 		s32 cursample[12] = { 0 };
@@ -1038,15 +1042,16 @@ void es5506_device::generate_samples(std::vector<write_stream_view> &outputs)
 			generate_irq(voice, v);
 		}
 
-		for (int c = 0; c < outputs.size(); c++)
-			outputs[c].put_int(sampindex, cursample[c], 32768);
+		for (int c = 0; c < stream.output_count(); c++)
+			// generated samples are 20-bit signed, range is [-2^19 .. 2^19-1]
+			stream.put_int_clamp(c, sampindex, cursample[c], (1 << 19));
 	}
 }
 
-void es5505_device::generate_samples(std::vector<write_stream_view> &outputs)
+void es5505_device::generate_samples(sound_stream &stream)
 {
 	// loop while we still have samples to generate
-	for (int sampindex = 0; sampindex < outputs[0].samples(); sampindex++)
+	for (int sampindex = 0; sampindex < stream.samples(); sampindex++)
 	{
 		// loop over voices
 		s32 cursample[12] = { 0 };
@@ -1076,8 +1081,9 @@ void es5505_device::generate_samples(std::vector<write_stream_view> &outputs)
 			generate_irq(voice, v);
 		}
 
-		for (int c = 0; c < outputs.size(); c++)
-			outputs[c].put_int(sampindex, cursample[c], 32768);
+		for (int c = 0; c < stream.output_count(); c++)
+			// generated samples are 20-bit signed, range is [-2^19 .. 2^19-1]
+			stream.put_int_clamp(c, sampindex, cursample[c], (1 << 19));
 	}
 }
 
@@ -2091,7 +2097,7 @@ u16 es5505_device::read(offs_t offset)
 //  sound_stream_update - handle a stream update
 //-------------------------------------------------
 
-void es550x_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
+void es550x_device::sound_stream_update(sound_stream &stream)
 {
 #if ES5506_MAKE_WAVS
 	// start the logging once we have a sample rate
@@ -2103,7 +2109,7 @@ void es550x_device::sound_stream_update(sound_stream &stream, std::vector<read_s
 #endif
 
 	// loop until all samples are output
-	generate_samples(outputs);
+	generate_samples(stream);
 
 #if ES5506_MAKE_WAVS
 	// log the raw data

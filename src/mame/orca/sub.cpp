@@ -143,8 +143,8 @@ public:
 	void sub(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -176,10 +176,10 @@ private:
 	void main_irq(int state);
 	INTERRUPT_GEN_MEMBER(sound_irq);
 
-	void main_io_map(address_map &map);
-	void main_program_map(address_map &map);
-	void sound_io_map(address_map &map);
-	void sound_program_map(address_map &map);
+	void main_io_map(address_map &map) ATTR_COLD;
+	void main_program_map(address_map &map) ATTR_COLD;
+	void sound_io_map(address_map &map) ATTR_COLD;
+	void sound_program_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -279,11 +279,11 @@ uint32_t sub_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, c
 	draw_sprites(bitmap, cliprect);
 
 	// re-draw score display above the sprites (window effect)
-	rectangle opaque_rect;
-	opaque_rect.min_y = cliprect.min_y;
-	opaque_rect.max_y = cliprect.max_y;
-	opaque_rect.min_x = flip_screen() ? cliprect.min_x : (cliprect.max_x - 32);
-	opaque_rect.max_x = flip_screen() ? (cliprect.min_x + 32) : cliprect.max_x;
+	rectangle opaque_rect(
+			flip_screen() ? cliprect.left() : (cliprect.right() - 32),
+			flip_screen() ? (cliprect.left() + 32) : cliprect.right(),
+			cliprect.top(),
+			cliprect.bottom());
 
 	m_tilemap->draw(screen, bitmap, opaque_rect, 0, 0);
 
@@ -501,7 +501,7 @@ void sub_state::sub(machine_config &config)
 	WATCHDOG_TIMER(config, "watchdog");
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(256, 256);

@@ -4,6 +4,12 @@
 #include "i960.h"
 #include "i960dis.h"
 
+#include "corefloat.h"
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
 #ifdef _MSC_VER
 /* logb prototype is different for MS Visual C */
 #include <cfloat>
@@ -11,11 +17,12 @@
 #endif
 
 
-DEFINE_DEVICE_TYPE(I960, i960_cpu_device, "i960kb", "Intel i960KB")
+DEFINE_DEVICE_TYPE(I80960KA, i80960ka_device, "i80960ka", "Intel 80960KA")
+DEFINE_DEVICE_TYPE(I80960KB, i80960kb_device, "i80960kb", "Intel 80960KB")
 
 
-i960_cpu_device::i960_cpu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: cpu_device(mconfig, I960, tag, owner, clock)
+i960_cpu_device::i960_cpu_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock)
+	: cpu_device(mconfig, type, tag, owner, clock)
 	, m_stalled(false), m_program_config("program", ENDIANNESS_LITTLE, 32, 32, 0)
 	, m_rcache_pos(0), m_SAT(0), m_PRCB(0), m_PC(0), m_AC(0), m_IP(0), m_PIP(0), m_ICR(0), m_immediate_irq(0)
 	, m_immediate_vector(0), m_immediate_pri(0), m_icount(0)
@@ -26,6 +33,16 @@ i960_cpu_device::i960_cpu_device(const machine_config &mconfig, const char *tag,
 
 	for (int i = 0; i <I960_RCACHE_SIZE; i++)
 		std::fill(std::begin(m_rcache[i]), std::end(m_rcache[i]), 0);
+}
+
+i80960ka_device::i80960ka_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: i960_cpu_device(mconfig, I80960KA, tag, owner, clock)
+{
+}
+
+i80960kb_device::i80960kb_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: i960_cpu_device(mconfig, I80960KB, tag, owner, clock)
+{
 }
 
 
@@ -120,8 +137,7 @@ void i960_cpu_device::send_iac(uint32_t adr)
 		break;
 	case 0x41:  // test for pending interrupts
 		logerror("I960: %x: IAC %08x %08x %08x %08x (test for pending interrupts)\n", m_PIP, iac[0], iac[1], iac[2], iac[3]);
-		// check_irqs() seems to take care of this though it may not be entirely accurate
-		check_irqs();
+		check_pending_irqs();
 		break;
 	case 0x80:  // store SAT & PRCB in memory
 		m_program.write_dword(iac[1], m_SAT);
@@ -204,6 +220,65 @@ uint32_t i960_cpu_device::get_ea(uint32_t opcode)
 			fatalerror("I960: %x: unhandled MEMB mode %x\n", m_PIP, mode);
 		}
 	}
+}
+
+// i960 Extended-real register image: words 0/1 hold the 64-bit fraction with
+// an explicit integer bit in bit 63, word 2 holds the sign in bit 15 and the
+// 15-bit biased exponent (bias 16383) in bits 14:0, with the upper 16 bits zero.
+static void double_to_extended(double val, uint32_t *words)
+{
+	const uint64_t bits = d2u(val);
+	const uint32_t sign = uint32_t(bits >> 63) << 15;
+	uint64_t frac;
+	uint32_t e;
+
+	if(std::isnan(val) || std::isinf(val))
+	{
+		frac = (1ULL << 63) | ((bits & 0x000fffffffffffffULL) << 11);
+		e = 0x7fff;
+	}
+	else if(val == 0.0)
+	{
+		frac = 0;
+		e = 0;
+	}
+	else
+	{
+		int exp2;
+		const double m = frexp(fabs(val), &exp2);   // 0.5 <= m < 1, exact for denormals too
+		frac = uint64_t(ldexp(m, 64));              // integer bit lands in bit 63
+		e = exp2 - 1 + 16383;
+	}
+
+	words[0] = uint32_t(frac);
+	words[1] = uint32_t(frac >> 32);
+	words[2] = sign | e;
+}
+
+static double extended_to_double(const uint32_t *words)
+{
+	const uint64_t frac = words[0] | (uint64_t(words[1]) << 32);
+	const uint32_t e = words[2] & 0x7fff;
+	double val;
+
+	if(e == 0x7fff)
+	{
+		if(!(frac << 1))    // integer bit only: infinity
+		{
+			val = std::numeric_limits<double>::infinity();
+		}
+		else                // NaN: keep whatever payload fits, always quiet
+		{
+			val = u2d(0x7ff8000000000000ULL | ((frac & 0x7fffffffffffffffULL) >> 11));
+		}
+	}
+	else
+	{
+		// value = fraction * 2^(exponent - bias - 63); e == 0 is a denormal (exponent 1)
+		val = ldexp(double(frac), int(e ? e : 1) - 16383 - 63);
+	}
+
+	return BIT(words[2], 15) ? -val : val;
 }
 
 uint32_t i960_cpu_device::get_1_ri(uint32_t opcode)
@@ -447,6 +522,18 @@ void i960_cpu_device::test(uint32_t opcode, int mask)
 		m_r[(opcode>>19) & 0x1f] = 0;
 }
 
+double i960_cpu_device::round_to_int(double val)
+{
+	// apply rounding mode
+	switch ((m_AC >> 30) & 3)
+	{
+	case 0: return round(val);
+	case 1: return floor(val);
+	case 2: return ceil(val);
+	default: return trunc(val);
+	}
+}
+
 
 // interrupt dispatch
 void i960_cpu_device::take_interrupt(int vector, int lvl)
@@ -469,7 +556,7 @@ void i960_cpu_device::take_interrupt(int vector, int lvl)
 	}
 
 	SP = (SP + 63) & ~63;
-	SP += 128;  // emulate ElSemi's core, this fixes the crash in sonic the fighters
+	SP += 64;   // add padding to prevent buffer underflow when saving processor state
 
 	do_call(IRQV, 7, SP);
 
@@ -479,72 +566,72 @@ void i960_cpu_device::take_interrupt(int vector, int lvl)
 	// store the vector
 	m_program.write_dword(m_r[I960_FP]-8, vector-8);
 
-	m_PC &= ~0x1f00;    // clear priority, state, trace-fault pending, and trace enable
-	m_PC |= (lvl<<16);  // set CPU level to current IRQ level
-	m_PC |= 0x2002; // set supervisor mode & interrupt flag
+	m_PC &= ~0x001f0401;    // clear priority (bits 16-20), trace-fault pending (bit 10) and trace enable (bit 0)
+	m_PC |= (lvl<<16);      // set CPU level to current IRQ level
+	m_PC |= 0x2002;         // set supervisor mode & interrupt flag
 }
 
-void i960_cpu_device::check_irqs()
+void i960_cpu_device::check_immediate_irqs()
 {
-	int int_tab =  m_program.read_dword(m_PRCB+20);    // interrupt table
-	int cpu_pri = (m_PC>>16)&0x1f;
-	int pending_pri;
-	int lvl, irq, take = -1;
-	int vword;
-	static const uint32_t lvlmask[4] = { 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 };
-
-	pending_pri = m_program.read_dword(int_tab);       // read pending priorities
+	int cpu_pri = (m_PC >> 16) & 0x1f;
 
 	if ((m_immediate_irq) && ((cpu_pri < m_immediate_pri) || (m_immediate_pri == 31)))
 	{
 		take_interrupt(m_immediate_vector, m_immediate_pri);
 		m_immediate_irq = 0;
 	}
-	else
-	{
-		for(lvl = 31; lvl >= 0; lvl--) {
-			if((pending_pri & (1 << lvl)) && ((cpu_pri < lvl) || (lvl == 31))) {
-				int word, wordl, wordh;
+}
 
-				// figure out which word contains this level's priorities
-				word = ((lvl / 4) * 4) + 4; // (lvl/4) = word address, *4 for byte address, +4 to skip pending priorities
-				wordl = (lvl % 4) * 8;
-				wordh = (wordl + 8) - 1;
+void i960_cpu_device::check_pending_irqs()
+{
+	int int_tab = m_program.read_dword(m_PRCB + 20);    // interrupt table
+	int cpu_pri = (m_PC >> 16) & 0x1f;
+	int pending_pri = m_program.read_dword(int_tab);    // read pending priorities
+	int take = -1;
+	static const uint32_t lvlmask[4] = { 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 };
 
-				vword = m_program.read_dword(int_tab + word);
+	for (int lvl = 31; lvl >= 0; lvl--) {
+		if ((pending_pri & (1 << lvl)) && ((cpu_pri < lvl) || (lvl == 31))) {
+			int word, wordl, wordh;
 
-				// take the first vector we find for this level
-				for (irq = wordh; irq >= wordl; irq--) {
-					if(vword & (1 << irq)) {
-						// clear pending bit
-						vword &= ~(1 << irq);
-						m_program.write_dword(int_tab + word, vword);
-						take = irq;
-						break;
-					}
+			// figure out which word contains this level's priorities
+			word = ((lvl / 4) * 4) + 4; // (lvl/4) = word address, *4 for byte address, +4 to skip pending priorities
+			wordl = (lvl % 4) * 8;
+			wordh = (wordl + 8) - 1;
+
+			int vword = m_program.read_dword(int_tab + word);
+
+			// take the first vector we find for this level
+			for (int irq = wordh; irq >= wordl; irq--) {
+				if (vword & (1 << irq)) {
+					// clear pending bit
+					vword &= ~(1 << irq);
+					m_program.write_dword(int_tab + word, vword);
+					take = irq;
+					break;
 				}
+			}
 
-				// if no vectors were found at our level, it's an error
-				if(take == -1) {
-					logerror("i960: ERROR! no vector found for pending level %d\n", lvl);
+			// if no vectors were found at our level, it's an error
+			if (take == -1) {
+				logerror("i960: ERROR! no vector found for pending level %d\n", lvl);
 
-					// try to recover...
-					pending_pri &= ~(1 << lvl);
-					m_program.write_dword(int_tab, pending_pri);
-					return;
-				}
-
-				// if no vectors are waiting for this level, clear the level bit
-				if(!(vword & lvlmask[lvl % 4])) {
-					pending_pri &= ~(1 << lvl);
-					m_program.write_dword(int_tab, pending_pri);
-				}
-
-				take += ((lvl/4) * 32);
-
-				take_interrupt(take, lvl);
+				// try to recover...
+				pending_pri &= ~(1 << lvl);
+				m_program.write_dword(int_tab, pending_pri);
 				return;
 			}
+
+			// if no vectors are waiting for this level, clear the level bit
+			if (!(vword & lvlmask[lvl % 4])) {
+				pending_pri &= ~(1 << lvl);
+				m_program.write_dword(int_tab, pending_pri);
+			}
+
+			take += ((lvl / 4) * 32);
+
+			take_interrupt(take, lvl);
+			return;
 		}
 	}
 }
@@ -639,7 +726,7 @@ void i960_cpu_device::do_ret()
 		m_PC = x;
 
 		// check for another IRQ now that we're back
-		check_irqs();
+		check_pending_irqs();
 		break;
 
 	default:
@@ -686,8 +773,8 @@ void i960_cpu_device::execute_burst_stall_op(uint32_t opcode)
 
 	// clear stall burst mode
 	m_stall_state.burst_mode = false;
-	// now that we are done we might as well check if there's a pending irq too
-	check_irqs();
+	// now that we are done we might as well check if there's an irq too
+	check_immediate_irqs();
 }
 
 void i960_cpu_device::execute_op(uint32_t opcode)
@@ -1149,7 +1236,7 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 				m_icount--;
 				t1 = get_1_ri(opcode) & 0x1f;
 				t2 = get_2_ri(opcode);
-				set_ri(opcode, rotl_32(t2, t1));
+				set_ri(opcode, std::rotl(t2, t1));
 				break;
 
 			case 0xe: // shli
@@ -1157,7 +1244,8 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 				m_icount--;
 				t1 = get_1_ri(opcode);
 				t2 = get_2_ri(opcode);
-				set_ri(opcode, (t2 & 0x80000000) | (t1 >= 32 ? 0 : (t2<<t1) & 0x7fffffff)); // sign is preserved
+				// TODO: on later models, sign is always preserved even upon overflow
+				set_ri(opcode, t1 >= 32 ? 0 : t2<<t1);
 				break;
 
 			default:
@@ -1287,10 +1375,11 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 					m_icount -= 2;
 					t1 = get_1_ri(opcode);
 					t2 = get_2_ri(opcode);
-					res = t2-(t1+((m_AC>>1)&1));
+					// dst = src2 - src1 - 1 + C, or src2 + ~src1 + C
+					res = (uint64_t)t2 + (uint64_t)(uint32_t)~t1 + ((m_AC>>1)&1);
 					set_ri(opcode, res&0xffffffff);
 
-					m_AC &= ~0x3;   // clear C and V
+					m_AC &= ~0x7;   // cc = 0CV
 					// set carry
 					m_AC |= ((res) & (((uint64_t)1) << 32)) ? 0x2 : 0;
 					// set overflow
@@ -1489,6 +1578,8 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 				t2 = get_2_ri(opcode);
 				m_PC = (m_PC & ~t2) | (m_r[(opcode>>19) & 0x1f] & t2);
 				set_ri(opcode, t1);
+				if ((t1 >> 16 & 0x1f) > (m_PC >> 16 & 0x1f))
+					check_pending_irqs();
 				break;
 
 			default:
@@ -1538,7 +1629,7 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 				t1 = get_1_ri(opcode);
 				t2 = get_2_ri(opcode);
 
-				set_ri64(opcode, (int64_t)t1 * (int64_t)t2);
+				set_ri64(opcode, mulu_32x32(t1, t2));
 				break;
 
 			case 0x1: // ediv
@@ -1597,13 +1688,14 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 				m_icount -= 400;
 				t1f = get_1_rif(opcode);
 				t2f = get_2_rif(opcode);
-				set_rif(opcode, t2f*log(t1f+1.0)/log(2.0));
+				set_rif(opcode, t2f*log2(t1f+1.0));
 				break;
 
 			case 0x2: // logr
-				m_icount -= 400; // checkme
+				m_icount -= 438;
 				t1f = get_1_rif(opcode);
-				set_rif(opcode, log(t1f));
+				t2f = get_2_rif(opcode);
+				set_rif(opcode, t2f*log2(t1f));
 				break;
 
 			case 0x3: // remr
@@ -1639,11 +1731,9 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 				break;
 
 			case 0xb: // roundr
-				{
-					int32_t st1 = get_1_rif(opcode);
-					m_icount -= 69;
-					set_rif(opcode, (double)st1);
-				}
+				m_icount -= 69;
+				t1f = get_1_rif(opcode);
+				set_rif(opcode, round_to_int(t1f));
 				break;
 
 			case 0xc: // sinr
@@ -1681,7 +1771,8 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 			case 0x2: // logrl
 				m_icount -= 438;
 				t1f = get_1_rifl(opcode);
-				set_rifl(opcode, log(t1f));
+				t2f = get_2_rifl(opcode);
+				set_rifl(opcode, t2f*log2(t1f));
 				break;
 
 			case 0x5: // cmprl
@@ -1710,11 +1801,9 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 				break;
 
 			case 0xb: // roundrl
-				{
-					int32_t st1 = get_1_rifl(opcode);
-					m_icount -= 70;
-					set_rifl(opcode, (double)st1);
-				}
+				m_icount -= 70;
+				t1f = get_1_rifl(opcode);
+				set_rifl(opcode, round_to_int(t1f));
 				break;
 
 			case 0xc: // sinrl
@@ -1745,17 +1834,13 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 			case 0x0: // cvtri
 				m_icount -= 33;
 				t1f = get_1_rif(opcode);
-				// apply rounding mode
-				// we do this a little indirectly to avoid some odd GCC warnings
-				t2f = 0.0;
-				switch((m_AC>>30)&3)
-				{
-					case 0: t2f = floor(t1f+0.5); break;
-					case 1: t2f = floor(t1f); break;
-					case 2: t2f = ceil(t1f); break;
-					case 3: t2f = t1f; break;
-				}
-				set_ri(opcode, (int32_t)t2f);
+				set_ri(opcode, (int32_t)round_to_int(t1f));
+				break;
+
+			case 0x1: // cvtril
+				m_icount -= 35;
+				t1f = get_1_rif(opcode);
+				set_ri64(opcode, (int64_t)round_to_int(t1f));
 				break;
 
 			case 0x2: // cvtzri
@@ -1796,28 +1881,42 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 
 		case 0x6e:
 			switch((opcode >> 7) & 0xf) {
-			case 0x1: // movre
+			case 0x1: // movre (undocumented encoding, used by Dead or Alive to save/restore fp0-fp3)
+			case 0x9: // movre
 				{
-					uint32_t *src=nullptr, *dst=nullptr;
+					uint32_t v[3];
 
 					m_icount -= 8;
 
-					if(!(opcode & 0x00000800)) {
-						src = (uint32_t *)&m_r[opcode & 0x1e];
-					} else {
-						int idx = opcode & 0x1f;
+					// source: three g/l registers (multiple of 4), a floating-point register or a literal
+					if(!(opcode & 0x00000800))
+					{
+						const int src = opcode & 0x1c;
+						v[0] = m_r[src];
+						v[1] = m_r[src+1];
+						v[2] = m_r[src+2] & 0xffff;    // upper 16 bits of the third word are truncated
+					}
+					else
+					{
+						const int idx = opcode & 0x1f;
 						if(idx < 4)
-							src = (uint32_t *)&m_fp[idx];
+							double_to_extended(m_fp[idx], v);
+						else
+							double_to_extended((idx == 0x16) ? 1.0 : 0.0, v);
 					}
 
-					if(!(opcode & 0x00002000)) {
-						dst = (uint32_t *)&m_r[(opcode>>19) & 0x1e];
-					} else if(!(opcode & 0x00e00000))
-						dst = (uint32_t *)&m_fp[(opcode>>19) & 3];
-
-					dst[0] = src[0];
-					dst[1] = src[1];
-					dst[2] = src[2]&0xffff;
+					// destination: three g/l registers (multiple of 4) or a floating-point register
+					if(!(opcode & 0x00002000))
+					{
+						const int dst = (opcode>>19) & 0x1c;
+						m_r[dst] = v[0];
+						m_r[dst+1] = v[1];
+						m_r[dst+2] = v[2];
+					}
+					else if(!(opcode & 0x00e00000))
+						m_fp[(opcode>>19) & 3] = extended_to_double(v);
+					else
+						fatalerror("i960: %x: movre to literal?\n", m_PIP);
 				}
 				break;
 			case 0x2: // cpysre
@@ -1888,7 +1987,7 @@ void i960_cpu_device::execute_op(uint32_t opcode)
 				src1 = (int32_t)get_1_ri(opcode);
 				src2 = (int32_t)get_2_ri(opcode);
 				dst = src2 - ((src2/src1)*src1);
-				if(((src2*src1) < 0) && (dst != 0))
+				if(((src1 ^ src2) < 0) && (dst != 0))   // operands of opposite sign (the product would overflow)
 					dst += src1;
 				set_ri(opcode, dst);
 				break;
@@ -2186,7 +2285,7 @@ void i960_cpu_device::execute_run()
 
 	// delay checking irqs if we are in burst stall mode
 	if(m_stall_state.burst_mode == false)
-		check_irqs();
+		check_immediate_irqs();
 
 	while(m_icount > 0) {
 		m_PIP = m_IP;
@@ -2206,6 +2305,11 @@ void i960_cpu_device::execute_run()
 
 void i960_cpu_device::execute_set_input(int irqline, int state)
 {
+	if (m_irq_line_state[irqline] == state)
+		return;
+
+	m_irq_line_state[irqline] = state;
+
 	int int_tab =  m_program.read_dword(m_PRCB+20);    // interrupt table
 	int cpu_pri = (m_PC>>16)&0x1f;
 	int vector =0;
@@ -2299,55 +2403,56 @@ void i960_cpu_device::device_start()
 	save_item(NAME(m_stall_state.t1));
 	save_item(NAME(m_stall_state.t2));
 	save_item(NAME(m_stall_state.burst_mode));
+	save_item(NAME(m_irq_line_state));
 
+	state_add(I960_SAT,  "sat", m_SAT).formatstr("%08X");
+	state_add(I960_PRCB, "prcb", m_PRCB).formatstr("%08X");
+	state_add(I960_PC,   "pc", m_PC).formatstr("%08X");
+	state_add(I960_AC,   "ac", m_AC).formatstr("%08X");
+	state_add(I960_IP,   "ip", m_IP).formatstr("%08X");
+	state_add(I960_PIP,  "pip", m_PIP).formatstr("%08X");
+	state_add(I960_R0,   "pfp", m_r[ 0]).formatstr("%08X");
+	state_add(I960_R1,   "sp", m_r[ 1]).formatstr("%08X");
+	state_add(I960_R2,   "rip", m_r[ 2]).formatstr("%08X");
+	state_add(I960_R3,   "r3", m_r[ 3]).formatstr("%08X");
+	state_add(I960_R4,   "r4", m_r[ 4]).formatstr("%08X");
+	state_add(I960_R5,   "r5", m_r[ 5]).formatstr("%08X");
+	state_add(I960_R6,   "r6", m_r[ 6]).formatstr("%08X");
+	state_add(I960_R7,   "r7", m_r[ 7]).formatstr("%08X");
+	state_add(I960_R8,   "r8", m_r[ 8]).formatstr("%08X");
+	state_add(I960_R9,   "r9", m_r[ 9]).formatstr("%08X");
+	state_add(I960_R10,  "r10", m_r[10]).formatstr("%08X");
+	state_add(I960_R11,  "r11", m_r[11]).formatstr("%08X");
+	state_add(I960_R12,  "r12", m_r[12]).formatstr("%08X");
+	state_add(I960_R13,  "r13", m_r[13]).formatstr("%08X");
+	state_add(I960_R14,  "r14", m_r[14]).formatstr("%08X");
+	state_add(I960_R15,  "r15", m_r[15]).formatstr("%08X");
+	state_add(I960_G0,   "g0", m_r[16]).formatstr("%08X");
+	state_add(I960_G1,   "g1", m_r[17]).formatstr("%08X");
+	state_add(I960_G2,   "g2", m_r[18]).formatstr("%08X");
+	state_add(I960_G3,   "g3", m_r[19]).formatstr("%08X");
+	state_add(I960_G4,   "g4", m_r[20]).formatstr("%08X");
+	state_add(I960_G5,   "g5", m_r[21]).formatstr("%08X");
+	state_add(I960_G6,   "g6", m_r[22]).formatstr("%08X");
+	state_add(I960_G7,   "g7", m_r[23]).formatstr("%08X");
+	state_add(I960_G8,   "g8", m_r[24]).formatstr("%08X");
+	state_add(I960_G9,   "g9", m_r[25]).formatstr("%08X");
+	state_add(I960_G10,  "g10", m_r[26]).formatstr("%08X");
+	state_add(I960_G11,  "g11", m_r[27]).formatstr("%08X");
+	state_add(I960_G12,  "g12", m_r[28]).formatstr("%08X");
+	state_add(I960_G13,  "g13", m_r[29]).formatstr("%08X");
+	state_add(I960_G14,  "g14", m_r[30]).formatstr("%08X");
+	state_add(I960_G15,  "fp", m_r[31]).formatstr("%08X");
 
-	state_add( I960_SAT,  "sat", m_SAT).formatstr("%08X");
-	state_add( I960_PRCB, "prcb", m_PRCB).formatstr("%08X");
-	state_add( I960_PC,   "pc", m_PC).formatstr("%08X");
-	state_add( I960_AC,   "ac", m_AC).formatstr("%08X");
-	state_add( I960_IP,   "ip", m_IP).formatstr("%08X");
-	state_add( I960_PIP,  "pip", m_PIP).formatstr("%08X");
-	state_add( I960_R0,   "pfp", m_r[ 0]).formatstr("%08X");
-	state_add( I960_R1,   "sp", m_r[ 1]).formatstr("%08X");
-	state_add( I960_R2,   "rip", m_r[ 2]).formatstr("%08X");
-	state_add( I960_R3,   "r3", m_r[ 3]).formatstr("%08X");
-	state_add( I960_R4,   "r4", m_r[ 4]).formatstr("%08X");
-	state_add( I960_R5,   "r5", m_r[ 5]).formatstr("%08X");
-	state_add( I960_R6,   "r6", m_r[ 6]).formatstr("%08X");
-	state_add( I960_R7,   "r7", m_r[ 7]).formatstr("%08X");
-	state_add( I960_R8,   "r8", m_r[ 8]).formatstr("%08X");
-	state_add( I960_R9,   "r9", m_r[ 9]).formatstr("%08X");
-	state_add( I960_R10,  "r10", m_r[10]).formatstr("%08X");
-	state_add( I960_R11,  "r11", m_r[11]).formatstr("%08X");
-	state_add( I960_R12,  "r12", m_r[12]).formatstr("%08X");
-	state_add( I960_R13,  "r13", m_r[13]).formatstr("%08X");
-	state_add( I960_R14,  "r14", m_r[14]).formatstr("%08X");
-	state_add( I960_R15,  "r15", m_r[15]).formatstr("%08X");
-	state_add( I960_G0,   "g0", m_r[16]).formatstr("%08X");
-	state_add( I960_G1,   "g1", m_r[17]).formatstr("%08X");
-	state_add( I960_G2,   "g2", m_r[18]).formatstr("%08X");
-	state_add( I960_G3,   "g3", m_r[19]).formatstr("%08X");
-	state_add( I960_G4,   "g4", m_r[20]).formatstr("%08X");
-	state_add( I960_G5,   "g5", m_r[21]).formatstr("%08X");
-	state_add( I960_G6,   "g6", m_r[22]).formatstr("%08X");
-	state_add( I960_G7,   "g7", m_r[23]).formatstr("%08X");
-	state_add( I960_G8,   "g8", m_r[24]).formatstr("%08X");
-	state_add( I960_G9,   "g9", m_r[25]).formatstr("%08X");
-	state_add( I960_G10,  "g10", m_r[26]).formatstr("%08X");
-	state_add( I960_G11,  "g11", m_r[27]).formatstr("%08X");
-	state_add( I960_G12,  "g12", m_r[28]).formatstr("%08X");
-	state_add( I960_G13,  "g13", m_r[29]).formatstr("%08X");
-	state_add( I960_G14,  "g14", m_r[30]).formatstr("%08X");
-	state_add( I960_G15,  "fp", m_r[31]).formatstr("%08X");
-
-	state_add( STATE_GENPC, "GENPC", m_IP).noshow();
-	state_add( STATE_GENPCBASE, "CURPC", m_IP).noshow();
-	state_add( STATE_GENFLAGS, "GENFLAGS", m_AC).noshow().formatstr("%2s");
+	state_add(STATE_GENPC, "GENPC", m_IP).noshow();
+	state_add(STATE_GENPCBASE, "CURPC", m_IP).noshow();
+	state_add(STATE_GENFLAGS, "GENFLAGS", m_AC).noshow().formatstr("%2s");
 
 	m_immediate_vector = 0;
 	m_immediate_pri = 0;
-	memset(m_rcache_frame_addr, 0, sizeof(m_rcache_frame_addr));
-	memset(m_fp, 0, sizeof(m_fp));
+	std::fill(std::begin(m_rcache_frame_addr), std::end(m_rcache_frame_addr), 0);
+	std::fill(std::begin(m_fp), std::end(m_fp), 0.0);
+	std::fill(std::begin(m_irq_line_state), std::end(m_irq_line_state), CLEAR_LINE);
 	m_PIP = 0;
 
 	set_icountptr(m_icount);
@@ -2384,6 +2489,8 @@ void i960_cpu_device::device_reset()
 	m_r[I960_FP] = m_program.read_dword(m_PRCB+24);
 	m_r[I960_SP] = m_r[I960_FP] + 64;
 	m_rcache_pos = 0;
+
+	m_stall_state.burst_mode = false;
 }
 
 std::unique_ptr<util::disasm_interface> i960_cpu_device::create_disassembler()

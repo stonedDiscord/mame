@@ -45,12 +45,12 @@ private:
 	u8 modem_r();
 	void modem_w(u8 data);
 
-	void ampex210_mem(address_map &map);
-	void ampex230_mem(address_map &map);
-	void ampex210_io(address_map &map);
-	void ampex230_io(address_map &map);
-	void vram_map(address_map &map);
-	void vram2_map(address_map &map);
+	void ampex210_mem(address_map &map) ATTR_COLD;
+	void ampex230_mem(address_map &map) ATTR_COLD;
+	void ampex210_io(address_map &map) ATTR_COLD;
+	void ampex230_io(address_map &map) ATTR_COLD;
+	void vram_map(address_map &map) ATTR_COLD;
+	void vram2_map(address_map &map) ATTR_COLD;
 
 	required_device<z80_device> m_maincpu;
 	required_region_ptr<u8> m_chargen;
@@ -180,7 +180,7 @@ void ampex210_state::ampex210p(machine_config &config)
 	pvtc.set_addrmap(0, &ampex210_state::vram_map);
 	pvtc.set_screen("screen");
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_color(rgb_t::amber());
 	screen.set_raw(19.602_MHz_XTAL, 900, 0, 720, 363, 0, 300);
 	//screen.set_raw(32.147_MHz_XTAL, 1476, 0, 1188, 363, 0, 300);
@@ -216,7 +216,7 @@ void ampex210_state::ampex230p(machine_config &config)
 	pvtc.set_addrmap(1, &ampex210_state::vram2_map);
 	pvtc.set_screen("screen");
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_color(rgb_t::amber());
 	screen.set_raw(19.602_MHz_XTAL, 900, 0, 720, 363, 0, 312);
 	//screen.set_raw(32.147_MHz_XTAL, 1476, 0, 1188, 363, 0, 312);
@@ -243,5 +243,5 @@ ROM_END
 } // anonymous namespace
 
 
-COMP(1988, ampex210p, 0, 0, ampex210p, ampex210p, ampex210_state, empty_init, "Ampex", "Ampex 210 plus Terminal (v3.0)", MACHINE_IS_SKELETON)
-COMP(1988, ampex230p, 0, 0, ampex230p, ampex210p, ampex210_state, empty_init, "Ampex", "Ampex 230 plus Terminal (v4.0)", MACHINE_IS_SKELETON)
+COMP(1988, ampex210p, 0, 0, ampex210p, ampex210p, ampex210_state, empty_init, "Ampex", "Ampex 210 plus Terminal (v3.0)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+COMP(1988, ampex230p, 0, 0, ampex230p, ampex210p, ampex210_state, empty_init, "Ampex", "Ampex 230 plus Terminal (v4.0)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)

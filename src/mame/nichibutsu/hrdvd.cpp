@@ -79,8 +79,7 @@ public:
 		m_mpega(*this, "mpeg_audio"),
 		m_pll(*this, "pll"),
 		m_nichisnd(*this, "nichisnd"),
-		m_lspeaker(*this, "lspeaker"),
-		m_rspeaker(*this, "rspeaker"),
+		m_speaker(*this, "speaker"),
 		m_screen(*this, "screen"),
 		m_key(*this, "KEY.%u", 0),
 		m_region_maincpu(*this, "maincpu")
@@ -94,8 +93,7 @@ public:
 	required_device<nn71003f_device> m_mpega;
 	required_device<tc9223_device> m_pll;
 	required_device<nichisnd_device> m_nichisnd;
-	required_device<speaker_device> m_lspeaker;
-	required_device<speaker_device> m_rspeaker;
+	required_device<speaker_device> m_speaker;
 	required_device<screen_device> m_screen;
 	required_ioport_array<5> m_key;
 	required_memory_region m_region_maincpu;
@@ -124,13 +122,13 @@ public:
 	void ata_irq(int state);
 	void ata_drq(int state);
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	void general_init(int patchaddress, int patchvalue);
 	void hrdvd(machine_config &config);
-	void hrdvd_map(address_map &map);
-	void hrdvd_sub_map(address_map &map);
+	void hrdvd_map(address_map &map) ATTR_COLD;
+	void hrdvd_sub_map(address_map &map) ATTR_COLD;
 
 	static void dvdrom_config(device_t *device);
 };
@@ -226,21 +224,21 @@ void hrdvd_ata_controller_device::dma_write(uint16_t data)
 uint16_t hrdvd_ata_controller_device::read(offs_t offset, uint16_t mem_mask)
 {
 	if(mem_mask == 0xffff)
-		return swapendian_int16(internal_read_cs0(offset * 2, 0xffff));
+		return swapendian_int16(internal_read_cs0(offset * 2));
 	else if(ACCESSING_BITS_0_7)
-		return internal_read_cs0(offset * 2 + 1, 0xff);
+		return internal_read_cs0(offset * 2 + 1);
 	else
-		return internal_read_cs0(offset * 2, 0xff) << 8;
+		return internal_read_cs0(offset * 2) << 8;
 }
 
 void hrdvd_ata_controller_device::write(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
 	if(mem_mask == 0xffff)
-		internal_write_cs0(offset * 2, swapendian_int16(data), 0xffff);
+		internal_write_cs0(offset * 2, swapendian_int16(data));
 	else if(ACCESSING_BITS_0_7)
-		internal_write_cs0(offset * 2 + 1, data, 0xff);
+		internal_write_cs0(offset * 2 + 1, data);
 	else
-		internal_write_cs0(offset * 2, data >> 8, 0xff);
+		internal_write_cs0(offset * 2, data >> 8);
 }
 
 
@@ -468,12 +466,12 @@ void hrdvd_state::tmp68301_parallel_port_w(uint16_t data)
 
 static void atapi_devs(device_slot_interface &device)
 {
-	device.option_add("dvdrom", ATAPI_FIXED_DVDROM);
+	device.option_add("dvdrom", ATAPI_DVDROM);
 }
 
 void hrdvd_state::dvdrom_config(device_t *device)
 {
-	auto *drive = downcast<atapi_fixed_dvdrom_device *>(device);
+	auto *drive = downcast<atapi_dvdrom_device *>(device);
 	drive->set_model("PIONEER        DVD-A01  1.17"); // Wants firmware version between 1.14 and 1.19
 }
 
@@ -510,22 +508,23 @@ void hrdvd_state::hrdvd(machine_config &config)
 	m_video->set_vram_size(0x20000);
 	m_video->int_cb().set_inputline(m_maincpu, 0);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 
 	ZR36110(config, m_mpeg, 27_MHz_XTAL/2);
 	m_mpeg->drq_w().set(FUNC(hrdvd_state::mpeg_dreq_w));
 
-	NN71003F(config, m_mpega, 0);
-	m_mpega->add_route(0, m_lspeaker, 1.0);
-	m_mpega->add_route(1, m_rspeaker, 1.0);
+	NN71003F(config, m_mpega);
+	m_mpega->add_route(0, m_speaker, 1.0, 0);
+	m_mpega->add_route(1, m_speaker, 1.0, 1);
 	m_mpeg->sp2_frm_w().set(m_mpega, FUNC(nn71003f_device::frm_w));
 	m_mpeg->sp2_clk_w().set(m_mpega, FUNC(nn71003f_device::clk_w));
 	m_mpeg->sp2_dat_w().set(m_mpega, FUNC(nn71003f_device::dat_w));
 
-	NICHISND(config, m_nichisnd, 0);
+	SPEAKER(config, m_speaker, 2).front();
 
-	SPEAKER(config, m_lspeaker).front_left();
-	SPEAKER(config, m_rspeaker).front_right();
+	NICHISND(config, m_nichisnd);
+	m_nichisnd->add_route(ALL_OUTPUTS, m_speaker, 1.0, 0);
+	m_nichisnd->add_route(ALL_OUTPUTS, m_speaker, 1.0, 1);
 }
 
 

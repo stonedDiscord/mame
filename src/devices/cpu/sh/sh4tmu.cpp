@@ -24,7 +24,12 @@ static uint32_t compute_ticks_timer(emu_timer *timer, int hertz, int divisor)
 {
 	double ret;
 
+	if (timer->remaining() == attotime::never)
+		return 0;
+
 	ret=((timer->remaining().as_double() * (double)hertz) / (double)divisor) - 1;
+	if (ret < 0)
+		return 0; // read after expiry, before the callback has run
 	return (uint32_t)ret;
 }
 
@@ -37,18 +42,18 @@ void sh34_base_device::sh4_timer_recompute(int which)
 	switch (which)
 	{
 		case 0:
-			tcr = m_SH4_TCR0;
-			tcnt = m_SH4_TCNT0;
+			tcr = m_tcr0;
+			tcnt = m_tcnt0;
 			break;
 
 		case 1:
-			tcr = m_SH4_TCR1;
-			tcnt = m_SH4_TCNT1;
+			tcr = m_tcr1;
+			tcnt = m_tcnt1;
 			break;
 
 		case 2:
-			tcr = m_SH4_TCR2;
-			tcnt = m_SH4_TCNT2;
+			tcr = m_tcr2;
+			tcnt = m_tcnt2;
 			break;
 	}
 
@@ -60,37 +65,47 @@ void sh34_base_device::sh4_timer_recompute(int which)
 TIMER_CALLBACK_MEMBER( sh34_base_device::sh4_timer_callback )
 {
 	int which = param;
+	uint32_t tcor = 0;
+	uint32_t tcr = 0;
 
 	switch (which)
 	{
 		case 0:
-			m_SH4_TCNT0 = m_SH4_TCOR0;
+			tcor = m_tcor0;
+			tcr = m_tcr0;
+			m_tcnt0 = tcor;
 			break;
 
 		case 1:
-			m_SH4_TCNT1 = m_SH4_TCOR1;
+			tcor = m_tcor1;
+			tcr = m_tcr1;
+			m_tcnt1 = tcor;
 			break;
 
 		case 2:
-			m_SH4_TCNT2 = m_SH4_TCOR2;
+			tcor = m_tcor2;
+			tcr = m_tcr2;
+			m_tcnt2 = tcor;
 			break;
 
 	}
 
-	sh4_timer_recompute(which);
+	// TCOR = 0 underflows on every tick; with UNIE clear only UNF shows it, and it stays set, so stop until TCOR, TCNT, TCR or TSTR is written
+	if (tcor != 0 || (tcr & 0x20))
+		sh4_timer_recompute(which);
 
 	switch (which)
 	{
 		case 0:
-			m_SH4_TCR0 |= 0x100;
+			m_tcr0 |= 0x100;
 			break;
 
 		case 1:
-			m_SH4_TCR1 |= 0x100;
+			m_tcr1 |= 0x100;
 			break;
 
 		case 2:
-			m_SH4_TCR2 |= 0x100;
+			m_tcr2 |= 0x100;
 			break;
 
 	}
@@ -98,7 +113,7 @@ TIMER_CALLBACK_MEMBER( sh34_base_device::sh4_timer_callback )
 	switch (which)
 	{
 		case 0:
-			if (m_SH4_TCR0 & 0x20)
+			if (m_tcr0 & 0x20)
 			{
 				sh4_exception_request(SH4_INTC_TUNI0);
 			//  logerror("SH4_INTC_TUNI0 requested\n");
@@ -106,7 +121,7 @@ TIMER_CALLBACK_MEMBER( sh34_base_device::sh4_timer_callback )
 			break;
 
 		case 1:
-			if (m_SH4_TCR1 & 0x20)
+			if (m_tcr1 & 0x20)
 			{
 				sh4_exception_request(SH4_INTC_TUNI1);
 			//  logerror("SH4_INTC_TUNI1 requested\n");
@@ -114,7 +129,7 @@ TIMER_CALLBACK_MEMBER( sh34_base_device::sh4_timer_callback )
 			break;
 
 		case 2:
-			if (m_SH4_TCR2 & 0x20)
+			if (m_tcr2 & 0x20)
 			{
 				sh4_exception_request(SH4_INTC_TUNI2);
 			//  logerror("SH4_INTC_TUNI2 requested\n");
@@ -124,88 +139,32 @@ TIMER_CALLBACK_MEMBER( sh34_base_device::sh4_timer_callback )
 	}
 }
 
-
-uint32_t sh34_base_device::sh4_handle_tcnt0_addr_r(uint32_t mem_mask)
+void sh34_base_device::tocr_w(offs_t offset, uint8_t data, uint8_t mem_mask)
 {
-	if (m_SH4_TSTR & 1)
-		return compute_ticks_timer(m_timer[0], m_pm_clock, tcnt_div[m_SH4_TCR0 & 7]);
-	else
-		return m_SH4_TCNT0;
+	COMBINE_DATA(&m_tocr);
 }
 
-uint32_t sh34_base_device::sh4_handle_tcnt1_addr_r(uint32_t mem_mask)
+uint8_t sh34_base_device::tocr_r(offs_t offset, uint8_t mem_mask)
 {
-	if (m_SH4_TSTR & 2)
-		return compute_ticks_timer(m_timer[1], m_pm_clock, tcnt_div[m_SH4_TCR1 & 7]);
-	else
-		return m_SH4_TCNT1;
+	return m_tocr;
 }
 
-uint32_t sh34_base_device::sh4_handle_tcnt2_addr_r(uint32_t mem_mask)
+uint8_t sh34_base_device::tstr_r(offs_t offset, uint8_t mem_mask)
 {
-	if (m_SH4_TSTR & 4)
-		return compute_ticks_timer(m_timer[2], m_pm_clock, tcnt_div[m_SH4_TCR2 & 7]);
-	else
-		return m_SH4_TCNT2;
+	return m_tstr;
 }
 
-uint32_t sh34_base_device::sh4_handle_tcor0_addr_r(uint32_t mem_mask)
+void sh34_base_device::tstr_w(offs_t offset, uint8_t data, uint8_t mem_mask)
 {
-	return m_SH4_TCOR0;
-}
-
-uint32_t sh34_base_device::sh4_handle_tcor1_addr_r(uint32_t mem_mask)
-{
-	return m_SH4_TCOR1;
-}
-
-uint32_t sh34_base_device::sh4_handle_tcor2_addr_r(uint32_t mem_mask)
-{
-	return m_SH4_TCOR2;
-}
-
-uint32_t sh34_base_device::sh4_handle_tcr0_addr_r(uint32_t mem_mask)
-{
-	return m_SH4_TCR0;
-}
-
-uint32_t sh34_base_device::sh4_handle_tcr1_addr_r(uint32_t mem_mask)
-{
-	return m_SH4_TCR1;
-}
-
-uint32_t sh34_base_device::sh4_handle_tcr2_addr_r(uint32_t mem_mask)
-{
-	return m_SH4_TCR2;
-}
-
-uint32_t sh34_base_device::sh4_handle_tstr_addr_r(uint32_t mem_mask)
-{
-	return m_SH4_TSTR;
-}
-
-uint32_t sh34_base_device::sh4_handle_tocr_addr_r(uint32_t mem_mask)
-{
-	return m_SH4_TOCR;
-}
-
-uint32_t sh34_base_device::sh4_handle_tcpr2_addr_r(uint32_t mem_mask)
-{
-	return m_SH4_TCPR2;
-}
-
-
-void sh34_base_device::sh4_handle_tstr_addr_w(uint32_t data, uint32_t mem_mask)
-{
-	uint32_t chg = m_SH4_TSTR;
-	COMBINE_DATA(&m_SH4_TSTR);
-	chg ^= m_SH4_TSTR;
+	uint32_t chg = m_tstr;
+	COMBINE_DATA(&m_tstr);
+	chg ^= m_tstr;
 
 	if (chg & 1)
 	{
-		if ((m_SH4_TSTR & 1) == 0)
+		if ((m_tstr & 1) == 0)
 		{
-			m_SH4_TCNT0 = compute_ticks_timer(m_timer[0], m_pm_clock, tcnt_div[m_SH4_TCR0 & 7]);
+			m_tcnt0 = compute_ticks_timer(m_timer[0], m_pm_clock, tcnt_div[m_tcr0 & 7]);
 			m_timer[0]->adjust(attotime::never);
 		}
 		else
@@ -214,9 +173,9 @@ void sh34_base_device::sh4_handle_tstr_addr_w(uint32_t data, uint32_t mem_mask)
 
 	if (chg & 2)
 	{
-		if ((m_SH4_TSTR & 2) == 0)
+		if ((m_tstr & 2) == 0)
 		{
-			m_SH4_TCNT1 = compute_ticks_timer(m_timer[1], m_pm_clock, tcnt_div[m_SH4_TCR1 & 7]);
+			m_tcnt1 = compute_ticks_timer(m_timer[1], m_pm_clock, tcnt_div[m_tcr1 & 7]);
 			m_timer[1]->adjust(attotime::never);
 		}
 		else
@@ -225,9 +184,9 @@ void sh34_base_device::sh4_handle_tstr_addr_w(uint32_t data, uint32_t mem_mask)
 
 	if (chg & 4)
 	{
-		if ((m_SH4_TSTR & 4) == 0)
+		if ((m_tstr & 4) == 0)
 		{
-			m_SH4_TCNT2 = compute_ticks_timer(m_timer[2], m_pm_clock, tcnt_div[m_SH4_TCR2 & 7]);
+			m_tcnt2 = compute_ticks_timer(m_timer[2], m_pm_clock, tcnt_div[m_tcr2 & 7]);
 			m_timer[2]->adjust(attotime::never);
 		}
 		else
@@ -235,87 +194,156 @@ void sh34_base_device::sh4_handle_tstr_addr_w(uint32_t data, uint32_t mem_mask)
 	}
 }
 
-void sh34_base_device::sh4_handle_tcr0_addr_w(uint32_t data, uint32_t mem_mask)
+uint32_t sh34_base_device::tcor0_r(offs_t offset, uint32_t mem_mask)
 {
-	uint32_t old2 = m_SH4_TCR0;
-	COMBINE_DATA(&m_SH4_TCR0);
-	if (m_SH4_TSTR & 1)
+	return m_tcor0;
+}
+
+void sh34_base_device::tcor0_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	COMBINE_DATA(&m_tcor0);
+	if ((m_tstr & 1) && m_timer[0]->remaining() == attotime::never)
+		sh4_timer_recompute(0);
+}
+
+uint32_t sh34_base_device::tcnt0_r(offs_t offset, uint32_t mem_mask)
+{
+	if (m_tstr & 1)
+		return compute_ticks_timer(m_timer[0], m_pm_clock, tcnt_div[m_tcr0 & 7]);
+	else
+		return m_tcnt0;
+}
+
+void sh34_base_device::tcnt0_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	COMBINE_DATA(&m_tcnt0);
+	if (m_tstr & 1)
+		sh4_timer_recompute(0);
+}
+
+uint16_t sh34_base_device::tcr0_r(offs_t offset, uint16_t mem_mask)
+{
+	return m_tcr0;
+}
+
+void sh34_base_device::tcr0_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	uint32_t old2 = m_tcr0;
+	COMBINE_DATA(&m_tcr0);
+	m_tcr0 = (m_tcr0 & ~0x100) | (m_tcr0 & old2 & 0x100); // UNF can only be cleared by writing 0
+	if (m_tstr & 1)
 	{
-		m_SH4_TCNT0 = compute_ticks_timer(m_timer[0], m_pm_clock, tcnt_div[old2 & 7]);
+		m_tcnt0 = compute_ticks_timer(m_timer[0], m_pm_clock, tcnt_div[old2 & 7]);
 		sh4_timer_recompute(0);
 	}
-	if (!(m_SH4_TCR0 & 0x20) || !(m_SH4_TCR0 & 0x100))
+	if ((m_tcr0 & 0x20) && (m_tcr0 & 0x100))
+		sh4_exception_request(SH4_INTC_TUNI0);
+	else
 		sh4_exception_unrequest(SH4_INTC_TUNI0);
 }
 
-void sh34_base_device::sh4_handle_tcr1_addr_w(uint32_t data, uint32_t mem_mask)
+uint32_t sh34_base_device::tcor1_r(offs_t offset, uint32_t mem_mask)
 {
-	uint32_t old2 = m_SH4_TCR1;
-	COMBINE_DATA(&m_SH4_TCR1);
-	if (m_SH4_TSTR & 2)
+	return m_tcor1;
+}
+
+void sh34_base_device::tcor1_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	COMBINE_DATA(&m_tcor1);
+	if ((m_tstr & 2) && m_timer[1]->remaining() == attotime::never)
+		sh4_timer_recompute(1);
+}
+
+uint32_t sh34_base_device::tcnt1_r(offs_t offset, uint32_t mem_mask)
+{
+	if (m_tstr & 2)
+		return compute_ticks_timer(m_timer[1], m_pm_clock, tcnt_div[m_tcr1 & 7]);
+	else
+		return m_tcnt1;
+}
+
+void sh34_base_device::tcnt1_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	COMBINE_DATA(&m_tcnt1);
+	if (m_tstr & 2)
+		sh4_timer_recompute(1);
+}
+
+uint16_t sh34_base_device::tcr1_r(offs_t offset, uint16_t mem_mask)
+{
+	return m_tcr1;
+}
+
+void sh34_base_device::tcr1_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	uint32_t old2 = m_tcr1;
+	COMBINE_DATA(&m_tcr1);
+	m_tcr1 = (m_tcr1 & ~0x100) | (m_tcr1 & old2 & 0x100); // UNF can only be cleared by writing 0
+	if (m_tstr & 2)
 	{
-		m_SH4_TCNT1 = compute_ticks_timer(m_timer[1], m_pm_clock, tcnt_div[old2 & 7]);
+		m_tcnt1 = compute_ticks_timer(m_timer[1], m_pm_clock, tcnt_div[old2 & 7]);
 		sh4_timer_recompute(1);
 	}
-	if (!(m_SH4_TCR1 & 0x20) || !(m_SH4_TCR1 & 0x100))
+	if ((m_tcr1 & 0x20) && (m_tcr1 & 0x100))
+		sh4_exception_request(SH4_INTC_TUNI1);
+	else
 		sh4_exception_unrequest(SH4_INTC_TUNI1);
 }
 
-void sh34_base_device::sh4_handle_tcr2_addr_w(uint32_t data, uint32_t mem_mask)
+uint32_t sh34_base_device::tcor2_r(offs_t offset, uint32_t mem_mask)
 {
-	uint32_t old2 = m_SH4_TCR2;
-	COMBINE_DATA(&m_SH4_TCR2);
-	if (m_SH4_TSTR & 4)
+	return m_tcor2;
+}
+
+void sh34_base_device::tcor2_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	COMBINE_DATA(&m_tcor2);
+	if ((m_tstr & 4) && m_timer[2]->remaining() == attotime::never)
+		sh4_timer_recompute(2);
+}
+
+uint32_t sh34_base_device::tcnt2_r(offs_t offset, uint32_t mem_mask)
+{
+	if (m_tstr & 4)
+		return compute_ticks_timer(m_timer[2], m_pm_clock, tcnt_div[m_tcr2 & 7]);
+	else
+		return m_tcnt2;
+}
+
+void sh34_base_device::tcnt2_w(offs_t offset, uint32_t data, uint32_t mem_mask)
+{
+	COMBINE_DATA(&m_tcnt2);
+	if (m_tstr & 4)
+		sh4_timer_recompute(2);
+}
+
+uint16_t sh34_base_device::tcr2_r(offs_t offset, uint16_t mem_mask)
+{
+	return m_tcr2;
+}
+
+void sh34_base_device::tcr2_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	uint32_t old2 = m_tcr2;
+	COMBINE_DATA(&m_tcr2);
+	m_tcr2 = (m_tcr2 & ~0x100) | (m_tcr2 & old2 & 0x100); // UNF can only be cleared by writing 0
+	if (m_tstr & 4)
 	{
-		m_SH4_TCNT2 = compute_ticks_timer(m_timer[2], m_pm_clock, tcnt_div[old2 & 7]);
+		m_tcnt2 = compute_ticks_timer(m_timer[2], m_pm_clock, tcnt_div[old2 & 7]);
 		sh4_timer_recompute(2);
 	}
-	if (!(m_SH4_TCR2 & 0x20) || !(m_SH4_TCR2 & 0x100))
+	if ((m_tcr2 & 0x20) && (m_tcr2 & 0x100))
+		sh4_exception_request(SH4_INTC_TUNI2);
+	else
 		sh4_exception_unrequest(SH4_INTC_TUNI2);
 }
 
-void sh34_base_device::sh4_handle_tcor0_addr_w(uint32_t data, uint32_t mem_mask)
+uint32_t sh34_base_device::tcpr2_r(offs_t offset, uint32_t mem_mask)
 {
-	COMBINE_DATA(&m_SH4_TCOR0);
+	return m_tcpr2;
 }
 
-void sh34_base_device::sh4_handle_tcor1_addr_w(uint32_t data, uint32_t mem_mask)
+void sh34_base_device::tcpr2_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 {
-	COMBINE_DATA(&m_SH4_TCOR1);
-}
-
-void sh34_base_device::sh4_handle_tcor2_addr_w(uint32_t data, uint32_t mem_mask)
-{
-	COMBINE_DATA(&m_SH4_TCOR2);
-}
-
-void sh34_base_device::sh4_handle_tcnt0_addr_w(uint32_t data, uint32_t mem_mask)
-{
-	COMBINE_DATA(&m_SH4_TCNT0);
-	if (m_SH4_TSTR & 1)
-		sh4_timer_recompute(0);
-}
-
-void sh34_base_device::sh4_handle_tcnt1_addr_w(uint32_t data, uint32_t mem_mask)
-{
-	COMBINE_DATA(&m_SH4_TCNT1);
-	if (m_SH4_TSTR & 2)
-		sh4_timer_recompute(1);
-}
-
-void sh34_base_device::sh4_handle_tcnt2_addr_w(uint32_t data, uint32_t mem_mask)
-{
-	COMBINE_DATA(&m_SH4_TCNT2);
-	if (m_SH4_TSTR & 4)
-		sh4_timer_recompute(2);
-}
-
-void sh34_base_device::sh4_handle_tocr_addr_w(uint32_t data, uint32_t mem_mask)
-{
-	COMBINE_DATA(&m_SH4_TOCR);
-}
-
-void sh34_base_device::sh4_handle_tcpr2_addr_w(uint32_t data, uint32_t mem_mask)
-{
-	COMBINE_DATA(&m_SH4_TCPR2);
+	COMBINE_DATA(&m_tcpr2);
 }

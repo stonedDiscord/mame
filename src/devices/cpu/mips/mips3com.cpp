@@ -2,7 +2,7 @@
 // copyright-holders:Aaron Giles
 /***************************************************************************
 
-    mips3com.c
+    mips3com.cpp
 
     Common MIPS III/IV definitions and functions
 
@@ -12,39 +12,7 @@
 #include "mips3com.h"
 #include "ps2vu.h"
 
-
-/***************************************************************************
-    FUNCTION PROTOTYPES
-***************************************************************************/
-
-static void tlb_entry_log_half(mips3_tlb_entry *entry, int tlbindex, int which);
-
-
-
-/***************************************************************************
-    INLINE FUNCTIONS
-***************************************************************************/
-
-/*-------------------------------------------------
-    tlb_entry_matches_asid - true if the given
-    TLB entry matches the provided ASID
--------------------------------------------------*/
-
-static inline bool tlb_entry_matches_asid(const mips3_tlb_entry *entry, uint8_t asid)
-{
-	return (entry->entry_hi & 0xff) == asid;
-}
-
-
-/*-------------------------------------------------
-    tlb_entry_is_global - true if the given
-    TLB entry is global
--------------------------------------------------*/
-
-static inline bool tlb_entry_is_global(const mips3_tlb_entry *entry)
-{
-	return (entry->entry_lo[0] & entry->entry_lo[1] & TLB_GLOBAL);
-}
+#include <iostream>
 
 
 void mips3_device::execute_set_input(int inputnum, int state)
@@ -55,6 +23,10 @@ void mips3_device::execute_set_input(int inputnum, int state)
 			m_core->cpr[0][COP0_Cause] |= 0x400 << inputnum;
 		else
 			m_core->cpr[0][COP0_Cause] &= ~(0x400 << inputnum);
+
+		/* the interpreter only checks at the top of execute_run; the DRC has its own check points */
+		if (!m_isdrc)
+			check_irqs();
 	}
 }
 
@@ -70,8 +42,8 @@ void mips3_device::execute_set_input(int inputnum, int state)
 
 void mips3_device::mips3com_update_cycle_counting()
 {
-	/* modify the timer to go off */
-	if (m_core->compare_armed)
+	/* a Count write has to re-time an armed compare as well */
+	if (m_core->compare_armed || m_compare_int_timer->enabled())
 	{
 		uint32_t count = (total_cycles() - m_core->count_zero_time) / 2;
 		uint32_t compare = m_core->cpr[0][COP0_Compare];
@@ -79,7 +51,6 @@ void mips3_device::mips3com_update_cycle_counting()
 		m_core->compare_armed = 0;
 		attotime newtime = cycles_to_attotime((uint64_t)delta * 2);
 		m_compare_int_timer->adjust(newtime);
-		return;
 	}
 }
 
@@ -98,7 +69,7 @@ void mips3_device::mips3com_asid_changed()
 
 	/* iterate over all non-global TLB entries and remap them */
 	for (tlbindex = 0; tlbindex < m_tlbentries; tlbindex++)
-		if (!tlb_entry_is_global(&m_tlb[tlbindex]))
+		if (!m_tlb[tlbindex].is_global())
 			tlb_map_entry(tlbindex);
 }
 
@@ -114,13 +85,13 @@ void mips3_device::mips3com_tlbr()
 	/* only handle entries within the TLB */
 	if (tlbindex < m_tlbentries)
 	{
-		mips3_tlb_entry *entry = &m_tlb[tlbindex];
+		const mips3_tlb_entry &entry = m_tlb[tlbindex];
 
 		/* copy data from the TLB entry into the COP0 registers */
-		m_core->cpr[0][COP0_PageMask] = entry->page_mask;
-		m_core->cpr[0][COP0_EntryHi] = entry->entry_hi;
-		m_core->cpr[0][COP0_EntryLo0] = entry->entry_lo[0];
-		m_core->cpr[0][COP0_EntryLo1] = entry->entry_lo[1];
+		m_core->cpr[0][COP0_PageMask] = entry.page_mask;
+		m_core->cpr[0][COP0_EntryHi] = entry.entry_hi;
+		m_core->cpr[0][COP0_EntryLo0] = entry.entry_lo[0];
+		m_core->cpr[0][COP0_EntryLo1] = entry.entry_lo[1];
 	}
 }
 
@@ -137,15 +108,18 @@ void mips3_device::mips3com_tlbwi()
 
 
 /*-------------------------------------------------
-generate_tlb_index - generate a random tlb index
+    get_random_index - the value Random reads as
 -------------------------------------------------*/
 
-uint32_t mips3_device::generate_tlb_index()
+uint32_t mips3_device::get_random_index()
 {
-	// Actual hardware uses a free running counter to generate the index.
-	// This implementation uses a linear congruential generator so that DRC and non-DRC code sequences match.
-	m_tlb_seed = 214013 * m_tlb_seed + 2531011;
-	return (m_tlb_seed >> 16) & 0x3f;
+	/* counts cycles down from the upper bound, so a Wired write reads back as m_tlbentries - 1 */
+	const uint32_t wired = m_core->cpr[0][COP0_Wired] & 0x3f;
+
+	if (wired < m_tlbentries)
+		return ((m_tlbentries - 1) - (total_cycles() - m_core->random_zero_time) % (m_tlbentries - wired)) & 0x3f;
+	else
+		return m_tlbentries - 1;
 }
 
 /*-------------------------------------------------
@@ -154,16 +128,8 @@ uint32_t mips3_device::generate_tlb_index()
 
 void mips3_device::mips3com_tlbwr()
 {
-	uint32_t wired = m_core->cpr[0][COP0_Wired] & 0x3f;
-	uint32_t unwired = m_tlbentries - wired;
-	uint32_t tlbindex = m_tlbentries - 1;
-
-	/* "random" is based off of linear congruential sequence through the non-wired pages */
-	if (unwired > 0)
-		tlbindex = (generate_tlb_index() % unwired) + wired;
-
-	/* use the common handler to write to this tlbindex */
-	tlb_write_common(tlbindex);
+	/* the same index MFC0 Random would have reported */
+	tlb_write_common(get_random_index());
 }
 
 
@@ -178,14 +144,14 @@ void mips3_device::mips3com_tlbp()
 	/* iterate over TLB entries */
 	for (tlbindex = 0; tlbindex < m_tlbentries; tlbindex++)
 	{
-		mips3_tlb_entry *entry = &m_tlb[tlbindex];
-		uint64_t mask = ~((entry->page_mask >> 13) & 0xfff) << 13;
+		const mips3_tlb_entry &entry = m_tlb[tlbindex];
+		const uint64_t mask = ~((entry.page_mask >> 13) & 0x3ffff) << 13;
 
 		/* if the relevant bits of EntryHi match the relevant bits of the TLB */
-		if ((entry->entry_hi & mask) == (m_core->cpr[0][COP0_EntryHi] & mask))
+		if ((entry.entry_hi & mask) == (m_core->cpr[0][COP0_EntryHi] & mask))
 
 			/* and if we are either global or matching the current ASID, then stop */
-			if ((entry->entry_hi & 0xff) == (m_core->cpr[0][COP0_EntryHi] & 0xff) || ((entry->entry_lo[0] & entry->entry_lo[1]) & TLB_GLOBAL))
+			if ((entry.entry_hi & 0xff) == (m_core->cpr[0][COP0_EntryHi] & 0xff) || ((entry.entry_lo[0] & entry.entry_lo[1]) & TLB_GLOBAL))
 				break;
 	}
 
@@ -210,7 +176,7 @@ void mips3_device::mips3com_tlbp()
 
 TIMER_CALLBACK_MEMBER( mips3_device::compare_int_callback )
 {
-	m_compare_int_timer->adjust(attotime::never);
+	/* the timer stays disabled until the next Compare write */
 	set_input_line(MIPS3_IRQ5, ASSERT_LINE);
 }
 
@@ -225,8 +191,9 @@ uint32_t mips3_device::compute_config_register()
 	/* set the cache line size to 32 bytes */
 	uint32_t configreg = 0x00026030;
 
-	m_dcache = nullptr;
-	m_icache = nullptr;
+	// MIPS32 Config: M (Config1 present), MT = 1 (standard TLB), K0 = 3 (cacheable)
+	if (m_flavor == MIPS3_TYPE_XBURST)
+		return 0x80000083;
 
 	// NEC VR series does not use a 100% compatible COP0/TLB implementation
 	if (m_flavor == MIPS3_TYPE_VR4300)
@@ -248,20 +215,27 @@ uint32_t mips3_device::compute_config_register()
 	else if (m_flavor == MIPS3_TYPE_VR5500)
 	{
 		/*
-		    For VR55xx, Config is as follows:
+		    For VR55xx, Config is as follows (VR5500 User's Manual U16044EJ1V0UM, figure 5-19):
 		    bit 31 = always 0
-		    bits 28-30 = EC
-		    bits 24-27 = EP
-		    bits 23-22 = EM
+		    bits 30-28 = EC system clock / PClock ratio
+		    bits 27-24 = EP block write transfer rate; undefined coming out of reset
+		    bits 23-22 = EM SysAD bus timing mode; undefined coming out of reset
 		    bits 21-20 = always b11
-		    bits 19-18 = EW
+		    bits 19-18 = EW (SysAD bus width: b00 = 64-bit, b01 = 32-bit)
 		    bits 17-16 = always b10
 		    bit 15 = endian indicator as standard MIPS III
-		    bits 3-14 = always b110011011110
-		    bits 0-2 = K0 ("Coherency algorithm of kseg0")
+		    bits 3-14 = always b110011011110 (fixed 16 KB caches with 32-byte lines)
+		    bits 0-2 = K0 ("Coherency algorithm of kseg0"; undefined out of reset)
 		*/
 
-		configreg = 0x6460;
+		configreg = 0x003266f0;
+
+		// EC on VR5500 is in 1/2 units and can't be lower than 1, so
+		// 0 = 1, 1 = 1.5, etc.
+		uint32_t ratio2 = 4;
+		if (c_system_clock != 0)
+			ratio2 = uint32_t((2ULL * m_cpu_clock + c_system_clock / 2) / c_system_clock);
+		configreg |= ((ratio2 < 4) ? 0 : (ratio2 > 11) ? 7 : (ratio2 - 4)) << 28;
 	}
 	else
 	{
@@ -359,6 +333,10 @@ uint32_t mips3_device::compute_prid_register()
 		case MIPS3_TYPE_R5900:
 			return 0x2e14;
 
+		case MIPS3_TYPE_XBURST:
+			// JZ4755 programming manual, section 2: Ingenic company ID 0xd0, JZRISC core
+			return 0x1ed0024f;
+
 		default:
 			fatalerror("Unknown MIPS flavor specified\n");
 	}
@@ -380,12 +358,12 @@ uint32_t mips3_device::compute_fpu_prid_register()
 void mips3_device::tlb_map_entry(int tlbindex)
 {
 	int current_asid = m_core->cpr[0][COP0_EntryHi] & 0xff;
-	mips3_tlb_entry *entry = &m_tlb[tlbindex];
+	const mips3_tlb_entry &entry = m_tlb[tlbindex];
 	uint32_t count, vpn;
 	int which;
 
 	/* the ASID doesn't match the current ASID, and if the page isn't global, unmap it from the TLB */
-	if (!tlb_entry_matches_asid(entry, current_asid) && !tlb_entry_is_global(entry))
+	if (!entry.matches_asid(current_asid) && !entry.is_global())
 	{
 		vtlb_load(2 * tlbindex + 0, 0, 0, 0);
 		vtlb_load(2 * tlbindex + 1, 0, 0, 0);
@@ -393,7 +371,7 @@ void mips3_device::tlb_map_entry(int tlbindex)
 	}
 
 	/* extract the VPN index; ignore if the virtual address is beyond 32 bits */
-	vpn = ((entry->entry_hi >> 13) & 0x07ffffff) << 1;
+	vpn = ((entry.entry_hi >> 13) & 0x07ffffff) << 1;
 	if (vpn >= (1 << (MIPS3_MAX_PADDR_SHIFT - MIPS3_MIN_PAGE_SHIFT)))
 	{
 		vtlb_load(2 * tlbindex + 0, 0, 0, 0);
@@ -403,16 +381,16 @@ void mips3_device::tlb_map_entry(int tlbindex)
 
 	/* get the number of pages from the page mask */
 	/* R5900: if the S bit is set in EntryLo, it is the scratchpad, and is always 4 pages. */
-	if ((entry->entry_lo[0] & 0x80000000) && m_flavor == MIPS3_TYPE_R5900)
+	if ((entry.entry_lo[0] & 0x80000000) && m_flavor == MIPS3_TYPE_R5900)
 		count = 4;
 	else
-		count = ((entry->page_mask >> 13) & 0x00fff) + 1;
+		count = ((entry.page_mask >> 13) & 0x3ffff) + 1;
 
 	/* loop over both the even and odd pages */
 	for (which = 0; which < 2; which++)
 	{
 		uint32_t effvpn = vpn + count * which;
-		uint64_t lo = entry->entry_lo[which];
+		uint64_t lo = entry.entry_lo[which];
 		uint32_t pfn;
 		uint32_t flags = 0;
 
@@ -433,8 +411,10 @@ void mips3_device::tlb_map_entry(int tlbindex)
 				flags |= (flags << 4) & (USER_READ_ALLOWED | USER_WRITE_ALLOWED | USER_FETCH_ALLOWED);
 		}
 
-		/* load the virtual TLB with the corresponding entries */
-		if ((effvpn + count) <= (0x80000000 >> MIPS3_MIN_PAGE_SHIFT) || effvpn >= (0xc0000000 >> MIPS3_MIN_PAGE_SHIFT))
+		/* load the virtual TLB with the corresponding entries, provided the mapping fits within
+		   the virtual TLB's table - a large page near the top of memory may run off the end */
+		if ((effvpn + count) <= (1U << (MIPS3_MAX_PADDR_SHIFT - MIPS3_MIN_PAGE_SHIFT)) &&
+			((effvpn + count) <= (0x80000000 >> MIPS3_MIN_PAGE_SHIFT) || effvpn >= (0xc0000000 >> MIPS3_MIN_PAGE_SHIFT)))
 			vtlb_load(2 * tlbindex + which, count, effvpn << MIPS3_MIN_PAGE_SHIFT, (pfn << MIPS3_MIN_PAGE_SHIFT) | flags);
 		else
 			vtlb_load(2 * tlbindex + which, 0, 0, 0);
@@ -452,19 +432,21 @@ void mips3_device::tlb_write_common(int tlbindex)
 	/* only handle entries within the TLB */
 	if (tlbindex < m_tlbentries)
 	{
-		mips3_tlb_entry *entry = &m_tlb[tlbindex];
+		mips3_tlb_entry &entry = m_tlb[tlbindex];
 
 		/* fill in the new TLB entry from the COP0 registers */
-		entry->page_mask = m_core->cpr[0][COP0_PageMask];
-		entry->entry_hi = m_core->cpr[0][COP0_EntryHi] & ~(entry->page_mask & u64(0x0000000001ffe000U));
-		entry->entry_lo[0] = m_core->cpr[0][COP0_EntryLo0];
-		entry->entry_lo[1] = m_core->cpr[0][COP0_EntryLo1];
+		entry.page_mask = m_core->cpr[0][COP0_PageMask];
+		entry.entry_hi = m_core->cpr[0][COP0_EntryHi] & ~(entry.page_mask & u64(0x000000007fffe000U));
+		/* one G bit per entry, set only when both halves of EntryLo have it */
+		const uint64_t global = m_core->cpr[0][COP0_EntryLo0] & m_core->cpr[0][COP0_EntryLo1] & TLB_GLOBAL;
+		entry.entry_lo[0] = (m_core->cpr[0][COP0_EntryLo0] & ~uint64_t(TLB_GLOBAL)) | global;
+		entry.entry_lo[1] = (m_core->cpr[0][COP0_EntryLo1] & ~uint64_t(TLB_GLOBAL)) | global;
 
 		/* remap this TLB entry */
 		tlb_map_entry(tlbindex);
 		/* log the two halves once they are in */
-		tlb_entry_log_half(entry, tlbindex, 0);
-		tlb_entry_log_half(entry, tlbindex, 1);
+		entry.log_half(tlbindex, 0);
+		entry.log_half(tlbindex, 1);
 	}
 }
 
@@ -474,25 +456,24 @@ void mips3_device::tlb_write_common(int tlbindex)
     entry
 -------------------------------------------------*/
 
-static void tlb_entry_log_half(mips3_tlb_entry *entry, int tlbindex, int which)
+void mips3_device::mips3_tlb_entry::log_half(int tlbindex, int which) const
 {
-if (PRINTF_TLB)
-{
-	uint64_t hi = entry->entry_hi;
-	uint64_t lo = entry->entry_lo[which];
-	uint32_t vpn = (((hi >> 13) & 0x07ffffff) << 1);
-	uint32_t asid = hi & 0xff;
-	uint32_t r = (hi >> 62) & 3;
-	uint32_t pfn = (lo >> 6) & 0x00ffffff;
-	uint32_t c = (lo >> 3) & 7;
-	uint32_t pagesize = (((entry->page_mask >> 13) & 0xfff) + 1) << MIPS3_MIN_PAGE_SHIFT;
-	uint64_t vaddr = (uint64_t)vpn * MIPS3_MIN_PAGE_SIZE;
-	uint64_t paddr = (uint64_t)pfn * MIPS3_MIN_PAGE_SIZE;
+	if (PRINTF_TLB)
+	{
+		const uint64_t hi = entry_hi;
+		const uint64_t lo = entry_lo[which];
+		const uint32_t vpn = (((hi >> 13) & 0x07ffffff) << 1);
+		const uint32_t asid = hi & 0xff;
+		const uint32_t r = (hi >> 62) & 3;
+		const uint32_t pfn = (lo >> 6) & 0x00ffffff;
+		const uint32_t c = (lo >> 3) & 7;
+		const uint32_t pagesize = (((page_mask >> 13) & 0x3ffff) + 1) << MIPS3_MIN_PAGE_SHIFT;
+		const uint64_t vaddr = ((uint64_t)vpn * MIPS3_MIN_PAGE_SIZE) + (pagesize * which);
+		const uint64_t paddr = (uint64_t)pfn * MIPS3_MIN_PAGE_SIZE;
 
-	vaddr += pagesize * which;
-
-	printf("index=%08X  pagesize=%08X  vaddr=%08X%08X  paddr=%08X%08X  asid=%02X  r=%X  c=%X  dvg=%c%c%c\n",
-			tlbindex, pagesize, (uint32_t)(vaddr >> 32), (uint32_t)vaddr, (uint32_t)(paddr >> 32), (uint32_t)paddr,
-			asid, r, c, (lo & 4) ? 'd' : '.', (lo & 2) ? 'v' : '.', (lo & 1) ? 'g' : '.');
-}
+		util::stream_format(std::cout,
+				"index=%08X  pagesize=%08X  vaddr=%016X  paddr=%016X  asid=%02X  r=%X  c=%X  dvg=%c%c%c\n",
+				tlbindex, pagesize, vaddr, paddr,
+				asid, r, c, (lo & 4) ? 'd' : '.', (lo & 2) ? 'v' : '.', (lo & 1) ? 'g' : '.');
+	}
 }

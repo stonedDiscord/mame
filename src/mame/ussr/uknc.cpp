@@ -39,8 +39,8 @@ public:
 	void uknc(machine_config &config);
 
 private:
-	virtual void machine_reset() override;
-	virtual void machine_start() override;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void machine_start() override ATTR_COLD;
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	required_device<k1801vm2_device> m_maincpu;
 	required_device<k1801vm2_device> m_subcpu;
@@ -48,8 +48,8 @@ private:
 	required_device<qbus_device> m_cart;
 	required_device<cassette_image_device> m_cassette;
 
-	void uknc_mem(address_map &map);
-	void uknc_sub_mem(address_map &map);
+	void uknc_mem(address_map &map) ATTR_COLD;
+	void uknc_sub_mem(address_map &map) ATTR_COLD;
 };
 
 
@@ -111,7 +111,7 @@ void uknc_state::uknc(machine_config &config)
 	m_cassette->set_default_state(CASSETTE_STOPPED | CASSETTE_MOTOR_ENABLED | CASSETTE_SPEAKER_ENABLED);
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(50);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	screen.set_size(640, 480);

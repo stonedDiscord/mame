@@ -48,7 +48,7 @@ public:
 	void picno(machine_config &config);
 
 private:
-	void mem_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
 
 	required_device<h8532_device> m_maincpu;
 };
@@ -70,10 +70,9 @@ void picno_state::picno(machine_config &config)
 	HD6435328(config, m_maincpu, 20'000'000); // TODO: clock is a guess, divided by 2 in the cpu
 	m_maincpu->set_addrmap(AS_PROGRAM, &picno_state::mem_map);
 
-	//SPEAKER(config, "lspeaker").front_left(); // no speaker in the unit, but there's a couple of sockets on the back
-	//SPEAKER(config, "rspeaker").front_right();
-	//sound.add_route(0, "lspeaker", 1.0);
-	//sound.add_route(1, "rspeaker", 1.0);
+	//SPEAKER(config, "speaker", 2).front(); // no speaker in the unit, but there's a couple of sockets on the back
+	//sound.add_route(0, "speaker", 1.0, 0);
+	//sound.add_route(1, "speaker", 1.0, 1);
 
 	GENERIC_CARTSLOT(config, "cartslot", generic_linear_slot, "picno_cart");
 
@@ -81,24 +80,24 @@ void picno_state::picno(machine_config &config)
 }
 
 ROM_START( picno )
-	ROM_REGION(0x8000, "maincpu", ROMREGION_ERASE00)
-	ROM_LOAD( "hd6435328f10.u5", 0x00000, 0x08000, NO_DUMP ) // internal rom
+	ROM_REGION(0x8000, "maincpu", 0)
+	ROM_LOAD( "hd6435328f10.u5", 0x00000, 0x08000, CRC(41c381ab) SHA1(d4ab3e932fd513f0ef9d9f03097e59a8d3baffdc) ) // internal rom
 
 	ROM_REGION(0x80000, "roms", 0)
-	ROM_LOAD( "rx001-z8-v3j.u2", 0x00000, 0x80000, CRC(e3c8929d) SHA1(1716f09b0a594b3782d257330282d77b6ca6fa0d) ) //HN62334BP
+	ROM_LOAD( "rx001-z8-v3j.u2", 0x00000, 0x80000, CRC(e3c8929d) SHA1(1716f09b0a594b3782d257330282d77b6ca6fa0d) ) // HN62334BP
 ROM_END
 
 ROM_START( picno2 )
-	ROM_REGION(0x8000, "maincpu", ROMREGION_ERASE00)
-	ROM_LOAD( "hd6435328f10.u5", 0x00000, 0x08000, NO_DUMP ) // internal rom
+	ROM_REGION(0x8000, "maincpu", 0)
+	ROM_LOAD( "hd6435328f10.u5", 0x00000, 0x08000, CRC(8c36c7f9) SHA1(9aa7672738f6b7d82557792ce12cd70335278673) ) // internal rom
 
 	ROM_REGION(0x80000, "roms", 0)
-	ROM_LOAD( "rx001-z8-v4j.u2", 0x00000, 0x80000, CRC(ae89a9a5) SHA1(51ed458ffd151e19019beb23517263efce4be272) ) //HN62334BP
+	ROM_LOAD( "rx001-z8-v4j.u2", 0x00000, 0x80000, CRC(ae89a9a5) SHA1(51ed458ffd151e19019beb23517263efce4be272) ) // HN62334BP
 ROM_END
 
 } // anonymous namespace
 
 
 //    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT  CLASS        INIT        COMPANY   FULLNAME   FLAGS
-CONS( 1993, picno,  0,      0,      picno,   picno, picno_state, empty_init, "Konami", "Picno",   MACHINE_IS_SKELETON | MACHINE_SUPPORTS_SAVE )
-CONS( 1993, picno2, 0,      0,      picno,   picno, picno_state, empty_init, "Konami", "Picno 2", MACHINE_IS_SKELETON | MACHINE_SUPPORTS_SAVE )
+CONS( 1993, picno,  0,      0,      picno,   picno, picno_state, empty_init, "Konami", "Picno",   MACHINE_NO_SOUND | MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
+CONS( 1993, picno2, 0,      0,      picno,   picno, picno_state, empty_init, "Konami", "Picno 2", MACHINE_NO_SOUND | MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )

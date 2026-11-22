@@ -3,7 +3,7 @@
 /**************************************************************************
  *
  * 39in1.cpp - bootleg MAME-based "39-in-1" arcade PCB
- * Skeleton by R. Belmont, thanks to the Guru
+ * Driver by R. Belmont, thanks to the Guru
  * PXA255 Peripheral hookup by Ryan Holtz
  * Decrypt by Andreas Naive
  *
@@ -13,7 +13,7 @@
  *    ARM standard MMU
  *    ARM DSP extensions
  *    VGA-ish frame buffer with some 2D acceleration features
- *    AC97 stereo audio CODEC
+ *    AC'97 stereo audio CODEC
  *
  * PCB also contains a custom ASIC, probably used for the decryption
  *
@@ -22,35 +22,59 @@
  * same encryption).
  *
  * TODO:
- *   - PXA255 peripherals
- *   - 4in1a and 4in1b are very similar to 39in1, currently boot but stuck at
- *     'Hardware Check' with an error
- *   - rodent should be correctly decrypted but expects something different
- *     from the CPLD (probably)
- *   - 19in1, 48in1, 48in1a, 48in1b, 48in1c, 60in1 have more conditional XORs,
- *     encryption isn't completely beaten yet
+ *   - IAM gambling machines need standard gambling inputs figured out and hooked up
+ *   - rodent needs the ARM caches emulated.  We have a workaround in place.
+ *   - 48in1, 48in1a and 48in1c also seem to need a unique flash ROM to be dumped.
  *
- *
- * 39in1 notes:
- * The actual PCB just normally boots up to the game, whereas in MAME it
- * defaults to test mode and checks the ROM, then jumps out to the game
- * after loading all 39 games. It is almost like it is defaulting to test
- * mode on at bootup. On the real PCB, it just loads the 39 games then
- * shows the game selection menu. Going into the test mode does the same
- * code check but then shows  a test screen with color bars. Pressing
- * next shows a high score clear screen (if the HS dip is on). Pressing
- * next shows the game dips screens and allows you to set up soft dip
- * switches for each of the 39 games.
  **************************************************************************/
 
 #include "emu.h"
 #include "cpu/arm7/arm7.h"
-#include "cpu/arm7/arm7core.h"
 #include "machine/eepromser.h"
 #include "machine/pxa255.h"
 
+#define LOG_CPLD (1U << 1)
+
+#define VERBOSE (0)
+#include "logmacro.h"
+
 
 namespace {
+
+// per-set CPLD parameters
+struct cpld_prot
+{
+	u8 sig[8];         // read back from the data port, indexed by A3-A5
+	u8 data_bits[8];   // bitswap<8> order applied to a value written to the data port
+	u8 state_bits[8];  // bitswap<8> order applied to the current state
+	u8 data_xor;       // inverts the result of the data bitswap
+	u8 state_mask;     // which bits of the state a write replaces
+	bool command;      // false on the earliest boards, which have no command port
+};
+
+// The later boards (19in1, 60in1) have a bigger CPLD.  Its state is one byte
+// updated a nibble at a time, and each output bit is the XOR of two others, so
+// the key is just which bits those are.  A second operand is either a bit of the
+// state itself or a bit of the last value the data port handed back.
+constexpr u8 prot_state_bit(u8 n) { return n; }
+constexpr u8 prot_value_bit(u8 n) { return 8 + n; }
+
+struct cpld2_key
+{
+	u8 sig[16];         // read back from 04af0000, indexed by A3-A6
+	u8 resp[8][2];      // response bit n = state[resp[n][0]] ^ state[resp[n][1]]
+	u8 update[8][2];    // state bit n = latch[update[n][0]] ^ update[n][1]
+	u8 latch[8];        // bitswap<8> order of the address lines the latch is loaded from
+	bool mult;          // the response is scaled by operands written to 04ad/04ae first
+};
+
+struct cpld_key
+{
+	u8 bits[8];                             // bitswap<8> source bit order, MSB first
+	u8 xor_always;                          // XOR applied to every even byte
+	struct { u8 line; u8 data; } xor_addr[10]; // XOR applied when address line is high, terminated by line 0
+};
+
 
 class _39in1_state : public driver_device
 {
@@ -65,153 +89,388 @@ public:
 		, m_dsw(*this, "DSW")
 	{ }
 
-	void _39in1(machine_config &config);
-	void base(machine_config &config);
+	void cpld(machine_config &config) ATTR_COLD;
+	void cpld2(machine_config &config) ATTR_COLD;
+	void iam2(machine_config &config) ATTR_COLD;
+	void base(machine_config &config) ATTR_COLD;
+	void iam(machine_config &config) ATTR_COLD;
 
-	void init_4in1a();
-	void init_4in1b();
-	void init_19in1();
-	void init_39in1();
-	void init_48in1();
-	void init_48in1a();
-	void init_48in1c();
-	void init_60in1();
-	void init_rodent();
+	void init_4in1() ATTR_COLD;
+	void init_4in1a() ATTR_COLD;
+	void init_19in1() ATTR_COLD;
+	void init_39in1() ATTR_COLD;
+	void init_48in1() ATTR_COLD;
+	void init_48in1a() ATTR_COLD;
+	void init_48in1c() ATTR_COLD;
+	void init_60in1() ATTR_COLD;
+	void init_rodent() ATTR_COLD;
 
 	// I.A.M. slots
 	void init_fruitwld();
 	void init_jumanji();
+	void init_jumanjia();
 	void init_plutus();
 	void init_pokrwild();
 
 	DECLARE_INPUT_CHANGED_MEMBER(set_flip_dip);
 	DECLARE_INPUT_CHANGED_MEMBER(set_res_dip);
 	DECLARE_INPUT_CHANGED_MEMBER(set_hiscore_dip);
+	DECLARE_INPUT_CHANGED_MEMBER(set_test_dip);
 
 protected:
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
-	u32 m_seed;
-	u32 m_magic;
-	u32 m_state;
-	u32 m_mcu_ipt_pc;
+	// CPLD protection
+	const cpld_prot *m_prot = nullptr;
+	const cpld2_key *m_prot2 = nullptr;
+	u8 m_prot_state;
+	u8 m_prot_mode;
+	u8 m_prot_count;
+	u8 m_prot2_latch;
+	u8 m_prot2_value;
+	u8 m_prot2_armed;
+	u8 m_prot2_resp;
+	u8 m_prot2_op[3];
 
-	required_device<cpu_device> m_maincpu;
+	required_device<pxa255_cpu_device> m_maincpu;
 	required_device<pxa255_periphs_device> m_pxa_periphs;
 	required_device<eeprom_serial_93c66_16bit_device> m_eeprom;
 	required_shared_ptr<u32> m_ram;
 	required_ioport m_mcu_ipt;
 	required_ioport m_dsw;
 
-	u32 cpld_r(offs_t offset);
+	u32 cpld_r(offs_t offset, u32 mem_mask = ~0);
 	void cpld_w(offs_t offset, u32 data, u32 mem_mask = ~0);
-	u32 prot_cheater_r();
+	u32 cpld2_r(offs_t offset, u32 mem_mask = ~0);
+	void cpld2_w(offs_t offset, u32 data, u32 mem_mask = ~0);
+	void set_protection(const cpld_prot &prot) ATTR_COLD;
+	void set_protection(const cpld2_key &prot) ATTR_COLD;
 
-	void _39in1_map(address_map &map);
-	void base_map(address_map &map);
+	void cpld_map(address_map &map) ATTR_COLD;
+	void cpld2_map(address_map &map) ATTR_COLD;
+	void base_map(address_map &map) ATTR_COLD;
+	void iam_map(address_map &map) ATTR_COLD;
+	void iam2_map(address_map &map) ATTR_COLD;
 
-	void decrypt(u8 xor00, u8 xor02, u8 xor04, u8 xor08, u8 xor10, u8 xor20, u8 xor40, u8 xor80, u8 bit7, u8 bit6, u8 bit5, u8 bit4, u8 bit3, u8 bit2, u8 bit1, u8 bit0);
-	void further_decrypt(u8 xor400, u8 xor800, u8 xor1000, u8 xor2000, u8 xor4000, u8 xor8000);
+	void decrypt(const cpld_key (&keys)[4], u8 sel_hi, u8 sel_lo) ATTR_COLD;
+	void decrypt(const cpld_key &key) ATTR_COLD;
+	void decrypt(const cpld_key (&keys)[2], u8 sel) ATTR_COLD;
 };
+
+void _39in1_state::machine_start()
+{
+	// the recompiler accesses RAM in place, unless a tap covers it (init_rodent())
+	m_maincpu->arm7drc_add_fastram(0xa0000000, 0xa0000000 + m_ram.bytes() - 1, false, &m_ram[0]);
+
+	save_item(NAME(m_prot_state));
+	save_item(NAME(m_prot_mode));
+	save_item(NAME(m_prot_count));
+	save_item(NAME(m_prot2_latch));
+	save_item(NAME(m_prot2_value));
+	save_item(NAME(m_prot2_armed));
+	save_item(NAME(m_prot2_resp));
+	save_item(NAME(m_prot2_op));
+}
 
 void _39in1_state::machine_reset()
 {
+	m_prot_state = 0;
+	m_prot_mode = 0;
+	m_prot_count = 0;
+	m_prot2_latch = 0;
+	m_prot2_value = 0;
+	m_prot2_armed = 0;
+	m_prot2_resp = 0;
+	std::fill(std::begin(m_prot2_op), std::end(m_prot2_op), 0);
+
 	m_pxa_periphs->gpio_in<1>(1);
 
 	const u32 dsw = m_dsw->read();
 	m_pxa_periphs->gpio_in<53>(BIT(dsw, 0));
 	m_pxa_periphs->gpio_in<54>(BIT(dsw, 1));
 	m_pxa_periphs->gpio_in<56>(BIT(dsw, 2));
+	m_pxa_periphs->gpio_in<57>(BIT(dsw, 3));
 
 	m_eeprom->di_write(ASSERT_LINE);
 }
 
-u32 _39in1_state::cpld_r(offs_t offset)
+/*
+    The CPLD decodes very few address lines:
+
+      A21 A20 A6
+       0   0   -   0x20 reads the player inputs, 0x28 is an output latch
+       0   1   0   an output latch the game keeps a RAM copy of
+       0   1   1   protection data port
+       1   -   -   protection command port
+
+    The I.A.M. slots are the same as 4in1/4in1a, at 04100040-0410007e:
+    reads return the challenge state in the high nibble and an 8-entry signature
+    indexed by A3-A5 in the low nibble, while writes clock the state.  They check
+    the signature eight times and then run four challenge rounds, and a failure
+    of either shows 'HW_002'/'HW_003 ERROR'.
+
+    Everything else - A2-A5, A7-A19 - is ignored, and the game randomises those
+    bits on every single access to confuse would-be crackers.
+
+    The command port latches two bits of the value written:
+
+      bit 0  what the data port reads back: 0 selects an eight byte signature
+             indexed by A3-A5, 1 selects the challenge/response register
+      bit 6  what a write to the data port does to that register
+
+    4in1 and 4in1a use an earlier part with no command port at all.  There the
+    register is only the top nibble of the data port and the signature is always
+    in the bottom nibble, so the games can read both at once and no mode bit is
+    needed.
+
+    With bit 6 clear a write mixes the data in:
+
+        state = (perm_d(data) ^ data_xor) ^ perm_s(state)
+
+    where the two bit permutations and which bits get inverted are part of the
+    board's key.  With bit 6 set the data is thrown away and the register simply
+    counts up, which the game uses to stir it between real challenges; it always
+    does exactly one data write per bit 6 command, so whether the count happens
+    on the command or on the write cannot be told apart from software.  Reads
+    never change it.
+*/
+
+void _39in1_state::set_protection(const cpld_prot &prot)
 {
-	// if (m_maincpu->pc() != m_mcu_ipt_pc) printf("CPLD read @ %x (PC %x state %d)\n", offset, m_maincpu->pc(), m_state);
+	m_prot = &prot;
+}
 
-	if (m_maincpu->pc() == 0x3f04)
+void _39in1_state::set_protection(const cpld2_key &prot)
+{
+	m_prot2 = &prot;
+}
+
+/*
+    The CPLD on 19in1 and 60in1 is different, but the idea is similar.
+
+      04a8xxxx  read: update state bits 0-3
+      04a9xxxx  read: update state bits 4-7
+      04aaxxxx  read: selects what 04af reads back - the signature when A13 is
+                set, the response when it is clear
+      04abxxxx  read: clear the state
+      04acxxxx  read: clear the latch          write: arm the response
+      04adxxxx  read: count the state up by one
+      04aexxxx  read: load the latch from address lines A4-A6 and A11-A15
+      04afxxxx  read: the response latched by the last 04ac write, or the
+                signature picked by A3-A6 - and whatever that hands back is
+                folded into the next state update, by both sides, so it does
+                not matter what it is
+
+    A state update replaces one nibble, each bit being a latch bit XORed with
+    either a state bit or a bit of that last value.  The response is built the
+    same way out of pairs of state bits.  Both sides start from zero.
+*/
+
+u32 _39in1_state::cpld2_r(offs_t offset, u32 mem_mask)
+{
+	const offs_t addr = offset << 2;
+
+	if ((addr & 0xf00000) == 0x000000)
 	{
-		return 0xf0;      // any non-zero value works here
+		return cpld_r(offset, mem_mask);
 	}
-	else if (m_maincpu->pc() == m_mcu_ipt_pc)
+
+	if (!m_prot2)
 	{
-		return m_mcu_ipt->read();
+		return 0;
 	}
-	else
-	{
-		if (m_state == 0)
-		{
-			return 0;
-		}
-		else if (m_state == 1)
-		{
-			switch (offset & ~1)
+
+	const auto update = [this] (unsigned first, unsigned last)
 			{
-				case 0x40010: return 0x55;
-				case 0x40012: return 0x93;
-				case 0x40014: return 0x89;
-				case 0x40016: return 0xa2;
-				case 0x40018: return 0x31;
-				case 0x4001a: return 0x75;
-				case 0x4001c: return 0x97;
-				case 0x4001e: return 0xb1;
-				default: printf("State 1 unknown offset %x\n", offset); break;
-			}
-		}
-		else if (m_state == 2)                      // 29c0: 53 ac 0c 2b a2 07 e6 be 31
+				for (unsigned n = first; n <= last; n++)
+				{
+					const u8 other = m_prot2->update[n][1];
+					const u8 second = (other < 8) ? BIT(m_prot_state, other) : BIT(m_prot2_value, other - 8);
+					m_prot_state = (m_prot_state & ~(1 << n)) | ((BIT(m_prot2_latch, m_prot2->update[n][0]) ^ second) << n);
+				}
+			};
+
+	switch ((addr >> 16) & 0xff)
+	{
+	case 0xa8:
+		update(0, 3);
+		break;
+
+	case 0xa9:
+		update(4, 7);
+		break;
+
+	case 0xaa:
+		m_prot2_armed = BIT(addr, 13) ? 0 : 1;
+		break;
+
+	case 0xab:
+		m_prot_state = 0;
+		break;
+
+	case 0xac:
+		m_prot2_latch = 0;
+		break;
+
+	case 0xad:
+		m_prot_state++;
+		break;
+
+	case 0xae:
 		{
-			u32 seed = m_seed;
-			u32 magic = m_magic;
-
-			magic = ( (((~(seed >> 16))       ^ (magic >> 1))        & 0x01) |
-				(((~((seed >> 19) << 1))        ^ ((magic >> 5) << 1)) & 0x02) |
-				(((~((seed >> 20) << 2))        ^ ((magic >> 3) << 2)) & 0x04) |
-				(((~((seed >> 22) << 3))        ^ ((magic >> 6) << 3)) & 0x08) |
-				(((~((seed >> 23) << 4))        ^   magic)             & 0x10) |
-				(((~(((seed >> 16) >> 2) << 5)) ^ ((magic >> 2) << 5)) & 0x20) |
-				(((~(((seed >> 16) >> 1) << 6)) ^ ((magic >> 7) << 6)) & 0x40) |
-				(((~(((seed >> 16) >> 5) << 7)) ^  (magic << 7))       & 0x80));
-
-			m_magic = magic;
-			return magic;
+			u8 const *const l = m_prot2->latch;
+			m_prot2_latch = bitswap<8>(addr, l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7]);
 		}
+		break;
+
+	case 0xaf:
+		if (m_prot2_armed)
+		{
+			if (m_prot2->mult)
+			{
+				u16 k = m_prot2_op[0] * m_prot2_op[1];
+				k = (k + (k >> 8)) & 0xff;
+				k = m_prot2_op[2] * k;
+				k = (k + (k >> 8)) & 0xff;
+				const u16 data = m_prot2_resp * k;
+				m_prot2_value = data & 0xff;
+				return data * 0x00010001;
+			}
+			m_prot2_value = m_prot2_resp;
+			return m_prot2_resp * 0x01010101;
+		}
+		m_prot2_value = m_prot2->sig[(addr >> 3) & 15];
+		return m_prot2_value * 0x01010101;
+
+	default:
+		break;
 	}
 
 	return 0;
 }
 
-void _39in1_state::cpld_w(offs_t offset, u32 data, u32 mem_mask)
+void _39in1_state::cpld2_w(offs_t offset, u32 data, u32 mem_mask)
 {
-	if (mem_mask == 0xffff)
+	const offs_t addr = offset << 2;
+
+	if ((addr & 0xf00000) == 0x000000)
 	{
-		m_seed = data<<16;
+		cpld_w(offset, data, mem_mask);
+		return;
 	}
 
-	if (m_maincpu->pc() == 0x280c)
+	if (!m_prot2)
 	{
-		m_state = 1;
+		return;
 	}
-	if (m_maincpu->pc() == 0x2874)
+
+	const u16 value = ACCESSING_BITS_0_15 ? u16(data) : u16(data >> 16);
+
+	switch ((addr >> 16) & 0xff)
 	{
-		m_state = 2;
-		m_magic = m_maincpu->space(AS_PROGRAM).read_byte(0xa02d4ff0);
+	case 0xac:
+		// the response is latched here, so counting the state up before
+		// reading it (which plutus does, repeatedly) leaves it alone
+		m_prot2_resp = 0;
+		for (unsigned n = 0; n < 8; n++)
+		{
+			m_prot2_resp |= (BIT(m_prot_state, m_prot2->resp[n][0]) ^ BIT(m_prot_state, m_prot2->resp[n][1])) << n;
+		}
+		break;
+
+	case 0xad:
+		m_prot2_op[0] = value & 0xff;
+		m_prot2_op[1] = value >> 8;
+		break;
+
+	case 0xae:
+		m_prot2_op[2] = value & 0xff;
+		break;
+
+	default:
+		break;
 	}
-	else if (offset == 0xa)
-	{
-	}
-#if 0
-	else
-	{
-		printf("%08x: CPLD_W: %08x = %08x & %08x\n", m_maincpu->pc(), offset, data, mem_mask);
-	}
-#endif
 }
 
-u32 _39in1_state::prot_cheater_r()
+u32 _39in1_state::cpld_r(offs_t offset, u32 mem_mask)
 {
-	return 0x37;
+	const offs_t addr = offset << 2;
+
+	switch (addr & 0x300000)
+	{
+	case 0x000000:
+		if ((addr & 0xfc) == 0x20)
+		{
+			return m_mcu_ipt->read();
+		}
+		break;
+
+	case 0x100000:
+		if (BIT(addr, 6) && m_prot)
+		{
+			const u8 sig = m_prot->sig[(addr >> 3) & 7];
+			const u8 data = m_prot->command
+					? (m_prot_mode ? m_prot_state : sig)
+					: ((m_prot_state & m_prot->state_mask) | (sig & ~m_prot->state_mask));
+			return data * 0x01010101;
+		}
+		return 0; // the other latch, write only as far as the games are concerned
+
+	default:
+		break;
+	}
+
+	if (!machine().side_effects_disabled())
+	{
+		LOGMASKED(LOG_CPLD, "%s: unhandled CPLD read %06x & %08x\n", machine().describe_context(), addr, mem_mask);
+	}
+	return 0;
+}
+
+void _39in1_state::cpld_w(offs_t offset, u32 data, u32 mem_mask)
+{
+	const offs_t addr = offset << 2;
+	const u8 value = ACCESSING_BITS_0_7 ? u8(data) : u8(data >> 16);
+
+	switch (addr & 0x300000)
+	{
+	case 0x000000:
+		if ((addr & 0xfc) == 0x28)
+		{
+			return; // output latch, nothing hooked up to it yet
+		}
+		break;
+
+	case 0x100000:
+		if (BIT(addr, 6) && m_prot)
+		{
+			if (m_prot_count)
+			{
+				m_prot_state++;
+			}
+			else
+			{
+				u8 const *const d = m_prot->data_bits;
+				u8 const *const t = m_prot->state_bits;
+				const u8 mixed = (bitswap<8>(value, d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]) ^ m_prot->data_xor)
+						^ bitswap<8>(m_prot_state, t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7]);
+				m_prot_state = (m_prot_state & ~m_prot->state_mask) | (mixed & m_prot->state_mask);
+			}
+		}
+		return;
+
+	case 0x200000:
+		m_prot_mode = BIT(value, 0);
+		m_prot_count = BIT(value, 6);
+		return;
+
+	default:
+		break;
+	}
+
+	LOGMASKED(LOG_CPLD, "%s: unhandled CPLD write %06x = %08x & %08x\n", machine().describe_context(), addr, data, mem_mask);
 }
 
 void _39in1_state::base_map(address_map &map)
@@ -222,13 +481,37 @@ void _39in1_state::base_map(address_map &map)
 	map(0xa0000000, 0xa07fffff).ram().share("ram");
 }
 
-void _39in1_state::_39in1_map(address_map &map)
+void _39in1_state::cpld_map(address_map &map)
 {
 	base_map(map);
 
 	map(0x04000000, 0x047fffff).rw(FUNC(_39in1_state::cpld_r), FUNC(_39in1_state::cpld_w));
-	map(0xa0151648, 0xa015164b).r(FUNC(_39in1_state::prot_cheater_r));
 }
+
+void _39in1_state::cpld2_map(address_map &map)
+{
+	base_map(map);
+
+	map(0x04000000, 0x04ffffff).rw(FUNC(_39in1_state::cpld2_r), FUNC(_39in1_state::cpld2_w));
+}
+
+void _39in1_state::iam_map(address_map &map)
+{
+	cpld_map(map);
+
+	map(0x04800000, 0x04ffffff).ram();
+	map(0xa0800000, 0xa3ffffff).ram();
+}
+
+void _39in1_state::iam2_map(address_map &map)
+{
+	cpld2_map(map);
+
+	map(0x04800000, 0x04a7ffff).ram();
+	map(0x04b00000, 0x04ffffff).ram();
+	map(0xa0800000, 0xa3ffffff).ram();
+}
+
 
 static INPUT_PORTS_START( 39in1 )
 	PORT_START("MCUIPT")
@@ -265,18 +548,19 @@ static INPUT_PORTS_START( 39in1 )
 	PORT_BIT( 0x40000000, IP_ACTIVE_LOW, IPT_UNKNOWN )
 	PORT_SERVICE_NO_TOGGLE( 0x80000000, IP_ACTIVE_LOW )
 
-//  The following dips apply to 39in1 and 48in1. 60in1 is the same but the last unused dipsw#4 is test mode off/on.
-
 	PORT_START("DSW")      // 1x 4-position DIP switch labelled SW3
-	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Flip_Screen ) )    PORT_DIPLOCATION("SW3:1") PORT_CHANGED_MEMBER(DEVICE_SELF, _39in1_state, set_flip_dip, 0)
+	PORT_DIPNAME( 0x01, 0x01, DEF_STR( Flip_Screen ) )    PORT_DIPLOCATION("SW3:1") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(_39in1_state::set_flip_dip), 0)
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_DIPNAME( 0x02, 0x00, "Display Mode" )            PORT_DIPLOCATION("SW3:2") PORT_CHANGED_MEMBER(DEVICE_SELF, _39in1_state, set_res_dip, 0)
-	PORT_DIPSETTING(    0x02, "VGA 31.5kHz" )
-	PORT_DIPSETTING(    0x00, "CGA 15.75kHz" )
-	PORT_DIPNAME( 0x04, 0x04, "High Score Saver" )        PORT_DIPLOCATION("SW3:3") PORT_CHANGED_MEMBER(DEVICE_SELF, _39in1_state, set_hiscore_dip, 0)
+	PORT_DIPNAME( 0x02, 0x00, "Display Mode" )            PORT_DIPLOCATION("SW3:2") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(_39in1_state::set_res_dip), 0)
+	PORT_DIPSETTING(    0x02, "CGA 15.75kHz" )
+	PORT_DIPSETTING(    0x00, "VGA 31.5kHz" )
+	PORT_DIPNAME( 0x04, 0x04, "High Score Saver" )        PORT_DIPLOCATION("SW3:3") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(_39in1_state::set_hiscore_dip), 0)
 	PORT_DIPSETTING(    0x04, "Disabled" )
 	PORT_DIPSETTING(    0x00, "Enabled" )
+	PORT_DIPNAME( 0x08, 0x08, "Test Mode" )               PORT_DIPLOCATION("SW3:4") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(_39in1_state::set_test_dip), 0)
+	PORT_DIPSETTING(    0x08, DEF_STR( Off ) )
+	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
 INPUT_CHANGED_MEMBER(_39in1_state::set_flip_dip)
@@ -294,68 +578,254 @@ INPUT_CHANGED_MEMBER(_39in1_state::set_hiscore_dip)
 	m_pxa_periphs->gpio_in<56>(BIT(m_dsw->read(), 2));
 }
 
-void _39in1_state::decrypt(u8 xor00, u8 xor02, u8 xor04, u8 xor08, u8 xor10, u8 xor20, u8 xor40, u8 xor80, u8 bit7, u8 bit6, u8 bit5, u8 bit4, u8 bit3, u8 bit2, u8 bit1, u8 bit0)
+INPUT_CHANGED_MEMBER(_39in1_state::set_test_dip)
 {
-	u8 *rom = memregion("maincpu")->base();
+	m_pxa_periphs->gpio_in<57>(BIT(m_dsw->read(), 3));
+}
 
-	for (int i = 0; i < 0x80000; i += 2)
+void _39in1_state::decrypt(const cpld_key (&keys)[4], u8 sel_hi, u8 sel_lo)
+{
+	u8 *const rom = memregion("maincpu")->base();
+
+	for (offs_t offset = 0; offset < 0x80000; offset += 2)
 	{
-		if (i & 0x02) // only used by plutus
-			rom[i] ^= xor02;
-		if (i & 0x04) // only used by plutus
-			rom[i] ^= xor04;
-		if (i & 0x08)
-			rom[i] ^= xor08;
-		if (i & 0x10)
-			rom[i] ^= xor10;
-		if (i & 0x20)
-			rom[i] ^= xor20;
-		if (i & 0x40)
-			rom[i] ^= xor40;
-		if (i & 0x80) // only used by plutus
-			rom[i] ^= xor80;
+		const cpld_key &key = keys[(BIT(offset, sel_hi) << 1) | BIT(offset, sel_lo)];
 
-		rom[i] = bitswap<8>(rom[i] ^ xor00, bit7, bit6, bit5, bit4, bit3, bit2, bit1, bit0);
+		u8 data = bitswap<8>(rom[offset], key.bits[0], key.bits[1], key.bits[2], key.bits[3],
+				key.bits[4], key.bits[5], key.bits[6], key.bits[7]) ^ key.xor_always;
+
+		for (auto const &line : key.xor_addr)
+		{
+			if (!line.line)
+				break;
+			if (BIT(offset, line.line))
+				data ^= line.data;
+		}
+
+		rom[offset] = data;
 	}
 }
 
-void _39in1_state::further_decrypt(u8 xor400, u8 xor800, u8 xor1000, u8 xor2000, u8 xor4000, u8 xor8000) // later versions have more conditional XORs
+void _39in1_state::decrypt(const cpld_key &key)
 {
-	u8 *rom = memregion("maincpu")->base();
-
-	for (int i = 0; i < 0x80000; i += 2)
-	{
-		if (i & 0x400)
-			rom[i] ^= xor400; // always 0x00 in the available dumps
-		if (i & 0x800)
-			rom[i] ^= xor800;
-		if (i & 0x1000)
-			rom[i] ^= xor1000;
-		if (i & 0x2000)
-			rom[i] ^= xor2000;
-		if (i & 0x4000)
-			rom[i] ^= xor4000; // TODO: currently unverified if the games actually use this
-		if (i & 0x8000)
-			rom[i] ^= xor8000; // TODO: currently unverified if the games actually use this
-		// TODO: 0x10000, 0x20000, 0x40000?
-	}
+	const cpld_key keys[4] = { key, key, key, key };
+	decrypt(keys, 17, 15);
 }
 
-void _39in1_state::init_39in1()  { decrypt(0xc0, 0x00, 0x00, 0x02, 0x40, 0x04, 0x80, 0x00, 7, 2, 5, 6, 0, 3, 1, 4); m_mcu_ipt_pc = 0xe3af4; } // good
-void _39in1_state::init_4in1a()  { decrypt(0x25, 0x00, 0x00, 0x01, 0x80, 0x04, 0x40, 0x00, 6, 0, 2, 1, 7, 5, 4, 3); m_mcu_ipt_pc = 0x45814; } // good
-void _39in1_state::init_4in1b()  { decrypt(0x43, 0x00, 0x00, 0x80, 0x04, 0x40, 0x08, 0x00, 2, 4, 0, 6, 7, 3, 1, 5); m_mcu_ipt_pc = 0x57628; } // good
-void _39in1_state::init_19in1()  { decrypt(0x00, 0x00, 0x00, 0x04, 0x01, 0x80, 0x40, 0x00, 2, 1, 7, 4, 5, 0, 6, 3); further_decrypt(0x00, 0x01, 0x00, 0x10, 0x00, 0x00); m_mcu_ipt_pc = 0x00000; } // TODO: 0x4000, 0x8000, 0x10000, 0x20000, 0x40000 conditional XORs?
-void _39in1_state::init_48in1()  { decrypt(0x00, 0x00, 0x00, 0x01, 0x40, 0x00, 0x20, 0x00, 5, 3, 2, 1, 4, 6, 0, 7); further_decrypt(0x00, 0x01, 0x20, 0x10, 0x00, 0x00); m_mcu_ipt_pc = 0x00000; } // applies to both 48in1 and 48in1b, same main CPU ROM. TODO: see above
-void _39in1_state::init_48in1a() { init_48in1(); m_mcu_ipt_pc = 0x00000; } // same encryption as 48in1
-void _39in1_state::init_48in1c() { init_48in1(); m_mcu_ipt_pc = 0x00000; } // same encryption as 48in1
-void _39in1_state::init_rodent() { init_4in1b(); /*m_mcu_ipt_pc = 0x?????;*/ } // same encryption as 4in1b, thus good, but doesn't boot because of different CPLD calls
-void _39in1_state::init_60in1()  { decrypt(0x00, 0x00, 0x00, 0x40, 0x10, 0x80, 0x20, 0x00, 5, 1, 4, 2, 0, 7, 6, 3); further_decrypt(0x00, 0x01, 0x00, 0x10, 0x00, 0x00); m_mcu_ipt_pc = 0x00000; } // TODO: see 19in1
+// Two configurations selected by a single address line.  Only even bytes are
+// scrambled, so A0 can stand in for the unused second selector.
+void _39in1_state::decrypt(const cpld_key (&keys)[2], u8 sel)
+{
+	const cpld_key four[4] = { keys[0], keys[0], keys[1], keys[1] };
+	decrypt(four, sel, 0);
+}
+
+static const cpld_prot PROT_39IN1 = {
+	{ 0x55, 0x93, 0x89, 0xa2, 0x31, 0x75, 0x97, 0xb1 },
+	{ 5, 1, 2, 7, 6, 4, 3, 0 }, { 0, 7, 2, 4, 6, 3, 5, 1 }, 0xff, 0xff, true };
+
+// the earlier part only keeps the top nibble and has no command port
+static const cpld_prot PROT_4IN1 = {
+	{ 0x03, 0x00, 0x0f, 0x04, 0x07, 0x0b, 0x06, 0x05 },
+	{ 4, 2, 0, 7, 1, 3, 5, 6 }, { 4, 6, 5, 7, 0, 1, 2, 3 }, 0xd0, 0xf0, false };
+
+static const cpld_prot PROT_4IN1A = {
+	{ 0x0e, 0x04, 0x00, 0x02, 0x01, 0x00, 0x0c, 0x01 },
+	{ 5, 2, 4, 7, 0, 1, 3, 6 }, { 6, 7, 4, 5, 0, 1, 2, 3 }, 0x20, 0xf0, false };
+
+// the I.A.M. slots use the same part again, at 04100040-0410007e: the low nibble
+// is the signature indexed by A3-A5 and the high nibble is the challenge state
+static const cpld_prot PROT_FRUITWLD = {
+	{ 0x08, 0x09, 0x02, 0x03, 0x0f, 0x0e, 0x05, 0x04 },
+	{ 6, 4, 3, 7, 0, 1, 2, 5 }, { 7, 5, 6, 4, 0, 1, 2, 3 }, 0x80, 0xf0, false };
+
+static const cpld_prot PROT_JUMANJIA = {
+	{ 0x0c, 0x0f, 0x01, 0x02, 0x0a, 0x09, 0x07, 0x04 },
+	{ 4, 5, 6, 7, 0, 1, 2, 3 }, { 7, 5, 6, 4, 0, 1, 2, 3 }, 0x80, 0xf0, false };
+
+static const cpld_prot PROT_POKRWILD = {
+	{ 0x02, 0x0e, 0x01, 0x0d, 0x06, 0x0a, 0x05, 0x09 },
+	{ 4, 2, 0, 3, 1, 5, 6, 7 }, { 7, 5, 6, 4, 0, 1, 2, 3 }, 0x00, 0xf0, false };
+
+void _39in1_state::init_39in1()
+{
+	static const cpld_key key = { { 7, 2, 5, 6, 0, 3, 1, 4 }, 0x90, { { 3, 0x02 }, { 4, 0x10 }, { 5, 0x40 }, { 6, 0x80 } } };
+	decrypt(key);
+
+	set_protection(PROT_39IN1);
+}
+
+static const cpld2_key PROT_48IN1 = {
+	{ 0x43, 0xaa, 0x5f, 0xc9, 0xe4, 0xfe, 0xdb, 0x60, 0x3d, 0x15, 0x91, 0x28, 0x06, 0x8c, 0xb7, 0x72 },
+	{ { 0, 7 }, { 1, 4 }, { 2, 0 }, { 3, 1 }, { 7, 2 }, { 6, 3 }, { 5, 6 }, { 4, 5 } },
+	{ { 3, prot_state_bit(4) }, { 7, prot_value_bit(6) }, { 1, prot_state_bit(7) }, { 6, prot_value_bit(3) },
+	  { 0, prot_state_bit(2) }, { 2, prot_value_bit(1) }, { 5, prot_state_bit(0) }, { 4, prot_value_bit(5) } },
+	{ 15, 14, 13, 12, 11, 6, 5, 4 }, false };
+
+static const cpld2_key PROT_19IN1 = {
+	{ 0x94, 0x81, 0x3a, 0x72, 0x47, 0x29, 0x83, 0xbe, 0xff, 0xad, 0x50, 0xe6, 0xfc, 0x0b, 0x78, 0x65 },
+	{ { 5, 2 }, { 6, 1 }, { 7, 6 }, { 0, 5 }, { 1, 0 }, { 2, 7 }, { 3, 4 }, { 3, 4 } },
+	{ { 5, prot_state_bit(4) }, { 1, prot_value_bit(6) }, { 6, prot_state_bit(7) }, { 4, prot_value_bit(1) },
+	  { 0, prot_value_bit(3) }, { 3, prot_value_bit(2) }, { 7, prot_state_bit(0) }, { 2, prot_value_bit(5) } },
+	{ 15, 14, 13, 12, 11, 6, 5, 4 }, false };
+
+static const cpld2_key PROT_60IN1 = {
+	{ 0x03, 0x69, 0xce, 0x76, 0xdc, 0x12, 0x8f, 0xa4, 0xf8, 0x97, 0x21, 0xea, 0x5d, 0xb0, 0x3b, 0x45 },
+	{ { 2, 7 }, { 6, 1 }, { 5, 6 }, { 4, 5 }, { 3, 0 }, { 2, 7 }, { 1, 3 }, { 0, 4 } },
+	{ { 5, prot_state_bit(4) }, { 1, prot_value_bit(6) }, { 6, prot_state_bit(7) }, { 4, prot_state_bit(3) },
+	  { 0, prot_state_bit(2) }, { 3, prot_value_bit(1) }, { 7, prot_state_bit(0) }, { 2, prot_value_bit(5) } },
+	{ 15, 14, 13, 12, 11, 6, 5, 4 }, false };
+
+// plutus's FPGA speaks the same protocol, with the latch fed from A1-A7 and
+// A11 instead, and its response scaled by operands the game writes first.
+// Everything here is read out of the game's own copy of the calculation at
+// image 42b8 (the boot check) and 472c (the periodic one).
+static const cpld2_key PROT_PLUTUS = {
+	{ 0x47, 0x1c, 0xc5, 0x59, 0x9f, 0xe2, 0x7e, 0xa0, 0xba, 0xf8, 0x23, 0xd4, 0x3b, 0x66, 0x81, 0x0d },
+	{ { 4, 2 }, { 1, 6 }, { 7, 3 }, { 5, 7 }, { 1, 6 }, { 3, 0 }, { 2, 5 }, { 0, 4 } },
+	{ { 6, prot_state_bit(1) }, { 5, prot_state_bit(6) }, { 3, prot_state_bit(7) }, { 2, prot_value_bit(3) },
+	  { 7, prot_value_bit(0) }, { 1, prot_value_bit(5) }, { 4, prot_value_bit(4) }, { 0, prot_state_bit(2) } },
+	{ 11, 7, 6, 5, 4, 3, 2, 1 }, true };
+
+void _39in1_state::init_4in1()
+{
+	static const cpld_key key = { { 6, 0, 2, 1, 7, 5, 4, 3 }, 0x64, { { 3, 0x40 }, { 4, 0x08 }, { 5, 0x20 }, { 6, 0x80 } } };
+	decrypt(key);
+	set_protection(PROT_4IN1);
+}
+
+// rodent shares this key: the whole 0a00-0ffff gap in its ROM descrambles to ff
+static const cpld_key KEY_4IN1A = { { 2, 4, 0, 6, 7, 3, 1, 5 }, 0x32, { { 3, 0x08 }, { 4, 0x80 }, { 5, 0x10 }, { 6, 0x04 } } };
+
+void _39in1_state::init_4in1a()
+{
+	decrypt(KEY_4IN1A);
+	set_protection(PROT_4IN1A);
+}
+
+void _39in1_state::init_19in1()
+{
+	static const cpld_key keys[4] = {
+		{ { 2, 1, 7, 4, 5, 0, 6, 3 }, 0x00, { { 3, 0x80 }, { 4, 0x04 }, { 5, 0x20 }, { 6, 0x02 }, { 11, 0x01 }, { 13, 0x10 }, { 14, 0x40 }, { 16, 0x08 } } },
+		{ { 5, 3, 6, 4, 2, 7, 0, 1 }, 0x00, { { 3, 0x80 }, { 4, 0x04 }, { 6, 0x08 }, { 11, 0x10 }, { 12, 0x40 }, { 13, 0x20 }, { 16, 0x02 }, { 18, 0x01 } } },
+		{ { 0, 6, 5, 4, 2, 3, 1, 7 }, 0x00, { { 3, 0x40 }, { 4, 0x20 }, { 5, 0x10 }, { 6, 0x02 }, { 11, 0x80 }, { 12, 0x01 }, { 13, 0x08 }, { 14, 0x04 } } },
+		{ { 5, 1, 4, 2, 0, 7, 6, 3 }, 0x00, { { 4, 0x10 }, { 5, 0x02 }, { 6, 0x80 }, { 11, 0x40 }, { 12, 0x08 }, { 13, 0x01 }, { 14, 0x04 }, { 16, 0x20 } } } };
+	decrypt(keys, 17, 15);
+	set_protection(PROT_19IN1);
+}
+
+// the 48-in-1s pick their configuration with A16 and A17 instead of A15 and A17,
+// which leaves A15 as an ordinary key line.  Applies to 48in1b as well, same ROM.
+void _39in1_state::init_48in1()
+{
+	static const cpld_key keys[4] = {
+		{ { 5, 3, 2, 1, 4, 6, 0, 7 }, 0x00, { { 3, 0x02 }, { 4, 0x04 }, { 6, 0x80 }, { 11, 0x01 }, { 12, 0x20 }, { 13, 0x10 }, { 14, 0x40 }, { 15, 0x08 } } },
+		{ { 6, 3, 4, 2, 0, 7, 5, 1 }, 0x00, { { 3, 0x40 }, { 5, 0x10 }, { 6, 0x02 }, { 12, 0x01 }, { 13, 0x08 }, { 14, 0x04 }, { 15, 0x20 }, { 18, 0x80 } } },
+		{ { 0, 6, 7, 5, 3, 2, 1, 4 }, 0x00, { { 3, 0x80 }, { 4, 0x10 }, { 5, 0x02 }, { 11, 0x40 }, { 13, 0x01 }, { 14, 0x04 }, { 15, 0x20 }, { 18, 0x08 } } },
+		{ { 2, 0, 7, 4, 6, 3, 1, 5 }, 0x00, { { 3, 0x80 }, { 5, 0x02 }, { 6, 0x08 }, { 11, 0x10 }, { 13, 0x20 }, { 14, 0x04 }, { 15, 0x40 }, { 18, 0x01 } } } };
+	decrypt(keys, 17, 16);
+	set_protection(PROT_48IN1);
+}
+
+void _39in1_state::init_48in1a() { init_48in1(); } // same encryption as 48in1
+
+void _39in1_state::init_48in1c() { init_48in1(); } // same encryption as 48in1
+
+// rodent is the odd one out: no xZIP container, its program sits uncompressed at
+// 010000 and the little loader copies it up to fff10000 and jumps there.  Its
+// protection, if it has any, has not been looked at.
+//
+// It needs the ARM caches, which this ARM7 core does not emulate.  The loader
+// maps low RAM twice: virtual 00000000 (where it puts the exception vectors and
+// their literal pool) and virtual a0000000 both cover physical a0000000, and
+// everything else - including the game itself at fff00000 - is mapped uncached.
+// Early on the game clears 34K at a0000000 for a work buffer, which on real
+// hardware leaves the vectors intact because the XScale caches are virtually
+// tagged, so the lines tagged 00000000 are a different set of lines from the
+// ones tagged a0000000, and nothing else running is cacheable enough to evict
+// them.  Without a cache the two aliases collapse onto the same memory, the
+// vector table is destroyed, and the next FIQ (the LCD end-of-frame) fetches
+// garbage and ends up parked on the undefined instruction vector.
+//
+// HACK: until the core can model that, skip the store that does the damage.
+// The fill loop is at fff10480, which is physical a0710480 because L1[fff] maps
+// fff00000 to a0700000, so a071048c is its "STRT R3, [R1]".  Opcode fetches go
+// through the address space, so a read tap handing back MOV R0, R0 takes out
+// that one instruction without touching anything else.
+//
+// What this gets wrong: on hardware the fill does happen, it is just invisible
+// through the cached alias, so anything that reads the work buffer back should
+// see 0000ffff and here will see the bootloader's RAM test residue instead.
+// The address is also a bare constant with nothing to anchor it - it falls out
+// of the page tables the loader happens to build.
+void _39in1_state::init_rodent()
+{
+	decrypt(KEY_4IN1A);
+
+	m_maincpu->space(AS_PROGRAM).install_read_tap(0xa071048c, 0xa071048f, "rodent_vector_wipe",
+			[] (offs_t offset, u32 &data, u32 mem_mask) { data = 0xe1a00000; });
+}
+
+void _39in1_state::init_60in1()
+{
+	static const cpld_key keys[4] = {
+		{ { 5, 1, 4, 2, 0, 7, 6, 3 }, 0x00, { { 3, 0x02 }, { 4, 0x20 }, { 5, 0x04 }, { 6, 0x80 }, { 11, 0x01 }, { 13, 0x10 }, { 14, 0x40 }, { 16, 0x08 } } },
+		{ { 2, 1, 7, 4, 5, 0, 6, 3 }, 0x00, { { 3, 0x40 }, { 4, 0x20 }, { 5, 0x10 }, { 6, 0x02 }, { 11, 0x80 }, { 12, 0x01 }, { 13, 0x08 }, { 14, 0x04 } } },
+		{ { 0, 6, 4, 5, 2, 3, 1, 7 }, 0x00, { { 4, 0x10 }, { 5, 0x02 }, { 6, 0x80 }, { 11, 0x40 }, { 12, 0x08 }, { 13, 0x01 }, { 14, 0x04 }, { 16, 0x20 } } },
+		{ { 5, 3, 6, 4, 2, 1, 0, 7 }, 0x00, { { 3, 0x80 }, { 4, 0x04 }, { 6, 0x08 }, { 11, 0x10 }, { 12, 0x40 }, { 13, 0x20 }, { 16, 0x02 }, { 18, 0x01 } } } };
+	decrypt(keys, 17, 15);
+	set_protection(PROT_60IN1);
+}
 
 // I.A.M. slots
-void _39in1_state::init_fruitwld()  { decrypt(0x0a, 0x00, 0x00, 0x20, 0x80, 0x00, 0x00, 0x00, 5, 1, 7, 4, 3, 2, 0, 6); /* further_decrypt(0x00, 0x00, 0x00, 0x00, 0x00, 0x00); m_mcu_ipt_pc = 0x00000; */ } // TODO: >= 0x4000 XORs unverified
-void _39in1_state::init_jumanji()   { decrypt(0x00, 0x00, 0x00, 0x02, 0x00, 0x40, 0x08, 0x00, 1, 0, 6, 2, 5, 3, 4, 7); further_decrypt(0x00, 0x08, 0x10, 0x40, 0x00, 0x00); /* m_mcu_ipt_pc = 0x00000; */ } // TODO: >= 0x4000 XORs unverified
-void _39in1_state::init_plutus()    { decrypt(0x00, 0x40, 0x08, 0x01, 0x00, 0x04, 0x80, 0x02, 6, 4, 0, 5, 7, 3, 2, 1); further_decrypt(0x00, 0x00, 0x10, 0x00, 0x00, 0x00); /* m_mcu_ipt_pc = 0x00000; */ } // TODO:  >= 0x4000 XORs unverified
-void _39in1_state::init_pokrwild()  { decrypt(0x20, 0x00, 0x00, 0x40, 0x08, 0x00, 0x00, 0x00, 6, 5, 3, 1, 0, 7, 2, 4); /* further_decrypt(0x00, 0x00, 0x00, 0x00, 0x00, 0x00); m_mcu_ipt_pc = 0x00000; */ } // TODO: >= 0x4000 XORs unverified
+void _39in1_state::init_fruitwld()
+{
+	static const cpld_key key = { { 5, 1, 7, 4, 3, 2, 0, 6 }, 0x48, { { 3, 0x80 }, { 4, 0x20 } } };
+	decrypt(key);
+
+	set_protection(PROT_FRUITWLD);
+}
+
+void _39in1_state::init_jumanji()
+{
+	// Two configurations, selected by A17.  The program inflates to exactly its
+	// declared size and passes the loader's checksum with these.
+	static const cpld_key keys[2] = {
+		{ { 1, 0, 6, 2, 5, 3, 4, 7 }, 0x00, { { 3, 0x80 }, { 5, 0x20 }, { 6, 0x04 }, { 11, 0x08 }, { 12, 0x10 }, { 13, 0x40 }, { 14, 0x01 }, { 15, 0x02 } } },
+		{ { 4, 6, 1, 5, 2, 3, 0, 7 }, 0x00, { { 4, 0x08 }, { 5, 0x01 }, { 6, 0x80 }, { 11, 0x20 }, { 12, 0x10 }, { 13, 0x02 }, { 14, 0x40 } } } };
+	decrypt(keys, 17);
+}
+
+void _39in1_state::init_jumanjia()
+{
+	static const cpld_key key = { { 3, 5, 1, 4, 7, 6, 2, 0 }, 0x00, { { 3, 0x04 }, { 4, 0x10 }, { 5, 0x80 }, { 6, 0x02 } } };
+	decrypt(key);
+
+	set_protection(PROT_JUMANJIA);
+}
+
+void _39in1_state::init_plutus()
+{
+	// Four configurations, selected by A16 and A14.  Each maps eight address
+	// lines onto the eight data bits.  The program inflates to exactly its
+	// declared size and passes the loader's checksum with these.
+	static const cpld_key keys[4] = {
+		{ { 6, 4, 0, 5, 7, 3, 2, 1 }, 0x00, { { 1, 0x80 }, { 2, 0x04 }, { 3, 0x20 }, { 5, 0x02 }, { 6, 0x08 }, { 7, 0x01 }, { 12, 0x10 }, { 15, 0x40 } } },
+		{ { 5, 2, 6, 4, 0, 3, 7, 1 }, 0x00, { { 1, 0x80 }, { 2, 0x04 }, { 3, 0x02 }, { 4, 0x20 }, { 5, 0x10 }, { 6, 0x40 }, { 11, 0x01 }, { 13, 0x08 } } },
+		{ { 1, 5, 4, 0, 6, 3, 2, 7 }, 0x00, { { 1, 0x20 }, { 2, 0x02 }, { 3, 0x80 }, { 4, 0x08 }, { 5, 0x10 }, { 13, 0x04 }, { 15, 0x40 } } },
+		{ { 6, 4, 5, 2, 1, 0, 7, 3 }, 0x00, { { 1, 0x01 }, { 2, 0x20 }, { 4, 0x02 }, { 6, 0x40 }, { 7, 0x10 }, { 12, 0x08 }, { 13, 0x80 } } } };
+	decrypt(keys, 16, 14);
+
+	set_protection(PROT_PLUTUS);
+}
+
+void _39in1_state::init_pokrwild()
+{
+	static const cpld_key key = { { 6, 5, 3, 1, 0, 7, 2, 4 }, 0x40, { { 3, 0x80 }, { 4, 0x20 } } };
+	decrypt(key);
+
+	set_protection(PROT_POKRWILD);
+}
 
 void _39in1_state::base(machine_config &config)
 {
@@ -371,12 +841,34 @@ void _39in1_state::base(machine_config &config)
 	m_pxa_periphs->gpio_out<3>().set(m_eeprom, FUNC(eeprom_serial_93c66_16bit_device::clk_write));
 }
 
-void _39in1_state::_39in1(machine_config &config)
+void _39in1_state::cpld(machine_config &config)
 {
 	base(config);
 
-	m_maincpu->set_addrmap(AS_PROGRAM, &_39in1_state::_39in1_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &_39in1_state::cpld_map);
 }
+
+void _39in1_state::cpld2(machine_config &config)
+{
+	base(config);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &_39in1_state::cpld2_map);
+}
+
+void _39in1_state::iam(machine_config &config)
+{
+	base(config);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &_39in1_state::iam_map);
+}
+
+void _39in1_state::iam2(machine_config &config)
+{
+	base(config);
+
+	m_maincpu->set_addrmap(AS_PROGRAM, &_39in1_state::iam2_map);
+}
+
 
 ROM_START( 39in1 )
 	// main program, encrypted
@@ -466,21 +958,38 @@ ROM_START( 60in1 )
 	ROM_LOAD16_WORD_SWAP( "60in1_eeprom.u32", 0x000, 0x200, CRC(54af5973) SHA1(30aca7790458f4be906f7fa7c74206e16d9fc36f) )
 ROM_END
 
-ROM_START( 4in1a )
+// XML-19IN1 PCB, with an Altera MAX II EPM240 CPLD.  Same program and data as 60in1,
+// but the loader patches the decompressed program before jumping to it: the boot time
+// CPLD check is stubbed out and "System Check Error" no longer halts the game.
+ROM_START( 60in1u )
+	// main program, encrypted
+	ROM_REGION( 0x80000, "maincpu", 0 )
+	ROM_LOAD( "60in1-prg.u4", 0x000000, 0x080000, CRC(cae25461) SHA1(2daba81ca83a22006097d7e8d1afaf9e33c25066) )
+
+	// data ROM - contains a filesystem with ROMs, fonts, graphics, etc. in an unknown compressed format
+	ROM_REGION32_LE( 0x400000, "data", ROMREGION_ERASEFF )
+	ROM_LOAD( "60in1-32m.u6", 0x000000, 0x400000, CRC(0cfed2a0) SHA1(9aac23f5267af56255e6f8aefade9f00bc106325) )  // CGC-NP206 string
+
+	// EEPROM - contains security data
+	ROM_REGION16_BE( 0x200, "eeprom", 0 )
+	ROM_LOAD16_WORD_SWAP( "93c66.u32", 0x000, 0x200, CRC(27d7bbaf) SHA1(085cf60aa4df5ffdbc99a737aabd578b060eeb62) )
+ROM_END
+
+ROM_START( 4in1 )
 	// main program, encrypted
 	ROM_REGION( 0x80000, "maincpu", 0 )
 	ROM_LOAD( "plz-v014_ver300.bin", 0x000000, 0x080000, CRC(775f101d) SHA1(8a299a67b487518ba2e2cb5334347b93f8640190) )
 
 	// data ROM - contains a filesystem with ROMs, fonts, graphics, etc. in an unknown compressed format
 	ROM_REGION32_LE( 0x400000, "data", ROMREGION_ERASEFF )
-	ROM_LOAD( "16mflash.bin", 0x000000, 0x200000, CRC(a089f0f8) SHA1(e975eadd9176a8b9e416229589dfe3158cba22cb) ) // confirmed same flash rom as 39 in 1,   CGC-NP203 string
+	ROM_LOAD( "16mflash.bin", 0x000000, 0x200000, CRC(a089f0f8) SHA1(e975eadd9176a8b9e416229589dfe3158cba22cb) ) // confirmed same flash rom as 39 in 1, CGC-NP203 string
 
 	// EEPROM - contains security data
 	ROM_REGION16_BE( 0x200, "eeprom", 0 )
 	ROM_LOAD16_WORD_SWAP( "4in1_eeprom.bin", 0x000, 0x200, CRC(df1724f7) SHA1(07814aee3622f4bb8bada938f2a93fae791d6e31) )
 ROM_END
 
-ROM_START( 4in1b )
+ROM_START( 4in1a )
 	// main program, encrypted
 	ROM_REGION( 0x80000, "maincpu", 0 )
 	ROM_LOAD( "pzv001-4.bin", 0x000000, 0x080000, CRC(7679a95f) SHA1(56c20fa7d086560b76477b42208cb43d42adba41) )
@@ -495,6 +1004,7 @@ ROM_START( 4in1b )
 ROM_END
 
 // 19-in-1 is visibly different hardware, extent of differences unknown due to lack of quality pictures/scans
+// it is also the only one of these that runs horizontally, which is very likely why it has its own data ROM
 // also, there is a bootleg of the 19-in-1 which may have less or different protection
 ROM_START( 19in1 )
 	// main program, encrypted
@@ -503,11 +1013,65 @@ ROM_START( 19in1 )
 
 	// data ROM - contains a filesystem with ROMs, fonts, graphics, etc. in an unknown compressed format
 	ROM_REGION32_LE( 0x400000, "data", ROMREGION_ERASEFF )
-	ROM_LOAD( "16mflash.bin", 0x000000, 0x200000, CRC(a089f0f8) SHA1(e975eadd9176a8b9e416229589dfe3158cba22cb) ) // assuming same flash rom, CGC-NP203 string
+	ROM_LOAD("m29dw323dt.u6", 0x000000, 0x400000, CRC(0776b62a) SHA1(055d88702592e948d27a73061b30d97da64f0352))
 
 	// EEPROM - contains security data
 	ROM_REGION16_BE( 0x200, "eeprom", 0 )
 	ROM_LOAD16_WORD_SWAP( "19in1_eeprom.bin", 0x000, 0x200, NO_DUMP )
+ROM_END
+
+/*
+19 in 1 Horizontal Bootleg
+
+Software revision is shown at the very end of all the game DIP switch settings (enter TEST then press button 2 to the end).
+
+
+PCB Number: XML-19IN1
+
+Main parts....
+LUPXA255A0 CPU
+3.686MHz Crystal tied directly to CPU
+M29F400 TSOP48 Flash ROM at U4
+M29DW323DT TSOP48 Flash ROM at U6
+Atmel 93C66 EEPROM at U32
+EM638325TS-6G 2Mx32-bit SDRAM
+Altera MAX II EPM240T100I5N CPLD
+MOSA MS6335G 16-bit Stereo Audio DAC Integrated Headphone Driver with I2C Volume Control. Simultaneous output with JAMMA audio.
+  - software volume control is available in test mode at the end of the game DIP switch settings.
+15-pin VGA Connector (simultaneous output with JAMMA RGB output, DIPSW2 sets frequency)
+4 Pin Power Plug
+3.5mm Audio Headphone Jack
+JAMMA Edge Connector
+2x 6-position connectors for extra controls/buttons labelled CON3, CON4
+4-position DIP Switch
+TDA2003 Power AMP
+3.3V Linear Regulator
+1.2V Linear Regulator
+4x SMD LEDs
+2K-ohm Volume Pot
+
+DIP Switch....
+1 = Screen Flip. Off:Normal, On:Flip
+2 = Frequency. Off:15.75kHz CGA, On:31.5kHz VGA
+3 = High Score Save. Off:Disabled (EEPROM not used), On:Enabled (high scores saved to EEPROM)
+4 = Mode. Off:Normal, On:Test (move to on-position then power-on to see test screens)
+
+Note 60in1u in MAME is the exact same PCB with different software.
+*/
+
+// Same program and data as 19in1, with the same loader patch as 60in1u.
+ROM_START( 19in1u )
+	// main program, encrypted
+	ROM_REGION( 0x80000, "maincpu", 0 )
+	ROM_LOAD( "29f400.u4", 0x000000, 0x080000, CRC(324e6ed8) SHA1(5d2902d81e6bcb55ded3aca834da56e51a9dc068) )
+
+	// data ROM - contains a filesystem with ROMs, fonts, graphics, etc. in an unknown compressed format
+	ROM_REGION32_LE( 0x400000, "data", ROMREGION_ERASEFF )
+	ROM_LOAD( "m29dw323dt.u6", 0x000000, 0x400000, CRC(0776b62a) SHA1(055d88702592e948d27a73061b30d97da64f0352) )
+
+	// EEPROM - contains security data
+	ROM_REGION16_BE( 0x200, "eeprom", 0 )
+	ROM_LOAD16_WORD_SWAP( "93c66.u32", 0x000, 0x200, CRC(a653b2b4) SHA1(0c7c1e424e90aff1be35abd885ae9ca7e9e131eb) )
 ROM_END
 
 ROM_START( rodent )
@@ -557,6 +1121,17 @@ ROM_START( jumanji ) // PCB383 - CHZ FP100 sticker on RAM under the lid. Dump wa
 	ROM_LOAD( "93c66.u32", 0x000, 0x200, NO_DUMP )
 ROM_END
 
+ROM_START( jumanjia ) // PCB383 - Jumanji FP101 sticker on RAM under the lid.
+	ROM_REGION( 0x80000, "maincpu", 0 )
+	ROM_LOAD( "jumanji_113_fp101.u2", 0x00000, 0x80000, CRC(40a66c50) SHA1(8909db087a8527af8ce229b03e2f7f16160db6f0) )
+
+	ROM_REGION32_LE( 0x400000, "data", 0 )
+	ROM_LOAD( "m5m29gt320.u19", 0x000000, 0x400000, CRC(4cd694fe) SHA1(723c0ed2af994cc584654dbf0d779e1c90827c7b) )
+
+	ROM_REGION16_BE( 0x200, "eeprom", 0 )
+	ROM_LOAD( "at93c66.u32", 0x000, 0x200, CRC(60930a27) SHA1(9222b23d64d85f664037ba180f79045c108fed9c) )
+ROM_END
+
 ROM_START( plutus ) // PCB451 - PLUTUS FP100 sticker on PCB outside the lid
 	ROM_REGION( 0x80000, "maincpu", 0 )
 	ROM_LOAD( "plutus v100.u2", 0x00000, 0x80000, CRC(3ac49895) SHA1(6de3dcac42afc4d9f927c9c9accf592b3d974fd3) )
@@ -582,20 +1157,23 @@ ROM_END
 } // anonymous namespace
 
 
-GAME(2004, 4in1a,     39in1,    base,   39in1, _39in1_state, init_4in1a,    ROT90, "bootleg", "4 in 1 MAME bootleg (ver 3.00, PLZ-V014)",             MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
-GAME(2004, 4in1b,     39in1,    base,   39in1, _39in1_state, init_4in1b,    ROT90, "bootleg", "4 in 1 MAME bootleg (PLZ-V001)",                       MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
-GAME(2004, 19in1,     39in1,    base,   39in1, _39in1_state, init_19in1,    ROT90, "bootleg", "19 in 1 MAME bootleg (BAR-V000)",                      MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
-GAME(2004, 39in1,     0,        _39in1, 39in1, _39in1_state, init_39in1,    ROT90, "bootleg", "39 in 1 MAME bootleg (GNO-V000)",                      MACHINE_IMPERFECT_SOUND)
-GAME(2004, 48in1,     39in1,    base,   39in1, _39in1_state, init_48in1,    ROT90, "bootleg", "48 in 1 MAME bootleg (ver 3.09, HPH-V000)",            MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
-GAME(2004, 48in1b,    39in1,    base,   39in1, _39in1_state, init_48in1,    ROT90, "bootleg", "48 in 1 MAME bootleg (ver 3.09, HPH-V000, alt flash)", MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
-GAME(2004, 48in1a,    39in1,    base,   39in1, _39in1_state, init_48in1a,   ROT90, "bootleg", "48 in 1 MAME bootleg (ver 3.02, HPH-V000)",            MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
-GAME(2004, 48in1c,    39in1,    base,   39in1, _39in1_state, init_48in1c,   ROT90, "bootleg", "48 in 1 MAME bootleg (ver 3.08, HPH-V000)",            MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
-GAME(2004, 60in1,     39in1,    base,   39in1, _39in1_state, init_60in1,    ROT90, "bootleg", "60 in 1 MAME bootleg (ver 3.00, ICD-V000)",            MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
-GAME(2005, rodent,    0,        base,   39in1, _39in1_state, init_rodent,   ROT0,  "The Game Room", "Rodent Exterminator",                            MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
+GAME(2004, 4in1,      39in1,    cpld,   39in1, _39in1_state, init_4in1,     ROT90, "bootleg",       "4 in 1 MAME bootleg (ver 3.00, PLZ-V014)",                 MACHINE_IMPERFECT_SOUND)
+GAME(2004, 4in1a,     39in1,    cpld,   39in1, _39in1_state, init_4in1a,    ROT90, "bootleg",       "4 in 1 MAME bootleg (PLZ-V001)",                           MACHINE_IMPERFECT_SOUND)
+GAME(2004, 19in1,     0,        cpld2,  39in1, _39in1_state, init_19in1,    ROT0,  "bootleg",       "19 in 1 MAME bootleg (BAR-V000)",                          MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
+GAME(2004, 19in1u,    19in1,    cpld2,  39in1, _39in1_state, init_19in1,    ROT0,  "bootleg",       "19 in 1 MAME bootleg (BAR-V000, no protection)",           MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
+GAME(2004, 39in1,     0,        cpld,   39in1, _39in1_state, init_39in1,    ROT90, "bootleg",       "39 in 1 MAME bootleg (GNO-V000)",                          MACHINE_IMPERFECT_SOUND)
+GAME(2004, 48in1,     39in1,    cpld2,  39in1, _39in1_state, init_48in1,    ROT90, "bootleg",       "48 in 1 MAME bootleg (ver 3.09, HPH-V000)",                MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
+GAME(2004, 48in1b,    39in1,    cpld2,  39in1, _39in1_state, init_48in1,    ROT90, "bootleg",       "48 in 1 MAME bootleg (ver 3.09, HPH-V000, alt flash)",     MACHINE_IMPERFECT_SOUND)
+GAME(2004, 48in1a,    39in1,    cpld2,  39in1, _39in1_state, init_48in1a,   ROT90, "bootleg",       "48 in 1 MAME bootleg (ver 3.02, HPH-V000)",                MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
+GAME(2004, 48in1c,    39in1,    cpld2,  39in1, _39in1_state, init_48in1c,   ROT90, "bootleg",       "48 in 1 MAME bootleg (ver 3.08, HPH-V000)",                MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
+GAME(2004, 60in1,     39in1,    cpld2,  39in1, _39in1_state, init_60in1,    ROT90, "bootleg",       "60 in 1 MAME bootleg (ver 3.00, ICD-V000)",                MACHINE_IMPERFECT_SOUND)
+GAME(2004, 60in1u,    39in1,    cpld2,  39in1, _39in1_state, init_60in1,    ROT90, "bootleg",       "60 in 1 MAME bootleg (ver 3.00, ICD-V000, no protection)", MACHINE_IMPERFECT_SOUND)
+GAME(2005, rodent,    0,        cpld,   39in1, _39in1_state, init_rodent,   ROT0,  "The Game Room", "Rodent Exterminator",                                      MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND)
 
 // I.A.M. slots. Versions are taken from program ROM stickers or ROM strings, where available
-GAME(2008, fruitwld,  0,        base,   39in1, _39in1_state, init_fruitwld, ROT0,  "I.A.M.",  "Fruit World (V111)",                                   MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // FRUIT_V111.BIN 2008-04-30 15:59:21
-GAME(2007, fruitwlda, fruitwld, base,   39in1, _39in1_state, init_fruitwld, ROT0,  "I.A.M.",  "Fruit World (V110)",                                   MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // FRUIT_V110.BIN 2007-07-26 13:46:30
-GAME(2007, jumanji,   0,        base,   39in1, _39in1_state, init_jumanji,  ROT0,  "I.A.M.",  "Jumanji (V502)",                                       MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // CHZ_V502.BIN 2007-07-26 13:49:35 in clear text at the end of the main CPU ROM
-GAME(200?, plutus,    0,        base,   39in1, _39in1_state, init_plutus,   ROT0,  "I.A.M.",  "Plutus (V100)",                                        MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // no string
-GAME(200?, pokrwild,  0,        base,   39in1, _39in1_state, init_pokrwild, ROT0,  "I.A.M.",  "Poker's Wild (V117)",                                  MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // no string
+GAME(2008, fruitwld,  0,        iam,    39in1, _39in1_state, init_fruitwld, ROT0,  "I.A.M.",        "Fruit World (V111)",                                       MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // FRUIT_V111.BIN 2008-04-30 15:59:21
+GAME(2007, fruitwlda, fruitwld, iam,    39in1, _39in1_state, init_fruitwld, ROT0,  "I.A.M.",        "Fruit World (V110)",                                       MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // FRUIT_V110.BIN 2007-07-26 13:46:30
+GAME(2007, jumanji,   0,        iam,    39in1, _39in1_state, init_jumanji,  ROT0,  "I.A.M.",        "Jumanji (V502)",                                           MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // CHZ_V502.BIN 2007-07-26 13:49:35 in clear text at the end of the main CPU ROM
+GAME(2007, jumanjia,  jumanji,  iam,    39in1, _39in1_state, init_jumanjia, ROT0,  "I.A.M.",        "Jumanji (V113)",                                           MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // JUMANJI_V113.BIN 2007-07-25 10:54:33
+GAME(200?, plutus,    0,        iam2,   39in1, _39in1_state, init_plutus,   ROT0,  "I.A.M.",        "Plutus (V100)",                                            MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // no string
+GAME(200?, pokrwild,  0,        iam,    39in1, _39in1_state, init_pokrwild, ROT0,  "I.A.M.",        "Poker's Wild (V117)",                                      MACHINE_NOT_WORKING | MACHINE_IMPERFECT_SOUND) // no string

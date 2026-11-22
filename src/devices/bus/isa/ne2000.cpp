@@ -10,7 +10,7 @@ DEFINE_DEVICE_TYPE(NE2000, ne2000_device, "ne2000", "NE2000 Network Adapter")
 
 void ne2000_device::device_add_mconfig(machine_config &config)
 {
-	DP8390D(config, m_dp8390, 0);
+	DP8390D(config, m_dp8390);
 	m_dp8390->irq_callback().set(FUNC(ne2000_device::ne2000_irq_w));
 	m_dp8390->mem_read_callback().set(FUNC(ne2000_device::ne2000_mem_read));
 	m_dp8390->mem_write_callback().set(FUNC(ne2000_device::ne2000_mem_write));
@@ -45,8 +45,9 @@ void ne2000_device::device_reset() {
 uint16_t ne2000_device::ne2000_port_r(offs_t offset, uint16_t mem_mask) {
 	offset <<= 1;
 	if(offset < 16) {
-		return m_dp8390->cs_read(offset) |
-				m_dp8390->cs_read(offset+1) << 8;
+		uint16_t const low = ACCESSING_BITS_0_7 ? m_dp8390->cs_read(offset) : 0xff;
+		uint16_t const high = ACCESSING_BITS_8_15 ? m_dp8390->cs_read(offset + 1) : 0xff;
+		return low | (high << 8);
 	}
 	if(mem_mask == 0xff00) offset++;
 	switch(offset) {

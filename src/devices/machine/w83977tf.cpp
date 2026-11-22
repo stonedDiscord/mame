@@ -5,26 +5,28 @@
 Winbond W83977TF
 
 TODO:
-- PoC for a generic (LPC) Super I/O type, consider abstracting common points with fdc37c93x;
-- savquest (in pciagp) fails keyboard self test
-  \- bp e140c,1,{eax&=~1;g} bit 0 stuck high from port $64, "receives" while essentially reading
-     status only three times (and port $61 is claimed by PIIX4 for PCI SERR# read only)
-- DRQ (savquest enables DRQ3 for LPT)
 - Hookup LPT modes;
+- subclass for megadrive magistr16 system (uses w83977f/w83977af)
 
 **************************************************************************************************/
 
 #include "emu.h"
 #include "w83977tf.h"
 
+#include "formats/naslite_dsk.h"
+
 //#include "machine/ds128x.h"
 #include "machine/pckeybrd.h"
 
 #include <algorithm>
 
-#define VERBOSE (LOG_GENERAL)
+#define LOG_FDC       (1U << 1)
+
+#define VERBOSE (LOG_GENERAL | LOG_FDC)
 //#define LOG_OUTPUT_FUNC osd_printf_info
 #include "logmacro.h"
+
+#define LOGFDC(...)     LOGMASKED(LOG_FDC, __VA_ARGS__)
 
 
 DEFINE_DEVICE_TYPE(W83977TF, w83977tf_device, "w83977tf", "Winbond W83977TF Super I/O")
@@ -34,21 +36,25 @@ w83977tf_device::w83977tf_device(const machine_config &mconfig, const char *tag,
 	, device_isa16_card_interface(mconfig, *this)
 	, device_memory_interface(mconfig, *this)
 	, m_space_config("superio_config_regs", ENDIANNESS_LITTLE, 8, 8, 0, address_map_constructor(FUNC(w83977tf_device::config_map), this))
+	, m_fdc(*this, "fdc")
 	, m_kbdc(*this, "pc_kbdc")
 	, m_rtc(*this, "rtc")
 	, m_lpt(*this, "lpt")
+	, m_uart(*this, "uart%u", 1U)
 	, m_logical_view(*this, "logical_view")
 	, m_gp20_reset_callback(*this)
 	, m_gp25_gatea20_callback(*this)
 	, m_irq1_callback(*this)
 	, m_irq8_callback(*this)
 	, m_irq9_callback(*this)
-//  , m_txd1_callback(*this)
-//  , m_ndtr1_callback(*this)
-//  , m_nrts1_callback(*this)
-//  , m_txd2_callback(*this)
-//  , m_ndtr2_callback(*this)
-//  , m_nrts2_callback(*this)
+	, m_txd1_callback(*this)
+	, m_ndtr1_callback(*this)
+	, m_nrts1_callback(*this)
+	, m_txd2_callback(*this)
+	, m_ndtr2_callback(*this)
+	, m_nrts2_callback(*this)
+	, m_gpio1_read_cb(*this, 0xff)
+	, m_gpio1_write_cb(*this)
 	, m_index(0)
 	, m_logical_index(0)
 	, m_hefras(0)
@@ -69,12 +75,35 @@ w83977tf_device::~w83977tf_device()
 void w83977tf_device::device_start()
 {
 	set_isa_device();
-	//m_isa->set_dma_channel(0, this, true);
-	//m_isa->set_dma_channel(1, this, true);
-	//m_isa->set_dma_channel(2, this, true);
-	//m_isa->set_dma_channel(3, this, true);
-	remap(AS_IO, 0, 0x400);
+	m_isa->set_dma_channel(0, this, true);
+	m_isa->set_dma_channel(1, this, true);
+	m_isa->set_dma_channel(2, this, true);
+	m_isa->set_dma_channel(3, this, true);
+	save_pointer(NAME(m_activate), 0xb);
+	save_item(NAME(m_uart_address));
+	save_item(NAME(m_uart_irq_line));
+	save_item(NAME(m_uart_mode));
+	save_item(NAME(m_uart_int_state));
+	save_item(NAME(m_uart_irq_out));
+	save_item(NAME(m_uart_irq_driven));
+	//remap(AS_IO, 0, 0x400);
+}
 
+void w83977tf_device::device_post_load()
+{
+	// the I/O space is not saved: move the UART windows to the loaded configuration
+	remap(AS_IO, 0, 0x400);
+}
+
+void w83977tf_device::uart_unmap_installed()
+{
+	for (int i = 0; i < 2; i++)
+	{
+		if (m_uart_installed[i])
+			m_isa->unmap_device(m_uart_cached_address[i], m_uart_cached_address[i] + 7);
+		m_uart_installed[i] = false;
+		m_uart_cached_address[i] = 0;
+	}
 }
 
 void w83977tf_device::device_reset()
@@ -89,6 +118,36 @@ void w83977tf_device::device_reset()
 	m_lpt_irq_line = 7;
 	m_lpt_drq_line = 4; // disabled
 	m_lpt_mode = 0x3f;
+	m_uart_address[0] = 0x3f8;
+	m_uart_address[1] = 0x2f8;
+	m_uart_irq_line[0] = 4;
+	m_uart_irq_line[1] = 3;
+	m_uart_mode[0] = m_uart_mode[1] = 0;
+	m_uart_int_state[0] = m_uart_int_state[1] = 0;
+	m_uart_irq_out[0] = m_uart_irq_out[1] = 0;
+	m_uart_irq_driven[0] = m_uart_irq_driven[1] = false;
+	// reset deactivates both UARTs, so release any windows they hold in the I/O space
+	uart_unmap_installed();
+
+	std::fill(std::begin(m_activate), std::end(m_activate), false);
+
+	m_fdc_address = 0x3f8;
+	m_gpio1_address = 0x100;
+
+	m_fdc_irq_line = 0;
+	m_fdc_drq_line = 4;
+
+	m_fdd_mode = 0x0e;
+	m_fdd_crf1 = 0x00;
+	m_fdd_crf2 = 0xff;
+	m_fdd_crf4 = 0x00;
+
+	m_fdc->set_mode(upd765_family_device::mode_t::AT);
+	m_fdc->set_rate(500000);
+
+	m_last_dma_line = -1;
+
+	remap(AS_IO, 0, 0x400);
 }
 
 device_memory_interface::space_config_vector w83977tf_device::memory_space_config() const
@@ -98,10 +157,43 @@ device_memory_interface::space_config_vector w83977tf_device::memory_space_confi
 	};
 }
 
+static void pc_hd_floppies(device_slot_interface &device)
+{
+	device.option_add("35ed", FLOPPY_35_ED);
+	device.option_add("525hd", FLOPPY_525_HD);
+	device.option_add("35hd", FLOPPY_35_HD);
+	device.option_add("525dd", FLOPPY_525_DD);
+	device.option_add("35dd", FLOPPY_35_DD);
+}
+
+void w83977tf_device::floppy_formats(format_registration &fr)
+{
+	fr.add_pc_formats();
+	fr.add(FLOPPY_NASLITE_FORMAT);
+}
+
 void w83977tf_device::device_add_mconfig(machine_config &config)
 {
+	N82077AA(config, m_fdc, XTAL(24'000'000), upd765_family_device::mode_t::AT);
+	m_fdc->intrq_wr_callback().set(FUNC(w83977tf_device::irq_floppy_w));
+	m_fdc->drq_wr_callback().set(FUNC(w83977tf_device::drq_floppy_w));
+	FLOPPY_CONNECTOR(config, "fdc:0", pc_hd_floppies, "35hd", w83977tf_device::floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, "fdc:1", pc_hd_floppies, "35hd", w83977tf_device::floppy_formats);
+
 	PC_LPT(config, m_lpt);
 	m_lpt->irq_handler().set(FUNC(w83977tf_device::irq_parallel_w));
+
+	NS16550(config, m_uart[0], XTAL(1'843'200));
+	m_uart[0]->out_int_callback().set(FUNC(w83977tf_device::irq_uart_w<0>));
+	m_uart[0]->out_tx_callback().set([this] (int state) { m_txd1_callback(state); });
+	m_uart[0]->out_dtr_callback().set([this] (int state) { m_ndtr1_callback(state); });
+	m_uart[0]->out_rts_callback().set([this] (int state) { m_nrts1_callback(state); });
+
+	NS16550(config, m_uart[1], XTAL(1'843'200));
+	m_uart[1]->out_int_callback().set(FUNC(w83977tf_device::irq_uart_w<1>));
+	m_uart[1]->out_tx_callback().set([this] (int state) { m_txd2_callback(state); });
+	m_uart[1]->out_dtr_callback().set([this] (int state) { m_ndtr2_callback(state); });
+	m_uart[1]->out_rts_callback().set([this] (int state) { m_nrts2_callback(state); });
 
 	// TODO: exact type, mentions being 8042/PC87911 compatible
 	// (which is kbd + rtc in one)
@@ -110,6 +202,7 @@ void w83977tf_device::device_add_mconfig(machine_config &config)
 	m_rtc->set_century_index(0x32);
 
 	// TODO: W83C435 controller
+	// (doesn't work with LLE at all)
 	KBDC8042(config, m_kbdc);
 	m_kbdc->set_keyboard_type(kbdc8042_device::KBDC8042_PS2);
 	m_kbdc->set_interrupt_type(kbdc8042_device::KBDC8042_DOUBLE);
@@ -128,13 +221,44 @@ void w83977tf_device::remap(int space_id, offs_t start, offs_t end)
 {
 	if (space_id == AS_IO)
 	{
-		u16 superio_base = m_hefras ? 0x370 : 0x3f0;
-		m_isa->install_device(superio_base, superio_base + 3, read8sm_delegate(*this, FUNC(w83977tf_device::read)), write8sm_delegate(*this, FUNC(w83977tf_device::write)));
+		// remove vacated UART windows before installing anything, so the unmap cannot
+		// take out handlers this remap installs (FDC, the other UART) in an overlapping range
+		for (int i = 0; i < 2; i++)
+		{
+			bool const should_install = (m_activate[2 + i] & 1) && (m_uart_address[i] & 0xf00);
+			if (m_uart_installed[i] && (!should_install || (m_uart_cached_address[i] != m_uart_address[i])))
+			{
+				m_isa->unmap_device(m_uart_cached_address[i], m_uart_cached_address[i] + 7);
+				m_uart_installed[i] = false;
+				m_uart_cached_address[i] = 0;
+			}
+		}
+
+		if (m_activate[0] & 1)
+		{
+			m_isa->install_device(m_fdc_address, m_fdc_address + 7, *m_fdc, &n82077aa_device::map);
+		}
 
 		// can't map below 0x100
 		if (m_activate[1] & 1 && m_lpt_address & 0xf00)
 		{
-			m_isa->install_device(m_lpt_address, m_lpt_address + 3, read8sm_delegate(*m_lpt, FUNC(pc_lpt_device::read)), write8sm_delegate(*m_lpt, FUNC(pc_lpt_device::write)));
+			m_isa->install_device(m_lpt_address, m_lpt_address + 3, *m_lpt, &pc_lpt_device::isa_map);
+		}
+
+		// after the FDC, which the BIOS can map at 0x3f8 transiently while it writes the FDC base;
+		// UART2 after UART1, so UART2 owns a window they share
+		for (int i = 0; i < 2; i++)
+		{
+			bool const should_install = (m_activate[2 + i] & 1) && (m_uart_address[i] & 0xf00);
+			// install on every remap: the bus may have rebuilt the I/O space since the last one
+			if (should_install)
+			{
+				m_isa->install_device(m_uart_address[i], m_uart_address[i] + 7,
+					read8sm_delegate(*m_uart[i], FUNC(ns16450_device::ins8250_r)),
+					write8sm_delegate(*m_uart[i], FUNC(ns16450_device::ins8250_w)));
+				m_uart_installed[i] = true;
+				m_uart_cached_address[i] = m_uart_address[i];
+			}
 		}
 
 		if (m_activate[5] & 1)
@@ -143,11 +267,23 @@ void w83977tf_device::remap(int space_id, offs_t start, offs_t end)
 			m_isa->install_device(m_keyb_address[1], m_keyb_address[1], read8sm_delegate(*this, FUNC(w83977tf_device::keybc_status_r)), write8sm_delegate(*this, FUNC(w83977tf_device::keybc_command_w)));
 		}
 
+		if (m_activate[7] & 1)
+		{
+			m_isa->install_device(m_gpio1_address, m_gpio1_address,
+				read8sm_delegate(*this, [this](offs_t offset) { return m_gpio1_read_cb(); }, "gpio1_r"),
+				write8sm_delegate(*this, [this](offs_t offset, u8 data) { m_gpio1_write_cb(data); }, "gpio1_w")
+			);
+		}
+
 		if (m_activate[8] & 1)
 		{
 			// TODO: from port
-			m_isa->install_device(0x70, 0x7f, read8sm_delegate(*this, FUNC(w83977tf_device::rtc_r)), write8sm_delegate(*this, FUNC(w83977tf_device::rtc_w)));
+			m_isa->install_device(0x70, 0x71, read8sm_delegate(*this, FUNC(w83977tf_device::rtc_r)), write8sm_delegate(*this, FUNC(w83977tf_device::rtc_w)));
 		}
+
+		// need to install at the end, to ensure not clashing with FDC when hefras=0
+		u16 superio_base = m_hefras ? 0x370 : 0x3f0;
+		m_isa->install_device(superio_base, superio_base + 1, read8sm_delegate(*this, FUNC(w83977tf_device::read)), write8sm_delegate(*this, FUNC(w83977tf_device::write)));
 	}
 }
 
@@ -213,17 +349,107 @@ void w83977tf_device::config_map(address_map &map)
 	map(0x30, 0xff).view(m_logical_view);
 	// FDC
 	m_logical_view[0](0x30, 0x30).rw(FUNC(w83977tf_device::activate_r<0>), FUNC(w83977tf_device::activate_w<0>));
-	m_logical_view[0](0x31, 0xff).unmaprw();
+	m_logical_view[0](0x60, 0x61).lrw8(
+		NAME([this] (offs_t offset) {
+			if (offset)
+				return m_fdc_address & 0xf8;
+
+			return (m_fdc_address >> 8) & 0xf;
+		}),
+		NAME([this] (offs_t offset, u8 data) {
+			const u8 shift = offset * 8;
+			m_fdc_address &= 0xff << shift;
+			m_fdc_address |= data << (shift ^ 8);
+			m_fdc_address &= 0xff8;
+			LOGFDC("LD0 (FDC): remap %04x ([%d] %02x)\n", m_fdc_address, offset, data);
+
+			remap(AS_IO, 0, 0x400);
+		})
+	);
+	m_logical_view[0](0x70, 0x70).lrw8(
+		NAME([this] () {
+			return m_fdc_irq_line;
+		}),
+		NAME([this] (offs_t offset, u8 data) {
+			m_fdc_irq_line = data & 0xf;
+			LOGFDC("LD0 (FDC): irq routed to %02x\n", m_fdc_irq_line);
+		})
+	);
+	m_logical_view[0](0x74, 0x74).lrw8(
+		NAME([this] () {
+			return m_fdc_drq_line;
+		}),
+		NAME([this] (offs_t offset, u8 data) {
+			m_fdc_drq_line = data & 0x7;
+			LOGFDC("LD0 (FDC): drq %s (%02x)\n", BIT(m_fdc_drq_line, 2) ? "disabled" : "enabled", data);
+			update_dreq_mapping(m_fdc_drq_line, 0);
+		})
+	);
+	m_logical_view[0](0xf0, 0xf0).lrw8(
+		NAME([this] (offs_t offset) {
+			LOGFDC("LD0 (FDD): CRF0 mode read\n");
+			return m_fdd_mode;
+		}),
+		NAME([this] (offs_t offset, u8 data) {
+			m_fdd_mode = data;
+			LOGFDC("LD0 (FDD): CRF0 mode %02x\n", data);
+
+			switch((m_fdd_mode & 0xc) >> 2)
+			{
+				case 0: m_fdc->set_mode(upd765_family_device::mode_t::M30); break;
+				case 1: m_fdc->set_mode(upd765_family_device::mode_t::PS2); break;
+				case 3: m_fdc->set_mode(upd765_family_device::mode_t::AT);  break;
+				default:
+					popmessage("FDD: select <reserved> mode 2");
+					break;
+			}
+		})
+	);
+	m_logical_view[0](0xf1, 0xf1).lrw8(
+		NAME([this] () {
+			LOGFDC("LD0 (FDD): CRF1 mode read\n");
+			return m_fdd_crf1;
+		}),
+		NAME([this] (u8 data) {
+			m_fdd_crf1 = data;
+			LOGFDC("LD0 (FDD): CRF1 mode write %02x\n", data);
+		})
+	);
+	m_logical_view[0](0xf2, 0xf2).lrw8(
+		NAME([this] () {
+			LOGFDC("LD0 (FDD): CRF2 mode read\n");
+			return m_fdd_crf2;
+		}),
+		NAME([this] (u8 data) {
+			m_fdd_crf2 = data;
+			LOGFDC("LD0 (FDD): CRF2 mode write %02x\n", data);
+		})
+	);
+	m_logical_view[0](0xf4, 0xf4).lrw8(
+		NAME([this] () {
+			LOGFDC("LD0 (FDD): CRF4 mode read\n");
+			return m_fdd_crf4;
+		}),
+		NAME([this] (u8 data) {
+			m_fdd_crf4 = data;
+			LOGFDC("LD0 (FDD): CRF4 mode write %02x\n", data);
+		})
+	);
+
 	// LPT
 	m_logical_view[1](0x30, 0x30).rw(FUNC(w83977tf_device::activate_r<1>), FUNC(w83977tf_device::activate_w<1>));
 	m_logical_view[1](0x60, 0x61).lrw8(
 		NAME([this] (offs_t offset) {
-			return (m_lpt_address >> (offset * 8)) & 0xff;
+			if (offset)
+				return m_lpt_address & 0xfc;
+
+			return (m_lpt_address >> 8) & 0xf;
 		}),
 		NAME([this] (offs_t offset, u8 data) {
 			const u8 shift = offset * 8;
 			m_lpt_address &= 0xff << shift;
 			m_lpt_address |= data << (shift ^ 8);
+			m_lpt_address &= 0xffc;
 			LOG("LD1 (LPT): remap %04x ([%d] %02x)\n", m_lpt_address, offset, data);
 
 			remap(AS_IO, 0, 0x400);
@@ -245,6 +471,7 @@ void w83977tf_device::config_map(address_map &map)
 		NAME([this] (offs_t offset, u8 data) {
 			m_lpt_drq_line = data & 0x7;
 			LOG("LD1 (LPT): drq %s (%02x)\n", BIT(m_lpt_drq_line, 2) ? "disabled" : "enabled", data);
+			update_dreq_mapping(m_lpt_drq_line, 1);
 		})
 	);
 /*
@@ -274,13 +501,17 @@ void w83977tf_device::config_map(address_map &map)
 			// pciagp/savquest sets 0x07 from BIOS (ECP and EPP) + DRQ3
 		})
 	);
-	// UART1
+	// UART1, UART2
 	m_logical_view[2](0x30, 0x30).rw(FUNC(w83977tf_device::activate_r<2>), FUNC(w83977tf_device::activate_w<2>));
-	m_logical_view[2](0x31, 0xff).unmaprw();
-	// UART2
+	m_logical_view[2](0x60, 0x61).rw(FUNC(w83977tf_device::uart_address_r<0>), FUNC(w83977tf_device::uart_address_w<0>));
+	m_logical_view[2](0x70, 0x70).rw(FUNC(w83977tf_device::uart_irq_r<0>), FUNC(w83977tf_device::uart_irq_w<0>));
+	m_logical_view[2](0xf0, 0xf0).rw(FUNC(w83977tf_device::uart_mode_r<0>), FUNC(w83977tf_device::uart_mode_w<0>));
 	m_logical_view[3](0x30, 0x30).rw(FUNC(w83977tf_device::activate_r<3>), FUNC(w83977tf_device::activate_w<3>));
-	m_logical_view[3](0x31, 0xff).unmaprw();
+	m_logical_view[3](0x60, 0x61).rw(FUNC(w83977tf_device::uart_address_r<1>), FUNC(w83977tf_device::uart_address_w<1>));
+	m_logical_view[3](0x70, 0x70).rw(FUNC(w83977tf_device::uart_irq_r<1>), FUNC(w83977tf_device::uart_irq_w<1>));
+	m_logical_view[3](0xf0, 0xf0).rw(FUNC(w83977tf_device::uart_mode_r<1>), FUNC(w83977tf_device::uart_mode_w<1>));
 	// <reserved>
+	// RTC on W83977F
 	m_logical_view[4](0x30, 0xff).unmaprw();
 	// KBC
 	m_logical_view[5](0x30, 0x30).rw(FUNC(w83977tf_device::activate_r<5>), FUNC(w83977tf_device::activate_w<5>));
@@ -301,7 +532,20 @@ void w83977tf_device::config_map(address_map &map)
 	m_logical_view[6](0x30, 0xff).unmaprw();
 	// GPIO1
 	m_logical_view[7](0x30, 0x30).rw(FUNC(w83977tf_device::activate_r<7>), FUNC(w83977tf_device::activate_w<7>));
-	m_logical_view[7](0x31, 0xff).unmaprw();
+	m_logical_view[7](0x60, 0x61).lrw8(
+		NAME([this] (offs_t offset) {
+			return (m_gpio1_address >> (offset * 8)) & 0xff;
+		}),
+		NAME([this] (offs_t offset, u8 data) {
+			const u8 shift = offset * 8;
+			m_gpio1_address &= 0xff << shift;
+			m_gpio1_address |= data << (shift ^ 8);
+			LOG("LD7 (GPIO1): remap %04x ([%d] %02x)\n", m_gpio1_address, offset, data);
+
+			remap(AS_IO, 0, 0x400);
+		})
+	);
+	//m_logical_view[7](0x31, 0xff).unmaprw();
 	// GPIO2
 	// doc doesn't explicitly mention this being at logical dev 8, assume from intialization
 	m_logical_view[8](0x30, 0x30).rw(FUNC(w83977tf_device::activate_r<8>), FUNC(w83977tf_device::activate_w<8>));
@@ -348,6 +592,8 @@ template <unsigned N> void w83977tf_device::activate_w(offs_t offset, u8 data)
 {
 	m_activate[N] = data & 1;
 	LOG("%d Device %s\n", N, data & 1 ? "enabled" : "disabled");
+	if (N == 2 || N == 3)
+		uart_reconcile_irq(N - 2);
 	remap(AS_IO, 0, 0x400);
 }
 
@@ -397,6 +643,45 @@ void w83977tf_device::request_irq(int irq, int state)
 	}
 }
 
+void w83977tf_device::request_dma(int dreq, int state)
+{
+	switch (dreq)
+	{
+	case 0:
+		m_isa->drq0_w(state);
+		break;
+	case 1:
+		m_isa->drq1_w(state);
+		break;
+	case 2:
+		m_isa->drq2_w(state);
+		break;
+	case 3:
+		m_isa->drq3_w(state);
+		break;
+	}
+}
+
+
+/*
+ * Device #0 (FDC)
+ */
+
+void w83977tf_device::irq_floppy_w(int state)
+{
+	if (!m_activate[0])
+		return;
+	request_irq(m_fdc_irq_line, state ? ASSERT_LINE : CLEAR_LINE);
+}
+
+void w83977tf_device::drq_floppy_w(int state)
+{
+	if (!m_activate[0] || BIT(m_fdc_drq_line, 2))
+		return;
+	request_dma(m_fdc_drq_line, state ? ASSERT_LINE : CLEAR_LINE);
+}
+
+
 /*
  * Device #1 (Parallel)
  */
@@ -406,6 +691,89 @@ void w83977tf_device::irq_parallel_w(int state)
 	if (m_activate[1] == false)
 		return;
 	request_irq(m_lpt_irq_line, state ? ASSERT_LINE : CLEAR_LINE);
+}
+
+/*
+ * Devices #2 and #3 (UARTs)
+ */
+
+template <unsigned N> u8 w83977tf_device::uart_address_r(offs_t offset)
+{
+	if (offset)
+		return m_uart_address[N] & 0xf8;
+
+	return (m_uart_address[N] >> 8) & 0xf;
+}
+
+template <unsigned N> void w83977tf_device::uart_address_w(offs_t offset, u8 data)
+{
+	const u8 shift = offset * 8;
+	m_uart_address[N] &= 0xff << shift;
+	m_uart_address[N] |= data << (shift ^ 8);
+	m_uart_address[N] &= 0xff8;
+	LOG("LD%d (UART%d): remap %04x ([%d] %02x)\n", 2 + N, 1 + N, m_uart_address[N], offset, data);
+
+	remap(AS_IO, 0, 0x400);
+}
+
+template <unsigned N> u8 w83977tf_device::uart_irq_r(offs_t offset)
+{
+	return m_uart_irq_line[N];
+}
+
+template <unsigned N> void w83977tf_device::uart_irq_w(offs_t offset, u8 data)
+{
+	const u8 new_line = data & 0xf;
+	if (new_line != m_uart_irq_line[N])
+	{
+		m_uart_irq_line[N] = new_line;
+		LOG("LD%d (UART%d): irq routed to %02x\n", 2 + N, 1 + N, m_uart_irq_line[N]);
+		uart_reconcile_irq(N);
+	}
+}
+
+template <unsigned N> u8 w83977tf_device::uart_mode_r(offs_t offset)
+{
+	return m_uart_mode[N];
+}
+
+template <unsigned N> void w83977tf_device::uart_mode_w(offs_t offset, u8 data)
+{
+	// TODO: CRF0 clock source select and IR modes are stored only
+	m_uart_mode[N] = data;
+	LOG("LD%d (UART%d): CRF0 mode write %02x\n", 2 + N, 1 + N, data);
+}
+
+template <unsigned N> void w83977tf_device::irq_uart_w(int state)
+{
+	m_uart_int_state[N] = state ? 1 : 0;
+	uart_reconcile_irq(N);
+}
+
+void w83977tf_device::uart_reconcile_irq(int index)
+{
+	if (m_uart_irq_driven[index])
+	{
+		m_uart_irq_driven[index] = false;
+		// both UARTs can be routed to one line; release it only when the other is not driving it
+		if (!uart_line_driven(m_uart_irq_out[index]))
+			request_irq(m_uart_irq_out[index], CLEAR_LINE);
+	}
+
+	if (m_activate[2 + index] && m_uart_int_state[index])
+	{
+		request_irq(m_uart_irq_line[index], ASSERT_LINE);
+		m_uart_irq_out[index] = m_uart_irq_line[index];
+		m_uart_irq_driven[index] = true;
+	}
+}
+
+bool w83977tf_device::uart_line_driven(u8 line) const
+{
+	for (int i = 0; i < 2; i++)
+		if (m_uart_irq_driven[i] && (m_uart_irq_out[i] == line))
+			return true;
+	return false;
 }
 
 /*
@@ -464,12 +832,12 @@ void w83977tf_device::mouse_irq_w(offs_t offset, u8 data)
 
 u8 w83977tf_device::keybc_status_r(offs_t offset)
 {
-	return (m_kbdc->data_r(4) & 0xff);
+	return (m_kbdc->port64_r(0) & 0xff);
 }
 
 void w83977tf_device::keybc_command_w(offs_t offset, u8 data)
 {
-	m_kbdc->data_w(4, data);
+	m_kbdc->port64_w(0, data);
 }
 
 // $60-$61 selects data port, $62-$63 command port
@@ -533,3 +901,65 @@ void w83977tf_device::rtc_irq_w(offs_t offset, u8 data)
 	m_rtc_irq_line = data & 0xf;
 	LOG("LD9 (GPIO2): RTC irq routed to %02x\n", m_rtc_irq_line);
 }
+
+/*
+ * DMA
+ */
+
+void w83977tf_device::update_dreq_mapping(int dreq, int logical)
+{
+	if ((dreq < 0) || (dreq >= 4))
+		return;
+	for (int n = 0; n < 4; n++)
+		if (m_dreq_mapping[n] == logical)
+			m_dreq_mapping[n] = -1;
+	m_dreq_mapping[dreq] = logical;
+}
+
+void w83977tf_device::eop_w(int state)
+{
+	// dma transfer finished
+	if (m_last_dma_line < 0)
+		return;
+	switch (m_dreq_mapping[m_last_dma_line])
+	{
+	case 0:
+		m_fdc->tc_w(state == ASSERT_LINE);
+		break;
+	default:
+		break;
+	}
+	//m_last_dma_line = -1;
+}
+
+// TODO: LPT bindings
+uint8_t w83977tf_device::dack_r(int line)
+{
+	// transferring data from device to memory using dma
+	// read one byte from device
+	m_last_dma_line = line;
+	switch (m_dreq_mapping[line])
+	{
+	case 0:
+		return m_fdc->dma_r();
+	default:
+		break;
+	}
+	return 0;
+}
+
+void w83977tf_device::dack_w(int line, uint8_t data)
+{
+	// transferring data from memory to device using dma
+	// write one byte to device
+	m_last_dma_line = line;
+	switch (m_dreq_mapping[line])
+	{
+	case 0:
+		m_fdc->dma_w(data);
+		break;
+	default:
+		break;
+	}
+}
+

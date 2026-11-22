@@ -36,19 +36,23 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// optional information overrides
-	virtual const tiny_rom_entry *device_rom_region() const override;
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual ioport_constructor device_input_ports() const override;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 
 	// device_c64_expansion_card_interface overrides
 	virtual uint8_t c64_cd_r(offs_t offset, uint8_t data, int sphi2, int ba, int roml, int romh, int io1, int io2) override;
 	virtual void c64_cd_w(offs_t offset, uint8_t data, int sphi2, int ba, int roml, int romh, int io1, int io2) override;
 	virtual int c64_game_r(offs_t offset, int sphi2, int ba, int rw) override;
 	virtual int c64_exrom_r(offs_t offset, int sphi2, int ba, int rw) override;
+	virtual void c64_ba_w(int state) override { m_exp->ba_w(state); }
+	virtual void c64_phi2_w(int state) override { m_exp->phi2_w(state); }
+	virtual void c64_irq_w(int state) override { m_exp->host_irq_w(state); }
+	virtual void c64_nmi_w(int state) override { m_exp->host_nmi_w(state); }
 
 private:
 	required_device<i8255_device> m_ppi;

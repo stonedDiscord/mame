@@ -34,7 +34,7 @@ anymore in original working order.
 #include "video/hlcd0538.h"
 #include "video/pwm.h"
 
-#include "screen.h"
+#include "screen_svg.h"
 #include "speaker.h"
 
 // internal artwork
@@ -64,13 +64,13 @@ public:
 	void savant(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	// devices/pointers
 	required_device<cpu_device> m_maincpu;
-	required_device<cpu_device> m_mcu;
+	required_device<f8_cpu_device> m_mcu;
 	required_device<f38t56_device> m_psu;
 	required_device<hlcd0538_device> m_lcd1;
 	required_device<hlcd0539_device> m_lcd2;
@@ -87,10 +87,10 @@ private:
 	u64 m_lcd_data = 0;
 
 	// address maps
-	void main_map(address_map &map);
-	void main_io(address_map &map);
-	void mcu_map(address_map &map);
-	void mcu_io(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void main_io(address_map &map) ATTR_COLD;
+	void mcu_map(address_map &map) ATTR_COLD;
+	void mcu_io(address_map &map) ATTR_COLD;
 
 	// I/O handlers
 	void nvram_w(offs_t offset, u8 data);
@@ -146,14 +146,14 @@ u8 savant_state::nvram_r(offs_t offset)
 
 void savant_state::stall_w(offs_t offset, u8 data)
 {
-	// any access to port C0 puts the Z80 into WAIT, sets BUSRQ, and sets MCU EXT INT
+	// any access to port C0 puts the Z80 into WAIT, sets BUSREQ, and sets MCU EXT INT
 	if (!m_z80_wait)
 	{
 		m_databus = offset >> 8;
 		m_psu->ext_int_w(1);
 		m_maincpu->set_input_line(Z80_INPUT_LINE_WAIT, ASSERT_LINE);
-		m_maincpu->set_input_line(Z80_INPUT_LINE_BUSRQ, ASSERT_LINE);
-		m_maincpu->defer_access();
+		m_maincpu->set_input_line(Z80_INPUT_LINE_BUSREQ, ASSERT_LINE);
+		m_maincpu->retry_access();
 	}
 
 	m_z80_wait = !m_z80_wait;
@@ -213,9 +213,9 @@ void savant_state::control_w(u8 data)
 		m_maincpu->set_input_line(Z80_INPUT_LINE_WAIT, CLEAR_LINE);
 	}
 
-	// d1: clear Z80 BUSRQ
+	// d1: clear Z80 BUSREQ
 	if (data & ~m_control & 2)
-		m_maincpu->set_input_line(Z80_INPUT_LINE_BUSRQ, CLEAR_LINE);
+		m_maincpu->set_input_line(Z80_INPUT_LINE_BUSREQ, CLEAR_LINE);
 
 	// d2: return data for Z80
 
@@ -357,7 +357,7 @@ void savant_state::savant(machine_config &config)
 	F8(config, m_mcu, 4_MHz_XTAL/2);
 	m_mcu->set_addrmap(AS_PROGRAM, &savant_state::mcu_map);
 	m_mcu->set_addrmap(AS_IO, &savant_state::mcu_io);
-	m_mcu->set_irq_acknowledge_callback("psu", FUNC(f38t56_device::int_acknowledge));
+	m_mcu->int_cycle_callback().set(m_psu, FUNC(f38t56_device::int_acknowledge));
 
 	F38T56(config, m_psu, 4_MHz_XTAL/2);
 	m_psu->set_int_vector(0x0020);
@@ -378,10 +378,9 @@ void savant_state::savant(machine_config &config)
 	HLCD0538(config, m_lcd1).write_cols().set(FUNC(savant_state::lcd1_output_w));
 	HLCD0539(config, m_lcd2).write_cols().set(FUNC(savant_state::lcd2_output_w));
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_SVG));
+	screen_svg_device &screen(SCREEN_SVG(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_size(958, 1080);
-	screen.set_visarea_full();
 
 	PWM_DISPLAY(config, m_display).set_size(8, 24+27);
 	config.set_default_layout(layout_novag_savant);
@@ -434,5 +433,5 @@ ROM_END
 *******************************************************************************/
 
 //    YEAR  NAME     PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY, FULLNAME, FLAGS
-SYST( 1981, savant,  0,      0,      savant,  savant, savant_state, empty_init, "Novag Industries", "Savant", MACHINE_SUPPORTS_SAVE )
-SYST( 1982, savant2, savant, 0,      savant,  savant, savant_state, empty_init, "Novag Industries", "Savant II", MACHINE_SUPPORTS_SAVE )
+SYST( 1981, savant,  0,      0,      savant,  savant, savant_state, empty_init, "Novag Industries / Intelligent Heuristic Programming", "Savant", MACHINE_SUPPORTS_SAVE )
+SYST( 1982, savant2, savant, 0,      savant,  savant, savant_state, empty_init, "Novag Industries / Intelligent Heuristic Programming", "Savant II", MACHINE_SUPPORTS_SAVE )

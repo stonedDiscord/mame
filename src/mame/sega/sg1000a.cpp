@@ -302,10 +302,10 @@ private:
 	void sg1000a_coin_counter_w(uint8_t data);
 	required_device<cpu_device> m_maincpu;
 	optional_shared_ptr<uint8_t> m_decrypted_opcodes;
-	void decrypted_opcodes_map(address_map &map);
-	void io_map(address_map &map);
-	void program_map(address_map &map);
-	void sderby_io_map(address_map &map);
+	void decrypted_opcodes_map(address_map &map) ATTR_COLD;
+	void io_map(address_map &map) ATTR_COLD;
+	void program_map(address_map &map) ATTR_COLD;
+	void sderby_io_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -490,7 +490,7 @@ void sg1000a_state::sg1000a(machine_config &config)
 	vdp.set_screen("screen");
 	vdp.set_vram_size(0x4000);
 	vdp.int_callback().set_inputline(m_maincpu, INPUT_LINE_IRQ0);
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	SCREEN(config, "screen");
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();

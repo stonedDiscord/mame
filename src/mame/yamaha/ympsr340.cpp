@@ -1,7 +1,7 @@
 // license:BSD-3-Clause
 // copyright-holders:R. Belmont
 /*
-    Yamaha PSR-340 PortaSound keyboard
+    Yamaha PSR-340 PortaTone keyboard
     Preliminary driver by R. Belmont
 
     CPU and Sound: SWX00B, which is an H8S/2000 series CPU and Yamaha
@@ -22,7 +22,7 @@
 #include "mks3.h"
 
 #include "emupal.h"
-#include "screen.h"
+#include "screen_svg.h"
 #include "speaker.h"
 
 
@@ -45,26 +45,26 @@ public:
 	void psr340(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<swx00_device> m_maincpu;
 	required_shared_ptr<u16> m_ram;
 	required_device<nvram_device> m_nvram;
 	required_device<mks3_device> m_mks3;
-	required_device<hd44780_device> m_lcdc;
+	required_device<ks0066_device> m_lcdc;
 	output_finder<80, 8, 5> m_outputs;
 	required_ioport_array<8> m_key;
 
-	void c_map(address_map &map);
-	void s_map(address_map &map);
+	void c_map(address_map &map) ATTR_COLD;
+	void s_map(address_map &map) ATTR_COLD;
 
 	void pdt_w(u16 data);
 	u8 pad_r();
 	void txd_w(u8 data);
 
-	void render_w(int state);
+	void screen_svg_update(screen_svg_device &screen);
 
 	u8 m_matrixsel = 0U;
 };
@@ -116,18 +116,14 @@ void psr340_state::s_map(address_map &map)
 void psr340_state::machine_start()
 {
 	save_item(NAME(m_matrixsel));
-	m_outputs.resolve();
 }
 
 void psr340_state::machine_reset()
 {
 }
 
-void psr340_state::render_w(int state)
+void psr340_state::screen_svg_update(screen_svg_device &screen)
 {
-	if(!state)
-		return;
-
 	const u8 *render = m_lcdc->render();
 	for(int yy=0; yy != 8; yy++)
 		for(int x=0; x != 80; x++) {
@@ -219,8 +215,8 @@ void psr340_state::psr340(machine_config &config)
 	m_maincpu->read_pad().set(FUNC(psr340_state::pad_r));
 	m_maincpu->write_txd().set(FUNC(psr340_state::txd_w));
 
-	m_maincpu->add_route(0, "lspeaker", 1.0);
-	m_maincpu->add_route(1, "rspeaker", 1.0);
+	m_maincpu->add_route(0, "speaker", 1.0, 0);
+	m_maincpu->add_route(1, "speaker", 1.0, 1);
 
 	// mks3 is connected to sclki, sync comms on sci1
 	// something generates 500K for sci0, probably internal to the swx00
@@ -237,19 +233,17 @@ void psr340_state::psr340(machine_config &config)
 	m_lcdc->set_lcd_size(2, 40);
 
 	/* video hardware */
-	auto &screen = SCREEN(config, "screen", SCREEN_TYPE_SVG);
+	auto &screen = SCREEN_SVG(config, "screen");
 	screen.set_refresh_hz(60);
 	screen.set_size(800, 384);
-	screen.set_visarea_full();
-	screen.screen_vblank().set(FUNC(psr340_state::render_w));
+	screen.set_screen_svg_update(FUNC(psr340_state::screen_svg_update));
 
 	MIDI_PORT(config, "mdin", midiin_slot, "midiin").rxd_handler().set(m_maincpu, FUNC(swx00_device::sci_rx_w<0>));
 
 	auto &mdout(MIDI_PORT(config, "mdout", midiout_slot, "midiout"));
 	m_maincpu->write_sci_tx<0>().set(mdout, FUNC(midi_port_device::write_txd));
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 }
 
 ROM_START( psr340 )
@@ -266,4 +260,4 @@ ROM_END
 } // anonymous namespace
 
 
-CONS(1994, psr340, 0, 0, psr340, psr340, psr340_state, empty_init, "Yamaha", "PSR-340 PortaSound", MACHINE_NOT_WORKING)
+CONS(1994, psr340, 0, 0, psr340, psr340, psr340_state, empty_init, "Yamaha", "PortaTone PSR-340", MACHINE_NOT_WORKING)

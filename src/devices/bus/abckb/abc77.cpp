@@ -41,14 +41,6 @@ Notes:
 
 */
 
-/*
-
-    TODO:
-
-    - serial input is not working, fails systest1600 keyboard test
-
-*/
-
 #include "emu.h"
 #include "abc77.h"
 #include "speaker.h"
@@ -110,7 +102,7 @@ void abc77_device::abc77_map(address_map &map)
 void abc77_device::abc77_io(address_map &map)
 {
 	map(0x00, 0x00).mirror(0xff).w(FUNC(abc77_device::j3_w));
-	map(0x00, 0x00).mirror(0xff).portr("DSW");
+	map(0x00, 0x00).mirror(0xff).portr(m_dsw);
 }
 
 
@@ -165,7 +157,7 @@ INPUT_CHANGED_MEMBER( abc77_device::keyboard_reset )
 {
 	if (oldval && !newval)
 	{
-		device_reset();
+		reset();
 	}
 }
 
@@ -313,7 +305,7 @@ static INPUT_PORTS_START( abc55 )
 	PORT_BIT( 0xe0, IP_ACTIVE_LOW, IPT_UNUSED)
 
 	PORT_START("SW1")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_OTHER ) PORT_NAME("Keyboard Reset") PORT_CHANGED_MEMBER(DEVICE_SELF, abc77_device, keyboard_reset, 0)
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_OTHER ) PORT_NAME("Keyboard Reset") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(abc77_device::keyboard_reset), 0)
 INPUT_PORTS_END
 
 

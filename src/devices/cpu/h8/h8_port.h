@@ -13,18 +13,19 @@
 
 #pragma once
 
-#include "h8.h"
+#include "h8_cpu_base.h"
 
 class h8_port_device : public device_t {
 public:
 	h8_port_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
-	template<typename T> h8_port_device(const machine_config &mconfig, const char *tag, device_t *owner, T &&cpu, int address, u8 default_ddr, u8 mask)
+	template<typename T> h8_port_device(const machine_config &mconfig, const char *tag, device_t *owner, T &&cpu, int address, u8 default_ddr, u8 mask, u8 forced_inputs = 0x00)
 		: h8_port_device(mconfig, tag, owner, 0)
 	{
 		m_cpu.set_tag(std::forward<T>(cpu));
 		m_address = address;
 		m_default_ddr = default_ddr;
 		m_mask = mask;
+		m_forced_inputs = forced_inputs;
 	}
 
 	void ddr_w(u8 data);
@@ -42,16 +43,16 @@ public:
 	bool nvram_write(util::write_stream &file);
 
 protected:
-	required_device<h8_device> m_cpu;
+	required_device<h8_cpu_base> m_cpu;
 
 	int m_address;
 	u8 m_default_ddr, m_ddr, m_pcr, m_odr;
-	u8 m_mask;
+	u8 m_mask, m_forced_inputs;
 	u8 m_dr;
 	s32 m_last_output;
 
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 	void update_output();
 };
 

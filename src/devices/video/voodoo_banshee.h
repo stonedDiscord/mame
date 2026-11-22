@@ -52,17 +52,17 @@ public:
 		voodoo_banshee_device(mconfig, VOODOO_BANSHEE, tag, owner, clock, voodoo::voodoo_model::VOODOO_BANSHEE) { }
 
 	// core address map and read/write helpers
-	virtual void core_map(address_map &map) override;
+	virtual void core_map(address_map &map) override ATTR_COLD;
 	virtual u32 read(offs_t offset, u32 mem_mask = ~0) override;
 	virtual void write(offs_t offset, u32 data, u32 mem_mask = ~0) override;
 
 	// LFB address map and read/write helpers
-	virtual void lfb_map(address_map &map);
+	virtual void lfb_map(address_map &map) ATTR_COLD;
 	virtual u32 read_lfb(offs_t offset, u32 mem_mask = ~0);
 	virtual void write_lfb(offs_t offset, u32 data, u32 mem_mask = ~0);
 
 	// I/O address map and read/write helpers
-	virtual void io_map(address_map &map);
+	virtual void io_map(address_map &map) ATTR_COLD;
 	virtual u32 read_io(offs_t offset, u32 mem_mask = ~0) { return map_io_r(offset, mem_mask); }
 	virtual void write_io(offs_t offset, u32 data, u32 mem_mask = ~0) { map_io_w(offset, data, mem_mask); }
 
@@ -71,7 +71,7 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// system management
 	virtual void soft_reset() override;
@@ -133,6 +133,7 @@ protected:
 
 	// rendering
 	void execute_blit(u32 data);
+	void screen_to_screen_blit(u32 srcx, u32 srcy);
 
 	// internal state
 	u32 m_lfb_base;                              // configured LFB base
@@ -179,7 +180,7 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 };
 
 #endif // MAME_VIDEO_VOODOO_BANSHEE_H

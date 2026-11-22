@@ -22,8 +22,8 @@ protected:
 	jvs_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// JVS device overrides
 	virtual const char *device_id();
@@ -37,6 +37,8 @@ protected:
 	virtual bool analogs(uint8_t *&buf, uint8_t count);
 	virtual bool swoutputs(uint8_t count, const uint8_t *vals);
 	virtual bool swoutputs(uint8_t id, uint8_t val);
+	virtual bool rotary(uint8_t *&buf, uint8_t count);
+	virtual bool lightgun(uint8_t *&buf, uint8_t count);
 	virtual int handle_message(const uint8_t *send_buffer, uint32_t send_size, uint8_t *&recv_buffer);
 
 	required_device<jvs_host> host;

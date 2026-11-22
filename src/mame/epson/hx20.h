@@ -66,9 +66,11 @@ private:
 	required_ioport_array<8> m_ksc_io;
 	required_ioport m_sw6;
 
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 	void hx20_palette(palette_device &palette) const;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+
+	TIMER_CALLBACK_MEMBER(kb_tick);
 
 	void ksc_w(uint8_t data);
 	uint8_t krtn07_r();
@@ -99,6 +101,7 @@ private:
 	uint8_t optrom_r(offs_t offset);
 
 	void update_interrupt();
+	void update_kbrequest();
 
 	// CPU state
 	int m_slave_sio = 0;
@@ -108,8 +111,10 @@ private:
 	int m_rtc_irq = 0;
 
 	// keyboard state
+	emu_timer *m_kb_timer = nullptr;
 	uint8_t m_ksc = 0;
 	int m_kbrequest = 0;
+	int m_kbmask = 0;
 
 	// video state
 	uint8_t m_lcd_data = 0;
@@ -118,9 +123,9 @@ private:
 	int m_sio_rx = 0;
 	int m_sio_pin = 0;
 
-	void hx20_mem(address_map &map);
-	void cm6032_mem(address_map &map);
-	void cm6127_mem(address_map &map);
+	void hx20_mem(address_map &map) ATTR_COLD;
+	void cm6032_mem(address_map &map) ATTR_COLD;
+	void cm6127_mem(address_map &map) ATTR_COLD;
 };
 
 #endif // MAME_EPSON_HX20_H

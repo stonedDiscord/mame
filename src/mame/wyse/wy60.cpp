@@ -12,7 +12,7 @@
 #include "emu.h"
 #include "bus/rs232/rs232.h"
 #include "bus/wysekbd/wysekbd.h"
-#include "cpu/mcs51/mcs51.h"
+#include "cpu/mcs51/i8051.h"
 #include "machine/i2cmem.h"
 #include "machine/scn_pci.h"
 #include "video/scn2674.h"
@@ -41,11 +41,12 @@ public:
 	{
 	}
 
-	void wy60(machine_config &config);
+	void wy60(machine_config &config) ATTR_COLD;
+
+	void init_wy60() ATTR_COLD;
 
 protected:
-	virtual void machine_start() override;
-	virtual void driver_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	SCN2672_DRAW_CHARACTER_MEMBER(draw_character);
@@ -63,9 +64,9 @@ private:
 	u8 p3_r();
 	void ea_w(int state);
 
-	void prog_map(address_map &map);
-	void ext_map(address_map &map);
-	void row_buffer_map(address_map &map);
+	void prog_map(address_map &map) ATTR_COLD;
+	void ext_map(address_map &map) ATTR_COLD;
+	void row_buffer_map(address_map &map) ATTR_COLD;
 
 	required_device<i2cmem_device> m_eeprom;
 	required_device<wyse_keyboard_port_device> m_keyboard;
@@ -262,7 +263,7 @@ void wy60_state::wy60(machine_config &config)
 	i8031_device &maincpu(I8031(config, "maincpu", 11_MHz_XTAL)); // AMD P8051AH-40196
 	// FIXME: correct device type once 8051 core implements EA pin control
 	maincpu.set_addrmap(AS_PROGRAM, &wy60_state::prog_map);
-	maincpu.set_addrmap(AS_IO, &wy60_state::ext_map);
+	maincpu.set_addrmap(AS_DATA, &wy60_state::ext_map);
 	maincpu.port_out_cb<1>().set(FUNC(wy60_state::p1_w));
 	maincpu.port_in_cb<1>().set(FUNC(wy60_state::p1_r));
 	maincpu.port_out_cb<3>().set(m_aux, FUNC(rs232_port_device::write_txd)).bit(1);
@@ -273,7 +274,7 @@ void wy60_state::wy60(machine_config &config)
 
 	WYSE_KEYBOARD(config, m_keyboard, wy60_keyboards, "ascii");
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(26.58_MHz_XTAL, 1000, 0, 800 + 20, 443, 0, 416 + 16); // 26.580 kHz horizontal
 	//screen.set_raw(39.71_MHz_XTAL, 1494, 0, 1188 + 18, 443, 0, 416 + 16);
 	screen.set_screen_update("pvtc", FUNC(scn2672_device::screen_update));
@@ -328,7 +329,7 @@ ROM_START(wy60a)
 	ROM_LOAD("wy-60_4k.u9", 0x00000, 0x10000, CRC(6daf2824) SHA1(23cd039ec7ae71b0742e8eebf75be8cd5992e3fd))
 ROM_END
 
-void wy60_state::driver_start()
+void wy60_state::init_wy60()
 {
 	uint8_t *rom = memregion("coderom")->base();
 	for (offs_t base = 0x00000; base < 0x10000; base += 0x2000)
@@ -342,5 +343,5 @@ void wy60_state::driver_start()
 
 } // anonymous namespace
 
-COMP(1986, wy60,  0,    0, wy60, wy60, wy60_state, empty_init, "Wyse Technology", "WY-60 (RBFNG2)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
-COMP(1986, wy60a, wy60, 0, wy60, wy60, wy60_state, empty_init, "Wyse Technology", "WY-60 (RBFNB0)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+COMP(1986, wy60,  0,    0, wy60, wy60, wy60_state, init_wy60, "Wyse Technology", "WY-60 (RBFNG2)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+COMP(1986, wy60a, wy60, 0, wy60, wy60, wy60_state, init_wy60, "Wyse Technology", "WY-60 (RBFNB0)", MACHINE_IMPERFECT_GRAPHICS | MACHINE_NO_SOUND | MACHINE_NOT_WORKING)

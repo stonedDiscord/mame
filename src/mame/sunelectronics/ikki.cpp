@@ -47,9 +47,9 @@ public:
 	void ikki(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -77,8 +77,8 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	TIMER_DEVICE_CALLBACK_MEMBER(irq);
 	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void main_map(address_map &map);
-	void sub_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void sub_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -162,14 +162,15 @@ void ikki_state::draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect)
 	}
 
 	// copy the sprite bitmap into the main bitmap, skipping the transparent pixels
-	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
+	for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
 	{
-		for (int x = cliprect.min_x; x <= cliprect.max_x; x++)
+		auto *const dst = &bitmap.pix(y);
+		for (int x = cliprect.left(); x <= cliprect.right(); x++)
 		{
 			uint16_t const pen = m_sprite_bitmap.pix(y, x);
 
 			if (m_palette->pen_indirect(pen) != 0x100)
-				bitmap.pix(y, x) = pen;
+				dst[x] = pen;
 		}
 	}
 }
@@ -318,8 +319,8 @@ void ikki_state::sub_map(address_map &map)
 	map(0x0000, 0x1fff).rom();
 	map(0xc000, 0xc7ff).ram().share(m_spriteram);
 	map(0xc800, 0xcfff).ram().share("shared_ram");
-	map(0xd801, 0xd801).w("sn1", FUNC(sn76496_device::write));
-	map(0xd802, 0xd802).w("sn2", FUNC(sn76496_device::write));
+	map(0xd801, 0xd801).w("sn1", FUNC(sn76489a_device::write));
+	map(0xd802, 0xd802).w("sn2", FUNC(sn76489a_device::write));
 }
 
 
@@ -488,8 +489,6 @@ TIMER_DEVICE_CALLBACK_MEMBER(ikki_state::irq)
 }
 
 
-
-
 void ikki_state::ikki(machine_config &config)
 {
 	constexpr XTAL MASTER_CLOCK = 20_MHz_XTAL;
@@ -516,7 +515,7 @@ void ikki_state::ikki(machine_config &config)
 	config.set_perfect_quantum(m_maincpu);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
 	m_screen->set_screen_update(FUNC(ikki_state::screen_update));
 	m_screen->set_palette(m_palette);
@@ -527,9 +526,8 @@ void ikki_state::ikki(machine_config &config)
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
 
-	SN76496(config, "sn1", CPU_CLOCK / 4).add_route(ALL_OUTPUTS, "mono", 0.75);
-
-	SN76496(config, "sn2", CPU_CLOCK / 2).add_route(ALL_OUTPUTS, "mono", 0.75);
+	SN76489A(config, "sn1", CPU_CLOCK / 4).add_route(ALL_OUTPUTS, "mono", 0.75);
+	SN76489A(config, "sn2", CPU_CLOCK / 2).add_route(ALL_OUTPUTS, "mono", 0.75);
 }
 
 

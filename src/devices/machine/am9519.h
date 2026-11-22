@@ -55,8 +55,8 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	TIMER_CALLBACK_MEMBER(check_irqs);
 
@@ -70,6 +70,7 @@ private:
 	u8 m_prio;
 	u8 m_imr;
 	u8 m_irq_lines;
+	u8 m_irq_driven;
 
 	u8 m_curcnt;
 	u8 m_mode;

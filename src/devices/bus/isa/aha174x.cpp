@@ -65,24 +65,38 @@ aha1742a_device::aha1742a_device(const machine_config &mconfig, const char *tag,
 
 void aha174x_device::device_start()
 {
+	set_isa_device();
 }
+
+void aha174x_device::device_reset()
+{
+	remap(AS_PROGRAM, 0, 0xfffff);
+	remap(AS_IO, 0, 0xffff);
+}
+
+void aha174x_device::remap(int space_id, offs_t start, offs_t end)
+{
+	if (space_id == AS_PROGRAM)
+	{
+		// TODO: unconfirmed
+		m_isa->install_rom(this, 0xdc000, 0xdffff, "bios");
+	}
+//  else if (space_id == AS_IO)
+//      m_isa->install_device(0x????, 0x????, *this, ...
+}
+
 
 
 void aha174x_device::hpc_map(address_map &map)
 {
 	map(0x2000, 0x2003).rw(m_busaic, FUNC(aic565_device::local_r), FUNC(aic565_device::local_w));
 	map(0x4000, 0x4002).rw("bmic", FUNC(i82355_device::local_r), FUNC(i82355_device::local_w));
-	map(0x5000, 0x500f).m("scsi:7:scsic", FUNC(aic6251a_device::map));
+	map(0x5000, 0x500f).m("scsic", FUNC(aic6251a_device::map));
 	map(0x7000, 0x7000).w(m_fifo[0], FUNC(fifo7200_device::data_byte_w));
 	map(0x7001, 0x7001).w(m_fifo[1], FUNC(fifo7200_device::data_byte_w));
 	map(0x7002, 0x7002).r(m_fifo[0], FUNC(fifo7200_device::data_byte_r));
 	map(0x7003, 0x7003).r(m_fifo[1], FUNC(fifo7200_device::data_byte_r));
 	map(0x8000, 0xffff).rom().region("mcode", 0);
-}
-
-void aha174x_device::scsic_config(device_t *device)
-{
-	device->set_clock(40_MHz_XTAL / 2); // divider not verified
 }
 
 void aha1740_device::device_add_mconfig(machine_config &config)
@@ -94,13 +108,13 @@ void aha1740_device::device_add_mconfig(machine_config &config)
 	m_busaic->hrst_callback().set_inputline(m_hpc, INPUT_LINE_RESET);
 	//m_busaic->srst_callback().set_inputline(m_hpc, hpc_device::EI_LINE);
 
-	I82355(config, "bmic", 0);
+	I82355(config, "bmic");
 	//bmic.lint_callback().set_inputline(m_hpc, hpc_device::I2_LINE);
 
 	IDT7201(config, m_fifo[0]);
 	IDT7201(config, m_fifo[1]);
 
-	NSCSI_BUS(config, "scsi");
+	auto &scsi(NSCSI_BUS(config, "scsi"));
 	NSCSI_CONNECTOR(config, "scsi:0", default_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:1", default_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:2", default_scsi_devices, nullptr);
@@ -108,8 +122,9 @@ void aha1740_device::device_add_mconfig(machine_config &config)
 	NSCSI_CONNECTOR(config, "scsi:4", default_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:5", default_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:6", default_scsi_devices, nullptr);
-	NSCSI_CONNECTOR(config, "scsi:7").option_set("scsic", AIC6251A)
-		.machine_config([this] (device_t *device) { scsic_config(device); });
+
+	auto &scsic(AIC6251A(config, "scsic", 40_MHz_XTAL / 2)); // divider not verified
+	scsi.set_external_device(7, scsic);
 }
 
 void aha1742a_device::device_add_mconfig(machine_config &config)
@@ -121,13 +136,13 @@ void aha1742a_device::device_add_mconfig(machine_config &config)
 	m_busaic->hrst_callback().set_inputline(m_hpc, INPUT_LINE_RESET);
 	//m_busaic->srst_callback().set_inputline(m_hpc, hpc_device::EI_LINE);
 
-	I82355(config, "bmic", 0);
+	I82355(config, "bmic");
 	//bmic.lint_callback().set_inputline(m_hpc, hpc_device::I2_LINE);
 
 	IDT7201(config, m_fifo[0]);
 	IDT7201(config, m_fifo[1]);
 
-	NSCSI_BUS(config, "scsi");
+	auto &scsi(NSCSI_BUS(config, "scsi"));
 	NSCSI_CONNECTOR(config, "scsi:0", default_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:1", default_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:2", default_scsi_devices, nullptr);
@@ -135,8 +150,9 @@ void aha1742a_device::device_add_mconfig(machine_config &config)
 	NSCSI_CONNECTOR(config, "scsi:4", default_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:5", default_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:6", default_scsi_devices, nullptr);
-	NSCSI_CONNECTOR(config, "scsi:7").option_set("scsic", AIC6251A)
-		.machine_config([this] (device_t *device) { scsic_config(device); });
+
+	auto &scsic(AIC6251A(config, "scsic", 40_MHz_XTAL / 2)); // divider not verified
+	scsi.set_external_device(7, scsic);
 
 	N82077AA(config, m_fdc, 24_MHz_XTAL);
 }

@@ -21,12 +21,6 @@
         * FIRQ: not used.
         * NMI: not used.
 
-    Notes:
-        * The protection is not fully understood(Konami 051733). The
-        game is playable, but is not 100% accurate.
-        * Missing samples.
-        (both issues above are outdated?)
-
 ***************************************************************************/
 
 #include "emu.h"
@@ -39,7 +33,6 @@
 #include "cpu/m6809/hd6309.h"
 #include "cpu/m6809/m6809.h"
 #include "machine/gen_latch.h"
-#include "machine/timer.h"
 #include "machine/watchdog.h"
 #include "sound/flt_rc.h"
 #include "sound/upd7759.h"
@@ -72,8 +65,8 @@ public:
 	void bladestl(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	// devices
@@ -105,12 +98,12 @@ private:
 	void speech_ctrl_w(uint8_t data);
 	void palette(palette_device &palette) const;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-	TIMER_DEVICE_CALLBACK_MEMBER(scanline);
+	void vblank_w(int state);
 	void tile_callback(int layer, uint32_t bank, uint32_t &code, uint32_t &color, uint8_t &flags);
 	void sprite_callback(uint32_t &code, uint32_t &color);
 
-	void main_map(address_map &map);
-	void sound_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void sound_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -173,19 +166,15 @@ uint32_t bladestl_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 	m_k007342->tilemap_draw(screen, bitmap, cliprect, 1, 1 | TILEMAP_DRAW_OPAQUE, 0);
 	m_k007342->tilemap_draw(screen, bitmap, cliprect, 0, 0 ,0);
 	m_k007342->tilemap_draw(screen, bitmap, cliprect, 0, 1 ,0);
+
 	return 0;
 }
 
 
-TIMER_DEVICE_CALLBACK_MEMBER(bladestl_state::scanline)
+void bladestl_state::vblank_w(int state)
 {
-	int const scanline = param;
-
-	if (scanline == 240 && m_k007342->is_int_enabled()) // vblank-out irq
+	if (state && m_k007342->is_int_enabled())
 		m_maincpu->set_input_line(HD6309_FIRQ_LINE, HOLD_LINE);
-
-	if (scanline == 0) // vblank-in or timer irq
-		m_maincpu->pulse_input_line(INPUT_LINE_NMI, attotime::zero);
 }
 
 /*************************************
@@ -403,7 +392,6 @@ GFXDECODE_END
 void bladestl_state::machine_start()
 {
 	m_rombank->configure_entries(0, 4, memregion("maincpu")->base(), 0x2000);
-	m_lamps.resolve();
 
 	save_item(NAME(m_spritebank));
 	save_item(NAME(m_last_track));
@@ -422,40 +410,39 @@ void bladestl_state::machine_reset()
 void bladestl_state::bladestl(machine_config &config)
 {
 	// basic machine hardware
-	HD6309E(config, m_maincpu, XTAL(24'000'000) / 8); // divider not verified (from 007342 custom)
+	HD6309E(config, m_maincpu, 24_MHz_XTAL / 8); // divider not verified (from 007342 custom)
 	m_maincpu->set_addrmap(AS_PROGRAM, &bladestl_state::main_map);
-	TIMER(config, "scantimer").configure_scanline(FUNC(bladestl_state::scanline), "screen", 0, 1);
 
-	MC6809E(config, m_audiocpu, XTAL(24'000'000) / 16);
+	MC6809E(config, m_audiocpu, 24_MHz_XTAL / 16);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &bladestl_state::sound_map);
 
 	config.set_maximum_quantum(attotime::from_hz(600));
 
 	WATCHDOG_TIMER(config, "watchdog");
 
+	k051733_device &k051733(K051733(config, "k051733", 24_MHz_XTAL / 2));
+	k051733.set_nmi_cb().set_inputline(m_maincpu, INPUT_LINE_NMI);
+
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_refresh_hz(60);
-	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
-	screen.set_size(32*8, 32*8);
-	screen.set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	screen_device &screen(SCREEN(config, "screen"));
+	screen.set_raw(24_MHz_XTAL / 4, 384, 0, 256, 264, 16, 240);
 	screen.set_screen_update(FUNC(bladestl_state::screen_update));
 	screen.set_palette("palette");
+	screen.screen_vblank().set(FUNC(bladestl_state::vblank_w));
+	screen.screen_vblank().append("k051733", FUNC(k051733_device::nmiclock_w));
 
 	PALETTE(config, "palette", FUNC(bladestl_state::palette)).set_format(palette_device::xBGR_555, 32 + 16*16, 32+16);
 
-	K007342(config, m_k007342, 0, "palette", gfx_bladestl_tiles);
+	K007342(config, m_k007342, 24_MHz_XTAL, "palette", gfx_bladestl_tiles);
 	m_k007342->set_tile_callback(FUNC(bladestl_state::tile_callback));
+	m_k007342->flipscreen_cb().set(m_k007420, FUNC(k007420_device::set_flipscreen));
+	m_k007342->sprite_wrap_y_cb().set(m_k007420, FUNC(k007420_device::set_wrap_y));
 
-	K007420(config, m_k007420, 0, "palette", gfx_bladestl_spr);
+	K007420(config, m_k007420, 24_MHz_XTAL, "palette", gfx_bladestl_spr);
 	m_k007420->set_bank_limit(0x3ff);
 	m_k007420->set_sprite_callback(FUNC(bladestl_state::sprite_callback));
 
-	K051733(config, "k051733", 0);
-
 	// sound hardware
-	/* the initialization order is important, the port callbacks being
-	   called at initialization time */
 	SPEAKER(config, "mono").front_center();
 
 	GENERIC_LATCH_8(config, m_soundlatch);
@@ -464,7 +451,7 @@ void bladestl_state::bladestl(machine_config &config)
 
 	UPD7759(config, m_upd7759).add_route(ALL_OUTPUTS, "mono", 0.60);
 
-	ym2203_device &ymsnd(YM2203(config, "ymsnd", XTAL(24'000'000) / 8));
+	ym2203_device &ymsnd(YM2203(config, "ymsnd", 24_MHz_XTAL / 8));
 	ymsnd.port_a_write_callback().set(m_upd7759, FUNC(upd775x_device::port_w));
 	ymsnd.port_b_write_callback().set(FUNC(bladestl_state::port_b_w));
 	ymsnd.add_route(0, "filter1", 0.45);
@@ -487,6 +474,27 @@ void bladestl_state::bladestl(machine_config &config)
 ROM_START( bladestl )
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "797-t01.19c", 0x00000, 0x10000, CRC(89d7185d) SHA1(0d2f346d9515cab0389106c0e227fb0bd84a2c9c) )
+
+	ROM_REGION( 0x10000, "audiocpu", 0 )
+	ROM_LOAD( "797-c02.12d", 0x08000, 0x08000, CRC(65a331ea) SHA1(f206f6c5f0474542a5b7686b2f4d2cc7077dd5b9) )
+
+	ROM_REGION( 0x40000, "tiles", 0 )
+	ROM_LOAD16_WORD_SWAP( "797a05.19h", 0x00000, 0x40000, CRC(5491ba28) SHA1(c807774827c55c211ab68f548e1e835289cc5744) )
+
+	ROM_REGION( 0x40000, "sprites", 0 )
+	ROM_LOAD( "797a06.13h", 0x00000, 0x40000, CRC(d055f5cc) SHA1(3723b39b2a3e6dd8e7fc66bbfe1eef9f80818774) )
+
+	ROM_REGION( 0x0100, "proms", 0 )
+	ROM_LOAD( "797a07.16i", 0x0000, 0x0100, CRC(7aecad4e) SHA1(05150a8dd25bdd6ab0c5b350e6ffd272f040e46a) ) // sprites lookup table, 63S141N BPROM
+
+	ROM_REGION( 0xc0000, "upd", 0 )
+	ROM_LOAD( "797a03.11a", 0x00000, 0x80000, CRC(9ee1a542) SHA1(c9a142a326875a50f03e49e83a84af8bb423a467) )
+	ROM_LOAD( "797a04.9a",  0x80000, 0x40000, CRC(9ac8ea4e) SHA1(9f81eff970c9e8aea6f67d8a7d89805fae044ae1) )
+ROM_END
+
+ROM_START( bladestlp )
+	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_LOAD( "797-p01.19c", 0x00000, 0x10000, CRC(a61884a4) SHA1(8dc3916a79a2316a5d3ae69ce40a3157a7621bd7) )
 
 	ROM_REGION( 0x10000, "audiocpu", 0 )
 	ROM_LOAD( "797-c02.12d", 0x08000, 0x08000, CRC(65a331ea) SHA1(f206f6c5f0474542a5b7686b2f4d2cc7077dd5b9) )
@@ -557,5 +565,6 @@ ROM_END
  *************************************/
 
 GAME( 1987, bladestl,  0,        bladestl, bladestl_joy,   bladestl_state, empty_init, ROT90, "Konami", "Blades of Steel (version T, Joystick)",  MACHINE_SUPPORTS_SAVE )
+GAME( 1987, bladestlp, bladestl, bladestl, bladestl_track, bladestl_state, empty_init, ROT90, "Konami", "Blades of Steel (version P, Trackball)", MACHINE_SUPPORTS_SAVE )
 GAME( 1987, bladestll, bladestl, bladestl, bladestl_track, bladestl_state, empty_init, ROT90, "Konami", "Blades of Steel (version L, Trackball)", MACHINE_SUPPORTS_SAVE )
 GAME( 1987, bladestle, bladestl, bladestl, bladestl_track, bladestl_state, empty_init, ROT90, "Konami", "Blades of Steel (version E, Trackball)", MACHINE_SUPPORTS_SAVE )

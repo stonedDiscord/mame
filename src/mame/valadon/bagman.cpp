@@ -364,7 +364,7 @@ static INPUT_PORTS_START( squaitsa )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_2WAY
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_2WAY
-	PORT_BIT( 0x60, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(squaitsa_state, dial_input_r<0>)
+	PORT_BIT( 0x60, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(FUNC(squaitsa_state::dial_input_r<0>))
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON1 )
 
 	PORT_START("P2")
@@ -373,7 +373,7 @@ static INPUT_PORTS_START( squaitsa )
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_START2 )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_JOYSTICK_LEFT ) PORT_2WAY PORT_COCKTAIL
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_2WAY PORT_COCKTAIL
-	PORT_BIT( 0x60, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(squaitsa_state, dial_input_r<1>)
+	PORT_BIT( 0x60, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_CUSTOM_MEMBER(FUNC(squaitsa_state::dial_input_r<1>))
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_COCKTAIL
 
 	PORT_START("DSW")
@@ -447,7 +447,7 @@ GFXDECODE_END
 
 /* squaitsa doesn't map the dial directly, instead it polls the results of the dial through an external circuitry.
    I don't know if the following is correct, there can possibly be multiple solutions for the same problem. */
-template <unsigned N> CUSTOM_INPUT_MEMBER(squaitsa_state::dial_input_r)
+template <unsigned N> ioport_value squaitsa_state::dial_input_r()
 {
 	uint8_t const dial_val = m_dial[N]->read();
 
@@ -487,7 +487,7 @@ void bagman_state::bagman_base(machine_config &config)
 	m_mainlatch->q_out_cb<4>().set_nop(); // ????
 
 	// Video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(BAGMAN_HCLK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
 	screen.set_screen_update(FUNC(bagman_state::screen_update));
 	screen.set_palette(m_palette);
@@ -569,7 +569,7 @@ void pickin_state::pickin(machine_config &config)
 	WATCHDOG_TIMER(config, "watchdog");
 
 	// Video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(BAGMAN_HCLK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
 	screen.set_screen_update(FUNC(pickin_state::screen_update));
 	screen.set_palette(m_palette);
@@ -631,7 +631,7 @@ void pickin_state::botanic(machine_config &config)
 	WATCHDOG_TIMER(config, "watchdog");
 
 	// Video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(BAGMAN_HCLK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
 	screen.set_screen_update(FUNC(pickin_state::screen_update));
 	screen.set_palette(m_palette);

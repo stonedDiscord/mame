@@ -99,7 +99,7 @@ void aquarius_state::mapper_w(uint8_t data)
 */
 uint8_t aquarius_state::printer_r()
 {
-	return m_printer->cts_r(); /* ready */
+	return !m_printer->cts_r(); // CTS is asserted low
 }
 
 
@@ -301,7 +301,7 @@ static INPUT_PORTS_START( aquarius )
 	PORT_BIT( 0xc0, IP_ACTIVE_LOW, IPT_UNUSED )
 
 	PORT_START("RESET")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYBOARD ) PORT_NAME("RST")         PORT_CODE(KEYCODE_ESC) PORT_CHANGED_MEMBER(DEVICE_SELF, aquarius_state, aquarius_reset, 0)
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_KEYBOARD ) PORT_NAME("RST")         PORT_CODE(KEYCODE_ESC) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(aquarius_state::aquarius_reset), 0)
 INPUT_PORTS_END
 
 INPUT_CHANGED_MEMBER(aquarius_state::gfx_changed)
@@ -362,7 +362,7 @@ static INPUT_PORTS_START( aquarius_ar )
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_KEYBOARD ) PORT_NAME(u8"\u062c\tQ")                 PORT_CODE(KEYCODE_Q)         PORT_CHAR('q', 0x062c) PORT_CHAR('Q')         PORT_CHAR(17)  // U+062C = ج
 
 	PORT_START("GFX")
-	PORT_CONFNAME(0x01, 0x00, "Character ROM") PORT_CHANGED_MEMBER(DEVICE_SELF, aquarius_state, gfx_changed, 0)
+	PORT_CONFNAME(0x01, 0x00, "Character ROM") PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(aquarius_state::gfx_changed), 0)
 	PORT_CONFSETTING(0x00, "(G)raphics")
 	PORT_CONFSETTING(0x01, "(A)rabic")
 INPUT_PORTS_END
@@ -411,7 +411,6 @@ GFXDECODE_END
 
 static DEVICE_INPUT_DEFAULTS_START(printer)
 	DEVICE_INPUT_DEFAULTS("RS232_RXBAUD", 0xff, RS232_BAUD_1200)
-	DEVICE_INPUT_DEFAULTS("RS232_TXBAUD", 0xff, RS232_BAUD_1200)
 	DEVICE_INPUT_DEFAULTS("RS232_DATABITS", 0xff, RS232_DATABITS_8)
 	DEVICE_INPUT_DEFAULTS("RS232_PARITY", 0xff, RS232_PARITY_NONE)
 	DEVICE_INPUT_DEFAULTS("RS232_STOPBITS", 0xff, RS232_STOPBITS_2)
@@ -432,7 +431,7 @@ void aquarius_state::aquarius(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &aquarius_state::aquarius_mem);
 	m_maincpu->set_addrmap(AS_IO, &aquarius_state::aquarius_io);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(7.15909_MHz_XTAL, 458, 0, 352, 262, 0, 232);
 	m_screen->set_screen_update(FUNC(aquarius_state::screen_update_aquarius));
 	m_screen->set_video_attributes(VIDEO_UPDATE_SCANLINE);

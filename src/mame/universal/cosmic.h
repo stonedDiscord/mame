@@ -2,7 +2,7 @@
 // copyright-holders:Nicola Salmoria, Lee Taylor
 /*************************************************************************
 
-    Cosmic Guerilla & other Universal boards (in cosmic.c)
+    Cosmic Guerilla & other Universal boards (in cosmic.cpp)
 
 *************************************************************************/
 #ifndef MAME_UNIVERSAL_COSMIC_H
@@ -15,8 +15,6 @@
 #include "sound/dac.h"
 #include "emupal.h"
 #include "screen.h"
-
-#define Z80_MASTER_CLOCK         XTAL(10'816'000)
 
 
 class cosmic_state : public driver_device
@@ -37,17 +35,17 @@ public:
 		m_palette(*this, "palette")
 	{ }
 
-	void cosmic(machine_config &config);
-	void cosmica(machine_config &config);
-	void nomnlnd(machine_config &config);
-	void devzone(machine_config &config);
-	void panic(machine_config &config);
-	void magspot(machine_config &config);
+	void cosmic(machine_config &config) ATTR_COLD;
+	void cosmica(machine_config &config) ATTR_COLD;
+	void nomnlnd(machine_config &config) ATTR_COLD;
+	void devzone(machine_config &config) ATTR_COLD;
+	void panic(machine_config &config) ATTR_COLD;
+	void magspot(machine_config &config) ATTR_COLD;
 
-	void init_devzone();
-	void init_nomnlnd();
-	void init_cosmica();
-	void init_panic();
+	void init_devzone() ATTR_COLD;
+	void init_nomnlnd() ATTR_COLD;
+	void init_cosmica() ATTR_COLD;
+	void init_panic() ATTR_COLD;
 
 	void panic_coin_inserted(int state);
 	DECLARE_INPUT_CHANGED_MEMBER(cosmica_coin_inserted);
@@ -55,8 +53,8 @@ public:
 	DECLARE_INPUT_CHANGED_MEMBER(coin_inserted_nmi);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	/* memory pointers */
@@ -75,6 +73,7 @@ private:
 	int            m_dive_bomb_b_select = 0;
 
 	/* misc */
+	uint8_t        m_irq_vector;
 	optional_ioport_array<4> m_in_ports;
 	optional_ioport m_dsw;
 
@@ -114,9 +113,10 @@ private:
 	pen_t panic_map_color(uint8_t x, uint8_t y);
 	pen_t cosmica_map_color(uint8_t x, uint8_t y);
 	pen_t magspot_map_color(uint8_t x, uint8_t y);
-	void cosmica_map(address_map &map);
-	void magspot_map(address_map &map);
-	void panic_map(address_map &map);
+	void cosmica_map(address_map &map) ATTR_COLD;
+	void magspot_map(address_map &map) ATTR_COLD;
+	void panic_map(address_map &map) ATTR_COLD;
+	IRQ_CALLBACK_MEMBER(cpu_acknowledge_irq);
 };
 
 #endif // MAME_UNIVERSAL_COSMIC_H

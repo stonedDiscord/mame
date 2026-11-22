@@ -65,11 +65,11 @@ public:
 
 protected:
 	// driver_device overrides
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	// address maps
-	template <unsigned ST> void cpu_map(address_map &map);
+	template <unsigned ST> void cpu_map(address_map &map) ATTR_COLD;
 
 public:
 	// machine config
@@ -303,10 +303,10 @@ INPUT_CHANGED_MEMBER(ceres1_state::mouse_y)
 
 static INPUT_PORTS_START(ceres1)
 	PORT_START("mouse_x")
-	PORT_BIT(0xff, 0x00, IPT_MOUSE_X) PORT_SENSITIVITY(100) PORT_KEYDELTA(0) PORT_PLAYER(1) PORT_CHANGED_MEMBER(DEVICE_SELF, ceres1_state, mouse_x, 0)
+	PORT_BIT(0xff, 0x00, IPT_MOUSE_X) PORT_SENSITIVITY(100) PORT_KEYDELTA(0) PORT_PLAYER(1) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(ceres1_state::mouse_x), 0)
 
 	PORT_START("mouse_y")
-	PORT_BIT(0xff, 0x00, IPT_MOUSE_Y) PORT_SENSITIVITY(100) PORT_KEYDELTA(0) PORT_PLAYER(1) PORT_CHANGED_MEMBER(DEVICE_SELF, ceres1_state, mouse_y, 0)
+	PORT_BIT(0xff, 0x00, IPT_MOUSE_Y) PORT_SENSITIVITY(100) PORT_KEYDELTA(0) PORT_PLAYER(1) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(ceres1_state::mouse_y), 0)
 
 	PORT_START("mouse_buttons")
 	PORT_BIT(0x01, IP_ACTIVE_LOW, IPT_BUTTON1) PORT_NAME("Mouse Left Button")   PORT_CODE(MOUSECODE_BUTTON1)
@@ -369,7 +369,7 @@ void ceres1_state::ceres1(machine_config &config)
 	m_serial->dsr_handler().set(m_uart, FUNC(scn2681_device::ip2_w));
 
 	// TODO: RS-485 ports "na" and "nb"
-	SCC8530N(config, m_scc, 6_MHz_XTAL);
+	SCC8530(config, m_scc, 6_MHz_XTAL);
 	m_scc->configure_channels(m_uart->clock(), 0, m_uart->clock(), 0);
 	m_scc->out_int_callback().set(m_icu, FUNC(am9519_device::ireq1_w)).invert();
 
@@ -387,7 +387,7 @@ void ceres1_state::ceres1(machine_config &config)
 	WD2797(config, m_fdc, 20_MHz_XTAL / 20);
 	FLOPPY_CONNECTOR(config, "fdc:0", "fdd", FLOPPY_35_DD, true, floppy_image_device::default_mfm_floppy_formats);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(70'000'000, 1344, 0, 1024, 838, 0, 800);
 	m_screen->set_screen_update(FUNC(ceres1_state::screen_update));
 }
@@ -399,14 +399,15 @@ u32 ceres1_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, rec
 		offs_t offset = BIT(m_dcr, 1) ? 0x20000 : 0;
 		u32 const invert = BIT(m_dcr, 2) ? 0xffffffffU : 0;
 
-		for (int y = screen.visible_area().min_y; y <= screen.visible_area().max_y; y++)
+		for (int y = screen.visible_area().top(); y <= screen.visible_area().bottom(); y++)
 		{
-			for (int x = screen.visible_area().min_x; x <= screen.visible_area().max_x; x += 32)
+			auto *const dst = &bitmap.pix(y);
+			for (int x = screen.visible_area().left(); x <= screen.visible_area().right(); x += 32)
 			{
 				u32 const data = m_vram[offset++] ^ invert;
 
 				for (unsigned i = 0; i < 32; i++)
-					bitmap.pix(y, x + i) = BIT(data, i) ? rgb_t::white() : rgb_t::black();
+					dst[x + i] = BIT(data, i) ? rgb_t::white() : rgb_t::black();
 			}
 		}
 	}

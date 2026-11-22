@@ -9,16 +9,15 @@
  *
  **************************************************************************/
 
-#ifndef MAME_MACHINE_PXA255
-#define MAME_MACHINE_PXA255
+#ifndef MAME_MACHINE_PXA255_H
+#define MAME_MACHINE_PXA255_H
 
 #pragma once
 
 #include "cpu/arm7/arm7.h"
-#include "cpu/arm7/arm7core.h"
 #include "sound/dmadac.h"
 #include "emupal.h"
-
+#include "screen.h"
 
 class pxa255_periphs_device : public device_t
 {
@@ -34,15 +33,16 @@ public:
 
 	template <int Bit> auto gpio_out() { return m_gpio_w[Bit].bind(); }
 	template <int Bit> void gpio_in(int state);
+	template <int Line> void irq_in(int state) { set_irq_line(1u << Line, state); }
 
-	void map(address_map &map);
+	void map(address_map &map) ATTR_COLD;
 
 	// gpio_bit_w
 
 protected:
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	static constexpr u32 INTERNAL_OSC = 3686400;
 
@@ -321,6 +321,10 @@ protected:
 	void lcd_irq_check();
 	void lcd_dma_kickoff(int channel);
 	void lcd_check_load_next_branch(int channel);
+	u32 lcd_clock() const;
+	u64 lcd_frame_ticks() const;
+	attotime lcd_dma_period(int channel) const;
+	void lcd_configure_screen();
 
 	template <int Which> u32 lcd_lccr_r(offs_t offset, u32 mem_mask);
 	template <int Which> void lcd_lccr_w(offs_t offset, u32 data, u32 mem_mask);
@@ -361,8 +365,17 @@ protected:
 		LCCR0_OUM    =   1u << 21,
 
 		LCCR1_PPL    = 0x000003ff,
+		LCCR1_HSW    = 0x0000fc00,
+		LCCR1_ELW    = 0x00ff0000,
+		LCCR1_BLW    = 0xff000000,
 
 		LCCR2_LPP    = 0x000003ff,
+		LCCR2_VSW    = 0x0000fc00,
+		LCCR2_EFW    = 0x00ff0000,
+		LCCR2_BFW    = 0xff000000,
+
+		LCCR3_PCD    = 0x000000ff,
+		LCCR3_BPP    = 0x07000000,
 
 		LCSR_LDD     = 1u <<  0,
 		LCSR_SOF     = 1u <<  1,
@@ -470,6 +483,7 @@ protected:
 	required_device<cpu_device> m_maincpu;
 	required_device_array<dmadac_sound_device, 2> m_dmadac;
 	required_device<palette_device> m_palette;
+	required_device<screen_device> m_screen;
 
 	std::unique_ptr<u32[]> m_lcd_palette; // 0x100
 	std::unique_ptr<u8[]> m_lcd_framebuffer; // 0x100000
@@ -478,4 +492,4 @@ protected:
 
 DECLARE_DEVICE_TYPE(PXA255_PERIPHERALS, pxa255_periphs_device)
 
-#endif // MAME_MACHINE_PXA255
+#endif // MAME_MACHINE_PXA255_H

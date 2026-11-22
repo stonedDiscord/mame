@@ -37,8 +37,8 @@ public:
 protected:
 	sh7604_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, int cpu_type, address_map_constructor internal_map, int addrlines);
 
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	virtual void sh2_exception(const char *message, int irqline) override;
 
@@ -55,7 +55,7 @@ private:
 		CCLRA = 0x01
 	};
 
-	void sh7604_map(address_map &map);
+	void sh7604_map(address_map &map) ATTR_COLD;
 
 	uint32_t sh2_internal_a5();
 
@@ -119,6 +119,18 @@ private:
 
 	uint32_t dvcr_r();
 	void dvcr_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
+	void divu_start(int64_t dividend);
+
+	// UBC
+	uint16_t barah_r();
+	void barah_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t baral_r();
+	void baral_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+
+	uint16_t barbh_r();
+	void barbh_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	uint16_t barbl_r();
+	void barbl_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	// DMAC
 	template <int Channel> uint32_t vcrdma_r();
@@ -170,7 +182,7 @@ private:
 	uint8_t m_smr, m_brr, m_scr, m_tdr, m_ssr;
 
 	// FRT / FRC
-	uint8_t m_tier, m_ftcsr, m_frc_tcr, m_tocr;
+	uint8_t m_tier, m_ftcsr, m_ftcsr_read_flags, m_frc_tcr, m_tocr;
 	uint16_t m_frc;
 	uint16_t m_ocra, m_ocrb, m_frc_icr;
 
@@ -205,6 +217,10 @@ private:
 	uint8_t m_wtcnt, m_wtcsr;
 	uint8_t m_rstcsr;
 	uint16_t m_wtcw[2];
+
+	// UBC
+	uint16_t m_barah, m_baral;
+	uint16_t m_barbh, m_barbl;
 
 	// DMAC
 	struct
@@ -257,6 +273,7 @@ private:
 	void sh2_do_dma(int dmach);
 	void sh2_dmac_check(int dma);
 	void sh2_recalc_irq();
+	void standby_init();
 };
 
 DECLARE_DEVICE_TYPE(SH7604, sh7604_device)

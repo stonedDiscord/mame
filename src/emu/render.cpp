@@ -39,14 +39,14 @@
 #include "emu.h"
 #include "render.h"
 
-#include "corestr.h"
+#include "config.h"
+#include "drivenum.h"
 #include "emuopts.h"
 #include "fileio.h"
 #include "rendfont.h"
 #include "rendlay.h"
 #include "rendutil.h"
-#include "config.h"
-#include "drivenum.h"
+#include "uiinput.h"
 #include "layout/generic.h"
 
 #include "ui/uimain.h"
@@ -55,6 +55,8 @@
 #include "util/language.h"
 #include "util/path.h"
 #include "util/xmlfile.h"
+
+#include "corestr.h"
 
 #include <algorithm>
 #include <limits>
@@ -574,7 +576,7 @@ const rgb_t *render_texture::get_adjusted_palette(render_container &container, u
 //  render_container - constructor
 //-------------------------------------------------
 
-render_container::render_container(render_manager &manager, screen_device *screen)
+render_container::render_container(render_manager &manager, device_video_output_interface *screen)
 	: m_manager(manager)
 	, m_screen(screen)
 	, m_overlaybitmap(nullptr)
@@ -933,6 +935,7 @@ template <typename T>
 render_target::render_target(render_manager &manager, render_container *ui, T &&layout, u32 flags, constructor_impl_t)
 	: m_next(nullptr)
 	, m_manager(manager)
+	, m_event_sink(manager.m_event_sink)
 	, m_ui_container(ui)
 	, m_curview(0U)
 	, m_flags(flags)
@@ -1055,7 +1058,7 @@ void render_target::set_bounds(s32 width, s32 height, float pixel_aspect)
 	m_bounds.x0 = m_bounds.y0 = 0;
 	m_bounds.x1 = float(width);
 	m_bounds.y1 = float(height);
-	m_pixel_aspect = pixel_aspect != 0.0F ? pixel_aspect : 1.0F;
+	m_pixel_aspect = (pixel_aspect != 0.0F) ? pixel_aspect : 1.0F;
 }
 
 
@@ -1273,12 +1276,14 @@ void render_target::update_pointer_fields()
 	}
 
 	// update item hit states
+	std::vector<u64> prev_hit(m_clickable_items.size());
 	u64 obscured(0U);
 	for (size_t i = 0; m_clickable_items.size() > i; ++i)
 	{
 		layout_view_item const &item(current_view().interactive_items()[i]);
 		u64 const inbounds(m_clickable_items[i].inbounds.first & m_clickable_items[i].inbounds.second);
 		u64 hit(m_clickable_items[i].hit);
+		prev_hit[i] = hit;
 		for (unsigned ptr = 0; m_pointers.size() > ptr; ++ptr)
 		{
 			pointer_info const &pointer(m_pointers[ptr]);
@@ -1294,21 +1299,28 @@ void render_target::update_pointer_fields()
 					obscured |= u64(1) << ptr;
 			}
 		}
+		m_clickable_items[i].hit = hit;
+	}
 
-		// update field state
-		if (bool(hit) != bool(m_clickable_items[i].hit))
+	// update field state
+	for (int state = 0; 2 > state; ++state)
+	{
+		for (size_t i = 0; m_clickable_items.size() > i; ++i)
 		{
-			auto const [port, mask] = item.input_tag_and_mask();
-			ioport_field *const field(port ? port->field(mask) : nullptr);
-			if (field)
+			if (bool(state) != bool(prev_hit[i]) && bool(state) == bool(m_clickable_items[i].hit))
 			{
-				if (hit)
-					field->set_value(1);
-				else
-					field->clear_value();
+				layout_view_item const &item(current_view().interactive_items()[i]);
+				auto const [port, mask] = item.input_tag_and_mask();
+				ioport_field *const field(port ? port->field(mask) : nullptr);
+				if (field)
+				{
+					if (state)
+						field->set_value(1);
+					else
+						field->clear_value();
+				}
 			}
 		}
-		m_clickable_items[i].hit = hit;
 	}
 }
 
@@ -1350,8 +1362,8 @@ unsigned render_target::configured_view(const char *viewname, int targetindex, i
 	}
 
 	// if we don't have a match, default to the nth view
-	std::vector<std::reference_wrapper<screen_device> > screens;
-	for (screen_device &screen : screen_device_enumerator(m_manager.machine().root_device()))
+	std::vector<std::reference_wrapper<device_video_output_interface>> screens;
+	for (device_video_output_interface &screen : video_output_interface_enumerator(m_manager.machine().root_device()))
 		screens.push_back(screen);
 	if (!screens.empty())
 	{
@@ -1360,12 +1372,12 @@ unsigned render_target::configured_view(const char *viewname, int targetindex, i
 		{
 			// find the first view with this screen and this screen only
 			layout_view *view = nullptr;
-			screen_device const &screen = screens[index() % screens.size()];
+			device_video_output_interface const &screen = screens[index() % screens.size()];
 			for (unsigned i = 0; !view && (m_views.size() > i); ++i)
 			{
 				for (layout_view_item &viewitem : m_views[i].first.items())
 				{
-					screen_device const *const viewscreen(viewitem.screen());
+					device_video_output_interface const *const viewscreen(viewitem.screen());
 					if (viewscreen == &screen)
 					{
 						view = &m_views[i].first;
@@ -1385,7 +1397,7 @@ unsigned render_target::configured_view(const char *viewname, int targetindex, i
 		for (unsigned i = 0; m_views.size() > i; ++i)
 		{
 			layout_view &curview = m_views[i].first;
-			if (std::find_if(screens.begin(), screens.end(), [&curview] (screen_device &screen) { return !curview.has_screen(screen); }) == screens.end())
+			if (std::find_if(screens.begin(), screens.end(), [&curview] (device_video_output_interface &screen) { return !curview.has_screen(screen); }) == screens.end())
 				return i;
 		}
 	}
@@ -1593,12 +1605,12 @@ void render_target::compute_minimum_size(s32 &minwidth, s32 &minheight)
 	// scan the current view for all screens
 	for (layout_view_item &curitem : current_view().items())
 	{
-		screen_device const *const screen = curitem.screen();
+		device_video_output_interface const *const screen = curitem.screen();
 		if (screen)
 		{
 			// use a hard-coded default visible area for vector screens
 			const rectangle vectorvis(0, 639, 0, 479);
-			const rectangle &visarea = (screen->screen_type() == SCREEN_TYPE_VECTOR) ? vectorvis : screen->visible_area();
+			const rectangle &visarea = (screen->is_vector()) ? vectorvis : screen->visible_area();
 
 			// apply target orientation to the bounds
 			render_bounds bounds = curitem.bounds();
@@ -1756,13 +1768,9 @@ bool render_target::map_point_container(s32 target_x, s32 target_y, render_conta
 	if (&container == m_ui_container)
 	{
 		// this hit test went against the UI container
-		if ((target_f.first >= 0.0f) && (target_f.first < 1.0f) && (target_f.second >= 0.0f) && (target_f.second < 1.0f))
-		{
-			// this point was successfully mapped
-			container_x = float(target_x) / m_width;
-			container_y = float(target_y) / m_height;
-			return true;
-		}
+		container_x = float(target_x) / m_width;
+		container_y = float(target_y) / m_height;
+		return (target_f.first >= 0.0f) && (target_f.first < 1.0f) && (target_f.second >= 0.0f) && (target_f.second < 1.0f);
 	}
 	else
 	{
@@ -1781,15 +1789,12 @@ bool render_target::map_point_container(s32 target_x, s32 target_y, render_conta
 					[&container] (layout_view_item &item) { return &item.screen()->container() == &container; }));
 		if (items.end() != found)
 		{
+			// point successfully mapped
 			layout_view_item &item(*found);
 			render_bounds const bounds(item.bounds());
-			if (bounds.includes(target_f.first, target_f.second))
-			{
-				// point successfully mapped
-				container_x = (target_f.first - bounds.x0) / bounds.width();
-				container_y = (target_f.second - bounds.y0) / bounds.height();
-				return true;
-			}
+			container_x = (target_f.first - bounds.x0) / bounds.width();
+			container_y = (target_f.second - bounds.y0) / bounds.height();
+			return bounds.includes(target_f.first, target_f.second);
 		}
 	}
 
@@ -1830,6 +1835,46 @@ void render_target::resolve_tags()
 
 	update_layer_config();
 	current_view().preload();
+}
+
+
+//-------------------------------------------------
+//  osd::ui_event_handler implementation
+//-------------------------------------------------
+
+void render_target::push_window_focus_event()
+{
+	m_event_sink.push_window_focus_event(*this);
+}
+
+void render_target::push_window_defocus_event()
+{
+	m_event_sink.push_window_defocus_event(*this);
+}
+
+void render_target::push_mouse_wheel_event(s32 x, s32 y, short delta, int lines)
+{
+	m_event_sink.push_mouse_wheel_event(*this, x, y, delta, lines);
+}
+
+void render_target::push_pointer_update(pointer type, u16 ptrid, u16 device, s32 x, s32 y, u32 buttons, u32 pressed, u32 released, s16 clicks)
+{
+	m_event_sink.push_pointer_update(*this, type, ptrid, device, x, y, buttons, pressed, released, clicks);
+}
+
+void render_target::push_pointer_leave(pointer type, u16 ptrid, u16 device, s32 x, s32 y, u32 released, s16 clicks)
+{
+	m_event_sink.push_pointer_leave(*this, type, ptrid, device, x, y, released, clicks);
+}
+
+void render_target::push_pointer_abort(pointer type, u16 ptrid, u16 device, s32 x, s32 y, u32 released, s16 clicks)
+{
+	m_event_sink.push_pointer_abort(*this, type, ptrid, device, x, y, released, clicks);
+}
+
+void render_target::push_char_event(char32_t ch)
+{
+	m_event_sink.push_char_event(*this, ch);
 }
 
 
@@ -1951,7 +1996,7 @@ void render_target::load_additional_layout_files(const char *basename, bool have
 	class screen_info
 	{
 	public:
-		screen_info(screen_device const &screen)
+		screen_info(device_video_output_interface const &screen)
 			: m_device(screen)
 			, m_rotated(screen.orientation() & ORIENTATION_SWAP_XY)
 			, m_physical(screen.physical_aspect())
@@ -1965,7 +2010,7 @@ void render_target::load_additional_layout_files(const char *basename, bool have
 			}
 		}
 
-		screen_device const &device() const { return m_device.get(); }
+		device_video_output_interface const &device() const { return m_device.get(); }
 		bool rotated() const { return m_rotated; }
 		bool square() const { return m_physical == m_native; }
 		unsigned physical_x() const { return m_physical.first; }
@@ -1984,12 +2029,14 @@ void render_target::load_additional_layout_files(const char *basename, bool have
 		}
 
 	private:
-		std::reference_wrapper<screen_device const> m_device;
+		std::reference_wrapper<device_video_output_interface const> m_device;
 		bool m_rotated;
 		std::pair<unsigned, unsigned> m_physical, m_native;
 	};
-	screen_device_enumerator iter(m_manager.machine().root_device());
-	std::vector<screen_info> const screens(std::begin(iter), std::end(iter));
+
+	std::vector<screen_info> screens;
+	for (auto &screen : video_output_interface_enumerator(m_manager.machine().root_device()))
+		screens.emplace_back(screen);
 
 	// need this because views aren't fully set up yet
 	auto const nth_view =
@@ -2119,7 +2166,7 @@ void render_target::load_additional_layout_files(const char *basename, bool have
 			for (layout_view *view = nth_view(viewindex); need_tiles && view; view = nth_view(++viewindex))
 			{
 				bool screen_missing(false);
-				for (screen_device &screen : iter)
+				for (device_video_output_interface &screen : video_output_interface_enumerator(m_manager.machine().root_device()))
 				{
 					if (!view->has_screen(screen))
 					{
@@ -3318,8 +3365,9 @@ done:
 //  render_manager - constructor
 //-------------------------------------------------
 
-render_manager::render_manager(running_machine &machine)
+render_manager::render_manager(running_machine &machine, ui_event_sink &event_sink)
 	: m_machine(machine)
+	, m_event_sink(event_sink)
 	, m_ui_target(nullptr)
 	, m_live_textures(0)
 	, m_texture_id(0)
@@ -3331,7 +3379,7 @@ render_manager::render_manager(running_machine &machine)
 			configuration_manager::save_delegate(&render_manager::config_save, this));
 
 	// create one container per screen
-	for (screen_device &screen : screen_device_enumerator(machine.root_device()))
+	for (device_video_output_interface &screen : video_output_interface_enumerator(machine.root_device()))
 		screen.set_container(m_screen_container_list.emplace_back(*this, &screen));
 }
 
@@ -3355,7 +3403,7 @@ render_manager::~render_manager()
 //  is_live - return if the screen is 'live'
 //-------------------------------------------------
 
-bool render_manager::is_live(screen_device &screen) const
+bool render_manager::is_live(device_video_output_interface &screen) const
 {
 	// iterate over all live targets and or together their screen masks
 	for (render_target const &target : m_targetlist)
@@ -3441,66 +3489,51 @@ render_target *render_manager::target_by_index(int index) const
 //  fonts
 //-------------------------------------------------
 
-float render_manager::ui_aspect(render_container *rc)
+float render_manager::ui_aspect(render_target &target)
 {
-	// work out if this is a UI container
-	render_target *target = nullptr;
-	if (!rc)
-	{
-		target = &ui_target();
-		rc = target->ui_container();
-		assert(rc);
-	}
-	else
-	{
-		for (render_target &t : m_targetlist)
-		{
-			if (t.ui_container() == rc)
-			{
-				target = &t;
-				break;
-			}
-		}
-	}
+	assert(target.ui_container());
 
+	// based on the orientation of the target, compute height/width or width/height
+	int const orient = orientation_add(target.orientation(), target.ui_container()->orientation());
 	float aspect;
-
-	if (target)
-	{
-		// UI container, aggregated multi-screen target
-
-		// based on the orientation of the target, compute height/width or width/height
-		int const orient = orientation_add(target->orientation(), rc->orientation());
-		if (!(orient & ORIENTATION_SWAP_XY))
-			aspect = float(target->height()) / float(target->width());
-		else
-			aspect = float(target->width()) / float(target->height());
-
-		// if we have a valid pixel aspect, apply that and return
-		if (target->pixel_aspect() != 0.0f)
-		{
-			float pixel_aspect = target->pixel_aspect();
-
-			if (orient & ORIENTATION_SWAP_XY)
-				pixel_aspect = 1.0f / pixel_aspect;
-
-			return aspect /= pixel_aspect;
-		}
-	}
+	if (!(orient & ORIENTATION_SWAP_XY))
+		aspect = float(target.height()) / float(target.width());
 	else
-	{
-		// single screen container
+		aspect = float(target.width()) / float(target.height());
 
-		// based on the orientation of the target, compute height/width or width/height
-		int const orient = rc->orientation();
-		if (!(orient & ORIENTATION_SWAP_XY))
-			aspect = (float)rc->screen()->visible_area().height() / (float)rc->screen()->visible_area().width();
-		else
-			aspect = (float)rc->screen()->visible_area().width() / (float)rc->screen()->visible_area().height();
+	// if we have a valid pixel aspect, apply that and return
+	if (target.pixel_aspect() != 0.0F)
+	{
+		float pixel_aspect = target.pixel_aspect();
+
+		if (orient & ORIENTATION_SWAP_XY)
+			pixel_aspect = 1.0F / pixel_aspect;
+
+		return aspect / pixel_aspect;
 	}
 
 	// clamp for extreme proportions
-	return std::clamp(aspect, 0.66f, 1.5f);
+	return std::clamp(aspect, 0.66F, 1.5F);
+}
+
+float render_manager::ui_aspect(render_container &rc)
+{
+	// deal with UI containers
+	for (render_target &target : m_targetlist)
+	{
+		if (target.ui_container() == &rc)
+			return ui_aspect(target);
+	}
+
+	// based on the orientation of the target, compute height/width or width/height
+	assert(rc.screen());
+	int const orient = rc.orientation();
+	float const viswidth = rc.screen()->visible_area().width();
+	float const visheight = rc.screen()->visible_area().height();
+	float const aspect = !(orient & ORIENTATION_SWAP_XY) ? (visheight / viswidth) : (viswidth / visheight);
+
+	// clamp for extreme proportions
+	return std::clamp(aspect, 0.66F, 1.5F);
 }
 
 

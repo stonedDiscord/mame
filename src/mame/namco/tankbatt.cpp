@@ -117,7 +117,7 @@ public:
 	void tankbatt(machine_config &config);
 
 protected:
-	virtual void video_start() override;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -154,7 +154,7 @@ private:
 
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void draw_bullets(bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void main_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -380,7 +380,7 @@ void tankbatt_state::tankbatt(machine_config &config)
 	outlatch1.q_out_cb<7>().set("nmigate", FUNC(input_merger_device::in_w<1>));
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(18.432_MHz_XTAL / 3, 384, 0, 256, 264, 16, 240); // timing chain is same as in Galaxian
 	screen.set_screen_update(FUNC(tankbatt_state::screen_update));
 	screen.set_palette(m_palette);

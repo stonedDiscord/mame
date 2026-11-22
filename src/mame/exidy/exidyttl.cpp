@@ -83,7 +83,7 @@ void exidyttl_state::attack(machine_config &config)
 	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_attack);
 
 	/* video hardware */
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	SCREEN(config, "screen");
 	FIXFREQ(config, m_video).set_screen("screen");
 	m_video->set_monitor_clock(MASTER_CLOCK);
 	m_video->set_horz_params(H_TOTAL-67,H_TOTAL-40,H_TOTAL-8,H_TOTAL);
@@ -237,8 +237,8 @@ ROM_END
 } // anonymous namespace
 
 
-GAME( 1977, attckexd,  0,        attack, 0, exidyttl_state, empty_init, ROT0, "Exidy", "Attack (set 1)",    MACHINE_IS_SKELETON )
-GAME( 1977, attckexd2, attckexd, attack, 0, exidyttl_state, empty_init, ROT0, "Exidy", "Attack (set 2)",    MACHINE_IS_SKELETON )
-GAME( 1976, deathrac,  0,        attack, 0, exidyttl_state, empty_init, ROT0, "Exidy", "Death Race",        MACHINE_IS_SKELETON )
-GAME( 1976, destdrby,  0,        attack, 0, exidyttl_state, empty_init, ROT0, "Exidy", "Destruction Derby", MACHINE_IS_SKELETON)
-GAME( 1976, rhunting,  deathrac, attack, 0, exidyttl_state, empty_init, ROT0, "bootleg", "Robot Hunting (bootleg of Death Race)",MACHINE_IS_SKELETON )
+GAME( 1977, attckexd,  0,        attack, 0, exidyttl_state, empty_init, ROT0, "Exidy", "Attack (set 1)",    MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 1977, attckexd2, attckexd, attack, 0, exidyttl_state, empty_init, ROT0, "Exidy", "Attack (set 2)",    MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 1976, deathrac,  0,        attack, 0, exidyttl_state, empty_init, ROT0, "Exidy", "Death Race",        MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 1976, destdrby,  0,        attack, 0, exidyttl_state, empty_init, ROT0, "Exidy", "Destruction Derby", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)
+GAME( 1976, rhunting,  deathrac, attack, 0, exidyttl_state, empty_init, ROT0, "bootleg", "Robot Hunting (bootleg of Death Race)",MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

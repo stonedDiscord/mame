@@ -106,9 +106,9 @@ protected:
 	i8275_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
-	virtual void device_resolve_objects() override;
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_resolve_objects() override ATTR_COLD;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	TIMER_CALLBACK_MEMBER(hrtc_on);
 	TIMER_CALLBACK_MEMBER(drq_on);
@@ -229,6 +229,7 @@ protected:
 	int m_dma_idx;
 	uint8_t m_dma_last_char;
 	int m_buffer_dma;
+	attotime m_drq_time;
 
 	int m_lpen;
 

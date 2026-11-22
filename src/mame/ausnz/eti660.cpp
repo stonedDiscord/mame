@@ -92,8 +92,8 @@ private:
 	DECLARE_QUICKLOAD_LOAD_MEMBER(quickload_cb);
 	required_shared_ptr<u8> m_p_videoram;
 
-	void io_map(address_map &map);
-	void mem_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
+	void mem_map(address_map &map) ATTR_COLD;
 
 	required_device<cosmac_device> m_maincpu;
 	required_device<cdp1864_device> m_cti;
@@ -103,8 +103,8 @@ private:
 	required_ioport m_special;
 	output_finder<2> m_leds;
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 	uint16_t m_resetcnt;
 
 	/* keyboard state */
@@ -306,8 +306,6 @@ void eti660_state::machine_reset()
 
 void eti660_state::machine_start()
 {
-	m_leds.resolve();
-
 	save_item(NAME(m_color_ram));
 	save_item(NAME(m_color));
 	save_item(NAME(m_keylatch));
@@ -354,17 +352,19 @@ void eti660_state::eti660(machine_config &config)
 	m_maincpu->ef4_cb().set(FUNC(eti660_state::ef4_r));
 	m_maincpu->q_cb().set(FUNC(eti660_state::q_w));
 	m_maincpu->dma_wr_cb().set(FUNC(eti660_state::dma_w));
+	m_maincpu->sc_cb().set(m_cti, FUNC(cdp1864_device::sc_w));
+	m_maincpu->tpa_cb().set(m_cti, FUNC(cdp1864_device::tpa_w));
+	m_maincpu->int_cb().set(m_cti, FUNC(cdp1864_device::int_r));
+	m_maincpu->dma_out_cb().set(m_cti, FUNC(cdp1864_device::dma_out_r));
+	m_maincpu->ef1_cb().set(m_cti, FUNC(cdp1864_device::efx_r));
 
 	/* video hardware */
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	SCREEN(config, "screen");
 
 	/* sound hardware */
 	SPEAKER(config, "mono").front_center();
 	CDP1864(config, m_cti, XTAL(8'867'238)/5).set_screen("screen");
 	m_cti->inlace_cb().set_constant(0);
-	m_cti->int_cb().set_inputline(m_maincpu, COSMAC_INPUT_LINE_INT);
-	m_cti->dma_out_cb().set_inputline(m_maincpu, COSMAC_INPUT_LINE_DMAOUT);
-	m_cti->efx_cb().set_inputline(m_maincpu, COSMAC_INPUT_LINE_EF1);
 	m_cti->rdata_cb().set([this] () { return BIT(m_color, 0); });
 	m_cti->bdata_cb().set([this] () { return BIT(m_color, 1); });
 	m_cti->gdata_cb().set([this] () { return BIT(m_color, 2); });

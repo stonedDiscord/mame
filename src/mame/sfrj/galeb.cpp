@@ -107,10 +107,10 @@ private:
 	required_device<acia6850_device> m_acia;
 	required_device<dac_1bit_device> m_dac;
 
-	void mem_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	bool m_dac_state = false;
 };
@@ -307,7 +307,7 @@ void galeb_state::galeb(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &galeb_state::mem_map);
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(50);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	screen.set_size(48*8, 16*8);
@@ -327,7 +327,7 @@ void galeb_state::galeb(machine_config &config)
 	acia_clock.signal_handler().set(m_acia, FUNC(acia6850_device::write_txc));
 	acia_clock.signal_handler().append(m_acia, FUNC(acia6850_device::write_rxc));
 
-	ACIA6850(config, m_acia, 0);
+	ACIA6850(config, m_acia);
 	m_acia->txd_handler().set([this] (bool state) { m_cassbit = state; });
 
 	/* cassette */

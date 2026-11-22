@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "cpu/m6805/m68705.h"
 #include "bus/centronics/ctronics.h"
 
 
@@ -28,15 +29,17 @@ public:
 	// construction/destruction
 	comx_pl80_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
+	static constexpr flags_type emulation_flags() { return flags::NOT_WORKING; }
+
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// optional information overrides
-	virtual const tiny_rom_entry *device_rom_region() const override;
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual ioport_constructor device_input_ports() const override;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 
 	virtual void input_data0(int state) override { if (state) m_data |= 0x01; else m_data &= ~0x01; }
 	virtual void input_data1(int state) override { if (state) m_data |= 0x02; else m_data &= ~0x02; }

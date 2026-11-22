@@ -36,13 +36,13 @@ public:
 	void ht6000(machine_config &config);
 
 private:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	required_memory_region m_rom2;
 	required_ioport_array<16> m_switches;
 
-	void maincpu_map(address_map &map);
+	void maincpu_map(address_map &map) ATTR_COLD;
 
 	void port_a_w(uint8_t data);
 
@@ -346,5 +346,5 @@ ROM_END
 //  SYSTEM DRIVERS
 //**************************************************************************
 
-//    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY  FULLNAME   FLAGS
-CONS( 1987, ht6000, 0,      0,      ht6000,  ht6000, ht6000_state, empty_init, "Casio", "HT-6000", MACHINE_IS_SKELETON )
+//    YEAR  NAME    PARENT  COMPAT  MACHINE  INPUT   CLASS         INIT        COMPANY  FULLNAME                                    FLAGS
+CONS( 1987, ht6000, 0,      0,      ht6000,  ht6000, ht6000_state, empty_init, "Casio", "HT-6000 Programmable Digital Synthesizer", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

@@ -36,7 +36,7 @@ public:
 private:
 	required_device<cpu_device> m_maincpu;
 
-	void program_map(address_map &map);
+	void program_map(address_map &map) ATTR_COLD;
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 };
@@ -62,7 +62,7 @@ void clie_db_state::t650c(machine_config &config)
 	MC68EZ328(config, m_maincpu, 66'000'000); // unknown clock, 66 MHz according to flyer
 	m_maincpu->set_addrmap(AS_PROGRAM, &clie_db_state::program_map);
 
-	screen_device&screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device&screen(SCREEN(config, "screen").set_lcd());
 	screen.set_refresh_hz(60);
 	screen.set_size(320, 320); // 320 x 320 according to flyer
 	screen.set_visarea(0, 320 - 1, 0, 320 - 1);
@@ -83,4 +83,4 @@ ROM_END
 } // anonymous namespace
 
 
-SYST( 2002, t650c, 0, 0, t650c, t650c, clie_db_state, empty_init, "Sony", "Clie PEG-T650C", MACHINE_IS_SKELETON )
+SYST( 2002, t650c, 0, 0, t650c, t650c, clie_db_state, empty_init, "Sony", "Clie PEG-T650C", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

@@ -1,9 +1,27 @@
 // license:BSD-3-Clause
 // copyright-holders:Angelo Salese, Philip Bennett
+/**************************************************************************************************
 
-// dgPIX 'VRender 2 Beta Rev4' hardware
-// MEDIAGX CPU + 3dFX VooDoo chipset
-/***************************************************************************
+dgPIX 'VRender 2 Beta Rev4' hardware
+MEDIAGX CPU + 3dFX VooDoo chipset
+
+TODO:
+- Actual timer source;
+- I/Os, and actual test mode (if exists);
+- Hangs when trying to save settings in options menu, or alternatively throws "Erase TIME OUT".
+- Doesn't update bookkeeping;
+- Can lockup on soft resets;
+- One H pixel display off in Voodoo screen setup;
+
+Notes:
+- dgPIX logo looks odd, but that's a btanb. cfr. https://www.youtube.com/watch?v=T99K9dESszw&t=4658s
+- Branch at PC=CE8A: sets "Timer Divisor 0" in debug strings;
+- UART seems also to be used from terminal to host (with pic[0] ir4_w enabled), is there a verbose/debug
+  mode flag disabled somewhere?
+- None of the other irqs seems used, NMI just causes a debug exception (that stops running machine);
+- Reference 2021 MAME video https://www.youtube.com/watch?v=VbTskI8E7EY
+
+===================================================================================================
 
 Funky Ball
 dgPIX, 1998
@@ -60,7 +78,7 @@ Notes:
       ICS5342      - combination dual programmable clock generator, 256bytes x18-bit RAM and a triple 8-bit video DAC (PLCC68)
       XCS05        - Xilinx Spartan XCS05 FPGA (PLCC84)
 
-***************************************************************************/
+**************************************************************************************************/
 
 
 
@@ -71,10 +89,11 @@ Notes:
 #include "bus/rs232/rs232.h"
 #include "cpu/i386/i386.h"
 #include "machine/bankdev.h"
+#include "machine/cx5510.h"
 #include "machine/idectrl.h"
 #include "machine/ins8250.h"
 #include "machine/intelfsh.h"
-#include "machine/lpci.h"
+#include "machine/pci.h"
 #include "machine/pckeybrd.h"
 #include "sound/ks0164.h"
 #include "video/voodoo.h"
@@ -85,12 +104,77 @@ Notes:
 
 namespace {
 
+// 3dfx Voodoo Graphics config space, the framebuffer is mapped by the driver
+class funkball_voodoo_pci_device : public pci_device
+{
+public:
+	funkball_voodoo_pci_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
+
+	auto init_enable_cb() { return m_init_enable_cb.bind(); }
+
+protected:
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+
+	virtual void config_map(address_map &map) override ATTR_COLD;
+
+private:
+	devcb_write32 m_init_enable_cb;
+
+	uint32_t m_base_addr;
+	uint32_t m_init_enable;
+};
+
+} // anonymous namespace
+
+DEFINE_DEVICE_TYPE_PRIVATE(FUNKBALL_VOODOO_PCI, funkball_voodoo_pci_device, funkball_voodoo_pci_device, "funkball_voodoo_pci", "3dfx Voodoo Graphics PCI config (Funky Ball)")
+
+funkball_voodoo_pci_device::funkball_voodoo_pci_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
+	: pci_device(mconfig, FUNKBALL_VOODOO_PCI, tag, owner, clock)
+	, m_init_enable_cb(*this)
+{
+	set_ids(0x121a0001, 0x00, 0x000000, 0x00000000);
+}
+
+void funkball_voodoo_pci_device::device_start()
+{
+	pci_device::device_start();
+
+	m_base_addr = 0xff000000;
+	m_init_enable = 0;
+
+	save_item(NAME(m_base_addr));
+	save_item(NAME(m_init_enable));
+}
+
+void funkball_voodoo_pci_device::device_reset()
+{
+	pci_device::device_reset();
+
+	m_base_addr = 0xff000000;
+}
+
+void funkball_voodoo_pci_device::config_map(address_map &map)
+{
+	pci_device::config_map(map);
+	map(0x10, 0x13).lrw32(
+			NAME([this] () -> uint32_t { return m_base_addr; }),
+			NAME([this] (uint32_t data) { m_base_addr = (data == 0xffffffff) ? 0xff000000 : data; }));
+	map(0x40, 0x43).lrw32(
+			NAME([this] () -> uint32_t { return m_init_enable; }),
+			NAME([this] (uint32_t data) { m_init_enable = data; m_init_enable_cb(data); }));
+}
+
+
+namespace {
+
 class funkball_state : public pcat_base_state
 {
 public:
 	funkball_state(const machine_config &mconfig, device_type type, const char *tag)
 		: pcat_base_state(mconfig, type, tag)
 		, m_voodoo(*this, "voodoo_0")
+		, m_screen(*this, "screen")
 		, m_sound(*this, "ks0164")
 		, m_unk_ram(*this, "unk_ram")
 		, m_flashbank(*this, "flashbank")
@@ -102,7 +186,6 @@ public:
 private:
 	uint8_t m_funkball_config_reg_sel = 0;
 	uint8_t m_funkball_config_regs[256]{};
-	uint32_t m_cx5510_regs[256/4]{};
 	std::unique_ptr<uint8_t[]> m_bios_ram;
 
 	uint32_t m_biu_ctrl_reg[256/4]{};
@@ -112,6 +195,7 @@ private:
 
 	// devices
 	required_device<voodoo_1_device> m_voodoo;
+	required_device<screen_device> m_screen;
 	required_device<ks0164_device> m_sound;
 
 	required_shared_ptr<uint32_t> m_unk_ram;
@@ -126,32 +210,19 @@ private:
 	uint8_t funkball_config_reg_r();
 	void funkball_config_reg_w(uint8_t data);
 
-	virtual void video_start() override;
+	virtual void video_start() override ATTR_COLD;
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
-	struct
-	{
-		/* PCI */
-		uint32_t command = 0;
-		uint32_t base_addr = 0;
-
-		uint32_t init_enable = 0;
-	} m_voodoo_pci_regs;
 	uint32_t biu_ctrl_r(offs_t offset);
 	void biu_ctrl_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	void bios_ram_w(offs_t offset, uint8_t data);
 	uint8_t io20_r(offs_t offset);
 	void io20_w(offs_t offset, uint8_t data);
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	void flashbank_map(address_map &map);
-	void funkball_io(address_map &map);
-	void funkball_map(address_map &map);
-
-	uint32_t voodoo_0_pci_r(int function, int reg, uint32_t mem_mask);
-	void voodoo_0_pci_w(int function, int reg, uint32_t data, uint32_t mem_mask);
-	uint32_t cx5510_pci_r(int function, int reg, uint32_t mem_mask);
-	void cx5510_pci_w(int function, int reg, uint32_t data, uint32_t mem_mask);
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	void flashbank_map(address_map &map) ATTR_COLD;
+	void funkball_io(address_map &map) ATTR_COLD;
+	void funkball_map(address_map &map) ATTR_COLD;
 };
 
 uint8_t funkball_state::timer_r(offs_t offset)
@@ -176,66 +247,6 @@ void funkball_state::video_start()
 uint32_t funkball_state::screen_update( screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect )
 {
 	return m_voodoo->update(bitmap, cliprect) ? 0 : UPDATE_HAS_NOT_CHANGED;
-}
-
-uint32_t funkball_state::voodoo_0_pci_r(int function, int reg, uint32_t mem_mask)
-{
-	uint32_t val = 0;
-
-	printf("Voodoo PCI R: %x\n", reg);
-
-	switch (reg)
-	{
-		case 0:
-			val = 0x0001121a;
-			break;
-		case 0x10:
-			val = m_voodoo_pci_regs.base_addr;
-			break;
-		case 0x40:
-			val = m_voodoo_pci_regs.init_enable;
-			break;
-	}
-	return val;
-}
-
-void funkball_state::voodoo_0_pci_w(int function, int reg, uint32_t data, uint32_t mem_mask)
-{
-	printf("Voodoo [%x]: %x\n", reg, data);
-
-	switch (reg)
-	{
-		case 0x04:
-			m_voodoo_pci_regs.command = data & 0x3;
-			break;
-		case 0x10:
-			if (data == 0xffffffff)
-				m_voodoo_pci_regs.base_addr = 0xff000000;
-			else
-				m_voodoo_pci_regs.base_addr = data;
-			break;
-		case 0x40:
-			m_voodoo_pci_regs.init_enable = data;
-			m_voodoo->set_init_enable(data);
-			break;
-	}
-}
-
-uint32_t funkball_state::cx5510_pci_r(int function, int reg, uint32_t mem_mask)
-{
-	//osd_printf_debug("CX5510: PCI read %d, %02X, %08X\n", function, reg, mem_mask);
-	switch (reg)
-	{
-		case 0:     return 0x00001078;
-	}
-
-	return m_cx5510_regs[reg/4];
-}
-
-void funkball_state::cx5510_pci_w(int function, int reg, uint32_t data, uint32_t mem_mask)
-{
-	//osd_printf_debug("CX5510: PCI write %d, %02X, %08X, %08X\n", function, reg, data, mem_mask);
-	COMBINE_DATA(&m_cx5510_regs[reg/4]);
 }
 
 uint8_t funkball_state::funkball_config_reg_r()
@@ -284,7 +295,7 @@ void funkball_state::flash_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 	int tempbank = (flashbank_addr & 0x7fff) | ((flashbank_addr & 0x00800000) >> 8);
 	m_flashbank->set_bank(tempbank);
 
-	// note, other bits get used, but ignoring to keep the virtual bank space size sane.
+	// NOTE: other bits get used, but ignoring to keep the virtual bank space size sane.
 
 }
 
@@ -373,7 +384,6 @@ void funkball_state::funkball_io(address_map &map)
 	map(0x03f0, 0x03f7).rw("ide", FUNC(ide_controller_device::cs1_r), FUNC(ide_controller_device::cs1_w));
 	map(0x03f8, 0x03ff).rw("uart", FUNC(ns16550_device::ins8250_r), FUNC(ns16550_device::ins8250_w));
 
-	map(0x0cf8, 0x0cff).rw("pcibus", FUNC(pci_bus_legacy_device::read), FUNC(pci_bus_legacy_device::write));
 
 	map(0x0320, 0x0323).rw(m_sound, FUNC(ks0164_device::mpu401_data_r), FUNC(ks0164_device::mpu401_data_w)).umask32(0x000000ff);
 	map(0x0320, 0x0323).rw(m_sound, FUNC(ks0164_device::mpu401_status_r), FUNC(ks0164_device::mpu401_ctrl_w)).umask32(0x0000ff00);
@@ -603,7 +613,6 @@ static INPUT_PORTS_START( funkball )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_START2 )
 
-
 	PORT_START("IN.10")
 	PORT_DIPNAME( 0x01, 0x01, "10" )
 	PORT_DIPSETTING(    0x01, DEF_STR( Off ) )
@@ -725,7 +734,6 @@ void funkball_state::machine_reset()
 	membank("bios_bank2")->set_base(memregion("bios")->base() + 0x14000);
 	membank("bios_bank3")->set_base(memregion("bios")->base() + 0x18000);
 	membank("bios_bank4")->set_base(memregion("bios")->base() + 0x1c000);
-	m_voodoo_pci_regs.base_addr = 0xff000000;
 }
 
 static DEVICE_INPUT_DEFAULTS_START( terminal )
@@ -739,23 +747,23 @@ DEVICE_INPUT_DEFAULTS_END
 
 void funkball_state::funkball(machine_config &config)
 {
-	MEDIAGX(config, m_maincpu, 66666666*3.5); // 66,6 MHz x 3.5
+	MEDIAGXM(config, m_maincpu, 66666666*3.5); // 66,6 MHz x 3.5
 	m_maincpu->set_addrmap(AS_PROGRAM, &funkball_state::funkball_map);
 	m_maincpu->set_addrmap(AS_IO, &funkball_state::funkball_io);
 	m_maincpu->set_irq_acknowledge_callback("pic8259_1", FUNC(pic8259_device::inta_cb));
 
 	pcat_common_nokeyboard(config);
 
-	pci_bus_legacy_device &pcibus(PCI_BUS_LEGACY(config, "pcibus", 0, 0));
-	pcibus.set_device(7, FUNC(funkball_state::voodoo_0_pci_r), FUNC(funkball_state::voodoo_0_pci_w));
-	pcibus.set_device(18, FUNC(funkball_state::cx5510_pci_r), FUNC(funkball_state::cx5510_pci_w));
+	PCI_ROOT(config, "pci");
+	CX5510(config, "pci:12.0", m_maincpu);
+	FUNKBALL_VOODOO_PCI(config, "pci:07.0").init_enable_cb().set(m_voodoo, FUNC(voodoo_1_device::set_init_enable));
 
 	ide_controller_device &ide(IDE_CONTROLLER(config, "ide").options(ata_devices, "hdd", nullptr, true));
 	ide.irq_handler().set("pic8259_2", FUNC(pic8259_device::ir6_w));
 
 	ADDRESS_MAP_BANK(config, "flashbank").set_map(&funkball_state::flashbank_map).set_options(ENDIANNESS_LITTLE, 32, 32, 0x10000);
 
-	/* video hardware */
+	// Obsidian GE according to debug strings
 	VOODOO_1(config, m_voodoo, voodoo_1_device::NOMINAL_CLOCK);
 	m_voodoo->set_fbmem(2);
 	m_voodoo->set_tmumem(4, 0);
@@ -763,14 +771,14 @@ void funkball_state::funkball(machine_config &config)
 	m_voodoo->set_screen("screen");
 	m_voodoo->set_cpu(m_maincpu);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
-	screen.set_refresh_hz(60);
-	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
-	screen.set_screen_update(FUNC(funkball_state::screen_update));
-	screen.set_size(1024, 1024);
-	screen.set_visarea(0, 511, 16, 447);
+	SCREEN(config, m_screen);
+	// 494 263 (62 380 ~ 10 249)
+	// vestigial, updated by Voodoo core
+	m_screen->set_raw(XTAL(14'318'181) / 2, 494, 62, 381, 263, 10, 250);
+	m_screen->set_screen_update(FUNC(funkball_state::screen_update));
 
 	ns16550_device &uart(NS16550(config, "uart", 1843200)); // exact type unknown
+//  uart.out_int_callback().set(m_pic8259_1, FUNC(pic8259_device::ir4_w));
 	uart.out_tx_callback().set("rs232", FUNC(rs232_port_device::write_txd));
 	uart.out_dtr_callback().set("rs232", FUNC(rs232_port_device::write_dtr));
 	uart.out_rts_callback().set("rs232", FUNC(rs232_port_device::write_rts));
@@ -786,12 +794,11 @@ void funkball_state::funkball(machine_config &config)
 	INTEL_28F320J5(config, "u30");
 	INTEL_28F320J5(config, "u3");
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	KS0164(config, m_sound, 16.9344_MHz_XTAL);
-	m_sound->add_route(0, "lspeaker", 1.0);
-	m_sound->add_route(1, "rspeaker", 1.0);
+	m_sound->add_route(0, "speaker", 1.0, 0);
+	m_sound->add_route(1, "speaker", 1.0, 1);
 }
 
 ROM_START( funkball )
@@ -801,11 +808,12 @@ ROM_START( funkball )
 	ROM_REGION(0x400000, "ks0164", ROMREGION_ERASE00) // Sound Program / Samples
 	ROM_LOAD16_WORD_SWAP( "flash.u3", 0x000000, 0x400000, CRC(fb376abc) SHA1(ea4c48bb6cd2055431a33f5c426e52c7af6997eb) )
 
+	// baddump: contains non-factory user saves, defaults to demo sounds off
 	ROM_REGION16_BE(0x400000, "u29", ROMREGION_ERASE00) // Main Program
-	ROM_LOAD16_WORD_SWAP( "flash.u29",0x000000, 0x400000, CRC(7cf6ff4b) SHA1(4ccdd4864ad92cc218998f3923997119a1a9dd1d) )
+	ROM_LOAD16_WORD_SWAP( "flash.u29",0x000000, 0x400000, BAD_DUMP CRC(7cf6ff4b) SHA1(4ccdd4864ad92cc218998f3923997119a1a9dd1d) )
 
 	ROM_REGION16_BE(0x400000, "u30", ROMREGION_ERASE00)
-	ROM_LOAD16_WORD_SWAP( "flash.u30",0x000000, 0x400000, CRC(1d46717a) SHA1(acfbd0a2ccf4d717779733c4a9c639296c3bbe0e) )
+	ROM_LOAD16_WORD_SWAP( "flash.u30",0x000000, 0x400000, BAD_DUMP CRC(1d46717a) SHA1(acfbd0a2ccf4d717779733c4a9c639296c3bbe0e) )
 ROM_END
 
 } // anonymous namespace

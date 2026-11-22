@@ -1,24 +1,18 @@
 // license:BSD-3-Clause
 // copyright-holders:Mathis Rosenhauer
-/*****************************************************************************
- *
- * includes/vectrex.h
- *
- ****************************************************************************/
+
 #ifndef MAME_MILTONBRADLEY_VECTREX_H
 #define MAME_MILTONBRADLEY_VECTREX_H
 
 #pragma once
 
-#include "machine/6522via.h"
-#include "sound/dac.h"
-#include "sound/ay8910.h"
-#include "video/vector.h"
-
-#include "bus/vectrex/slot.h"
 #include "bus/vectrex/rom.h"
+#include "bus/vectrex/slot.h"
+#include "machine/6522via.h"
+#include "sound/ay8910.h"
+#include "sound/dac.h"
 
-#include "screen.h"
+#include "vector.h"
 
 #define NVECT 10000
 
@@ -42,16 +36,15 @@ protected:
 		m_io_3dconf(*this, "3DCONF"),
 		m_io_lpenconf(*this, "LPENCONF"),
 		m_io_lpenx(*this, "LPENX"),
-		m_io_lpeny(*this, "LPENY"),
-		m_screen(*this, "screen")
+		m_io_lpeny(*this, "LPENY")
 	{ }
 
 	void psg_port_w(uint8_t data);
 	uint8_t via_r(offs_t offset);
 	void via_w(offs_t offset, uint8_t data);
-	virtual void driver_start() override;
-	virtual void video_start() override;
-	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
+	void vector_update(vector_device &vector);
 	TIMER_CALLBACK_MEMBER(imager_change_color);
 	TIMER_CALLBACK_MEMBER(update_level);
 	TIMER_CALLBACK_MEMBER(imager_eye);
@@ -148,7 +141,6 @@ private:
 	required_ioport m_io_lpenconf;
 	required_ioport m_io_lpenx;
 	required_ioport m_io_lpeny;
-	required_device<screen_device> m_screen;
 };
 
 
@@ -159,14 +151,14 @@ public:
 		vectrex_base_state(mconfig, type, tag)
 	{ }
 
-	void vectrex(machine_config &config);
+	void vectrex(machine_config &config) ATTR_COLD;
 
 protected:
-	virtual void video_start() override;
-	virtual void machine_start() override;
+	virtual void video_start() override ATTR_COLD;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
-	void vectrex_map(address_map &map);
+	void vectrex_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -178,13 +170,13 @@ public:
 		m_io_coin(*this, "COIN")
 	{ }
 
-	void raaspec(machine_config &config);
+	void raaspec(machine_config &config) ATTR_COLD;
 
 private:
 	void raaspec_led_w(uint8_t data);
 	uint8_t s1_via_pb_r();
 
-	void raaspec_map(address_map &map);
+	void raaspec_map(address_map &map) ATTR_COLD;
 
 	required_ioport m_io_coin;
 };

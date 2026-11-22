@@ -24,12 +24,12 @@ protected:
 	gew_pcm_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock,
 		uint32_t voices, uint32_t clock_divider);
 
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 	virtual void device_clock_changed() override;
 
 	// sound stream update overrides
-	virtual void sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs) override;
+	virtual void sound_stream_update(sound_stream &stream) override;
 
 	// device_rom_interface overrides
 	virtual void rom_bank_pre_change() override;
@@ -82,7 +82,7 @@ protected:
 
 	struct slot_t
 	{
-		uint8_t m_regs[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+		uint8_t m_regs[11] = { };
 		bool m_playing = false;
 		sample_t m_sample;
 		uint32_t m_offset = 0;
@@ -91,6 +91,7 @@ protected:
 		uint32_t m_step = 0;
 		bool m_reverse = false;
 		uint32_t m_pan = 0;
+		uint8_t m_dsp_send = 0;
 		uint32_t m_total_level = 0;
 		uint32_t m_dest_total_level = 0;
 		int32_t m_total_level_step = 0;
@@ -134,6 +135,7 @@ protected:
 	static const float LFO_FREQ[8];
 	static const float PHASE_SCALE_LIMIT[8];
 	static const float AMPLITUDE_SCALE_LIMIT[8];
+	static const uint8_t DSP_SEND_LEVEL[16];
 
 	// internal state
 	sound_stream* m_stream;
@@ -141,6 +143,7 @@ protected:
 	float m_rate;
 	uint32_t m_voices;
 	uint32_t m_clock_divider;
+	bool m_dsp_send_enable;
 
 	std::unique_ptr<uint32_t[]> m_attack_step;
 	std::unique_ptr<uint32_t[]> m_decay_release_step;   // Envelope step tables

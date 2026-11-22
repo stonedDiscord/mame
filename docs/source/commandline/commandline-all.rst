@@ -784,7 +784,7 @@ OSD-related Options
       -
       - auto
       - osx
-      - sdl
+      - sdl [#UIFPSDLMacOS]_
       - none
     * - **Linux**
       -
@@ -799,6 +799,9 @@ OSD-related Options
 ..  [#UIFPSDLWindows] SDL support on Windows requires that you compile MAME with
                       the support in. By default SDL is not included in Windows
                       builds of MAME.
+
+..  [#UIFPSDLMacOS]   SDL support on macOS requires that you compile MAME with
+                      the support in.
 
 Example:
     .. code-block:: bash
@@ -820,6 +823,7 @@ Example:
       - rawinput
       - dinput
       - win32
+      -
       - sdl [#KBIPSDLWindows]_
       - none
     * - **SDL (macOS and Linux)**
@@ -827,7 +831,16 @@ Example:
       -
       -
       -
+      -
       - sdl
+      - none
+    * - **macOS native**
+      - auto [#KBIPAutoMac]_
+      -
+      -
+      -
+      - mac
+      -
       - none
 
 ..  rubric:: Footnotes
@@ -840,6 +853,8 @@ Example:
                       builds of MAME.
 
 ..  [#KBIPAutoSDL] ``auto`` on SDL will default to ``sdl``.
+
+..  [#KBIPAutoMac] ``auto`` on macOS native will default to ``mac``.
 
 .. Tip:: Note that user-mode keyboard emulation tools such as joy2key will
          almost certainly require the use of **-keyboardprovider win32** on
@@ -865,6 +880,7 @@ Example:
       - rawinput
       - dinput
       - win32
+      -
       - sdl [#MIPSDLWindows]_
       - none
     * - **SDL (macOS and Linux)**
@@ -872,7 +888,16 @@ Example:
       -
       -
       -
+      -
       - sdl
+      - none
+    * - **macOS native**
+      - auto [#MIPAutoMac]_
+      -
+      -
+      -
+      - mac
+      -
       - none
 
 ..  rubric:: Footnotes
@@ -885,6 +910,8 @@ Example:
                       builds of MAME.
 
 ..  [#MIPAutoSDL] ``auto`` on SDL will default to ``sdl``.
+
+..  [#MIPAutoMac] ``auto`` on macOS native will default to ``mac``.
 
 Example:
     .. code-block:: bash
@@ -908,11 +935,11 @@ Example:
       - sdl [#LGIPSDLWindows]_
       -
       - none
-    * - **macOS**
+    * - **SDL**
       - auto [#LGIPAutoSDL]_
       -
       -
-      - sdl
+      - sdl [#LGIPSDLMacOS]_
       -
       - none
     * - **Linux**
@@ -921,6 +948,13 @@ Example:
       -
       - sdl
       - x11
+      - none
+    * - **macOS native**
+      - auto [#LGIPAutoMac]_
+      -
+      -
+      - mac
+      -
       - none
 
 ..  rubric:: Footnotes
@@ -933,6 +967,12 @@ Example:
                       builds of MAME.
 
 ..  [#LGIPAutoSDL] On SDL, ``auto`` will default to ``sdl``.
+
+..  [#LGIPSDLMacOS] SDL support on macOS requires that you compile MAME with
+                    the support in.
+
+..  [#LGIPAutoMac] On macOS native, ``auto`` will default to ``mac``, which
+                   reads the system pointer.
 
 Example:
     .. code-block:: bash
@@ -955,6 +995,8 @@ Example:
       - winhybrid
       - dinput
       - xinput
+      -
+      -
       - sdlgame [#JIPSDLWindows]_
       - sdljoy [#JIPSDLWindows]_
       - none
@@ -963,8 +1005,20 @@ Example:
       -
       -
       -
+      -
+      -
       - sdlgame
       - sdljoy
+      - none
+    * - **macOS native**
+      - auto [#JIPAutoMac]_
+      -
+      -
+      -
+      - macgame
+      - macjoy
+      -
+      -
       - none
 
 ..  rubric:: Footnotes
@@ -977,6 +1031,8 @@ Example:
 
 ..  [#JIPAutoSDL] On SDL, auto will default to ``sdlgame``.
 
+..  [#JIPAutoMac] On macOS without SDL support, auto will default to ``macgame``.
+
 winhybrid
     Uses XInput for compatible game controllers, falling back to DirectInput for
     other game controllers.  Typically provides the best experience on Windows.
@@ -986,6 +1042,13 @@ dinput
     controls are combined with using XInput game controllers via DirectInput.
 xinput
     Supports up to four XInput game controllers.
+macgame
+    Uses the macOS Game Controller framework for game controllers with button/axis
+    mappings available, including Sony and Microsoft console controllers and
+    MFi-certified controllers.  Provides consistent button and axis assignment and
+    meaningful control names.
+macjoy
+    Uses the macOS IOKit framework for all game controllers.
 sdlgame
     Uses the SDL game controller API for game controllers with button/axis
     mappings available, falling back to the SDL joystick API for other game
@@ -1125,18 +1188,16 @@ Configuration Options
 
       - ``mame.ini``
       - ``debug.ini``                       (if the debugger is enabled)
-      - ``source/``\ *<driver>*\ ``.ini``   (based on the source filename of the driver)
       - ``vertical.ini``                    (for systems with vertical monitor orientation)
       - ``horizont.ini``                    (for systems with horizontal monitor orientation)
-      - ``arcade.ini``                      (for systems in source added with ``GAME()`` macro)
-      - ``console.ini``                     (for systems in source added with ``CONS()`` macro)
-      - ``computer.ini``                    (for systems in source added with ``COMP()`` macro)
-      - ``othersys.ini``                    (for systems in source added with ``SYST()`` macro)
-      - ``vector.ini``                      (for vector systems only)
+      - ``raster.ini``                      (for raster display systems only)
+      - ``vector.ini``                      (for vector display systems only)
+      - ``lcd.ini``                         (for matrix display systems only)
+      - ``source/``\ *<driver>*\ ``.ini``   (based on the source filename of the driver)
       - *<parent>*\ ``.ini``                (for clones only, may be called recursively)
       - *<systemname>*\ ``.ini``
 
-      (See :ref:`advanced-multi-CFG` for further details)
+      (See :ref:`advanced-multicfg-order` for further details)
 
     The settings in the later INIs override those in the earlier INIs.  So, for
     example, if you wanted to disable overlay effects in the vector systems, you
@@ -1354,7 +1415,7 @@ Core Search Path Options
 
     Specifies the default path from which to load loose software image files.
 
-    The default is ``sofware`` (that is, a directory ``software`` in the current
+    The default is ``software`` (that is, a directory ``software`` in the current
     working directory).
 
     Example:
@@ -1811,7 +1872,7 @@ Core State/Playback Options
             All save states will be stored inside sta\c64\robby\
 
 .. Tip:: Note that even on Microsoft Windows, you should use ``/`` as your
-         path seperator for **-statename**
+         path separator for **-statename**
 
 
 .. _mame-commandline-noburnin:
@@ -2144,17 +2205,22 @@ Core Video Options
       options.  It is recommended if you have a 3D-capable video card or onboard
       Intel video of the HD3000 line or better.
 
-    On other platforms (including SDL on Windows):
+    On other platforms (including SDL on Windows or macOS):
 
     * Using ``accel`` tells MAME to render video using SDL’s 2D acceleration if
       possible.
     * Using ``soft`` uses software rendering for video output.  This isn’t as
       fast or as nice as OpenGL, but it will work on any platform.
 
+    On macOS native:
+
+    * Using ``soft`` uses software rendering for video output.  This isn’t as
+      fast or as nice as OpenGL, but it will work on any platform.
+
     Defaults:
 
     * The default on Windows is ``d3d``.
-    * The default for macOS is ``opengl`` because OS X is guaranteed to have a
+    * The default for macOS is ``opengl`` because macOS is guaranteed to have a
       compliant OpenGL stack.
     * The default on all other systems is ``soft``.
 
@@ -2591,7 +2657,7 @@ Core Artwork Options
 
 .. _mame-commandline-fallbackartwork:
 
-**-fallback_artwork**
+**-fallback_artwork** *<artwork name>*
 
     Specifies fallback artwork if no external artwork or internal driver layout
     is defined. If external artwork for the system is present or a layout is
@@ -2606,10 +2672,9 @@ Core Artwork Options
          ``horizontal.ini`` and ``vertical.ini`` to specify different
          fallback artwork choices for horizontal and vertical systems.
 
-
 .. _mame-commandline-overrideartwork:
 
-**-override_artwork**
+**-override_artwork** *<artwork name>*
 
     Specifies override artwork for external artwork and internal driver layout.
 
@@ -2617,6 +2682,24 @@ Core Artwork Options
         .. code-block:: bash
 
             mame galaga -override_artwork puckman
+
+.. _mame-commandline-artworkfont:
+
+**-artwork_font** / **-artfont** *<fontname>*
+
+    Specifies the font to use for artwork text elements.  The same
+    considerations apply as for the UI font (see the :ref:`uifont option
+    <mame-commandline-uifont>`).
+
+    Note that artwork is typically designed around a sans serif font with tight
+    character spacing (e.g. **Tahoma**, which is the default on Windows).  Using
+    a font with wider character spacing or a fixed pitch font (e.g. a Courier
+    family font) may result in text positioning issues.
+
+    Example:
+        .. code-block:: bash
+
+            mame starwbc -artwork_font "Comic Sans MS"
 
 
 .. _mame-commandline-screenoptions:
@@ -2950,26 +3033,12 @@ Core Sound Options
 
             mame qbert -nosamples
 
-.. _mame-commandline-nocompressor:
-
-**-[no]compressor**
-
-    Enable audio compressor. It temporarily reduces the overall volume when
-    the audio output is overdriven.
-
-    The default is ON (**-compressor**).
-
-    Example:
-        .. code-block:: bash
-
-            mame popeye -nocompressor
-
 .. _mame-commandline-volume:
 
 **-volume** / **-vol** *<value>*
 
     Sets the initial sound volume.  It can be changed later with the user
-    interface (see Keys section).  The volume is an attenuation in decibels:
+    interface (see Keys section).  The volume is in decibels:
     e.g. "**-volume -12**" will start with -12 dB attenuation.  Note that if the
     volume is changed in the user interface it will be saved to the
     configuration file for the system.  The value from the configuration file
@@ -2984,20 +3053,21 @@ Core Sound Options
 
 .. _mame-commandline-sound:
 
-**-sound** *<dsound | coreaudio | sdl | xaudio2 | portaudio | none>*
+**-sound** *<wasapi | xaudio2 | coreaudio | pipewire | pulse | sdl | portaudio | none>*
 
-    Specifies which sound subsystem to use. Selecting ``none`` disables sound
-    output altogether (sound hardware is still emulated).
+    Specifies which sound module to use.  Selecting ``none`` disables sound
+    output and input altogether (sound hardware is still emulated).
 
-    On Windows and Linux, *portaudio* is likely to give the lowest possible
-    latency, while Mac users will find *coreaudio* provides the best results.
+    Available features, performance and latency vary between sound modules.
+    You may have to change the value of the :ref:`latency option
+    <mame-commandline-audiolatency>` if you change the sound module.
 
     When using the ``sdl`` sound subsystem, the audio API to use may be selected
     by setting the *SDL_AUDIODRIVER* environment variable.  Available audio APIs
     depend on the operating system.  On Windows, it may be necessary to set
     ``SDL_AUDIODRIVER=directsound`` if no sound output is produced by default.
 
-    The default is ``dsound`` on Windows. On Mac, ``coreaudio`` is the default.
+    The default is ``wasapi`` on Windows.  On Mac, ``coreaudio`` is the default.
     On all other platforms, ``sdl`` is the default.
 
     Example:
@@ -3005,58 +3075,92 @@ Core Sound Options
 
             mame pacman -sound portaudio
 
-.. list-table:: Supported sound subsystems per-platform
-    :header-rows: 0
+.. list-table:: Sound module supported platforms and features
+    :header-rows: 1
     :stub-columns: 0
 
-    * - **Microsoft Windows**
-      - dsound
-      - xaudio2
-      - portaudio
-      -
-      - sdl [#SoundWinSDL]_.
-      - none
-    * - **macOS**
-      -
-      -
-      - portaudio
-      - coreaudio
-      - sdl
-      - none
-    * - **Linux** and others
-      -
-      -
-      - portaudio
-      -
-      - sdl
-      - none
+    * - Module
+      - Supported OS
+      - Input
+      - Output monitoring
+      - Multi-channel
+      - Device changes
+    * - ``wasapi``
+      - Windows
+      - Yes
+      - Yes
+      - Yes
+      - Yes
+    * - ``xaudio2``
+      - Windows
+      - No
+      - No
+      - Yes
+      - Yes
+    * - ``coreaudio``
+      - macOS
+      - Yes
+      - No
+      - Yes
+      - Yes
+    * - ``pipewire``
+      - Linux
+      - Yes
+      - ?
+      - Yes
+      - Yes
+    * - ``pulse``
+      - Linux
+      - No
+      - No
+      - Yes
+      - Yes
+    * - ``sdl``
+      - All [#SoundWinSDL]_
+      - No
+      - No
+      - Yes [#SoundSDLMultiChannel]_
+      - No
+    * - ``portaudio``
+      - All
+      - Yes
+      - Yes [#SoundPortAudioMonitoring]_
+      - Yes
+      - No
 
 
 ..  rubric:: Footnotes
 
-..  [#SoundWinSDL] While SDL is not a supported option on official builds for Windows, you can compile MAME with SDL support on Windows.
+..  [#SoundWinSDL] While SDL is not a supported option on official MAME builds
+    for Windows, you can compile MAME with SDL support on Windows.
+
+..  [#SoundSDLMultiChannel] MAME requires SDL 2.0.16 or later for multi-channel
+    sound support.
+
+..  [#SoundPortAudioMonitoring] PortAudio support for output monitoring depends
+    on the platform and sound API.
 
 .. _mame-commandline-audiolatency:
 
-**-audio_latency** *<value>*
+**-audio_latency** *<value>* / **-alat** *<value>*
 
-    The exact behavior depends on the selected audio output module.  Smaller
-    values provide less audio delay while requiring better system performance.
-    Higher values increase audio delay but may help avoid buffer under-runs and
-    audio interruptions.
+    Audio latency, conventionally in number of audio frames (1 audio frame is 20ms).
+    It is not required to supply whole numbers, eg. a value of ``1.5`` is 30ms).
+    Smaller values provide less audio delay while requiring better system
+    performance.  Larger values increase audio delay but may help avoid buffer
+    under-runs and audio interruptions.  A value of ``0`` will use the default
+    for the selected sound module.
 
-    The default is ``1``.
+    You may need to change the value of this option if you change the sound module
+    using the :ref:`sound option <mame-commandline-sound>`.  This option is
+    unsupported on sound modules ``pipewire``, ``pulse``, ``sdl``.
 
-    * For PortAudio, see the section on :ref:`-pa_latency <mame-commandline-palatency>`.
-    * XAudio2 calculates audio_latency as 10ms steps.
-    * DSound calculates audio_latency as 10ms steps.
-    * CoreAudio calculates audio_latency as 25ms steps.
-    * SDL calculates audio_latency as Xms steps.
+    The default is ``0``.
 
     Example:
         .. code-block:: bash
 
-            mame galaga -audio_latency 1
+            mame galaga -audio_latency 2
 
 
 .. _mame-commandline-inputoptions:
@@ -3233,24 +3337,6 @@ Core Input Options
 
             mame apple2e -ui_active
 
-.. _mame-commandline-nooffscreenreload:
-
-**-[no]offscreen_reload** / **-[no]reload**
-
-    Controls whether or not MAME treats a second button input from a lightgun as
-    a reload signal.  In this case, MAME will report the gun's position as
-    (0,MAX) with the trigger held, which is equivalent to an offscreen reload.
-
-    This is only needed for games that required you to shoot offscreen to
-    reload, and then only if your gun does not support off screen reloads.
-
-    The default is OFF (**-nooffscreen_reload**).
-
-    Example:
-        .. code-block:: bash
-
-            mame lethalen -offscreen_reload
-
 .. _mame-commandline-joystickmap:
 
 **-joystick_map** *<map>* / **-joymap** *<map>*
@@ -3292,7 +3378,7 @@ Core Input Options
     Generally you will want to set up the **-joystick_map** setting in the
     per-system ``<system>.ini`` file as opposed to the main ``MAME.INI``
     file so that the mapping only affects the systems you want it to.  See
-    :ref:`Multiple Configuration Files <advanced-multi-CFG>` for further
+    :ref:`Multiple Configuration Files <advanced-multicfg-order>` for further
     details on per-system configuration.
 
     Maps are defined as a string of numbers and characters. Since the grid is
@@ -3821,7 +3907,7 @@ Core Communication Options
     Local port to bind to. This can be any traditional communications port as
     an unsigned 16-bit integer (0-65535).
 
-    The default value is ``15122``.
+    The default value is ``15112``.
 
     Example:
         .. code-block:: bash
@@ -3850,7 +3936,7 @@ Core Communication Options
     Remote port to connect to. This can be any traditional communications port
     as an unsigned 16-bit integer (0-65535).
 
-    The default value is "``15122``".
+    The default value is "``15112``".
 
     Example:
         .. code-block:: bash
@@ -3880,7 +3966,9 @@ Core Misc Options
 
 **-[no]drc**
 
-    Enable DRC (dynamic recompiler) CPU core if available for maximum speed.
+    Enable DRC (dynamic recompiler) CPU cores if available.  Turn this option
+    off to use interpreter CPU cores if available.  This option does not affect
+    CPUs that only support one core type.
 
     The default is ON (**-drc**).
 
@@ -3889,18 +3977,37 @@ Core Misc Options
 
             mame ironfort -nodrc
 
+.. _mame-commandline-drcrwx:
+
+**\-[no]drc_rwx**
+
+    Allow DRC CPU cores to use memory that is simultaneously writable and
+    executable if supported.  Turning this option off may decrease performance.
+    This option only affects DRC CPU cores, and has no effect in configurations
+    that do not allow memory to be simultaneously writable and executable (e.g.
+    recent versions of macOS and NetBSD).
+
+    The default is ON (**-drc_rwx**).
+
+    Example:
+        .. code-block:: bash
+
+            mame fiveside -nodrc_rwx
+
 .. _mame-commandline-drcusec:
 
 **\-[no]drc_use_c**
 
-    Force DRC to use the C code backend.
+    Force DRC CPU cores to use the portable C code back-end when a native
+    back-end is available.  This option only affects DRC CPU cores, and has no
+    effect if a native DRC back-end is not available.
 
     The default is OFF (**-nodrc_use_c**).
 
     Example:
         .. code-block:: bash
 
-            mame ironfort -drc_use_c
+            mame vamphalf -drc_use_c
 
 .. _mame-commandline-drcloguml:
 
@@ -3949,7 +4056,7 @@ Core Misc Options
 
     Activates the cheat menu with autofire options and other tricks from the
     cheat database, if present. This also activates additional options on the
-    slider menu for overclocking/underclocking.
+    slider menu for overall speed and overclocking/underclocking.
 
     *Be advised that savestates created with cheats on may not work correctly
     with this turned off and vice-versa.*
@@ -3978,12 +4085,21 @@ Core Misc Options
 
 **-uifont** *<fontname>*
 
-    Specifies the name of a font file to use for the UI font. If this font
-    cannot be found or cannot be loaded, the system will fall back to its
-    built-in UI font. On some platforms *fontname* can be a system font name
-    instead of a BDF font file.
+    Specifies the font to use for UI text. If this font cannot be found or
+    cannot be loaded, MAME will fall back to its built-in UI font.  Supported
+    fonts depend on the platform and selected UI font provider module.  In some
+    configurations, *fontname* can be a system font name or a path to a TrueType
+    font file.  In all cases, a path to  a BDF (Adobe Glyph Bitmap Distribution
+    Format) font file can be used.
 
-    The default is ``default`` (use the OSD-determined default font).
+    Note that characters available depend on the font, and many fonts do not
+    cover multiple writing systems and languages, or symbols like arrows.
+    Depending on the configuration, MAME may not automatically substitute
+    characters from other fonts.  Characters that are not available may be
+    replaced with substitute glyphs (often rectangles).
+
+    The default is ``default`` (use the default font determined by the UI font
+    provider module).
 
     Example:
         .. code-block:: bash
@@ -4002,17 +4118,6 @@ Core Misc Options
         .. code-block:: bash
 
             mame -ui simple
-
-.. _mame-commandline-ramsize:
-
-**-ramsize** *[n]*
-
-    Allows you to change the default RAM size (if supported by driver).
-
-    Example:
-        .. code-block:: bash
-
-            mame coco -ramsize 16K
 
 .. _mame-commandline-confirmquit:
 
@@ -4068,6 +4173,22 @@ Core Misc Options
 
             mame galaga88 -nonvram_save
 
+.. _mame-commandline-rtc:
+
+**-rtc <value>**
+
+    Specifies a fixed baseline time to initialize the real-time clock (RTC) chips
+    emulated by MAME. By default, MAME initializes RTC chips using your host
+    computer's current system time.
+
+    The option accepts a 14-digit formatted date and time string for `<value>`
+    in the format **YYYYMMDDhhmmss** (e.g., ``20260709070000`` for July 9, 2026,
+    at 07:00:00).
+
+.. Tip:: If an input macro playback file (such as with **-playback**) is active,
+         it takes absolute precedence to prevent input desynchronization. The
+         **-rtc** command-line option will be ignored, and a warning will be
+         displayed in the console.
 
 .. _mame-commandline-scripting:
 
@@ -4203,96 +4324,3 @@ HTTP Server Options
         .. code-block:: bash
 
             mame apple2 -http -http_port 6502 -http_root C:\Users\me\appleweb\root
-
-
-.. _mame-commandline-portaudio:
-
-PortAudio Options
------------------
-
-.. _mame-commandline-paapi:
-
-**-pa_api** *API*
-
-    Choose which API that PortAudio should use to talk to your sound hardware. You can use **-verbose** to see which APIs are available.
-
-    The default is ``none``.
-
-    Example 1:
-        .. code-block:: bash
-
-            mame -sound portaudio -verbose
-            Attempting load of mame.ini
-            ...
-            PortAudio: API MME has 20 devices
-            PortAudio: MME: " - Input"
-            PortAudio: MME: "Microphone (3- USB Camera-B4.09"
-            PortAudio: MME: "Line (AVerMedia Live Gamer HD 2"
-            PortAudio: MME: "Digital Audio Interface (AVerMe"
-            PortAudio: MME: "Headset Microphone (Razer Krake"
-            ...
-            PortAudio: MME: " - Output"
-            PortAudio: MME: "Headset Earphone (Razer Kraken "
-            PortAudio: MME: "Digital Audio (S/PDIF) (High De"
-            PortAudio: MME: "NX-EDG27 (NVIDIA High Definitio"
-            ...
-            PortAudio: API Windows DirectSound has 20 devices
-            PortAudio: Windows DirectSound: "Primary Sound Capture Driver"
-            PortAudio: Windows DirectSound: "Headset Microphone (Razer Kraken 7.1 V2)"
-            PortAudio: Windows DirectSound: "Primary Sound Driver" (default)
-            PortAudio: Windows DirectSound: "Headset Earphone (Razer Kraken 7.1 V2)"
-            PortAudio: Windows DirectSound: "Digital Audio (S/PDIF) (High Definition Audio Device)"
-            PortAudio: Windows DirectSound: "NX-EDG27 (NVIDIA High Definition Audio)"
-            ...
-            PortAudio: API Windows WASAPI has 18 devices
-            PortAudio: Windows WASAPI: "Headset Earphone (Razer Kraken 7.1 V2)"
-            PortAudio: Windows WASAPI: "Digital Audio (S/PDIF) (High Definition Audio Device)"
-            PortAudio: Windows WASAPI: "NX-EDG27 (NVIDIA High Definition Audio)"
-            PortAudio: Windows WASAPI: "Headset Microphone (Razer Kraken 7.1 V2)"
-            ...
-            PortAudio: API Windows WDM-KS has 22 devices
-            PortAudio: Windows WDM-KS: "Output (NVIDIA High Definition Audio)"
-            PortAudio: Windows WDM-KS: "SPDIF Out (HD Audio SPDIF out)"
-            PortAudio: Windows WDM-KS: "Headset Microphone (Razer Kraken 7.1 V2)"
-            PortAudio: Windows WDM-KS: "Headset Earphone (Razer Kraken 7.1 V2)"
-            PortAudio: Windows WDM-KS: "Microphone (VDVAD Wave)"
-            PortAudio: Windows WDM-KS: "Speakers (VDVAD Wave)"
-            ...
-            PortAudio: Sample rate is 48000 Hz, device output latency is 218.67 ms
-            PortAudio: Allowed additional buffering latency is 18.00 ms/864 frames
-
-    Example 2:
-        .. code-block:: bash
-
-            mame suprmrio -sound portaudio -pa_api "Windows WASAPI"
-
-.. _mame-commandline-padevice:
-
-**-pa_device** *device*
-
-    Choose which sound device to output through. This would typically be one of
-    the outputs on your sound card or a USB headset.
-
-    The default is ``none``.
-
-    Example:
-        .. code-block:: bash
-
-            mame suprmrio -sound portaudio -pa_api "Windows WASAPI" -pa_device "NX-EDG27 (NVIDIA High Definition Audio)"
-
-.. _mame-commandline-palatency:
-
-**-pa_latency** *latency*
-
-    Choose the buffer size for PortAudio output; this is specified in seconds.
-    Lower numbers have less latency but may increase stutter in the sound.
-    Decimal places are supported. Try starting from 0.20 and decrease or
-    increase until you find the best number your hardware and OS are capable of
-    handling.
-
-    The default is ``0``.
-
-    Example:
-        .. code-block:: bash
-
-            mame suprmrio -sound portaudio -pa_api "Windows WASAPI" -pa_device "NX-EDG27 (NVIDIA High Definition Audio)" -pa_latency 0.20

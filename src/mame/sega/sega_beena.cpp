@@ -135,7 +135,8 @@
 
 #include "emu.h"
 
-#include "tvochken_card.h"
+#include "9h0-0008_card.h"
+#include "9h0-0008_card_reader.h"
 
 #include "bus/generic/slot.h"
 #include "bus/generic/carts.h"
@@ -151,6 +152,8 @@
 #include "schedule.h"
 #include "speaker.h"
 #include "screen.h"
+
+#include "endianness.h"
 
 #include "beena.lh"
 #include "tvochken.lh"
@@ -189,17 +192,17 @@ protected:
 	static inline constexpr uint32_t ROM_MASK_BASE = 0x80000000;
 	static inline constexpr uint32_t ROM_FLASH_BASE = 0xa0000000;
 
-	void sega_9h0_0008(machine_config &config);
+	void sega_9h0_0008(machine_config &config) ATTR_COLD;
 
 	virtual void device_post_load() override;
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
-	virtual void install_game_rom();
+	virtual void install_game_rom() ATTR_COLD;
 	virtual void update_sensors(offs_t offset);
 
-	void beena_arm7_map(address_map &map);
+	void beena_arm7_map(address_map &map) ATTR_COLD;
 
 	void request_irq();
 	void request_fiq();
@@ -217,9 +220,9 @@ protected:
 	void tiles_sprites_w(offs_t offset, uint8_t data);
 	int32_t scroll_x(int32_t x, uint16_t i);
 	int32_t scroll_y(int32_t y, uint16_t i);
-	void draw_layer(bitmap_rgb32 &bitmap, const rectangle &cliprect, const uint16_t *tilemap, const uint8_t scroll_idx, const bool is_active, const bool is_overlay_rendered);
-	void draw_layer_tiles(bitmap_rgb32 &bitmap, const rectangle &cliprect, const uint16_t *tilemap, const uint8_t scroll_idx, const bool is_overlay_rendered);
-	void draw_layer_scanlines(bitmap_rgb32 &bitmap, const rectangle &cliprect, const uint16_t *tilemap, const uint8_t scroll_idx, const bool is_overlay_rendered);
+	void draw_layer(bitmap_rgb32 &bitmap, const rectangle &cliprect, const uint32_t *tilemap, const uint8_t scroll_idx, const bool is_active, const bool is_overlay_rendered);
+	void draw_layer_tiles(bitmap_rgb32 &bitmap, const rectangle &cliprect, const uint32_t *tilemap, const uint8_t scroll_idx, const bool is_overlay_rendered);
+	void draw_layer_scanlines(bitmap_rgb32 &bitmap, const rectangle &cliprect, const uint32_t *tilemap, const uint8_t scroll_idx, const bool is_overlay_rendered);
 	void draw_sprites(bitmap_rgb32 &bitmap, const rectangle &cliprect, const bool is_overlay_rendered);
 	void draw_bitmap(bitmap_rgb32 &bitmap, const rectangle &cliprect);
 	void screen_blend(bitmap_rgb32 &bitmap, const rectangle &cliprect);
@@ -853,7 +856,7 @@ void sega_9h0_0008_state::memcache_parse_data_bit(uint32_t &status)
 
 uint32_t sega_9h0_0008_state::io_expansion_r()
 {
-	return 0; // TODO
+	return 0; // FIXME: Confirm with hardware tests.
 }
 
 uint32_t sega_9h0_0008_state::io_memcache_r()
@@ -1065,15 +1068,14 @@ void sega_9h0_0008_state::rtc_w(offs_t offset, uint32_t data, uint32_t mem_mask)
 
 void sega_9h0_0008_state::pal_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 {
-	uint16_t *shared16 = reinterpret_cast<uint16_t *>(m_paletteram.target());
-	COMBINE_DATA(&shared16[BYTE_XOR_BE(offset)]);
+	auto const shared16 = util::big_endian_cast<uint16_t>(m_paletteram.target());
+	COMBINE_DATA(&shared16[offset]);
 
-	uint16_t pal_entry = shared16[BYTE_XOR_BE(offset)];
-	uint8_t r, g, b;
-	r = (pal_entry & 0x001f) >> 0;
-	g = (pal_entry & 0x03e0) >> 5;
-	b = (pal_entry & 0x7c00) >> 10;
-	rgb_t color = rgb_t(pal5bit(r), pal5bit(g), pal5bit(b));
+	uint16_t const pal_entry = shared16[offset];
+	uint8_t const r = (pal_entry & 0x001f) >> 0;
+	uint8_t const g = (pal_entry & 0x03e0) >> 5;
+	uint8_t const b = (pal_entry & 0x7c00) >> 10;
+	rgb_t const color = rgb_t(pal5bit(r), pal5bit(g), pal5bit(b));
 	m_cache_palette[m_scanline * 0x100 + offset] = color;
 	m_palette->set_pen_color(offset, color);
 	LOG("m_cache_palette[%d / m_scale * 0x100 + %04x] = %04x (%04x)\n", m_scanline, offset, color, pal_entry);
@@ -1110,7 +1112,7 @@ void sega_9h0_0008_state::tiles_sprites_w(offs_t offset, uint8_t data)
 void sega_9h0_0008_state::draw_layer(
 		bitmap_rgb32 &bitmap,
 		const rectangle &cliprect,
-		const uint16_t *tilemap,
+		const uint32_t *tilemap,
 		const uint8_t scroll_idx,
 		const bool is_active,
 		const bool is_overlay_rendered)
@@ -1129,13 +1131,14 @@ void sega_9h0_0008_state::draw_layer(
 void sega_9h0_0008_state::draw_layer_tiles(
 		bitmap_rgb32 &bitmap,
 		const rectangle &cliprect,
-		const uint16_t *tilemap,
+		const uint32_t *tilemap,
 		const uint8_t scroll_idx,
 		const bool is_overlay_rendered)
 {
 	// Bitplane area =  1024x512 (64x32 tiles), matches tile data mapping entries (64 * 32 = 0x800).
 	//  Visible area =   704x480 (44x30 tiles), offset by +10 tiles in x-axis and +2 tiles in y-axis.
 	//  Tilemap area = 1024x1024 (64x64 tiles), all these off-screen tiles must be considered for scrolling.
+	auto const tilemap16 = util::big_endian_cast<uint16_t const>(tilemap);
 	for (size_t offset = 0; offset < 0x2000/2; offset++) {
 		int32_t y = ((offset / 64) - 2) * 16;
 		int32_t x = ((offset % 64) - 10) * 16;
@@ -1157,7 +1160,7 @@ void sega_9h0_0008_state::draw_layer_tiles(
 		x = scroll_x(x, scroll_x_idx);
 		y = scroll_y(y, scroll_y_idx);
 
-		uint16_t tile = tilemap[BYTE_XOR_BE(offset)];
+		uint16_t tile = tilemap16[offset];
 		uint16_t tile_transform = (tile & 0xf000) >> 12;
 		uint16_t flip_x = (tile_transform & 1) != 0;
 		uint16_t flip_y = (tile_transform & 2) != 0;
@@ -1355,7 +1358,7 @@ int32_t sega_9h0_0008_state::scroll_y(int32_t y, uint16_t i)
 void sega_9h0_0008_state::draw_layer_scanlines(
 		bitmap_rgb32 &bitmap,
 		const rectangle &cliprect,
-		const uint16_t *tilemap,
+		const uint32_t *tilemap,
 		const uint8_t scroll_idx,
 		const bool is_overlay_rendered)
 {
@@ -1363,12 +1366,13 @@ void sega_9h0_0008_state::draw_layer_scanlines(
 	m_cache_layer.fill(0, cache_bitmap_bounds);
 
 	// Apply y-scrolling + wrap-around on each tile row and draw to cached bitmap
+	auto const tilemap16 = util::big_endian_cast<uint16_t const>(tilemap);
 	const int8_t tile_factor = 16;
 	for (size_t offset = 0; offset < 0x2000/2; offset++) {
 		int32_t y = ((offset / 64) - 2) * tile_factor;
 		int32_t x = ((offset % 64) - 10) * tile_factor;
 
-		uint16_t tile = tilemap[BYTE_XOR_BE(offset)];
+		uint16_t tile = tilemap16[offset];
 		uint16_t tile_transform = (tile & 0xf000) >> 12;
 		uint16_t flip_x = (tile_transform & 1) != 0;
 		uint16_t flip_y = (tile_transform & 2) != 0;
@@ -1430,16 +1434,10 @@ void sega_9h0_0008_state::draw_layer_scanlines(
 					// Redo the x-axis visible area adjustment
 					dst_x -= 10 * tile_factor;
 
-					if (dst_x * m_scale < cliprect.min_x
-						|| dst_x * m_scale > cliprect.max_x
-						|| dst_y * m_scale < cliprect.min_y
-						|| dst_y * m_scale > cliprect.max_y) {
+					if (!cliprect.contains(dst_x * m_scale, dst_y * m_scale)) {
 						continue; // Skip beyond screen size
 					}
-					if (src_x < m_cache_layer.cliprect().min_x
-						|| src_x > m_cache_layer.cliprect().max_x
-						|| src_y < m_cache_layer.cliprect().min_y
-						|| src_y > m_cache_layer.cliprect().max_y) {
+					if (!m_cache_layer.cliprect().contains(src_x, src_y)) {
 						continue; // Skip beyond cache size
 					}
 
@@ -1486,8 +1484,8 @@ void sega_9h0_0008_state::draw_bitmap(bitmap_rgb32 &bitmap, const rectangle &cli
 			if (color == 0
 					|| y >= bitmap_clip_h * m_scale
 					|| x >= bitmap_clip_w * m_scale
-					|| y + bitmap_scroll_y * m_scale > cliprect.max_y
-					|| x + bitmap_scroll_x * m_scale > cliprect.max_x) {
+					|| y + bitmap_scroll_y * m_scale > cliprect.bottom()
+					|| x + bitmap_scroll_x * m_scale > cliprect.right()) {
 				continue;
 			}
 
@@ -1591,20 +1589,17 @@ uint32_t sega_9h0_0008_state::screen_update(screen_device &screen, bitmap_rgb32 
 		return 0; // Disabled
 	}
 
-	uint16_t *shared16_tilemap_bg = reinterpret_cast<uint16_t *>(m_tilemap_bg.target());
-	uint16_t *shared16_tilemap_fg = reinterpret_cast<uint16_t *>(m_tilemap_fg.target());
-
 	if (((m_video_regs[0x10/4] & 0x3000) == 0x3000)) {
 		draw_bitmap(bitmap, cliprect);
 	}
 
-	draw_layer(bitmap, cliprect, shared16_tilemap_bg, 1, (m_video_regs[0x10/4] & 4) != 0, false);
+	draw_layer(bitmap, cliprect, m_tilemap_bg, 1, (m_video_regs[0x10/4] & 4) != 0, false);
 
 	if (((m_video_regs[0x10/4] & 0x3000) == 0x2000)) {
 		draw_bitmap(bitmap, cliprect);
 	}
 
-	draw_layer(bitmap, cliprect, shared16_tilemap_fg, 0, (m_video_regs[0x10/4] & 2) != 0, false);
+	draw_layer(bitmap, cliprect, m_tilemap_fg, 0, (m_video_regs[0x10/4] & 2) != 0, false);
 
 	bool is_bitmap_after_sprites = (m_video_regs[0x20/4] & 0x10) != 0;
 	if (((m_video_regs[0x10/4] & 0x3000) == 0x1000) && !is_bitmap_after_sprites) {
@@ -1613,14 +1608,14 @@ uint32_t sega_9h0_0008_state::screen_update(screen_device &screen, bitmap_rgb32 
 
 	draw_sprites(bitmap, cliprect, false);
 
-	draw_layer(bitmap, cliprect, shared16_tilemap_bg, 1, (m_video_regs[0x10/4] & 4) != 0, true);
+	draw_layer(bitmap, cliprect, m_tilemap_bg, 1, (m_video_regs[0x10/4] & 4) != 0, true);
 
 	if (((m_video_regs[0x10/4] & 0x3000) == 0) && !is_bitmap_after_sprites) {
 		draw_bitmap(bitmap, cliprect);
 	}
 
 	// TV bottom frame in front of running dog in "Partner in TV"
-	draw_layer(bitmap, cliprect, shared16_tilemap_fg, 0, (m_video_regs[0x10/4] & 2) != 0, true);
+	draw_layer(bitmap, cliprect, m_tilemap_fg, 0, (m_video_regs[0x10/4] & 2) != 0, true);
 
 	if (((m_video_regs[0x10/4] & 0x3000) == 0x1000) && is_bitmap_after_sprites) {
 		// Minimap after lamp posts in "Cars 2" bridge section
@@ -1658,8 +1653,8 @@ void sega_9h0_0008_state::screen_blend(bitmap_rgb32 &bitmap, const rectangle &cl
 	uint8_t blend_b = alpha_b_step < 0x20 ? 0xff : 0;
 	uint32_t blend_rgb = blend_b | (blend_g << 8) | (blend_r << 16);
 
-	for (size_t y = cliprect.min_y; y <= cliprect.max_y; y++) {
-		for (size_t x = cliprect.min_x; x <= cliprect.max_x; x++) {
+	for (size_t y = cliprect.top(); y <= cliprect.bottom(); y++) {
+		for (size_t x = cliprect.left(); x <= cliprect.right(); x++) {
 			uint32_t *dst = &bitmap.pix(y, x);
 			*dst = alpha_blend_rgb_levels(blend_rgb, *dst, alpha_b, alpha_r, alpha_g);
 		}
@@ -1679,15 +1674,15 @@ int32_t sega_9h0_0008_state::rescale_alpha_step(uint8_t step)
 
 void sega_9h0_0008_state::request_irq()
 {
-	m_maincpu->set_input_line(ARM7_IRQ_LINE, ASSERT_LINE);
-	m_maincpu->set_input_line(ARM7_IRQ_LINE, CLEAR_LINE);
+	m_maincpu->set_input_line(arm7_cpu_device::ARM7_IRQ_LINE, ASSERT_LINE);
+	m_maincpu->set_input_line(arm7_cpu_device::ARM7_IRQ_LINE, CLEAR_LINE);
 }
 
 void sega_9h0_0008_state::request_fiq()
 {
 	if (m_requested_fiq) {
-		m_maincpu->set_input_line(ARM7_FIRQ_LINE, ASSERT_LINE);
-		m_maincpu->set_input_line(ARM7_FIRQ_LINE, CLEAR_LINE);
+		m_maincpu->set_input_line(arm7_cpu_device::ARM7_FIRQ_LINE, ASSERT_LINE);
+		m_maincpu->set_input_line(arm7_cpu_device::ARM7_FIRQ_LINE, CLEAR_LINE);
 
 		m_requested_fiq = false;
 	}
@@ -1711,7 +1706,7 @@ void sega_9h0_0008_state::sega_9h0_0008(machine_config &config)
 	AP2010CPU(config, m_maincpu, 81'000'000);
 	m_maincpu->set_addrmap(AS_PROGRAM, &sega_9h0_0008_state::beena_arm7_map);
 
-	SCREEN(config, m_screen_main, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen_main);
 	m_screen_main->set_refresh_hz(60);
 	m_screen_main->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen_main->set_size(SCREEN_W, SCREEN_H);
@@ -1775,6 +1770,7 @@ class sega_beena_state : public sega_9h0_0008_cart_state
 public:
 	sega_beena_state(const machine_config &mconfig, device_type type, const char *tag)
 		: sega_9h0_0008_cart_state(mconfig, type, tag)
+		, m_card(*this, "cardslot")
 		, m_io_page_config(*this, "PAGE_CONFIG")
 		, m_io_page(*this, "PAGE")
 		, m_io_pad_left(*this, "PAD_LEFT")
@@ -1785,15 +1781,20 @@ public:
 		, m_io_pen_y(*this, "PENY")
 	{ }
 
-	void sega_beena(machine_config &config);
+	void sega_beena(machine_config &config) ATTR_COLD;
 
-	virtual DECLARE_CROSSHAIR_MAPPER_MEMBER(pen_y_mapper);
+	virtual float pen_y_mapper(float linear_value);
+
+protected:
+	virtual void video_start() override ATTR_COLD;
 
 private:
-	virtual void install_game_rom() override;
+	virtual void install_game_rom() override ATTR_COLD;
+	virtual uint32_t io_expansion_r() override;
 	virtual void update_crosshair(screen_device &screen) override;
 	virtual void update_sensors(offs_t offset) override;
 
+	required_device<sega_9h0_0008_card_device> m_card;
 	required_ioport m_io_page_config;
 	required_ioport m_io_page;
 	required_ioport m_io_pad_left;
@@ -1803,6 +1804,12 @@ private:
 	required_ioport m_io_pen_x;
 	required_ioport m_io_pen_y;
 };
+
+static void beena_iox_devices(device_slot_interface &device)
+{
+	device.option_add("rd", BEENA_CARD_READER);
+	device.option_add("rd2061", BEENA_CARD_READER_2061);
+}
 
 void sega_beena_state::sega_beena(machine_config &config)
 {
@@ -1814,9 +1821,19 @@ void sega_beena_state::sega_beena(machine_config &config)
 	m_cart->set_device_load(FUNC(sega_beena_state::cart_load));
 	m_cart->set_must_be_loaded(false);
 
+	SEGA_9H0_0008_CARD(config, m_card, beena_iox_devices, nullptr, false);
+
 	SOFTWARE_LIST(config, "cart_list").set_original("sega_beena_cart");
 
 	config.set_default_layout(layout_beena);
+}
+
+void sega_beena_state::video_start()
+{
+	const int view = m_card->get_card_device() ? 1 : 0;
+	machine().render().first_target()->set_view(view);
+
+	sega_9h0_0008_state::video_start();
 }
 
 void sega_beena_state::install_game_rom()
@@ -1847,6 +1864,23 @@ void sega_beena_state::install_game_rom()
 		}
 		m_maincpu->space(AS_PROGRAM).install_rom(base_address, base_address + 0x7fffff, 0x800000, cart_rom->base());
 	}
+}
+
+/**
+ * Combines:
+ * - Scanned card barcode
+ *   - bit 5: current data bit to read from 16-bit value;
+ *   - bit 6: status for advancing data bit position;
+ * - Peripheral status
+ *   - bit 7 == 0: peripheral is ready;
+ */
+uint32_t sega_beena_state::io_expansion_r()
+{
+	if (m_card->get_card_device()) {
+		return m_card->get_card_device()->read(true);
+	}
+
+	return 0; // FIXME: Confirm with hardware tests.
 }
 
 void sega_beena_state::update_crosshair(screen_device &screen)
@@ -1979,7 +2013,7 @@ void sega_beena_state::update_sensors(offs_t offset)
 	}
 }
 
-CROSSHAIR_MAPPER_MEMBER(sega_beena_state::pen_y_mapper)
+float sega_beena_state::pen_y_mapper(float linear_value)
 {
 	// TODO: Either remove or adapt for Storyware layout
 	return linear_value;
@@ -1991,74 +2025,35 @@ class tvochken_state : public sega_9h0_0008_state
 public:
 	tvochken_state(const machine_config &mconfig, device_type type, const char *tag)
 		: sega_9h0_0008_state(mconfig, type, tag)
-		, m_card(*this, "card")
+		, m_card(*this, "cardslot")
 		, m_io_buttons(*this, "BUTTONS")
 	{ }
 
-	void tvochken(machine_config &config);
+	void tvochken(machine_config &config) ATTR_COLD;
 
 	virtual uint32_t io_expansion_r() override;
 
-	void scan_card(int state);
-
 private:
-	enum card_state : uint8_t
-	{
-		IDLE = 0,
-		START_WRITE_DATA,
-		WRITE_DATA,
-	};
+	virtual void install_game_rom() override ATTR_COLD;
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-
-	virtual void install_game_rom() override;
-
-	required_device<tvochken_card_device> m_card;
-
+	required_device<sega_9h0_0008_card_device> m_card;
 	required_ioport m_io_buttons;
-	uint8_t m_card_previous_input;
-
-	uint16_t m_card_data;
-	uint8_t m_card_data_i;
-	uint8_t m_card_state;
-	uint8_t m_card_hold_i;
-	uint8_t m_card_status;
 };
+
+static void tvochken_iox_devices(device_slot_interface &device)
+{
+	device.option_add("rd1831", TVOCHKEN_CARD_READER);
+}
 
 void tvochken_state::tvochken(machine_config &config)
 {
 	sega_9h0_0008(config);
 
-	TVOCHKEN_CARD(config, m_card);
+	SEGA_9H0_0008_CARD(config, m_card, tvochken_iox_devices, "rd1831", true);
 
 	SOFTWARE_LIST(config, "card_list").set_original("tvochken");
 
 	config.set_default_layout(layout_tvochken);
-}
-
-void tvochken_state::machine_start()
-{
-	sega_9h0_0008_state::machine_start();
-
-	save_item(NAME(m_card_data));
-	save_item(NAME(m_card_data_i));
-	save_item(NAME(m_card_hold_i));
-	save_item(NAME(m_card_state));
-	save_item(NAME(m_card_status));
-}
-
-void tvochken_state::machine_reset()
-{
-	sega_9h0_0008_state::machine_reset();
-
-	m_card_previous_input = 0;
-
-	m_card_data = 0;
-	m_card_data_i = 0;
-	m_card_hold_i = 0;
-	m_card_state = IDLE;
-	m_card_status = 0;
 }
 
 /**
@@ -2071,7 +2066,7 @@ void tvochken_state::machine_reset()
  *   - bit 5: current data bit to read from 16-bit value;
  *   - bit 6: status for advancing data bit position;
  *
- * Parsing protocol at function 0xa0001240 doesn't seem to use any
+ * Parsing protocol for tvochken at function 0xa0001240 doesn't seem to use any
  * control commands to start parsing either input. It expects each parsed barcode
  * to take several reads before advancing to the next data bit. We handle this
  * by holding the value for a few reads, which also covers reads unrelated
@@ -2079,69 +2074,10 @@ void tvochken_state::machine_reset()
  */
 uint32_t tvochken_state::io_expansion_r()
 {
-	if (machine().side_effects_disabled() || (m_io_auxiliary_regs[0x8/4] & 0xff) != 0) {
-		return 0x98 | m_io_buttons->read();
-	}
-
-	/**
-	 * Each scanned barcode is compared against these values taken from
-	 * an in-memory table at 0xc00d0f9c. Valid barcodes always have the
-	 * last bit set.
-	 *
-	 * 0x900a, 0xa05a, 0xb0aa, 0x90ca, 0x910a,
-	 * 0x914a, 0x918a, 0x91ca, 0x920a, 0xa25a,
-	 * 0x928a, 0x92ca, 0xa312, 0x934a, 0x938a,
-	 * 0x93ca, 0xa41a, 0x944a, 0x948a, 0xb4da,
-	 * 0xb512, 0xa55a, 0x958a, 0x95ca, 0x960a,
-	 * 0x964a, 0xb69a, 0x96ca, 0x970a, 0x974a,
-	 * 0x978a, 0x97ca, 0x980a, 0x984a, 0xa892,
-	 * 0xa8da, 0xa91a, 0xa952, 0x998a, 0xb9da,
-	 * 0xaa1a, 0x9a4a, 0x9a8a, 0x9aca, 0xab12,
-	 * 0xab52, 0xbba2, 0xabd2, 0x9c0a, 0x9c4a
-	*/
-
-	if (m_card_state == START_WRITE_DATA) {
-		m_card_hold_i--;
-		if (m_card_hold_i == 0) {
-			m_card_hold_i = 10;
-			m_card_data_i = 0;
-			m_card_status = 0;
-			m_card_state = WRITE_DATA;
-		}
-
-		return 0x98 | (1 << 5) | m_io_buttons->read();
-	}
-
-	if (m_card_state == WRITE_DATA) {
-		uint8_t data_bit = (m_card_data >> (15 - m_card_data_i)) & 1;
-		LOG("write card: bit %d -> %d (sync %d)\n", m_card_data_i, data_bit, m_card_status);
-
-		m_card_hold_i--;
-		if (m_card_hold_i == 0) {
-			m_card_hold_i = 10;
-			m_card_status ^= 1;
-			m_card_data_i++;
-			if (m_card_data_i == 16) {
-				m_card_data_i = 0;
-				m_card_status = 0;
-				m_card_state = IDLE;
-			}
-		}
-
-		return 0x98 | (m_card_status << 6) | (data_bit << 5) | m_io_buttons->read();
-	}
-
-	return 0x98 | m_io_buttons->read();
-}
-
-void tvochken_state::scan_card(int state)
-{
-	if (m_card->exists() && state && (m_card_state == IDLE)) {
-		m_card_data = m_card->barcode();
-		m_card_hold_i = 10;
-		m_card_state = START_WRITE_DATA;
-		LOG("scanning card: %04x\n", m_card_data);
-	}
+	const uint32_t card_data = m_card->get_card_device()
+		? m_card->get_card_device()->read((m_io_auxiliary_regs[0x8/4] & 0xff) == 0)
+		: 0;
+	return card_data | m_io_buttons->read();
 }
 
 void tvochken_state::install_game_rom()
@@ -2159,12 +2095,12 @@ public:
 		, m_io_buttons(*this, "BUTTONS")
 	{ }
 
-	void carbeena(machine_config &config);
+	void carbeena(machine_config &config) ATTR_COLD;
 
 	virtual uint32_t io_expansion_r() override;
 
 private:
-	virtual void install_game_rom() override;
+	virtual void install_game_rom() override ATTR_COLD;
 
 	required_ioport m_io_buttons;
 };
@@ -2202,6 +2138,7 @@ void carbeena_state::install_game_rom()
 	memory_region *rom = memregion("mainboard_rom");
 	m_maincpu->space(AS_PROGRAM).install_rom(ROM_MASK_BASE, ROM_MASK_BASE + 0x7fffff, 0x800000, rom->base());
 }
+
 
 static INPUT_PORTS_START( sega_9h0_0008 )
 	PORT_START("VIDEO_CONFIG")
@@ -2261,7 +2198,7 @@ static INPUT_PORTS_START( sega_beena )
 	PORT_BIT( 0xff, 0x80, IPT_LIGHTGUN_X ) PORT_CROSSHAIR(X, 1.0, 0.0, 0) PORT_SENSITIVITY(30) PORT_KEYDELTA(10) PORT_MINMAX(0, 255) PORT_PLAYER(1) PORT_NAME("Pen X")
 
 	PORT_START("PENY")
-	PORT_BIT( 0xff, 0x80, IPT_LIGHTGUN_Y ) PORT_CROSSHAIR(Y, 1.0, 0.0, 0) PORT_SENSITIVITY(30) PORT_KEYDELTA(10) PORT_MINMAX(0, 255) PORT_PLAYER(1) PORT_NAME("Pen Y") PORT_CROSSHAIR_MAPPER_MEMBER(DEVICE_SELF, sega_beena_state, pen_y_mapper)
+	PORT_BIT( 0xff, 0x80, IPT_LIGHTGUN_Y ) PORT_CROSSHAIR(Y, 1.0, 0.0, 0) PORT_SENSITIVITY(30) PORT_KEYDELTA(10) PORT_MINMAX(0, 255) PORT_PLAYER(1) PORT_NAME("Pen Y") PORT_CROSSHAIR_MAPPER_MEMBER(FUNC(sega_beena_state::pen_y_mapper))
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( tvochken )
@@ -2271,9 +2208,6 @@ static INPUT_PORTS_START( tvochken )
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(1) PORT_NAME("A")
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_BUTTON2 ) PORT_PLAYER(1) PORT_NAME("B")
 	PORT_BIT( 0x0004, IP_ACTIVE_LOW, IPT_BUTTON3 ) PORT_PLAYER(1) PORT_NAME("C")
-
-	PORT_START("CARDS")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_BUTTON4 ) PORT_PLAYER(1) PORT_NAME("Scan Card") PORT_WRITE_LINE_MEMBER(tvochken_state, scan_card)
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( carbeena )

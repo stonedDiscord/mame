@@ -45,7 +45,7 @@ protected:
 	ds1302_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, uint8_t ram_size);
 
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// device_nvram_interface overrides
 	virtual void nvram_default() override;
@@ -62,6 +62,8 @@ private:
 	void load_shift_register();
 	void input_bit();
 	void output_bit();
+
+	optional_region_ptr<uint8_t> m_default_data;
 
 	const uint8_t m_ram_size;
 

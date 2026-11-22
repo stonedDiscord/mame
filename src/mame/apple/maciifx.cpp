@@ -17,11 +17,12 @@
 
 #include "emu.h"
 
-#include "macadb.h"
 #include "macrtc.h"
 #include "mactoolbox.h"
 #include "scsidma.h"
 
+#include "bus/adb/adb.h"
+#include "bus/adb/cards.h"
 #include "bus/nscsi/cd.h"
 #include "bus/nscsi/devices.h"
 #include "bus/nubus/nubus.h"
@@ -56,7 +57,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_via1(*this, "via1"),
-		m_macadb(*this, "macadb"),
+		m_adbbus(*this, "adb"),
 		m_ram(*this, RAM_TAG),
 		m_rtc(*this, "rtc"),
 		m_scsidma(*this, "scsidma"),
@@ -69,22 +70,21 @@ public:
 		m_last_taken_interrupt(-1),
 		m_overlay(true),
 		m_rom_ptr(nullptr),
-		m_rom_size(0),
-		m_adb_in(0)
+		m_rom_size(0)
 	{
 	}
 
 	void maciifx(machine_config &config);
-	void maciifx_map(address_map &map);
+	void maciifx_map(address_map &map) ATTR_COLD;
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<m68030_device> m_maincpu;
 	required_device<via6522_device> m_via1;
-	required_device<macadb_device> m_macadb;
+	required_device<adb_bus_device> m_adbbus;
 	required_device<ram_device> m_ram;
 	required_device<rtc3430042_device> m_rtc;
 	required_device<scsidma_device> m_scsidma;
@@ -103,8 +103,6 @@ private:
 	bool m_overlay;
 	u32 *m_rom_ptr;
 	u32 m_rom_size;
-
-	int m_adb_in;
 
 	void phases_w(uint8_t phases);
 	void devsel_w(uint8_t devsel);
@@ -129,24 +127,26 @@ private:
 
 	uint32_t rom_switch_r(offs_t offset);
 
-	void set_adb_line(int linestate) { m_adb_in = (linestate == ASSERT_LINE) ? true : false; }
-	int adbin_r() { return m_adb_in; }
+	int adbin_r()
+	{
+		return m_adbbus->adb_line_r();
+	}
 };
 
 void maciifx_state::machine_start()
 {
 	save_item(NAME(m_hdsel));
 	save_item(NAME(m_last_taken_interrupt));
-	save_item(NAME(m_adb_in));
+
+	m_scsidma->set_ram_base(m_ram->pointer());
 
 	m_6015_timer = timer_alloc(FUNC(maciifx_state::oss_6015_tick), this);
 	m_6015_timer->adjust(attotime::never);
 
-	m_rom_ptr = (u32 *)memregion("bootrom")->base();
+	m_rom_ptr = &memregion("bootrom")->as_u32();
 	m_rom_size = memregion("bootrom")->bytes();
 
 	m_last_taken_interrupt = -1;
-	m_adb_in = 0;
 }
 
 void maciifx_state::machine_reset()
@@ -432,15 +432,19 @@ void maciifx_state::maciifx(machine_config &config)
 
 	SCC85C30(config, m_scc, C7M);
 	m_scc->configure_channels(3'686'400, 3'686'400, 3'686'400, 3'686'400);
-	m_scc->out_txda_callback().set("printer", FUNC(rs232_port_device::write_txd));
-	m_scc->out_txdb_callback().set("modem", FUNC(rs232_port_device::write_txd));
+	m_scc->out_txda_callback().set("modem", FUNC(rs232_port_device::write_txd));
+	m_scc->out_txdb_callback().set("printer", FUNC(rs232_port_device::write_txd));
+	// mini-DIN-8 serial ports: HSKo (pin 1) is driven from the SCC's /DTR
+	// through a 26LS30 line driver; GPi (pin 7) reaches /DCD
+	m_scc->out_dtra_callback().set("modem", FUNC(rs232_port_device::write_dtr));
+	m_scc->out_dtrb_callback().set("printer", FUNC(rs232_port_device::write_dtr));
 
-	rs232_port_device &rs232a(RS232_PORT(config, "printer", default_rs232_devices, nullptr));
+	rs232_port_device &rs232a(RS232_PORT(config, "modem", default_rs232_devices, nullptr));
 	rs232a.rxd_handler().set(m_scc, FUNC(z80scc_device::rxa_w));
 	rs232a.dcd_handler().set(m_scc, FUNC(z80scc_device::dcda_w));
 	rs232a.cts_handler().set(m_scc, FUNC(z80scc_device::ctsa_w));
 
-	rs232_port_device &rs232b(RS232_PORT(config, "modem", default_rs232_devices, nullptr));
+	rs232_port_device &rs232b(RS232_PORT(config, "printer", default_rs232_devices, nullptr));
 	rs232b.rxd_handler().set(m_scc, FUNC(z80scc_device::rxb_w));
 	rs232b.dcd_handler().set(m_scc, FUNC(z80scc_device::dcdb_w));
 	rs232b.cts_handler().set(m_scc, FUNC(z80scc_device::ctsb_w));
@@ -449,11 +453,10 @@ void maciifx_state::maciifx(machine_config &config)
 	m_scsidma->set_maincpu_tag("maincpu");
 	m_scsidma->write_irq().set(FUNC(maciifx_state::oss_interrupt<9>));
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
-	ASC(config, m_asc, C15M, asc_device::asc_type::ASC);
-	m_asc->add_route(0, "lspeaker", 1.0);
-	m_asc->add_route(1, "rspeaker", 1.0);
+	SPEAKER(config, "speaker", 2).front();
+	ASC(config, m_asc, C15M);
+	m_asc->add_route(0, "speaker", 1.0, 0);
+	m_asc->add_route(1, "speaker", 1.0, 1);
 	m_asc->irqf_callback().set(FUNC(maciifx_state::oss_interrupt<8>));
 
 	R65NC22(config, m_via1, C7M / 10);
@@ -463,8 +466,9 @@ void maciifx_state::maciifx(machine_config &config)
 	m_via1->writepb_handler().set(FUNC(maciifx_state::via_out_b));
 	m_via1->irq_handler().set(FUNC(maciifx_state::oss_interrupt<11>));
 
-	MACADB(config, m_macadb, C15M);
-	m_macadb->adb_data_callback().set(FUNC(maciifx_state::set_adb_line));
+	ADB_BUS(config, m_adbbus);
+	ADB_CONNECTOR(config, "adb:0", adb_devices, "hle_keyboard");
+	ADB_CONNECTOR(config, "adb:1", adb_devices, "hle_mouse");
 
 	applepic_device &sccpic(APPLEPIC(config, "sccpic", C15M));
 	sccpic.prd_callback().set(m_scc, FUNC(z80scc_device::dc_ab_r));
@@ -472,14 +476,14 @@ void maciifx_state::maciifx(machine_config &config)
 	sccpic.hint_callback().set(FUNC(maciifx_state::oss_interrupt<7>));
 
 	m_scc->out_int_callback().set("sccpic", FUNC(applepic_device::pint_w));
-	m_scc->out_wreqa_callback().set("sccpic", FUNC(applepic_device::reqa_w));
-	m_scc->out_wreqb_callback().set("sccpic", FUNC(applepic_device::reqb_w));
+	m_scc->out_wreqa_callback().set("sccpic", FUNC(applepic_device::reqa_w)).invert();
+	m_scc->out_wreqb_callback().set("sccpic", FUNC(applepic_device::reqb_w)).invert();
 
 	applepic_device &swimpic(APPLEPIC(config, "swimpic", C15M));
 	swimpic.prd_callback().set(m_fdc, FUNC(applefdintf_device::read));
 	swimpic.pwr_callback().set(m_fdc, FUNC(applefdintf_device::write));
 	swimpic.hint_callback().set(FUNC(maciifx_state::oss_interrupt<6>));
-	swimpic.gpout0_callback().set(m_macadb, FUNC(macadb_device::adb_linechange_w)).invert();
+	swimpic.gpout0_callback().set(m_adbbus, FUNC(adb_bus_device::adb_host_line_w)).invert();
 	swimpic.gpin_callback().set(FUNC(maciifx_state::adbin_r));
 
 	m_fdc->dat1byte_cb().set("swimpic", FUNC(applepic_device::reqa_w));
@@ -495,7 +499,7 @@ void maciifx_state::maciifx(machine_config &config)
 	SOFTWARE_LIST(config, "flop_mac35_clean").set_original("mac_flop_clcracked");
 	SOFTWARE_LIST(config, "flop35_list").set_original("mac_flop");
 
-	nubus_device &nubus(NUBUS(config, "nubus", 0));
+	nubus_device &nubus(NUBUS(config, "nubus"));
 	nubus.set_space(m_maincpu, AS_PROGRAM);
 	nubus.out_irq9_callback().set(FUNC(maciifx_state::oss_interrupt<0>));
 	nubus.out_irqa_callback().set(FUNC(maciifx_state::oss_interrupt<1>));

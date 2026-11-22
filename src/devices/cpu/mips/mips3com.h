@@ -14,6 +14,8 @@
 
 #include "mips3.h"
 
+#include "endianness.h"
+
 
 /***************************************************************************
     DEBUGGING
@@ -101,6 +103,8 @@
 #define COP0_PRId               15
 #define COP0_Config             16
 #define COP0_LLAddr             17
+#define COP0_WatchLo            18
+#define COP0_WatchHi            19
 #define COP0_XContext           20
 #define COP0_ECC                26
 #define COP0_CacheErr           27
@@ -199,5 +203,31 @@
 
 #define CACHE_TYPE      ((op >> 16) & 3)
 #define CACHE_OP        ((op >> 18) & 7)
+
+
+/***************************************************************************
+    INLINE FUNCTIONS
+***************************************************************************/
+
+/*-------------------------------------------------
+    tlb_entry_matches_asid - true if the given
+    TLB entry matches the provided ASID
+-------------------------------------------------*/
+
+inline bool mips3_device::mips3_tlb_entry::matches_asid(uint8_t asid) const noexcept
+{
+	return (entry_hi & 0xff) == asid;
+}
+
+
+/*-------------------------------------------------
+    tlb_entry_is_global - true if the given
+    TLB entry is global
+-------------------------------------------------*/
+
+inline bool mips3_device::mips3_tlb_entry::is_global() const noexcept
+{
+	return (entry_lo[0] & entry_lo[1] & TLB_GLOBAL);
+}
 
 #endif // MAME_CPU_MIPS_MIPS3COM_H

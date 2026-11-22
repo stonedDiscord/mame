@@ -70,7 +70,7 @@ video is not banked in this case instead palette data is sent to the ports
 strange palette format.
 
 TODO:
-- Proper fix for twins & twinsed2 crash after round 1 (MT #07516):
+- Proper fix for twins & twinsed2 crash after round 1 (MT07516):
   after clearing 1-5 it pings i2c for a couple times, expect it to be 0 then 1 otherwise
   jumps to lalaland;
 - Improve blitter / clear logic for Spider.
@@ -103,6 +103,8 @@ To access Service Mode:
 #include "emupal.h"
 #include "screen.h"
 #include "speaker.h"
+
+#include "endianness.h"
 
 
 namespace {
@@ -145,15 +147,15 @@ protected:
 	void base_config(machine_config &config);
 	void video_config(machine_config &config);
 	void sound_config(machine_config &config);
-	void base_map(address_map &map);
-	void twins_map(address_map &map);
+	void base_map(address_map &map) ATTR_COLD;
+	void twins_map(address_map &map) ATTR_COLD;
 	uint32_t screen_update_twins(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
 	uint16_t eeprom_r(offs_t offset, uint16_t mem_mask = ~0);
 	void eeprom_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	void draw_background(bitmap_ind16 &bitmap, const rectangle &cliprect);
-	virtual void video_start() override;
+	virtual void video_start() override ATTR_COLD;
 
 	static constexpr u32 ram_size = 0x10000/2;
 
@@ -166,10 +168,10 @@ private:
 	void access_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	uint16_t access_r(offs_t offset, uint16_t mem_mask = ~0);
 
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
-	void ramdac_map(address_map &map);
-	void twins_io(address_map &map);
+	void ramdac_map(address_map &map) ATTR_COLD;
+	void twins_io(address_map &map) ATTR_COLD;
 };
 
 class twinsed1_state : public twins_state
@@ -182,7 +184,7 @@ public:
 	void twinsed1(machine_config &config);
 
 private:
-	void twinsed1_io(address_map &map);
+	void twinsed1_io(address_map &map) ATTR_COLD;
 	void porte_paloff0_w(uint8_t data);
 	void twins_pal_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 };
@@ -201,7 +203,7 @@ private:
 
 	void draw_foreground(bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	void spider_io(address_map &map);
+	void spider_io(address_map &map) ATTR_COLD;
 	void spider_paloff0_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	uint16_t spider_port_18_r();
 	uint16_t spider_port_1e_r();
@@ -563,7 +565,7 @@ void twins_state::base_config(machine_config &config)
 
 void twins_state::video_config(machine_config &config)
 {
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(8000000, 512, 0, 320, 312, 0, 204); // Common PAL values, HSync of 15.625 kHz unverified
 	m_screen->set_palette(m_palette);
 	m_screen->screen_vblank().set_inputline(m_maincpu, INPUT_LINE_NMI);
@@ -606,7 +608,7 @@ void twins_state::twins(machine_config &config)
 	m_screen->set_screen_update(FUNC(twins_state::screen_update_twins));
 
 	PALETTE(config, m_palette).set_entries(256);
-	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, m_palette));
+	ramdac_device &ramdac(RAMDAC(config, "ramdac", m_palette));
 	ramdac.set_addrmap(0, &twins_state::ramdac_map);
 	ramdac.set_split_read(0);
 
@@ -713,6 +715,7 @@ ROM_END
 
 void twins_state::init_twins()
 {
+	// TODO: MT07516 workaround
 	u8 *rom = (u8 *)memregion("ipl")->base();
 
 	rom[0x3497d] = 0x90;
@@ -724,6 +727,7 @@ void twins_state::init_twins()
 
 void twins_state::init_twinsed2()
 {
+	// TODO: MT07516 workaround
 	u8 *rom = (u8 *)memregion("ipl")->base();
 
 	rom[0x349d3] = 0x90;

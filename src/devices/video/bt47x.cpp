@@ -20,6 +20,14 @@
  * Sources:
  *   - Brooktree Product Databook 1991
  *
+ * Second sources:
+ *   - Analog Devices: ADV471, ADV475, ADV476, ADV477, ADV478
+ *   - AMD: Am81C471, Am81C478
+ *   - Samsung: KDA0471, KDA0476, KDA0478
+ *   - Sierra: SC11471, SC11476, SC11478
+ *   - AT&T: ATT20C475A, ATT20C477A, ATT20C478A
+ *   - Winbond: W82C476, W82C478
+ *
  * TODO:
  *   - remaining devices
  *   - bt479 window mode, overlay mask, 10-bit modes
@@ -35,7 +43,7 @@
 #include "logmacro.h"
 
 DEFINE_DEVICE_TYPE(BT471, bt471_device, "bt471", "Brooktree Bt471 256 Color RAMDAC")
-//DEFINE_DEVICE_TYPE(BT473, bt473_device, "bt473", "Brooktree Bt473 True-Color RAMDAC")
+DEFINE_DEVICE_TYPE(BT473, bt473_device, "bt473", "Brooktree Bt473 True-Color RAMDAC")
 //DEFINE_DEVICE_TYPE(BT474, bt474_device, "bt474", "Brooktree Bt474 256 Color RAMDAC")
 DEFINE_DEVICE_TYPE(BT475, bt475_device, "bt475", "Brooktree Bt475 256 Color RAMDAC")
 DEFINE_DEVICE_TYPE(BT476, bt476_device, "bt476", "Brooktree Bt476 256 Color RAMDAC")
@@ -154,6 +162,11 @@ bt471_device::bt471_device(machine_config const &mconfig, char const *tag, devic
 {
 }
 
+bt473_device::bt473_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock)
+	: bt47x_device_base(mconfig, BT473, tag, owner, clock, 256, 16, 8)
+{
+}
+
 bt475_device::bt475_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock)
 	: bt475_device_base(mconfig, BT475, tag, owner, clock, 256, 16, 6)
 {
@@ -209,6 +222,25 @@ void bt479_device::device_start()
 	m_command[1] = 0;
 }
 
+void bt47x_device_base::update_pen(unsigned index)
+{
+	u8 const r = m_color_ram[index][0];
+	u8 const g = m_color_ram[index][1];
+	u8 const b = m_color_ram[index][2];
+
+	if (m_color_bits == 6)
+	{
+		// native 6-bit dac - full range
+		set_pen_color(index, rgb_t(pal6bit(r), pal6bit(g), pal6bit(b)));
+	}
+	else
+	{
+		// native 8-bit dac - limited range in 6-bit mode
+		unsigned const shift = 8 - color_bits();
+		set_pen_color(index, rgb_t(r << shift, g << shift, b << shift));
+	}
+}
+
 u8 bt47x_device_base::address_r()
 {
 	LOGMASKED(LOG_READS, "address_r 0x%02x\n", m_address);
@@ -258,14 +290,11 @@ void bt47x_device_base::palette_w(u8 data)
 {
 	LOG("palette_w 0x%02x\n", data);
 
-	m_color_ram[address()][m_address_rgb] = data;
+	m_color_ram[address()][m_address_rgb] = data & util::make_bitmask<u8>(color_bits());
 
 	// update the mame palette to match the device
 	if (m_address_rgb == 2)
-		set_pen_color(address(), rgb_t(
-			m_color_ram[address()][0] << (8 - color_bits()),
-			m_color_ram[address()][1] << (8 - color_bits()),
-			m_color_ram[address()][2] << (8 - color_bits())));
+		update_pen(address());
 
 	increment_address(true, true);
 }
@@ -301,14 +330,11 @@ void bt47x_device_base::overlay_w(u8 data)
 	LOG("overlay_w 0x%02x\n", data);
 
 	unsigned const index = m_palette_colors + (m_address & (m_overlay_colors - 1));
-	m_color_ram[index][m_address_rgb] = data;
+	m_color_ram[index][m_address_rgb] = data & util::make_bitmask<u8>(color_bits());
 
 	// update the mame palette to match the device
 	if (m_address_rgb == 2)
-		set_pen_color(index, rgb_t(
-			m_color_ram[index][0] << (8 - color_bits()),
-			m_color_ram[index][1] << (8 - color_bits()),
-			m_color_ram[index][2] << (8 - color_bits())));
+		update_pen(index);
 
 	increment_address(true, true);
 }

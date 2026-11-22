@@ -7,15 +7,15 @@ Beyond Kung-Fu
 Irem M62-based unreleased Kung-Fu Master sequel
 video reference: https://www.youtube.com/watch?v=Efr9EQkbCSQ
 
-TODO:
-- finish background gfx emulation, supposedly via an (undumped) MCU
+	TODO:
+	- priority issue with main sprite against steps at the end of some stages
 
 *******************************************************************************/
 
 #include "emu.h"
 #include "m62.h"
+#include "m62_bkungfu_mcu.h"
 #include "iremipt.h"
-
 
 namespace {
 
@@ -24,27 +24,27 @@ class m62_bkungfu_state : public m62_state
 public:
 	m62_bkungfu_state(const machine_config &mconfig, device_type type, const char *tag)
 		: m62_state(mconfig, type, tag)
-		, m_bkungfu_tileram(*this, "tileram", 64*32*2, ENDIANNESS_LITTLE)
-		, m_blitterdatarom(*this, "blitterdat")
-		, m_blittercmdram(*this, "blittercmdram")
+		, m_mcu(*this, "mcu")
+		, m_bkungfu_tileram(*this, "tileram", 256*32*2, ENDIANNESS_LITTLE)
 	{ }
 
 	void bkungfu(machine_config& config);
 
-private:
-	void mem_map(address_map& map);
-	void io_map(address_map& map);
+protected:
+	virtual void video_start() override ATTR_COLD;
 
-	uint8_t bkungfu_blitter_r(offs_t offset);
-	void bkungfu_blitter_w(offs_t offset, uint8_t data);
+private:
+	void mem_map(address_map &map) ATTR_COLD;
+	void io_map(address_map &map) ATTR_COLD;
+
+	void tilemap_ram_w(offs_t offset, uint8_t data);
+	void bkungfu_blitter_tilemap_w(offs_t offset, uint8_t data);
 
 	TILE_GET_INFO_MEMBER(get_bkungfu_bg_tile_info);
-	DECLARE_VIDEO_START(bkungfu);
+
+	required_device<bkungfu_mcu_device> m_mcu;
 
 	memory_share_creator<uint8_t> m_bkungfu_tileram;
-
-	required_region_ptr<uint8_t> m_blitterdatarom;
-	required_shared_ptr<uint8_t> m_blittercmdram;
 };
 
 
@@ -60,15 +60,19 @@ TILE_GET_INFO_MEMBER(m62_bkungfu_state::get_bkungfu_bg_tile_info)
 
 	tileinfo.set(0, code | ((color & 0xe0) << 3) | (m_kidniki_background_bank << 11), color & 0x1f, 0);
 
-	if ((tile_index / 64) < 6 || ((color & 0x1f) >> 1) > 0x0c)
+	// The title flame uses palette pair 0x0d and is visibly behind the player
+	// sprite in the reference footage.  Beyond Kung-Fu therefore has the M62
+	// tile-priority threshold strapped one step above Kung-Fu Master: only
+	// palette pairs 0x0e-0x0f (colors 0x1c-0x1f) cover sprites.
+	if ((tile_index / 256) < 6 || ((color & 0x1f) >> 1) > 0x0d)
 		tileinfo.category = 1;
 	else
 		tileinfo.category = 0;
 }
 
-VIDEO_START_MEMBER(m62_bkungfu_state,bkungfu)
+void m62_bkungfu_state::video_start()
 {
-	m62_start(tilemap_get_info_delegate(*this, FUNC(m62_bkungfu_state::get_bkungfu_bg_tile_info)), 32, 0, 8, 8, 64, 32);
+	m62_start(tilemap_get_info_delegate(*this, FUNC(m62_bkungfu_state::get_bkungfu_bg_tile_info)), 32, 0, 8, 8, 256, 32);
 }
 
 
@@ -77,108 +81,12 @@ VIDEO_START_MEMBER(m62_bkungfu_state,bkungfu)
     Blitter
 *******************************************************************************/
 
-uint8_t m62_bkungfu_state::bkungfu_blitter_r(offs_t offset)
+void m62_bkungfu_state::tilemap_ram_w(offs_t offset, uint8_t data)
 {
-	return 0xfe;
-}
-
-void m62_bkungfu_state::bkungfu_blitter_w(offs_t offset, uint8_t data)
-{
-	m_blittercmdram[offset] = data;
-
-	if (offset == 0x00)
+	if (offset < m_bkungfu_tileram.bytes())
 	{
-		if (data == 0x14)
-		{
-			//logerror("%s: blitter: draw text from ROM\n", machine().describe_context());
-
-			uint16_t blitterromptr = m_blittercmdram[0x001] * 2;
-			uint16_t blitterromdataptr = m_blitterdatarom[blitterromptr] | (m_blitterdatarom[blitterromptr + 1] << 8);
-
-			uint8_t blitdat = m_blitterdatarom[blitterromdataptr++];
-			while (blitdat != 0x00)
-			{
-				if (blitdat == 0x01)
-				{
-					// change color value during blit
-					m_blittercmdram[0x004] = m_blitterdatarom[blitterromdataptr++];
-				}
-				else if (blitdat == 0x02)
-				{
-					// change position params during blit
-					m_blittercmdram[0x002] = m_blitterdatarom[blitterromdataptr++];
-					m_blittercmdram[0x003] = m_blitterdatarom[blitterromdataptr++];
-				}
-				else
-				{
-					uint16_t position = (m_blittercmdram[0x003] << 8) | m_blittercmdram[0x002];
-
-					m_bkungfu_tileram[(position) & 0xfff] = blitdat;
-					m_bkungfu_tileram[(position + 1) & 0xfff] = m_blittercmdram[0x004];
-					m_bg_tilemap->mark_tile_dirty((position&0xfff) >> 1);
-
-					position += 2;
-					m_blittercmdram[0x002] = position & 0xff;
-					m_blittercmdram[0x003] = (position & 0xff00) >> 8;
-				}
-
-				blitdat = m_blitterdatarom[blitterromdataptr++];
-			}
-		}
-		else if (data == 0x08) // clear layer to fixed value
-		{
-			for (int position = 0; position < 0x1000; position += 2)
-			{
-				m_bkungfu_tileram[(position) & 0xfff] = m_blittercmdram[0x002];
-				m_bkungfu_tileram[(position + 1) & 0xfff] = m_blittercmdram[0x001];
-			}
-		}
-		else if (data == 0x02)
-		{
-			//logerror("%s: blitter: draw level from ROM(2)\n", machine().describe_context());
-		}
-		else if (data == 0x01)
-		{
-			//logerror("%s: blitter: draw level from ROM(1)\n", machine().describe_context());
-		}
-		else if (data == 0x0a)
-		{
-			// level data is in custom format. draws 14x4 tile blocks. compression?
-			//logerror("%s: blitter: draw level from ROM initialize\n", machine().describe_context());
-
-			//uint16_t blitterromptr = m_blittercmdram[0x001] << 1;
-			//uint16_t blitterromdataptr = m_blitterdatarom[0x200 + blitterromptr] | (m_blitterdatarom[0x200 + blitterromptr + 1] << 8);
-			//logerror("source address is % 04x\n", blitterromdataptr);
-		}
-		else if (data == 0x05)
-		{
-			//logerror("%s: blitter: draw level ROM on level 3+\n", machine().describe_context());
-		}
-		else if (data == 0x0f)
-		{
-			//logerror("%s: blitter: draw title animation flames\n", machine().describe_context());
-		}
-		else if (data == 0x0d)
-		{
-			//logerror("%s: blitter: draw title animation flames(2)\n", machine().describe_context());
-		}
-		else if (data == 0x10)
-		{
-			//logerror("%s: blitter: coin up\n", machine().describe_context());
-		}
-		else if (data == 0xfe)
-		{
-			//logerror("%s: blitter: start up\n", machine().describe_context());
-		}
-		else
-		{
-			//logerror("%s: blitter: unknown\n", machine().describe_context());
-		}
-		m_bg_tilemap->mark_all_dirty();
-	}
-	else
-	{
-		// higher offsets used for score & timer display
+		m_bkungfu_tileram[offset] = data;
+		m_bg_tilemap->mark_tile_dirty(offset >> 1);
 	}
 }
 
@@ -192,7 +100,9 @@ void m62_bkungfu_state::mem_map(address_map& map)
 {
 	map(0x0000, 0xbfff).rom();
 	map(0xc000, 0xc0ff).ram().share("spriteram");
-	map(0xc800, 0xcfff).rw(FUNC(m62_bkungfu_state::bkungfu_blitter_r), FUNC(m62_bkungfu_state::bkungfu_blitter_w)).share("blittercmdram");
+	map(0xc100, 0xc1ff).ram();
+
+	map(0xc800, 0xcfff).rw(m_mcu, FUNC(bkungfu_mcu_device::mailbox_r), FUNC(bkungfu_mcu_device::mailbox_from_main_w));
 	map(0xe000, 0xefff).ram();
 }
 
@@ -218,7 +128,10 @@ void m62_bkungfu_state::bkungfu(machine_config& config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &m62_bkungfu_state::mem_map);
 	m_maincpu->set_addrmap(AS_IO, &m62_bkungfu_state::io_map);
 
-	MCFG_VIDEO_START_OVERRIDE(m62_bkungfu_state,bkungfu)
+	BKUNGFU_MCU(config, m_mcu, 0);
+	m_mcu->tilemap_ram_w().set(FUNC(m62_bkungfu_state::tilemap_ram_w));
+
+	MCFG_VIDEO_START_REMOVE()
 }
 
 
@@ -236,7 +149,7 @@ ROM_START( bkungfu )
 	ROM_REGION( 0x1000, "mcu", 0 )
 	ROM_LOAD( "mcu",     0x0000, 0x1000, NO_DUMP )
 
-	ROM_REGION( 0x10000, "blitterdat", ROMREGION_ERASEFF )
+	ROM_REGION( 0x10000, "mcu:blitterdat", ROMREGION_ERASEFF )
 	ROM_LOAD( "km-z.4h", 0x0000, 0x8000, CRC(252bb4a9) SHA1(2a69ee113950ea58895b42102bbb5263865ace9d) )
 
 	ROM_REGION( 0x10000, "irem_audio:iremsound", 0 )
@@ -288,4 +201,4 @@ ROM_END
 *******************************************************************************/
 
 //    YEAR  NAME     PARENT  MACHINE  INPUT     CLASS              INIT        ROT     COMPANY  FULLNAME                          FLAGS
-GAME( 1987, bkungfu, 0,      bkungfu, kungfum,  m62_bkungfu_state, empty_init, ROT0,   "Irem",  "Beyond Kung-Fu (location test)", MACHINE_NOT_WORKING | MACHINE_UNEMULATED_PROTECTION | MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_SOUND | MACHINE_IMPERFECT_GRAPHICS )
+GAME( 1987, bkungfu, 0,      bkungfu, kungfum,  m62_bkungfu_state, empty_init, ROT0,   "Irem",  "Beyond Kung-Fu (location test)", MACHINE_UNEMULATED_PROTECTION | MACHINE_SUPPORTS_SAVE | MACHINE_IMPERFECT_SOUND | MACHINE_IMPERFECT_GRAPHICS )

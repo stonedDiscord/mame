@@ -15,10 +15,27 @@
 ***************************************************************************/
 
 #include "emu.h"
+
+#ifndef QSOUND_LLE
+#define QSOUND_LLE
+#endif
+
 #include "qsoundhle.h"
+
+#include "qsound.h"
 
 #include <algorithm>
 #include <limits>
+
+//-------------------------------------------------
+//  parent_rom_device_type - get parent device type
+//  for ROM search
+//-------------------------------------------------
+
+inline auto qsound_hle_device::parent_rom_device_type()
+{
+	return &QSOUND;
+}
 
 // device type definition
 DEFINE_DEVICE_TYPE(QSOUND_HLE, qsound_hle_device, "qsound_hle", "QSound (HLE)")
@@ -44,9 +61,20 @@ qsound_hle_device::qsound_hle_device(const machine_config &mconfig, const char *
 	, device_sound_interface(mconfig, *this)
 	, device_rom_interface(mconfig, *this)
 	, m_stream(nullptr)
+	, m_dsp_ready_cb(*this)
 	, m_dsp_rom(*this, "dsp")
 	, m_data_latch(0)
 {
+}
+
+//-------------------------------------------------
+//  rom_region - return a pointer to the device's
+//  internal ROM region
+//-------------------------------------------------
+
+const tiny_rom_entry *qsound_hle_device::device_rom_region() const
+{
+	return ROM_NAME( qsound_hle );
 }
 
 //-------------------------------------------------
@@ -137,22 +165,16 @@ void qsound_hle_device::device_start()
 }
 
 //-------------------------------------------------
-//  rom_region - return a pointer to the device's
-//  internal ROM region
-//-------------------------------------------------
-
-const tiny_rom_entry *qsound_hle_device::device_rom_region() const
-{
-	return ROM_NAME( qsound_hle );
-}
-
-//-------------------------------------------------
 //  device_reset - device-specific reset
 //-------------------------------------------------
 
 void qsound_hle_device::device_reset()
 {
-	m_ready_flag = 0;
+	if (m_ready_flag)
+	{
+		m_ready_flag = 0;
+		m_dsp_ready_cb(0);
+	}
 	m_out[0] = m_out[1] = 0;
 	m_state = STATE_BOOT;
 	m_state_counter = 0;
@@ -162,13 +184,13 @@ void qsound_hle_device::device_reset()
 //  sound_stream_update - handle a stream update
 //-------------------------------------------------
 
-void qsound_hle_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
+void qsound_hle_device::sound_stream_update(sound_stream &stream)
 {
-	for (int i = 0; i < outputs[0].samples(); i ++)
+	for (int i = 0; i < stream.samples(); i ++)
 	{
 		update_sample();
-		outputs[0].put_int(i, m_out[0], 32768);
-		outputs[1].put_int(i, m_out[1], 32768);
+		stream.put_int(0, i, m_out[0], 32768);
+		stream.put_int(1, i, m_out[1], 32768);
 	}
 }
 
@@ -210,7 +232,11 @@ void qsound_hle_device::write_data(uint8_t address, uint16_t data)
 	uint16_t *destination = m_register_map[address];
 	if (destination)
 		*destination = data;
-	m_ready_flag = 0;
+	if (m_ready_flag)
+	{
+		m_ready_flag = 0;
+		m_dsp_ready_cb(0);
+	}
 }
 
 void qsound_hle_device::init_register_map()
@@ -265,7 +291,7 @@ void qsound_hle_device::init_register_map()
 
 int16_t qsound_hle_device::read_sample(uint16_t bank, uint16_t address)
 {
-	bank &= 0x7FFF;
+	bank &= 0x7fff;
 	const uint32_t rom_addr = (bank << 16) | (address << 0);
 	const uint8_t sample_data = read_byte(rom_addr);
 	return (int16_t)(sample_data << 8); // bit0-7 is tied to ground
@@ -362,7 +388,11 @@ void qsound_hle_device::state_init()
 	m_dry[1].m_volume = 0x3fff;
 
 	m_delay_update = 1;
-	m_ready_flag = 0;
+	if (m_ready_flag)
+	{
+		m_ready_flag = 0;
+		m_dsp_ready_cb(0);
+	}
 	m_state_counter = 1;
 }
 
@@ -497,7 +527,11 @@ int16_t qsound_hle_device::qsound_echo::apply(int32_t input)
 // Process a sample update
 void qsound_hle_device::state_normal_update()
 {
-	m_ready_flag = 0x80;
+	if (!m_ready_flag)
+	{
+		m_ready_flag = 0x80;
+		m_dsp_ready_cb(1);
+	}
 
 	// recalculate echo length
 	if (m_state == STATE_NORMAL2)

@@ -57,8 +57,8 @@ public:
 	void pv2000(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -78,8 +78,8 @@ private:
 	uint8_t m_keyb_column = 0;
 	uint8_t m_cass_conf = 0;
 	DECLARE_DEVICE_IMAGE_LOAD_MEMBER(cart_load);
-	void pv2000_io_map(address_map &map);
-	void pv2000_map(address_map &map);
+	void pv2000_io_map(address_map &map) ATTR_COLD;
+	void pv2000_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -362,7 +362,6 @@ void pv2000_state::machine_reset()
 	m_key_pressed = 0;
 	m_keyb_column = 0;
 
-	m_maincpu->set_input_line_vector(INPUT_LINE_IRQ0, 0xff); // Z80
 	memset(&memregion("maincpu")->base()[0x7000], 0xff, 0x1000);    // initialize RAM
 }
 
@@ -392,7 +391,7 @@ void pv2000_state::pv2000(machine_config &config)
 	vdp.set_screen("screen");
 	vdp.set_vram_size(0x4000);
 	vdp.int_callback().set(FUNC(pv2000_state::pv2000_vdp_interrupt));
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	SCREEN(config, "screen");
 
 	// sound hardware
 	SPEAKER(config, "mono").front_center();

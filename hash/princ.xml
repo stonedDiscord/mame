@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE softwarelist SYSTEM "softwarelist.dtd">
 <!--
 license:CC0-1.0
@@ -94,7 +94,7 @@ PCBs have surface mount pads for two chips, but only one of them is populated:
 	</software>
 
 	<software name="pochacco" supported="yes">
-		<description>Pochacco</description>
+		<description>Pochacco - The Yorimichi Dog</description>
 		<year>1996</year>
 		<publisher>Tomy</publisher>
 		<info name="serial" value="IRC #01"/>

@@ -44,9 +44,9 @@ public:
 	void citycon(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_shared_ptr<uint8_t> m_videoram;
@@ -75,8 +75,8 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
 	inline void changecolor_RRRRGGGGBBBBxxxx(int color, int indx);
-	void main_map(address_map &map);
-	void sound_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void sound_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -405,7 +405,7 @@ void citycon_state::citycon(machine_config &config)
 	audiocpu.set_vblank_int("screen", FUNC(citycon_state::irq0_line_hold)); // actually unused, probably it was during development
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(PIXEL_CLOCK, HTOTAL, HBEND, HBSTART, VTOTAL, VBEND, VBSTART);
 	screen.set_screen_update(FUNC(citycon_state::screen_update));
 	screen.set_palette(m_palette);
@@ -539,6 +539,7 @@ void citycon_state::init_citycon()
 {
 	uint8_t *rom = memregion("chars")->base();
 
+	// TODO: modernize video
 	/*
 	  City Connection controls the text color code for each _scanline_, not
 	  for each character as happens in most games. To handle that conveniently,

@@ -20,7 +20,7 @@ The 6809 NMI is used for sound timing.
                     bit 3 - coin counter A
                     bit 4 - coin counter B
 4800         W  sound latch write
-4900         W  copy sound latch to SN76496
+4900         W  copy sound latch to SN76489A
 4a00         W  VLM5030 control
 4b00         W  VLM5030 data
 4c00        R   DSW #0
@@ -103,6 +103,7 @@ Sound: VLM5030 at 7B
 #include "trackfld_a.h"
 
 #include "cpu/m6809/m6809.h"
+#include "machine/timer.h"
 #include "machine/watchdog.h"
 #include "sound/sn76496.h"
 #include "sound/vlm5030.h"
@@ -134,9 +135,9 @@ public:
 	void yiear(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	// memory pointers
@@ -158,23 +159,23 @@ private:
 	uint8_t m_nmi_enable = 0;
 	uint8_t m_irq_enable = 0;
 
-	uint8_t m_sn76496_latch = 0;
+	uint8_t m_sn76489a_latch = 0;
 
 	void videoram_w(offs_t offset, uint8_t data);
 	void control_w(uint8_t data);
 	uint8_t speech_r();
 	void vlm5030_control_w(uint8_t data);
-	void konami_sn76496_latch_w(uint8_t data) { m_sn76496_latch = data; }
-	void konami_sn76496_w(uint8_t data) { m_sn->write(m_sn76496_latch); }
+	void konami_sn76489a_latch_w(uint8_t data) { m_sn76489a_latch = data; }
+	void konami_sn76489a_w(uint8_t data) { m_sn->write(m_sn76489a_latch); }
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	void palette(palette_device &palette) const;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void vblank_irq(int state);
-	INTERRUPT_GEN_MEMBER(nmi_interrupt);
+	TIMER_DEVICE_CALLBACK_MEMBER(nmi_interrupt);
 	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	void main_map(address_map &map);
-	void vlm_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void vlm_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -217,10 +218,9 @@ void yiear_state::palette(palette_device &palette) const
 		int const g = 0x21 * bit0 + 0x47 * bit1 + 0x97 * bit2;
 
 		// blue component
-		bit0 = 0;
-		bit1 = BIT(*color_prom, 6);
-		bit2 = BIT(*color_prom, 7);
-		int const b = 0x21 * bit0 + 0x47 * bit1 + 0x97 * bit2;
+		bit0 = BIT(*color_prom, 6);
+		bit1 = BIT(*color_prom, 7);
+		int const b = 0x52 * bit0 + 0xad * bit1;
 
 		palette.set_pen_color(i, rgb_t(r,g,b));
 		color_prom++;
@@ -236,21 +236,25 @@ void yiear_state::videoram_w(offs_t offset, uint8_t data)
 void yiear_state::control_w(uint8_t data)
 {
 	// bit 0 flips screen
-	if (flip_screen() != (data & 0x01))
+	if (flip_screen() != BIT(data, 0))
 	{
-		flip_screen_set(data & 0x01);
+		flip_screen_set(BIT(data, 0));
 		machine().tilemap().mark_all_dirty();
 	}
 
 	// bit 1 is NMI enable
-	m_nmi_enable = data & 0x02;
+	if (m_nmi_enable && !BIT(data, 1))
+		m_maincpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
+	m_nmi_enable = BIT(data, 1);
 
 	// bit 2 is IRQ enable
-	m_irq_enable = data & 0x04;
+	if (m_irq_enable && !BIT(data, 2))
+		m_maincpu->set_input_line(M6809_IRQ_LINE, CLEAR_LINE);
+	m_irq_enable = BIT(data, 2);
 
 	// bits 3 and 4 are coin counters
-	machine().bookkeeping().coin_counter_w(0, data & 0x08);
-	machine().bookkeeping().coin_counter_w(1, data & 0x10);
+	machine().bookkeeping().coin_counter_w(0, BIT(data, 3));
+	machine().bookkeeping().coin_counter_w(1, BIT(data, 4));
 }
 
 TILE_GET_INFO_MEMBER(yiear_state::get_bg_tile_info)
@@ -292,8 +296,7 @@ void yiear_state::draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect)
 			sy++;   // fix title screen & garbage at the bottom of the screen
 		}
 
-
-			m_gfxdecode->gfx(1)->transpen(bitmap, cliprect,
+		m_gfxdecode->gfx(1)->transpen(bitmap, cliprect,
 			code, color,
 			flipx, flipy,
 			sx, sy, 0);
@@ -310,30 +313,27 @@ uint32_t yiear_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap,
 
 uint8_t yiear_state::speech_r()
 {
-	if (m_vlm->bsy())
-		return 1;
-	else
-		return 0;
+	return m_vlm->bsy_r();
 }
 
 void yiear_state::vlm5030_control_w(uint8_t data)
 {
 	// bit 0 is latch direction
-	m_vlm->st((data >> 1) & 1);
-	m_vlm->rst((data >> 2) & 1);
+	m_vlm->st_w(BIT(data, 1));
+	m_vlm->rst_w(BIT(data, 2));
 }
 
 void yiear_state::vblank_irq(int state)
 {
 	if (state && m_irq_enable)
-		m_maincpu->set_input_line(0, HOLD_LINE);
+		m_maincpu->set_input_line(M6809_IRQ_LINE, ASSERT_LINE);
 }
 
 
-INTERRUPT_GEN_MEMBER(yiear_state::nmi_interrupt)
+TIMER_DEVICE_CALLBACK_MEMBER(yiear_state::nmi_interrupt)
 {
 	if (m_nmi_enable)
-		device.execute().pulse_input_line(INPUT_LINE_NMI, attotime::zero);
+		m_maincpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
 }
 
 
@@ -341,8 +341,8 @@ void yiear_state::main_map(address_map &map)
 {
 	map(0x0000, 0x0000).r(FUNC(yiear_state::speech_r));
 	map(0x4000, 0x4000).w(FUNC(yiear_state::control_w));
-	map(0x4800, 0x4800).w(FUNC(yiear_state::konami_sn76496_latch_w));
-	map(0x4900, 0x4900).w(FUNC(yiear_state::konami_sn76496_w));
+	map(0x4800, 0x4800).w(FUNC(yiear_state::konami_sn76489a_latch_w));
+	map(0x4900, 0x4900).w(FUNC(yiear_state::konami_sn76489a_w));
 	map(0x4a00, 0x4a00).w(FUNC(yiear_state::vlm5030_control_w));
 	map(0x4b00, 0x4b00).w(m_vlm, FUNC(vlm5030_device::data_w));
 	map(0x4c00, 0x4c00).portr("DSW2");
@@ -472,29 +472,31 @@ GFXDECODE_END
 
 void yiear_state::machine_start()
 {
+	m_irq_enable = 0;
+	m_nmi_enable = 0;
+
+	save_item(NAME(m_irq_enable));
 	save_item(NAME(m_nmi_enable));
 }
 
 void yiear_state::machine_reset()
 {
-	m_nmi_enable = 0;
+	control_w(0); // LS273 reset
 }
 
 void yiear_state::yiear(machine_config &config)
 {
 	// basic machine hardware
-	MC6809E(config, m_maincpu, XTAL(18'432'000)/12);   // verified on PCB
+	MC6809E(config, m_maincpu, 18.432_MHz_XTAL / 12);   // verified on PCB
 	m_maincpu->set_addrmap(AS_PROGRAM, &yiear_state::main_map);
-	m_maincpu->set_periodic_int(FUNC(yiear_state::nmi_interrupt), attotime::from_hz(480)); // music tempo (correct frequency unknown)
+
+	TIMER(config, "16v").configure_scanline(FUNC(yiear_state::nmi_interrupt), "screen", 16, 32); // music tempo
 
 	WATCHDOG_TIMER(config, "watchdog");
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
-	m_screen->set_refresh_hz(60.58);   // verified on PCB
-	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
-	m_screen->set_size(32*8, 32*8);
-	m_screen->set_visarea(0*8, 32*8-1, 2*8, 30*8-1);
+	SCREEN(config, m_screen);
+	m_screen->set_raw(18.432_MHz_XTAL / 3, 384, 0, 256, 264, 16, 240);
 	m_screen->set_screen_update(FUNC(yiear_state::screen_update));
 	m_screen->set_palette(m_palette);
 	m_screen->screen_vblank().set(FUNC(yiear_state::vblank_irq));
@@ -505,11 +507,11 @@ void yiear_state::yiear(machine_config &config)
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
 
-	TRACKFLD_AUDIO(config, m_audio, 0, finder_base::DUMMY_TAG, m_vlm);
+	TRACKFLD_AUDIO(config, m_audio, finder_base::DUMMY_TAG, m_vlm);
 
-	SN76489A(config, m_sn, XTAL(18'432'000)/12).add_route(ALL_OUTPUTS, "mono", 1.0);   // verified on PCB
+	SN76489A(config, m_sn, 18.432_MHz_XTAL / 12).add_route(ALL_OUTPUTS, "mono", 1.0); // clock verified on PCB
 
-	VLM5030(config, m_vlm, XTAL(3'579'545));   // verified on PCB
+	VLM5030(config, m_vlm, 3.579545_MHz_XTAL);   // verified on PCB
 	m_vlm->set_addrmap(0, &yiear_state::vlm_map);
 	m_vlm->add_route(ALL_OUTPUTS, "mono", 1.0);
 }
@@ -522,6 +524,28 @@ void yiear_state::yiear(machine_config &config)
 ***************************************************************************/
 
 ROM_START( yiear )
+	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_LOAD( "407_j08.10d", 0x08000, 0x4000, CRC(3d5a76a5) SHA1(53e12fd91ddfed71d50109d1ac72956411c0bde6) )
+	ROM_LOAD( "407_j07.8d",  0x0c000, 0x4000, CRC(5ce74284) SHA1(94e0e281afbc3f4af30a5d9bf5ca96dbb0850288) )
+
+	ROM_REGION( 0x04000, "tiles", 0 )
+	ROM_LOAD( "407_c01.6h", 0x00000, 0x2000, CRC(b68fd91d) SHA1(c267931d69794c292b7ebae5bc35ad842194683a) )
+	ROM_LOAD( "407_c02.7h", 0x02000, 0x2000, CRC(d9b167c6) SHA1(a2fd10bddfa4e95e9d49892737ace146209bfa2b) )
+
+	ROM_REGION( 0x10000, "sprites", 0 )
+	ROM_LOAD( "407_d05.16h", 0x00000, 0x4000, CRC(45109b29) SHA1(0794935b490497b21b99045c90231b7bac151d42) )
+	ROM_LOAD( "407_d06.17h", 0x04000, 0x4000, CRC(1d650790) SHA1(5f2a4983b20251c712358547a7c62c0331c6cb6f) )
+	ROM_LOAD( "407_d03.14h", 0x08000, 0x4000, CRC(e6aa945b) SHA1(c5757d16c28f5966fd04675c0c640ef9b6b76ca5) )
+	ROM_LOAD( "407_d04.15h", 0x0c000, 0x4000, CRC(cc187c22) SHA1(555ba18a9648681e5140b3fd84af16959ee5296d) )
+
+	ROM_REGION( 0x0020, "proms", 0 )
+	ROM_LOAD( "407c10.1g", 0x00000, 0x0020, CRC(c283d71f) SHA1(10cd39f4e951ba6ca5610081c8c1fcd9d68b34d2) )  // Color BPROM type is TBP18S030N or compatible
+
+	ROM_REGION( 0x2000, "vlm", 0 )
+	ROM_LOAD( "407_c09.8b", 0x00000, 0x2000, CRC(f75a1539) SHA1(f139f6cb41351eb81ee47d777db03012aa5fadb1) )
+ROM_END
+
+ROM_START( yieari )
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "407_i08.10d", 0x08000, 0x4000, CRC(e2d7458b) SHA1(1b192130b5cd879ab686a21aa2b518c90edd89aa) )
 	ROM_LOAD( "407_i07.8d",  0x0c000, 0x4000, CRC(7db7442e) SHA1(d604a995a5505251904447ad697fc9e7f94bf241) )
@@ -543,7 +567,7 @@ ROM_START( yiear )
 	ROM_LOAD( "407_c09.8b", 0x00000, 0x2000, CRC(f75a1539) SHA1(f139f6cb41351eb81ee47d777db03012aa5fadb1) ) // was listed as a12_9
 ROM_END
 
-ROM_START( yiear2 )
+ROM_START( yiearg )
 	ROM_REGION( 0x10000, "maincpu", 0 )
 	ROM_LOAD( "407_g08.10d", 0x08000, 0x4000, CRC(49ecd9dd) SHA1(15692029351e87837cc5a251947ff315fd723aa4) ) // was listed as d12_8
 	ROM_LOAD( "407_g07.8d",  0x0c000, 0x4000, CRC(bc2e1208) SHA1(a5a0c78ff4e02bd7da3eab3842dfe99956e74155) ) // was listed as d14_7
@@ -568,5 +592,6 @@ ROM_END
 } // anonymous namespace
 
 
-GAME( 1985, yiear,  0,     yiear, yiear, yiear_state, empty_init, ROT0, "Konami", "Yie Ar Kung-Fu (program code I)", MACHINE_SUPPORTS_SAVE )
-GAME( 1985, yiear2, yiear, yiear, yiear, yiear_state, empty_init, ROT0, "Konami", "Yie Ar Kung-Fu (program code G)", MACHINE_SUPPORTS_SAVE )
+GAME( 1985, yiear,  0,     yiear, yiear, yiear_state, empty_init, ROT0, "Konami", "Yie Ar Kung-Fu (version J)", MACHINE_SUPPORTS_SAVE )
+GAME( 1985, yieari, yiear, yiear, yiear, yiear_state, empty_init, ROT0, "Konami", "Yie Ar Kung-Fu (version I)", MACHINE_SUPPORTS_SAVE )
+GAME( 1985, yiearg, yiear, yiear, yiear, yiear_state, empty_init, ROT0, "Konami", "Yie Ar Kung-Fu (version G)", MACHINE_SUPPORTS_SAVE )

@@ -52,7 +52,7 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// device_config_memory_interface overrides
 	virtual space_config_vector memory_space_config() const override;
@@ -73,7 +73,7 @@ private:
 	void draw_line(bitmap_ind16 &bmp, int line);
 	void interrupt_start_vblank(void);
 
-	void tms3556(address_map &map);
+	void tms3556(address_map &map) ATTR_COLD;
 
 	enum dma_mode_tt : u8 { dma_read, dma_write };
 
@@ -81,6 +81,11 @@ private:
 	static constexpr uint8_t MODE_TEXT   = 1;
 	static constexpr uint8_t MODE_BITMAP = 2;
 	static constexpr uint8_t MODE_MIXED  = 3;
+
+	// BT2 (CM1 bit 6) selects 525-line/60Hz (21 rows) rather than 625-line/50Hz (25 rows)
+	bool bt2() const { return BIT(m_control_regs[4], 6); }
+	int active_height() const { return bt2() ? 210 : 250; }
+	int lines_per_frame() const { return bt2() ? 262 : 313; }
 
 	// registers
 	uint8_t m_control_regs[8];
@@ -95,7 +100,7 @@ private:
 	dma_mode_tt m_vdp_acmpxy_mode;
 	uint16_t m_vdp_acmpxy;
 	uint16_t m_vdp_acmp;
-	int m_init_read;
+	bool m_init_read;
 
 	int m_scanline;             // scanline counter
 	int m_blink, m_blink_count; // blinking

@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE softwarelist SYSTEM "softwarelist.dtd">
 <!--
 license:CC0-1.0
@@ -506,6 +506,38 @@ Re-releases (probably the same as the original release, but listed while waiting
 		<part name="flop1" interface="floppy_5_25">
 			<dataarea name="flop" size="131000">
 				<rom name="deep dungeon ii - yuushi no monshou (japan) (v1.1) [b].fds" size="131000" crc="4e5298e4" sha1="92fa66f47ef6a3e247be76101e75a01f8f5efc39" status="baddump"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<software name="dgolf">
+		<description>NESert Golfing (v1.5)</description>
+		<year>2022</year>
+		<publisher>rainwarrior</publisher>
+		<info name="release" value="20221014" /> <!-- From NESertGolfing Git tag -->
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="65500">
+				<rom name="dgolf.fds" size="65500" crc="e9e99977" sha1="d84cc8a87a9f078318385632fe91f8b0d36add19" />
+			</dataarea>
+		</part>
+	</software>
+
+	<!-- Rebuilt from Git using cc65 commit 80a43d732dc9551ad84343ea9644d8fab7ec0bd9.  A
+	     byte-identical copy of 1.5 was reproduced with this toolchain, giving high confidence that
+	     the 1.4 rebuild is the same as what was released.  Without an existent online copy, however,
+	     this cannot be verified.
+	-->
+	<software name="dgolf14" cloneof="dgolf">
+		<description>NESert Golfing (v1.4)</description>
+		<year>2021</year>
+		<publisher>rainwarrior</publisher>
+		<notes><![CDATA[
+		An original download should be located to verify and/or update the hash.
+		]]></notes>
+		<info name="release" value="20210605" /> <!-- From NESertGolfing Git tag -->
+		<part name="flop1" interface="floppy_5_25">
+			<dataarea name="flop" size="65500">
+				<rom name="dgolf 1.4.fds" size="65500" crc="912cd8f8" sha1="2bcf3d9836e390d28371823f4cbcbca09cdb7677" status="baddump" />
 			</dataarea>
 		</part>
 	</software>
@@ -1820,7 +1852,7 @@ Re-releases (probably the same as the original release, but listed while waiting
 	<software name="silviana" supported="no">
 		<description>Silviana - Ai Ippai no Boukensya</description>
 		<year>1988</year>
-		<publisher>Pack-In Video</publisher>
+		<publisher>Pack-In-Video</publisher>
 		<info name="serial" value="PAC-SIL"/>
 		<info name="release" value="19880810"/>
 		<info name="alt_title" value="シルヴィアーナ 愛いっぱいの冒険者"/>
@@ -3381,7 +3413,7 @@ Re-releases (probably the same as the original release, but listed while waiting
 	<software name="kattobiw">
 		<description>Kattobi! Warabe Ko</description>
 		<year>1989</year>
-		<publisher>Pack-In Video</publisher>
+		<publisher>Pack-In-Video</publisher>
 		<info name="serial" value="PAC-KTD"/>
 		<info name="release" value="19891020"/>
 		<info name="alt_title" value="かっとび!童児"/>
@@ -3673,11 +3705,13 @@ Re-releases (probably the same as the original release, but listed while waiting
 		</part>
 	</software>
 
-<!-- Freezes right after starting a game -->
 	<software name="puttputt" supported="no">
 		<description>Putt Putt Golf</description>
 		<year>1989</year>
-		<publisher>Pack-In Video</publisher>
+		<publisher>Pack-In-Video</publisher>
+		<notes><![CDATA[
+Freezes right after starting a game
+]]></notes>
 		<info name="serial" value="PAC-PPG"/>
 		<info name="release" value="19890330"/>
 		<info name="alt_title" value="パットパットゴルフ"/>

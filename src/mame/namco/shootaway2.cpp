@@ -41,9 +41,9 @@ public:
 	void m74(machine_config &config);
 
 protected:
-	virtual void machine_reset() override;
-	virtual void machine_start() override;
-	virtual void video_start() override;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_device<m37450_device> m_maincpu;
@@ -51,8 +51,8 @@ private:
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
-	void c68_map(address_map &map);
-	void sub_map(address_map &map);
+	void c68_map(address_map &map) ATTR_COLD;
+	void sub_map(address_map &map) ATTR_COLD;
 };
 
 void m74_state::machine_reset()
@@ -98,7 +98,7 @@ void m74_state::m74(machine_config &config)
 
 	EEPROM_2864(config, "eeprom"); // M28C64A-15
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_screen_update(FUNC(m74_state::screen_update));
@@ -126,4 +126,4 @@ ROM_END
 } // anonymous namespace
 
 
-GAME( 1996,  shootaw2,  0,  m74,  m74, m74_state, empty_init, ROT0, "Namco", "Shoot Away II", MACHINE_IS_SKELETON )
+GAME( 1996,  shootaw2,  0,  m74,  m74, m74_state, empty_init, ROT0, "Namco", "Shoot Away II", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

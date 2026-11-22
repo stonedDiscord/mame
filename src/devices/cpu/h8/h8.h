@@ -20,10 +20,33 @@ struct h8_dtc_state;
 
 class h8_device;
 
+#include "h8_cpu_base.h"
 #include "h8_sci.h"
 
-class h8_device : public cpu_device, public device_nvram_interface {
+class h8_device : public h8_cpu_base, public device_nvram_interface {
 public:
+	enum {
+		H8_PC = 1,
+		H8_R0,
+		H8_R1,
+		H8_R2,
+		H8_R3,
+		H8_R4,
+		H8_R5,
+		H8_R6,
+		H8_R7,
+		H8_E0,
+		H8_E1,
+		H8_E2,
+		H8_E3,
+		H8_E4,
+		H8_E5,
+		H8_E6,
+		H8_E7,
+		H8_CCR,
+		H8_EXR
+	};
+
 	enum {
 		STATE_RESET              = 0x10000,
 		STATE_IRQ                = 0x10001,
@@ -48,26 +71,26 @@ public:
 	void nvram_set_battery(int state) { m_nvram_battery = bool(state); } // default is 1 (nvram_enable_backup needs to be true)
 	void nvram_set_default_value(u16 val) { m_nvram_defval = val; } // default is 0
 	auto standby_cb() { return m_standby_cb.bind(); } // notifier (not an output pin)
-	int standby() { return suspended(SUSPEND_REASON_CLOCK) ? 1 : 0; }
-	u64 standby_time() { return m_standby_time; }
+	int standby() override { return suspended(SUSPEND_REASON_CLOCK) ? 1 : 0; }
+	u64 standby_time() override { return m_standby_time; }
 
-	void internal_update();
-	void set_irq(int irq_vector, int irq_level, bool irq_nmi);
-	bool trigger_dma(int vector);
-	void set_dma_channel(h8_dma_state *state);
-	void update_active_dma_channel();
-	void set_current_dtc(h8_dtc_state *state);
-	void request_state(int state);
-	bool access_is_dma() const { return m_inst_state == STATE_DMA || m_inst_state == STATE_DTC; }
+	void internal_update() override;
+	void set_irq(int irq_vector, int irq_level, bool irq_nmi) override;
+	bool trigger_dma(int vector) override;
+	void set_dma_channel(h8_dma_state *state) override;
+	void update_active_dma_channel() override;
+	void set_current_dtc(h8_dtc_state *state) override;
+	void request_state(int state) override;
+	bool access_is_dma() const override { return m_inst_state == STATE_DMA || m_inst_state == STATE_DTC; }
 
-	u16 do_read_adc(int port) { return m_read_adc[port](); }
-	u8 do_read_port(int port) { return m_read_port[port](); }
-	void do_write_port(int port, u8 data, u8 ddr) { m_write_port[port](0, data, ddr); }
-	void do_sci_tx(int sci, int state) { m_sci_tx[sci](state); }
-	void do_sci_clk(int sci, int state) { m_sci_clk[sci](state); }
+	u16 do_read_adc(int port) override { return m_read_adc[port](); }
+	u8 do_read_port(int port) override { return m_read_port[port](); }
+	void do_write_port(int port, u8 data, u8 ddr) override { m_write_port[port](0, data, ddr); }
+	void do_sci_tx(int sci, int state) override { m_sci_tx[sci](state); }
+	void do_sci_clk(int sci, int state) override { m_sci_clk[sci](state); }
 
-	u64 system_clock() const { return execute_clocks_to_cycles(clock()); }
-	u64 now_as_cycles() const { return machine().time().as_ticks(system_clock()) - m_cycles_base; }
+	u64 system_clock() const override { return execute_clocks_to_cycles(clock()); }
+	u64 now_as_cycles() const override { return machine().time().as_ticks(system_clock()) - m_cycles_base; }
 
 protected:
 	enum {
@@ -114,14 +137,13 @@ protected:
 
 	// device_t implementation
 	virtual void device_config_complete() override;
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// device_execute_interface implementation
 	virtual bool cpu_is_interruptible() const override { return true; }
 	virtual u32 execute_min_cycles() const noexcept override { return 2; }
 	virtual u32 execute_max_cycles() const noexcept override { return 12; }
-	virtual u32 execute_input_lines() const noexcept override { return 0; }
 	virtual bool execute_input_edge_triggered(int inputnum) const noexcept override { return inputnum == INPUT_LINE_NMI; }
 	virtual void execute_run() override;
 
@@ -171,6 +193,9 @@ protected:
 	u8 m_MACF;              // MAC flags (h8s/2600+)
 	u32 m_TMP1, m_TMP2;
 	u32 m_TMPR;             // For debugger ER register import
+
+	u32 m_dma_dest;
+	bool m_dma_mode16;
 
 	bool m_has_exr, m_has_mac, m_has_trace, m_supports_advanced, m_mode_advanced, m_mode_a20, m_mac_saturating;
 	bool m_has_hc; // GT913's CCR bit 5 is I, not H
@@ -436,28 +461,6 @@ protected:
 	O(state_irq);
 	O(state_dma);
 #undef O
-};
-
-enum {
-	H8_PC = 1,
-	H8_R0,
-	H8_R1,
-	H8_R2,
-	H8_R3,
-	H8_R4,
-	H8_R5,
-	H8_R6,
-	H8_R7,
-	H8_E0,
-	H8_E1,
-	H8_E2,
-	H8_E3,
-	H8_E4,
-	H8_E5,
-	H8_E6,
-	H8_E7,
-	H8_CCR,
-	H8_EXR
 };
 
 #endif // MAME_CPU_H8_H8_H

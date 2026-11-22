@@ -2,8 +2,6 @@
 // copyright-holders:Aaron Giles
 /***************************************************************************
 
-    chdcodec.c
-
     Codecs used by the CHD format
 
 ***************************************************************************/
@@ -23,6 +21,8 @@
 #include <zlib.h>
 #include <zstd.h>
 
+#include <bit>
+#include <cstring>
 #include <new>
 
 
@@ -333,16 +333,16 @@ private:
 
 // ======================> chd_cd_compressor
 
-template<class BaseCompressor, class SubcodeCompressor>
+template <class BaseCompressor, class SubcodeCompressor>
 class chd_cd_compressor : public chd_compressor
 {
 public:
 	// construction/destruction
 	chd_cd_compressor(chd_file &chd, uint32_t hunkbytes, bool lossy)
-		: chd_compressor(chd, hunkbytes, lossy),
-			m_base_compressor(chd, (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SECTOR_DATA, lossy),
-			m_subcode_compressor(chd, (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SUBCODE_DATA, lossy),
-			m_buffer(hunkbytes + (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SUBCODE_DATA)
+		: chd_compressor(chd, hunkbytes, lossy)
+		, m_base_compressor(chd, (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SECTOR_DATA, lossy)
+		, m_subcode_compressor(chd, (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SUBCODE_DATA, lossy)
+		, m_buffer(hunkbytes + (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SUBCODE_DATA)
 	{
 		// make sure the CHD's hunk size is an even multiple of the frame size
 		if (hunkbytes % cdrom_file::FRAME_SIZE != 0)
@@ -378,7 +378,7 @@ public:
 		}
 
 		// encode the base portion
-		uint32_t complen = m_base_compressor.compress(&m_buffer[0], frames * cdrom_file::MAX_SECTOR_DATA, &dest[header_bytes]);
+		uint32_t complen = m_base_compressor.compress(m_buffer.data(), frames * cdrom_file::MAX_SECTOR_DATA, &dest[header_bytes]);
 		if (complen >= srclen)
 			throw std::error_condition(chd_file::error::COMPRESSION_ERROR);
 
@@ -402,16 +402,16 @@ private:
 
 // ======================> chd_cd_decompressor
 
-template<class BaseDecompressor, class SubcodeDecompressor>
+template <class BaseDecompressor, class SubcodeDecompressor>
 class chd_cd_decompressor : public chd_decompressor
 {
 public:
 	// construction/destruction
 	chd_cd_decompressor(chd_file &chd, uint32_t hunkbytes, bool lossy)
-		: chd_decompressor(chd, hunkbytes, lossy),
-			m_base_decompressor(chd, (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SECTOR_DATA, lossy),
-			m_subcode_decompressor(chd, (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SUBCODE_DATA, lossy),
-			m_buffer(hunkbytes)
+		: chd_decompressor(chd, hunkbytes, lossy)
+		, m_base_decompressor(chd, (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SECTOR_DATA, lossy)
+		, m_subcode_decompressor(chd, (hunkbytes / cdrom_file::FRAME_SIZE) * cdrom_file::MAX_SUBCODE_DATA, lossy)
+		, m_buffer(hunkbytes)
 	{
 		// make sure the CHD's hunk size is an even multiple of the frame size
 		if (hunkbytes % cdrom_file::FRAME_SIZE != 0)
@@ -431,7 +431,7 @@ public:
 		uint32_t complen_base = (complen_bytes > 2) ? get_u24be(&src[ecc_bytes]) : get_u16be(&src[ecc_bytes]);
 
 		// reset and decode
-		m_base_decompressor.decompress(&src[header_bytes], complen_base, &m_buffer[0], frames * cdrom_file::MAX_SECTOR_DATA);
+		m_base_decompressor.decompress(&src[header_bytes], complen_base, m_buffer.data(), frames * cdrom_file::MAX_SECTOR_DATA);
 		m_subcode_decompressor.decompress(&src[header_bytes + complen_base], complen - complen_base - header_bytes, &m_buffer[frames * cdrom_file::MAX_SECTOR_DATA], frames * cdrom_file::MAX_SUBCODE_DATA);
 
 		// reassemble the data
@@ -490,6 +490,7 @@ public:
 	chd_avhuff_decompressor(chd_file &chd, uint32_t hunkbytes, bool lossy);
 
 	// core functionality
+	virtual void process(const uint8_t *src, uint32_t complen) override;
 	virtual void decompress(const uint8_t *src, uint32_t complen, uint8_t *dest, uint32_t destlen) override;
 	virtual void configure(int param, void *config) override;
 
@@ -553,7 +554,7 @@ const codec_entry f_codec_list[] =
 //  instance of the given type
 //-------------------------------------------------
 
-const codec_entry *find_in_list(chd_codec_type type)
+const codec_entry *find_in_list(chd_codec_type type) noexcept
 {
 	// find in the list and construct the class
 	for (auto & elem : f_codec_list)
@@ -575,9 +576,9 @@ const codec_entry *find_in_list(chd_codec_type type)
 //-------------------------------------------------
 
 chd_codec::chd_codec(chd_file &chd, uint32_t hunkbytes, bool lossy)
-	: m_chd(chd),
-		m_hunkbytes(hunkbytes),
-		m_lossy(lossy)
+	: m_chd(chd)
+	, m_hunkbytes(hunkbytes)
+	, m_lossy(lossy)
 {
 }
 
@@ -607,10 +608,6 @@ void chd_codec::configure(int param, void *config)
 //  CHD COMPRESSOR
 //**************************************************************************
 
-//-------------------------------------------------
-//  chd_compressor - constructor
-//-------------------------------------------------
-
 chd_compressor::chd_compressor(chd_file &chd, uint32_t hunkbytes, bool lossy)
 	: chd_codec(chd, hunkbytes, lossy)
 {
@@ -622,13 +619,14 @@ chd_compressor::chd_compressor(chd_file &chd, uint32_t hunkbytes, bool lossy)
 //  CHD DECOMPRESSOR
 //**************************************************************************
 
-//-------------------------------------------------
-//  chd_decompressor - constructor
-//-------------------------------------------------
-
 chd_decompressor::chd_decompressor(chd_file &chd, uint32_t hunkbytes, bool lossy)
 	: chd_codec(chd, hunkbytes, lossy)
 {
+}
+
+void chd_decompressor::process(const uint8_t *src, uint32_t complen)
+{
+	throw std::error_condition(chd_file::error::UNSUPPORTED_FORMAT);
 }
 
 
@@ -668,7 +666,7 @@ chd_decompressor::ptr chd_codec_list::new_decompressor(chd_codec_type type, chd_
 //  corresponds to a supported codec
 //-------------------------------------------------
 
-bool chd_codec_list::codec_exists(chd_codec_type type)
+bool chd_codec_list::codec_exists(chd_codec_type type) noexcept
 {
 	// find in the list and construct the class
 	return bool(find_in_list(type));
@@ -680,7 +678,7 @@ bool chd_codec_list::codec_exists(chd_codec_type type)
 //  codec
 //-------------------------------------------------
 
-const char *chd_codec_list::codec_name(chd_codec_type type)
+const char *chd_codec_list::codec_name(chd_codec_type type) noexcept
 {
 	// find in the list and construct the class
 	const codec_entry *entry = find_in_list(type);
@@ -750,7 +748,7 @@ int8_t chd_compressor_group::find_best_compressor(const uint8_t *src, uint8_t *c
 			try
 			{
 				// if this is the best one, copy the data into the permanent buffer
-				uint32_t compbytes = m_compressor[codecnum]->compress(src, m_hunkbytes, &m_compress_test[0]);
+				uint32_t compbytes = m_compressor[codecnum]->compress(src, m_hunkbytes, m_compress_test.data());
 #if CHDCODEC_VERIFY_COMPRESSION
 				try
 				{
@@ -779,7 +777,7 @@ printf("   codec%d=%d bytes            \n", codecnum, compbytes);
 				{
 					compression = codecnum;
 					complen = compbytes;
-					memcpy(compressed, &m_compress_test[0], compbytes);
+					memcpy(compressed, m_compress_test.data(), compbytes);
 				}
 			}
 			catch (...)
@@ -1314,7 +1312,7 @@ uint32_t chd_lzma_compressor::compress(const uint8_t *src, uint32_t srclen, uint
 void chd_lzma_compressor::configure_properties(CLzmaEncProps &props, uint32_t hunkbytes)
 {
 	LzmaEncProps_Init(&props);
-	props.level = 8;
+	props.level = 6;
 	props.reduceSize = hunkbytes;
 	LzmaEncProps_Normalize(&props);
 }
@@ -1468,9 +1466,7 @@ chd_flac_compressor::chd_flac_compressor(chd_file &chd, uint32_t hunkbytes, bool
 	: chd_compressor(chd, hunkbytes, lossy)
 {
 	// determine whether we want native or swapped samples
-	uint16_t native_endian = 0;
-	*reinterpret_cast<uint8_t *>(&native_endian) = 1;
-	m_big_endian = (native_endian == 0x100);
+	m_big_endian = (std::endian::native == std::endian::big);
 
 	// configure the encoder
 	m_encoder.set_sample_rate(44100);
@@ -1545,9 +1541,7 @@ chd_flac_decompressor::chd_flac_decompressor(chd_file &chd, uint32_t hunkbytes, 
 	: chd_decompressor(chd, hunkbytes, lossy)
 {
 	// determine whether we want native or swapped samples
-	uint16_t native_endian = 0;
-	*reinterpret_cast<uint8_t *>(&native_endian) = 1;
-	m_big_endian = (native_endian == 0x100);
+	m_big_endian = (std::endian::native == std::endian::big);
 }
 
 
@@ -1588,17 +1582,15 @@ void chd_flac_decompressor::decompress(const uint8_t *src, uint32_t complen, uin
 //-------------------------------------------------
 
 chd_cd_flac_compressor::chd_cd_flac_compressor(chd_file &chd, uint32_t hunkbytes, bool lossy)
-	: chd_compressor(chd, hunkbytes, lossy),
-		m_buffer(hunkbytes)
+	: chd_compressor(chd, hunkbytes, lossy)
+	, m_buffer(hunkbytes)
 {
 	// make sure the CHD's hunk size is an even multiple of the frame size
 	if (hunkbytes % cdrom_file::FRAME_SIZE != 0)
 		throw std::error_condition(chd_file::error::CODEC_ERROR);
 
 	// determine whether we want native or swapped samples
-	uint16_t native_endian = 0;
-	*reinterpret_cast<uint8_t *>(&native_endian) = 1;
-	m_swap_endian = (native_endian == 1);
+	m_swap_endian = (std::endian::native == std::endian::little);
 
 	// configure the encoder
 	m_encoder.set_sample_rate(44100);
@@ -1647,7 +1639,7 @@ uint32_t chd_cd_flac_compressor::compress(const uint8_t *src, uint32_t srclen, u
 
 	// reset and encode the audio portion
 	m_encoder.reset(dest, hunkbytes());
-	uint8_t *buffer = &m_buffer[0];
+	uint8_t *buffer = m_buffer.data();
 	if (!m_encoder.encode_interleaved(reinterpret_cast<int16_t *>(buffer), frames * cdrom_file::MAX_SECTOR_DATA/4, m_swap_endian))
 		throw std::error_condition(chd_file::error::COMPRESSION_ERROR);
 
@@ -1717,17 +1709,15 @@ uint32_t chd_cd_flac_compressor::blocksize(uint32_t bytes)
  */
 
 chd_cd_flac_decompressor::chd_cd_flac_decompressor(chd_file &chd, uint32_t hunkbytes, bool lossy)
-	: chd_decompressor(chd, hunkbytes, lossy),
-		m_buffer(hunkbytes)
+	: chd_decompressor(chd, hunkbytes, lossy)
+	, m_buffer(hunkbytes)
 {
 	// make sure the CHD's hunk size is an even multiple of the frame size
 	if (hunkbytes % cdrom_file::FRAME_SIZE != 0)
 		throw std::error_condition(chd_file::error::CODEC_ERROR);
 
 	// determine whether we want native or swapped samples
-	uint16_t native_endian = 0;
-	*reinterpret_cast<uint8_t *>(&native_endian) = 1;
-	m_swap_endian = (native_endian == 1);
+	m_swap_endian = (std::endian::native == std::endian::little);
 
 	// init the inflater
 	m_inflater.next_in = (Bytef *)this; // bogus, but that's ok
@@ -1777,7 +1767,7 @@ void chd_cd_flac_decompressor::decompress(const uint8_t *src, uint32_t complen, 
 	uint32_t frames = destlen / cdrom_file::FRAME_SIZE;
 	if (!m_decoder.reset(44100, 2, chd_cd_flac_compressor::blocksize(frames * cdrom_file::MAX_SECTOR_DATA), src, complen))
 		throw std::error_condition(chd_file::error::DECOMPRESSION_ERROR);
-	uint8_t *buffer = &m_buffer[0];
+	uint8_t *buffer = m_buffer.data();
 	if (!m_decoder.decode_interleaved(reinterpret_cast<int16_t *>(buffer), frames * cdrom_file::MAX_SECTOR_DATA/4, m_swap_endian))
 		throw std::error_condition(chd_file::error::DECOMPRESSION_ERROR);
 
@@ -1943,21 +1933,13 @@ chd_avhuff_decompressor::chd_avhuff_decompressor(chd_file &chd, uint32_t hunkbyt
 {
 }
 
-/**
- * @fn  void chd_avhuff_decompressor::decompress(const uint8_t *src, uint32_t complen, uint8_t *dest, uint32_t destlen)
- *
- * @brief   -------------------------------------------------
- *            decompress - decompress data using the A/V codec
- *          -------------------------------------------------.
- *
- * @exception   CHDERR_DECOMPRESSION_ERROR  Thrown when a chderr decompression error error
- *                                          condition occurs.
- *
- * @param   src             Source for the.
- * @param   complen         The complen.
- * @param [in,out]  dest    If non-null, destination for the.
- * @param   destlen         The destlen.
- */
+void chd_avhuff_decompressor::process(const uint8_t *src, uint32_t complen)
+{
+	// decode the audio and video
+	avhuff_error averr = m_decoder.decode_data(src, complen, nullptr);
+	if (averr != AVHERR_NONE)
+		throw std::error_condition(chd_file::error::DECOMPRESSION_ERROR);
+}
 
 void chd_avhuff_decompressor::decompress(const uint8_t *src, uint32_t complen, uint8_t *dest, uint32_t destlen)
 {
@@ -1967,12 +1949,9 @@ void chd_avhuff_decompressor::decompress(const uint8_t *src, uint32_t complen, u
 		throw std::error_condition(chd_file::error::DECOMPRESSION_ERROR);
 
 	// pad short frames with 0
-	if (dest != nullptr)
-	{
-		int size = avhuff_encoder::raw_data_size(dest);
-		if (size < destlen)
-			memset(dest + size, 0, destlen - size);
-	}
+	auto const size = avhuff_encoder::raw_data_size(dest);
+	if (size < destlen)
+		memset(dest + size, 0, destlen - size);
 }
 
 /**

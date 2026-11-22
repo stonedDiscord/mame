@@ -142,8 +142,8 @@ public:
 	void sfcbox(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_bios;
@@ -159,10 +159,10 @@ private:
 	void port_83_w(uint8_t data);
 	void snes_map_0_w(uint8_t data);
 	void snes_map_1_w(uint8_t data);
-	void sfcbox_io(address_map &map);
-	void sfcbox_map(address_map &map);
-	void snes_map(address_map &map);
-	void spc_map(address_map &map);
+	void sfcbox_io(address_map &map) ATTR_COLD;
+	void sfcbox_map(address_map &map) ATTR_COLD;
+	void snes_map(address_map &map) ATTR_COLD;
+	void spc_map(address_map &map) ATTR_COLD;
 };
 
 uint32_t sfcbox_state::screen_update( screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect )
@@ -256,13 +256,13 @@ void sfcbox_state::snes_map_0_w(uint8_t data)
 {
 	const char *const rom_socket[4] = { "ROM5", "ROM1/7/12", "ROM3/9", "IC23" };
 
-	printf("%s ROM Socket\n",rom_socket[data & 3]);
-	printf("%02x ROM Slot\n",(data & 4) >> 2);
-	printf("%02x SRAM Enable\n",(data & 8) >> 3);
-	printf("%02x SRAM Slot\n",(data & 0x10) >> 4);
-	printf("%02x DSP Enable\n",(data & 0x20) >> 5);
-	printf("%02x DSP Slot\n",(data & 0x40) >> 6);
-	printf("%s ROM / DSP / SRAM maps\n",(data & 0x80) ? "HiROM" : "LoROM");
+	logerror("%s ROM Socket\n", rom_socket[data & 3]);
+	logerror("%02x ROM Slot\n", (data & 4) >> 2);
+	logerror("%02x SRAM Enable\n", (data & 8) >> 3);
+	logerror("%02x SRAM Slot\n", (data & 0x10) >> 4);
+	logerror("%02x DSP Enable\n", (data & 0x20) >> 5);
+	logerror("%02x DSP Slot\n", (data & 0x40) >> 6);
+	logerror("%s ROM / DSP / SRAM maps\n", (data & 0x80) ? "HiROM" : "LoROM");
 }
 
 void sfcbox_state::snes_map_1_w(uint8_t data)
@@ -271,10 +271,10 @@ void sfcbox_state::snes_map_1_w(uint8_t data)
 	const char *const rom_dsp_sram[4] = {   "Reserved?", "GSU", "LoROM", "HiROM" };
 	const char *const sram_size[4] = {  "2K", "8K", "Reserved?", "32K" };
 
-	printf("%s ROM / DSP SRAM map 2\n",rom_dsp_sram[data & 3]);
-	printf("%08x SRAM base\n",((data & 0xc) >> 2)*0x8000);
-	printf("%02x GSU Slot\n",((data & 0x10) >> 4));
-	printf("%s SRAM Size\n",sram_size[((data & 0xc0) >> 6)]);
+	logerror("%s ROM / DSP SRAM map 2\n",rom_dsp_sram[data & 3]);
+	logerror("%08x SRAM base\n", ((data & 0xc) >> 2) * 0x8000);
+	logerror("%02x GSU Slot\n", ((data & 0x10) >> 4));
+	logerror("%s SRAM Size\n",sram_size[((data & 0xc0) >> 6)]);
 }
 
 void sfcbox_state::sfcbox_io(address_map &map)
@@ -297,13 +297,13 @@ void sfcbox_state::sfcbox_io(address_map &map)
 
 static INPUT_PORTS_START( snes )
 	PORT_START("RTC_R")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("s3520cf", s3520cf_device, read_bit)
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("s3520cf", FUNC(s3520cf_device::read_bit))
 
 	PORT_START("RTC_W")
-	PORT_BIT( 0x08, IP_ACTIVE_LOW,  IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("s3520cf", s3520cf_device, set_clock_line)
-	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("s3520cf", s3520cf_device, write_bit)
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("s3520cf", s3520cf_device, set_dir_line)
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("s3520cf", s3520cf_device, set_cs_line)
+	PORT_BIT( 0x08, IP_ACTIVE_LOW,  IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("s3520cf", FUNC(s3520cf_device::set_clock_line))
+	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("s3520cf", FUNC(s3520cf_device::write_bit))
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("s3520cf", FUNC(s3520cf_device::set_dir_line))
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("s3520cf", FUNC(s3520cf_device::set_cs_line))
 
 	/* TODO: verify these */
 	PORT_START("KEY")
@@ -317,7 +317,7 @@ static INPUT_PORTS_START( snes )
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON8 )  PORT_NAME("Play Mode 1 Button")
 
 	PORT_START("OSD_CS")
-	PORT_BIT( 0x80, IP_ACTIVE_LOW,  IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("mb90082", mb90082_device, set_cs_line)
+	PORT_BIT( 0x80, IP_ACTIVE_LOW,  IPT_OUTPUT ) PORT_WRITE_LINE_DEVICE_MEMBER("mb90082", FUNC(mb90082_device::set_cs_line))
 
 	PORT_START("SERIAL1_DATA1")
 	PORT_BIT( 0x8000, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("P1 Button B") PORT_PLAYER(1)
@@ -468,20 +468,19 @@ void sfcbox_state::sfcbox(machine_config &config)
 	S3520CF(config, m_s3520cf); /* RTC */
 
 	/* sound hardware */
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
-	S_DSP(config, m_s_dsp, XTAL(24'576'000) / 12);
+	S_DSP(config, m_s_dsp, XTAL(24'576'000));
 	m_s_dsp->set_addrmap(0, &sfcbox_state::spc_map);
-	m_s_dsp->add_route(0, "lspeaker", 1.00);
-	m_s_dsp->add_route(1, "rspeaker", 1.00);
+	m_s_dsp->add_route(0, "speaker", 1.00, 0);
+	m_s_dsp->add_route(1, "speaker", 1.00, 1);
 
 	/* video hardware */
 	/* TODO: the screen should actually superimpose, but for the time being let's just separate outputs */
 	config.set_default_layout(layout_dualhsxs);
 
 	// SNES PPU
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(DOTCLK_NTSC * 2, SNES_HTOTAL * 2, 0, SNES_SCR_WIDTH * 2, SNES_VTOTAL_NTSC, 0, SNES_SCR_HEIGHT_NTSC);
 	screen.set_video_attributes(VIDEO_VARIABLE_WIDTH);
 	screen.set_screen_update(FUNC(snes_state::screen_update));
@@ -490,14 +489,13 @@ void sfcbox_state::sfcbox(machine_config &config)
 	m_ppu->open_bus_callback().set([this] { return snes_open_bus_r(); }); // lambda because overloaded function name
 	m_ppu->set_screen("screen");
 
-	// SFCBOX
-	screen_device &osd(SCREEN(config, "osd", SCREEN_TYPE_RASTER));
+	// OSD portion
+	// TODO: mix with snes output
+	screen_device &osd(SCREEN(config, "osd"));
 	osd.set_refresh_hz(60);
 	osd.set_vblank_time(ATTOSECONDS_IN_USEC(2500));
-//  osd.set_size(24*12+22, 12*18+22);
-//  osd.set_visarea(0*8, 24*12-1, 0*8, 12*18-1);
-	osd.set_size(24*16+22, 12*16+22);
-	osd.set_visarea(0*8, 24*16-1, 0*8, 12*16-1);
+	osd.set_size(24 * 12 + 22, 12 * 18 + 22);
+	osd.set_visarea(0 * 8, 24 * 12 - 1, 0 * 8, 12 * 18 - 1);
 	osd.set_screen_update(FUNC(sfcbox_state::screen_update));
 }
 

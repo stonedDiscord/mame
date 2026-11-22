@@ -41,9 +41,9 @@ protected:
 	vt100_video_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 	// internal state
 	void recompute_parameters();
@@ -67,7 +67,7 @@ protected:
 	uint8_t m_scroll_latch = 0;
 	bool m_scroll_latch_valid = false;
 	uint8_t m_blink_flip_flop = 0;
-	uint8_t m_reverse_field = 0;
+	uint8_t m_reverse_field = 1; // 0 when reverse field is on
 	uint8_t m_basic_attribute = 0;
 	// dc011 attributes
 	uint8_t m_columns = 0;
@@ -102,7 +102,7 @@ public:
 
 protected:
 	virtual void notify_vblank(bool choice) override;
-	virtual void device_reset() override;
+	virtual void device_reset() override ATTR_COLD;
 };
 
 DECLARE_DEVICE_TYPE(VT100_VIDEO, vt100_video_device)

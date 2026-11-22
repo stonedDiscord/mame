@@ -53,7 +53,7 @@ public:
 	void scc(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	// devices/pointers
@@ -67,8 +67,8 @@ private:
 	u8 m_led_data = 0;
 
 	// address maps
-	void main_map(address_map &map);
-	void main_io(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void main_io(address_map &map) ATTR_COLD;
 
 	// I/O handlers
 	u8 input_r();
@@ -94,19 +94,21 @@ void scc_state::control_w(offs_t offset, u8 data)
 	u8 mask = 1 << (offset & 7);
 	m_led_data = (m_led_data & ~mask) | ((data & 0x80) ? mask : 0);
 
-	// d0-d3: led select, input mux (row 9 is speaker out)
+	// d0-d3: 7442 to led select, input mux
 	// d4: corner led(direct)
 	m_inp_mux = data & 0xf;
 	u16 sel = 1 << m_inp_mux;
-	m_dac->write(BIT(sel, 9));
 	m_display->matrix((sel & 0xff) | (data << 4 & 0x100), m_led_data);
+
+	// 7442 9: speaker out
+	m_dac->write(BIT(sel, 9));
 }
 
 u8 scc_state::input_r()
 {
+	// d0-d7: multiplexed inputs (active low)
 	u8 data = 0;
 
-	// d0-d7: multiplexed inputs (active low)
 	// read chessboard sensors
 	if (m_inp_mux < 8)
 		data = m_board->read_file(m_inp_mux);

@@ -27,7 +27,7 @@
 #include "h8d.h"
 
 h8_device::h8_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, address_map_constructor map_delegate) :
-	cpu_device(mconfig, type, tag, owner, clock),
+	h8_cpu_base(mconfig, type, tag, owner, clock),
 	device_nvram_interface(mconfig, *this),
 	m_program_config("program", ENDIANNESS_BIG, 16, 16, 0, map_delegate),
 	m_internal_ram(*this, "internal_ram"),
@@ -39,7 +39,8 @@ h8_device::h8_device(const machine_config &mconfig, device_type type, const char
 	m_sci_clk(*this),
 	m_standby_cb(*this),
 	m_PPC(0), m_NPC(0), m_PC(0), m_PIR(0), m_EXR(0), m_CCR(0), m_MAC(0), m_MACF(0),
-	m_TMP1(0), m_TMP2(0), m_TMPR(0), m_inst_state(0), m_inst_substate(0), m_icount(0), m_bcount(0),
+	m_TMP1(0), m_TMP2(0), m_TMPR(0), m_dma_dest(0), m_dma_mode16(0),
+	m_inst_state(0), m_inst_substate(0), m_icount(0), m_bcount(0),
 	m_irq_vector(0), m_taken_irq_vector(0), m_irq_level(0), m_taken_irq_level(0), m_irq_nmi(false),
 	m_standby_pending(false), m_standby_time(0), m_nvram_defval(0), m_nvram_battery(true)
 {
@@ -162,6 +163,8 @@ void h8_device::device_start()
 	save_item(NAME(m_TMP1));
 	save_item(NAME(m_TMP2));
 	save_item(NAME(m_TMPR));
+	save_item(NAME(m_dma_dest));
+	save_item(NAME(m_dma_mode16));
 
 	save_item(NAME(m_inst_state));
 	save_item(NAME(m_inst_substate));
@@ -357,7 +360,7 @@ void h8_device::execute_run()
 		while(m_icount > m_bcount) {
 			if(m_inst_state < 0x10000) {
 				m_PPC = m_NPC;
-				if(machine().debug_flags & DEBUG_FLAG_ENABLED)
+				if(debugger_enabled())
 					debugger_instruction_hook(m_NPC);
 			}
 			do_exec_full();

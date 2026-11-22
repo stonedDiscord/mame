@@ -2,8 +2,9 @@
 // copyright-holders: Lee Taylor, Chris Moore
 
 /*************************************************************************
+
     Universal Cheeky Mouse Driver
-    (c)Lee Taylor May/June 1998, All rights reserved.
+    (c)Lee Taylor May/June 1998
 
 **************************************************************************/
 
@@ -42,8 +43,8 @@ public:
 	void cheekyms(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	// devices
@@ -76,8 +77,8 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect, gfx_element *gfx, int flip);
 
-	void io_map(address_map &map);
-	void main_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
+	void main_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -233,9 +234,9 @@ uint32_t cheekyms_state::screen_update(screen_device &screen, bitmap_ind16 &bitm
 	m_cm_tilemap->draw(screen, *m_bitmap_buffer, cliprect, 0, 0);
 
 	// draw the tilemap to the final bitmap applying the scroll to the man character
-	for (int y = cliprect.min_y; y <= cliprect.max_y; y++)
+	for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
 	{
-		for (int x = cliprect.min_x; x <= cliprect.max_x; x++)
+		for (int x = cliprect.left(); x <= cliprect.right(); x++)
 		{
 			int in_man_area;
 
@@ -327,7 +328,7 @@ static INPUT_PORTS_START( cheekyms )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_BUTTON1 )
 
 	PORT_START("COIN")
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_CHANGED_MEMBER(DEVICE_SELF, cheekyms_state, coin_inserted, 0)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(cheekyms_state::coin_inserted), 0)
 INPUT_PORTS_END
 
 
@@ -371,7 +372,7 @@ void cheekyms_state::cheekyms(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &cheekyms_state::io_map);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(10.816_MHz_XTAL / 2, 352, 0, 256, 262, 32, 224);
 	m_screen->set_screen_update(FUNC(cheekyms_state::screen_update));
 	m_screen->set_palette(m_palette);
@@ -381,7 +382,7 @@ void cheekyms_state::cheekyms(machine_config &config)
 	PALETTE(config, m_palette, FUNC(cheekyms_state::palette), 0xc0);
 
 	// audio hardware
-	CHEEKY_MOUSE_AUDIO(config, m_sound_board, 0);
+	CHEEKY_MOUSE_AUDIO(config, m_sound_board);
 }
 
 

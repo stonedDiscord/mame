@@ -80,8 +80,8 @@ public:
 	void init_hitpoker();
 
 protected:
-	virtual void machine_start() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_device<mc68hc11_cpu_device> m_maincpu;
@@ -106,8 +106,8 @@ private:
 	void pic_w(uint8_t data);
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
-	void hitpoker_map(address_map &map);
-	void reelmtp_map(address_map &map);
+	void hitpoker_map(address_map &map) ATTR_COLD;
+	void reelmtp_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -203,6 +203,7 @@ uint8_t hitpoker_state::hitpoker_pic_r()
 {
 	// logerror("%s PIC R\n", machine().describe_context());
 
+	// HACK: protection workarounds
 	if (m_maincpu->pc() == 0x3143 ||
 		m_maincpu->pc() == 0x314e ||
 		m_maincpu->pc() == 0x3164 ||
@@ -297,7 +298,7 @@ static INPUT_PORTS_START( hitpoker )
 	PORT_DIPNAME( 0x40, 0x40, "Monitor" ) // a JP probably
 	PORT_DIPSETTING(    0x40, "15KHz" )
 	PORT_DIPSETTING(    0x00, "24KHz" )
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_VBLANK("screen")
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("screen", FUNC(screen_device::vblank))
 
 	PORT_START("DSW1")
 	PORT_DIPNAME( 0x01, 0x01, "DSW1" )
@@ -357,7 +358,7 @@ static INPUT_PORTS_START( reelmtp )
 	PORT_INCLUDE( hitpoker )
 
 	PORT_MODIFY("VBLANK") // these 2 seem inverted wrt hitpoker
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_VBLANK("screen")
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("screen", FUNC(screen_device::vblank))
 	PORT_DIPNAME( 0x80, 0x80, "H-Blank" )
 	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
@@ -402,7 +403,7 @@ void hitpoker_state::hitpoker(machine_config &config)
 	rtc.irq().set_inputline(m_maincpu, MC68HC11_IRQ_LINE);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(648, 480); // set by the CRTC
@@ -441,7 +442,8 @@ void hitpoker_state::init_hitpoker()
 {
 	uint8_t *ROM = memregion("maincpu")->base();
 
-	ROM[0x1220] = 0x01; // patch EEPROM write?
+	// HACK: patch EEPROM write?
+	ROM[0x1220] = 0x01;
 	ROM[0x1221] = 0x01;
 	ROM[0x1222] = 0x01;
 
@@ -497,7 +499,7 @@ ROM_START( reelmtp )
 
 	ROM_REGION( 0x600, "plds", ROMREGION_ERASE00 )
 	ROM_LOAD( "palce16v8h.u10", 0x000, 0x117, CRC(75ab49ba) SHA1(9060d59e92df0c6ed7b5041a98bb4ab5759e7d62) )
-	ROM_LOAD( "palce16v8h.2",   0x200, 0x117, NO_DUMP ) // U location no readable, but just over the above one
+	ROM_LOAD( "palce16v8h.u11", 0x200, 0x117, NO_DUMP ) // U location not readable, but just over the above one
 	ROM_LOAD( "pal.u26",        0x400, 0x117, NO_DUMP ) // scratched, can't read type
 ROM_END
 

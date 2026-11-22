@@ -28,8 +28,6 @@
 
 #include "diserial.h"
 
-#include <queue>
-
 
 //**************************************************************************
 //  TYPE DEFINITIONS
@@ -42,10 +40,12 @@ class mc6852_device :   public device_t,
 {
 public:
 	// construction/destruction
-	mc6852_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	mc6852_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 	void set_rx_clock(int clock) { m_rx_clock = clock; }
 	void set_tx_clock(int clock) { m_tx_clock = clock; }
+
+	void set_tx_pull_mode(bool tx_pull_mode) { m_tx_pull_mode = tx_pull_mode; }
 
 	auto tx_data_callback() { return m_write_tx_data.bind(); }
 	auto irq_callback() { return m_write_irq.bind(); }
@@ -71,8 +71,8 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// device_serial_interface overrides
 	virtual void tra_callback() override;
@@ -120,7 +120,8 @@ private:
 		C2_1_2_BYTE = 0x04,
 		C2_PC_MASK = 0x03,
 		C2_PC2 = 0x02,
-		C2_PC1 = 0x01
+		C2_PC1 = 0x01,
+		C2_WS_SHIFT = 3
 	};
 
 	enum
@@ -144,8 +145,17 @@ private:
 	uint8_t m_rdr;            // receive data register
 	uint8_t m_rsr;            // receive shift register
 
-	std::queue<uint8_t> m_rx_fifo;
-	std::queue<uint8_t> m_tx_fifo;
+	uint8_t m_rx_fifo[3];
+	uint8_t m_rx_fifo_count;
+	uint8_t m_tx_fifo[3];
+	uint8_t m_tx_fifo_count;
+
+	// If m_tx_pull_mode is true, get_tx_byte() must be called to retrieve
+	// the next byte to transmit, and the actual transmission must be
+	// carried out by some external mechanism.
+	bool m_tx_pull_mode;
+
+	bool m_tx_active;
 
 	int m_rx_clock;
 	int m_tx_clock;
@@ -154,6 +164,8 @@ private:
 	int m_sm_dtr;           // sync match/data terminal ready
 	int m_tuf;              // transmitter underflow
 	int m_in_sync;
+
+	static uint8_t fifo_pop(uint8_t (&fifo)[3], uint8_t &count);
 };
 
 

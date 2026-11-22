@@ -106,8 +106,8 @@ public:
 	void mrflea(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	// memory pointers
@@ -133,10 +133,10 @@ private:
 	TIMER_DEVICE_CALLBACK_MEMBER(slave_interrupt);
 	void draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect);
 	void draw_background(bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void master_io_map(address_map &map);
-	void master_map(address_map &map);
-	void slave_io_map(address_map &map);
-	void slave_map(address_map &map);
+	void master_io_map(address_map &map) ATTR_COLD;
+	void master_map(address_map &map) ATTR_COLD;
+	void slave_io_map(address_map &map) ATTR_COLD;
+	void slave_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -179,8 +179,7 @@ void mrflea_state::draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect)
 	const uint8_t *finish = source + 0x100;
 	rectangle clip = m_screen->visible_area();
 
-	clip.max_x -= 24;
-	clip.min_x += 16;
+	clip.insetx(16, 24);
 
 	while (source < finish)
 	{
@@ -189,15 +188,15 @@ void mrflea_state::draw_sprites(bitmap_ind16 &bitmap, const rectangle &cliprect)
 		int const tile_number = source[2] + source[3] * 0x100;
 
 		gfx->transpen(bitmap, clip,
-			tile_number,
-			0, // color
-			0, 0, // no flip
-			xpos, ypos, 0);
+				tile_number,
+				0, // color
+				0, 0, // no flip
+				xpos, ypos, 0);
 		gfx->transpen(bitmap, clip,
-			tile_number,
-			0, // color
-			0, 0, // no flip
-			xpos, 256 + ypos, 0);
+				tile_number,
+				0, // color
+				0, 0, // no flip
+				xpos, 256 + ypos, 0);
 		source += 4;
 	}
 }
@@ -426,22 +425,22 @@ void mrflea_state::mrflea(machine_config &config)
 
 	config.set_maximum_quantum(attotime::from_hz(6000));
 
-	i8255_device &mainppi(I8255(config, "mainppi", 0));
+	i8255_device &mainppi(I8255(config, "mainppi"));
 	mainppi.in_pb_callback().set("subppi", FUNC(i8255_device::pb_r));
 	mainppi.out_pc_callback().set("subppi", FUNC(i8255_device::pc4_w)).bit(7); // OBFA -> STBA
 	mainppi.out_pc_callback().append("subppi", FUNC(i8255_device::pc2_w)).bit(1); // IBFB -> ACKB
 
-	i8255_device &subppi(I8255(config, "subppi", 0));
+	i8255_device &subppi(I8255(config, "subppi"));
 	subppi.in_pa_callback().set("mainppi", FUNC(i8255_device::pa_r));
 	subppi.out_pc_callback().set("mainppi", FUNC(i8255_device::pc6_w)).bit(5); // IBFA -> ACKA
 	subppi.out_pc_callback().append(m_pic, FUNC(pic8259_device::ir0_w)).bit(3); // INTRA
 	subppi.out_pc_callback().append("mainppi", FUNC(i8255_device::pc2_w)).bit(1); // OBFB -> STBB
 
-	PIC8259(config, m_pic, 0);
+	PIC8259(config, m_pic);
 	m_pic->out_int_callback().set_inputline(m_subcpu, 0);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(32*8, 32*8);

@@ -4,7 +4,8 @@
 /*
 Alone Shettle Crew
 1984
-Copyright New Digimatic but almost surely developed in Japan.
+Copyright New Digimatic but developed in Japan by Graphic Research (GRC).
+Distributed in Japan by Regal.
 
 2-PCB stack
 main PCB is marked: "PC-082A" on component side
@@ -57,8 +58,8 @@ public:
 	void shettle(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -92,8 +93,8 @@ private:
 	INTERRUPT_GEN_MEMBER(vblank_irq);
 	INTERRUPT_GEN_MEMBER(sound_timer_irq);
 
-	void main_map(address_map &map);
-	void sound_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void sound_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -410,7 +411,7 @@ void shettle_state::shettle(machine_config &config)
 	mainlatch.q_out_cb<4>().set(FUNC(shettle_state::flip_screen_set));
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(18.432_MHz_XTAL / 3, 384, 0, 288, 264, 0, 224); // unknown, single XTAL on PCB & 288x224 suggests 60.606060 Hz like Galaxian HW
 	screen.set_screen_update(FUNC(shettle_state::screen_update));
 	screen.set_palette(m_palette);

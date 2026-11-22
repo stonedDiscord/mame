@@ -53,7 +53,7 @@ class z80scc_channel : public device_t,
 	friend class z80scc_device;
 
 public:
-	z80scc_channel(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	z80scc_channel(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 	// device_serial_interface implementation
 	virtual void tra_callback() override;
@@ -106,16 +106,18 @@ public:
 	uint8_t data_read();
 	void data_write(uint8_t data);
 
-	void receive_data(uint8_t data);
+	void receive_data(uint8_t data, uint8_t status = 0);
 	void m_tx_fifo_rp_step();
 	void m_rx_fifo_rp_step();
 	uint8_t m_rx_fifo_rp_data();
 
-	void write_rx(int state);
+	void write_rx(int state, bool loopback = false);
 	void cts_w(int state);
 	void dcd_w(int state);
 	void rxc_w(int state);
 	void txc_w(int state);
+	void rtxc_w(int state);
+	void trxc_w(int state);
 	void sync_w(int state);
 
 	TIMER_CALLBACK_MEMBER(brg_tick);
@@ -183,7 +185,7 @@ protected:
 		INT_TRANSMIT_PRIO       = 1,
 		INT_EXTERNAL_PRIO       = 0,
 		INT_RECEIVE_PRIO        = 2,
-		INT_SPECIAL_PRIO        = 0,
+		INT_SPECIAL_PRIO        = 2,
 	};
 
 	// Read registers
@@ -229,16 +231,21 @@ protected:
 	};
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	unsigned int get_brg_rate();
 	unsigned int get_rtxc_rate();
+	void rx_clock_edge(int state);
+	void tx_clock_edge(int state);
 	void update_baudtimer();
 
 	void scc_register_write(uint8_t reg, uint8_t data);
 	uint8_t scc_register_read(uint8_t reg);
 	void update_serial();
+	bool receive_allowed() const;
+	bool transmit_allowed() const;
+	void resume_transmit();
 	void set_dtr(int state);
 	void set_rts(int state);
 
@@ -248,21 +255,26 @@ protected:
 	int get_rx_word_length();
 	int get_tx_word_length();
 	void safe_transmit_register_reset();
+	void set_tx_brg_rate();
 	void check_dma_request();
+	void check_receive_interrupt();
+	bool rx_special_condition(uint8_t status) const;
+	bool rx_holds_special_condition() const;
 
 	emu_timer *m_baudtimer;
 	uint16_t m_brg_counter;
 	unsigned int m_brg_rate;
 	unsigned int m_delayed_tx_brg_change;
+	bool m_tx_clocked;
 
 	// receiver state
-	uint8_t m_rx_data_fifo[8];    // receive data FIFO
-	uint8_t m_rx_error_fifo[8];   // receive error FIFO
+	uint8_t m_rx_data_fifo[8 + 1];    // receive data FIFO (ring buffer, one slot is always left unused)
+	uint8_t m_rx_error_fifo[8 + 1];   // receive error FIFO
 	uint8_t m_rx_error;       // current receive error
 	//int m_rx_fifo         // receive FIFO pointer
 	int m_rx_fifo_rp;       // receive FIFO read pointer
 	int m_rx_fifo_wp;       // receive FIFO write pointer
-	int m_rx_fifo_sz;       // receive FIFO size
+	int m_rx_fifo_sz;       // receive FIFO ring size (FIFO depth + 1)
 
 	int m_rx_clock;         // receive clock pulse count
 	int m_rx_first;         // first character received
@@ -377,6 +389,10 @@ public:
 	void txca_w(int state) { m_chanA->txc_w(state); }
 	void txcb_w(int state) { m_chanB->txc_w(state); }
 	void rxtxcb_w(int state) { m_chanB->rxc_w(state); m_chanB->txc_w(state); }
+	void rtxca_w(int state) { m_chanA->rtxc_w(state); }
+	void rtxcb_w(int state) { m_chanB->rtxc_w(state); }
+	void trxca_w(int state) { m_chanA->trxc_w(state); }
+	void trxcb_w(int state) { m_chanB->trxc_w(state); }
 	void synca_w(int state) { m_chanA->sync_w(state); }
 	void syncb_w(int state) { m_chanB->sync_w(state); }
 	int update_extint(int i);
@@ -386,9 +402,9 @@ protected:
 	z80scc_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, uint32_t variant);
 
 	// device_t implementation
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset_after_children() override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 	// device_z80daisy_interface implementation
 	virtual int z80daisy_irq_state() override;
@@ -397,7 +413,7 @@ protected:
 
 	// internal interrupt management
 	void check_interrupts();
-	void reset_interrupts();
+	void reset_interrupts(int index);
 	uint8_t modify_vector(uint8_t vect, int i, uint8_t src);
 	void trigger_interrupt(int index, int state);
 
@@ -454,6 +470,10 @@ protected:
 	int m_int_state[6]; // interrupt state
 	int m_int_source[6]; // interrupt source
 
+	static constexpr int INT_PRIORITY[6] = {
+			z80scc_channel::INT_RECEIVE_PRIO, z80scc_channel::INT_TRANSMIT_PRIO, z80scc_channel::INT_EXTERNAL_PRIO,
+			3 + z80scc_channel::INT_RECEIVE_PRIO, 3 + z80scc_channel::INT_TRANSMIT_PRIO, 3 + z80scc_channel::INT_EXTERNAL_PRIO };
+
 	int const m_variant;
 	uint8_t m_wr0_ptrbits;
 	const char *m_cputag;
@@ -462,49 +482,49 @@ protected:
 class scc8030_device : public z80scc_device
 {
 public:
-	scc8030_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	scc8030_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class scc80c30_device : public z80scc_device
 {
 public:
-	scc80c30_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	scc80c30_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class scc80230_device : public z80scc_device
 {
 public:
-	scc80230_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	scc80230_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class scc8530_device : public z80scc_device
 {
 public:
-	scc8530_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	scc8530_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class scc85c30_device : public z80scc_device
 {
 public:
-	scc85c30_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	scc85c30_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class scc85230_device : public z80scc_device
 {
 public:
-	scc85230_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	scc85230_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class scc85233_device : public z80scc_device
 {
 public:
-	scc85233_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	scc85233_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class scc8523l_device : public z80scc_device
 {
 public:
-	scc8523l_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	scc8523l_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 // device type definition
@@ -512,7 +532,7 @@ DECLARE_DEVICE_TYPE(Z80SCC_CHANNEL, z80scc_channel)
 DECLARE_DEVICE_TYPE(SCC8030,        scc8030_device)
 DECLARE_DEVICE_TYPE(SCC80C30,       scc80c30_device)
 DECLARE_DEVICE_TYPE(SCC80230,       scc80230_device)
-DECLARE_DEVICE_TYPE(SCC8530N,       scc8530_device) // remove trailing N when 8530scc.c is fully replaced and removed
+DECLARE_DEVICE_TYPE(SCC8530,        scc8530_device)
 DECLARE_DEVICE_TYPE(SCC85C30,       scc85c30_device)
 DECLARE_DEVICE_TYPE(SCC85230,       scc85230_device)
 DECLARE_DEVICE_TYPE(SCC85233,       scc85233_device)

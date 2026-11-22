@@ -25,7 +25,7 @@ DDR & TF PCBs look identical, all the parts are in the same place, the traces ar
 Some of m_unkregs must retain value (or return certain things) or RAM containing vectors gets blanked and game crashes.
 The G65816 code on these is VERY ugly and difficult to follow, many redundant statements, excessive mode switching, accessing things via pointers to pointers etc.
 
-One of the vectors points to 0x6000, there is nothing mapped there, could it be a small internal ROM or some debug trap for development?
+One of the vectors points to 0x6000, there is nothing mapped there, could it be a small internal ROM (sound related?) or some debug trap for development?
 
 
 ---
@@ -37,11 +37,25 @@ Turn and Whack (cards) game runs far too quickly (might show us where timer conf
 The Power Game game also appears to run far too quickly
 Territory Pursuit uses y-flipped sprites
 
+The code to play/request a sample from ROM is at 0D:FB7B
+It is called after pushing 3 words onto the stack containing the sample address
+
+eg.
+05:85B6: pea $0000
+05:85B9: pea $0005
+05:85BC: pea $f8bc
+05:85BF: jsl $0dfb7b    --- play sample
+
+Samples appear to be terminated with 0x8000
+
+The game also has some terrible PSG-like music, is this coming from a secondary MCU as there is an additional glob on
+each of the units using the tech, and the audio quality varies significantly.
+
 */
 
 #include "emu.h"
 
-#include "cpu/g65816/g65816.h"
+#include "cpu/m6502/w65816.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -67,12 +81,12 @@ public:
 	{ }
 
 	void trkfldch(machine_config &config);
-	void vectors_map(address_map &map);
+	void vectors_map(address_map &map) ATTR_COLD;
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 	virtual uint8_t unkregs_r(offs_t offset);
 	virtual void unkregs_w(offs_t offset, uint8_t data);
@@ -92,7 +106,7 @@ private:
 	void render_text_tile_layer(screen_device& screen, bitmap_ind16& bitmap, const rectangle& cliprect, uint16_t base);
 	void render_tile_layer(screen_device& screen, bitmap_ind16& bitmap, const rectangle& cliprect, int which);
 	uint32_t screen_update_trkfldch(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void trkfldch_map(address_map &map);
+	void trkfldch_map(address_map &map) ATTR_COLD;
 
 	uint8_t read_vector(offs_t offset);
 
@@ -149,8 +163,8 @@ public:
 
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	uint8_t unkregs_r(offs_t offset) override;
 	void unkregs_w(offs_t offset, uint8_t data) override;
@@ -849,23 +863,23 @@ TIMER_DEVICE_CALLBACK_MEMBER(trkfldch_state::scanline)
 	if (scanline == 200)
 	{
 		m_which_vector = 0x06;
-		m_maincpu->set_input_line(G65816_LINE_NMI, ASSERT_LINE);
+		m_maincpu->set_input_line(w65816_device::NMI_LINE, ASSERT_LINE);
 	}
 	else if (scanline == 201)
 	{
 		m_which_vector = 0x06;
-		m_maincpu->set_input_line(G65816_LINE_NMI, CLEAR_LINE);
+		m_maincpu->set_input_line(w65816_device::NMI_LINE, CLEAR_LINE);
 	}
 
 	if (scanline == 20)
 	{
 		m_which_vector = 0x14;
-		m_maincpu->set_input_line(G65816_LINE_NMI, ASSERT_LINE);
+		m_maincpu->set_input_line(w65816_device::NMI_LINE, ASSERT_LINE);
 	}
 	else if (scanline == 21)
 	{
 		m_which_vector = 0x14;
-		m_maincpu->set_input_line(G65816_LINE_NMI, CLEAR_LINE);
+		m_maincpu->set_input_line(w65816_device::NMI_LINE, CLEAR_LINE);
 	}
 
 	// this is clearly a timer interrupt, trkfldch needs it to count
@@ -874,12 +888,12 @@ TIMER_DEVICE_CALLBACK_MEMBER(trkfldch_state::scanline)
 		if ((scanline & 1) == 0)
 		{
 			m_which_vector = 0x18;
-			m_maincpu->set_input_line(G65816_LINE_NMI, ASSERT_LINE);
+			m_maincpu->set_input_line(w65816_device::NMI_LINE, ASSERT_LINE);
 		}
 		else
 		{
 			m_which_vector = 0x18;
-			m_maincpu->set_input_line(G65816_LINE_NMI, CLEAR_LINE);
+			m_maincpu->set_input_line(w65816_device::NMI_LINE, CLEAR_LINE);
 		}
 	}
 }
@@ -947,7 +961,7 @@ static INPUT_PORTS_START( konsb )
 	PORT_DIPNAME( 0x20, 0x20, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x20, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
-	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON1 ) 
+	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON1 )
 	PORT_DIPNAME( 0x80, 0x80, DEF_STR( Unknown ) )
 	PORT_DIPSETTING(    0x80, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
@@ -1582,15 +1596,15 @@ void trkfldch_state::machine_reset()
 void trkfldch_state::trkfldch(machine_config &config)
 {
 	/* basic machine hardware */
-	G65816(config, m_maincpu, 20000000);
+	W65816(config, m_maincpu, 20000000);
 	//m_maincpu->set_addrmap(AS_DATA, &trkfldch_state::mem_map);
 	m_maincpu->set_addrmap(AS_PROGRAM, &trkfldch_state::trkfldch_map);
-	m_maincpu->set_addrmap(g65816_device::AS_VECTORS, &trkfldch_state::vectors_map);
+	m_maincpu->set_addrmap(w65816_device::AS_VECTORS, &trkfldch_state::vectors_map);
 
 	TIMER(config, "scantimer").configure_scanline(FUNC(trkfldch_state::scanline), "screen", 0, 1);
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(320, 240);
@@ -1608,9 +1622,20 @@ ROM_START( trkfldch )
 	ROM_LOAD( "trackandfield.bin", 0x000000, 0x400000,  CRC(f4f1959d) SHA1(344dbfe8df1897adf77da6e5ca0435c4d47d6842) )
 ROM_END
 
+ROM_START( trkfldchj )
+	ROM_REGION( 0x1000000, "maincpu", ROMREGION_ERASE00 )
+	ROM_LOAD( "trackandfieldjap.u2", 0x000000, 0x400000, CRC(2badbbae) SHA1(8102a6166bda3de2b13a984c391ad05e15fbf7ce) )
+ROM_END
+
+
 ROM_START( my1stddr )
 	ROM_REGION( 0x1000000, "maincpu", ROMREGION_ERASE00 )
 	ROM_LOAD( "myfirstddr.bin", 0x000000, 0x400000, CRC(2ef57bfc) SHA1(9feea5adb9de8fe17e915f3a037e8ddd70e58ae7) )
+ROM_END
+
+ROM_START( my1stddrj )
+	ROM_REGION( 0x1000000, "maincpu", ROMREGION_ERASE00 )
+	ROM_LOAD( "myfirstddrjp.u2", 0x000000, 0x400000, CRC(da62d32f) SHA1(de67f3b1d4bfbf9c51c606f53d7b2958859203bc) )
 ROM_END
 
 ROM_START( abl4play )
@@ -1627,6 +1652,12 @@ ROM_START( lexitvsprt )
 	ROM_REGION( 0x1000000, "maincpu", ROMREGION_ERASE00 )
 	ROM_LOAD( "29l3211.u2a", 0x000000, 0x400000, CRC(65e5223c) SHA1(13eae6e34100fb9761335e87a3cf728bb31e860f) )
 ROM_END
+
+ROM_START( senspid )
+	ROM_REGION( 0x1000000, "maincpu", 0 )
+	ROM_LOAD( "spidermanmat.bin", 0x00000, 0x400000, CRC(11f5181c) SHA1(7f0d5d34f924b6a7182102451a2ac1cc41e575b0) )
+ROM_END
+
 
 /*
 Included with Orange model
@@ -1716,12 +1747,22 @@ The following were also available (via the Download service?)
 } // anonymous namespace
 
 
-CONS( 2007, trkfldch,  0,          0,  trkfldch, trkfldch,trkfldch_state,      empty_init,    "Konami",                                     "Track & Field Challenge", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-CONS( 2006, my1stddr,  0,          0,  trkfldch, my1stddr,trkfldch_state,      empty_init,    "Konami",                                     "My First Dance Dance Revolution (US)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // Japan version has different songs
-CONS( 200?, abl4play,  0,          0,  trkfldch, abl4play,trkfldch_state,      empty_init,    "Advance Bright Ltd",                         "4 Player System - 10 in 1", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-CONS( 200?, shtscore,  0,          0,  trkfldch, shtscore,trkfldch_state,      empty_init,    "Halsall / time4toys.com / Electronic Games", "Shoot n' Score", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
-CONS( 200?, lexitvsprt,0,          0,  trkfldch, lexi,    trkfldch_lexi_state, empty_init,    "Lexibook",                                   "TV Sports Plug & Play 5-in-1 (JG7000)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+CONS( 2007, trkfldch,   0,        0, trkfldch, trkfldch, trkfldch_state,      empty_init, "Konami", "Track & Field Challenge",                               MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+// 走れ!とべ!投げろ! ハイパースポーツチャレンジ
+CONS( 2007, trkfldchj,  trkfldch, 0, trkfldch, trkfldch, trkfldch_state,      empty_init, "Konami", "Hashire! Tobe! Nagero! Hyper Sports Challenge (Japan)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+
+CONS( 2006, my1stddr,   0,        0, trkfldch, my1stddr, trkfldch_state,      empty_init, "Konami", "My First Dance Dance Revolution (US)",    MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+CONS( 2006, my1stddrj,  my1stddr, 0, trkfldch, my1stddr, trkfldch_state,      empty_init, "Konami", "My First Dance Dance Revolution (Japan)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // Japan version has different songs
+
+CONS( 200?, abl4play,   0,        0, trkfldch, abl4play, trkfldch_state,      empty_init, "Advance Bright Ltd", "4 Player System - 10 in 1", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+
+CONS( 200?, shtscore,   0,        0, trkfldch, shtscore, trkfldch_state,      empty_init, "Halsall / time4toys.com / Electronic Games", "Shoot n' Score", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+
+CONS( 200?, lexitvsprt, 0,        0, trkfldch, lexi,     trkfldch_lexi_state, empty_init, "Lexibook", "TV Sports Plug & Play 5-in-1 (JG7000)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
+
+// don't have a picture of the box, title screen doesn't give a more complete title, I/O seems closer lexitvsprt
+CONS( 2007, senspid,    0,        0, trkfldch, trkfldch, trkfldch_state,      empty_init, "Senario", "The Amazing Spider-Man (Senario, floor mat)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND )
 
 // additional online content could be downloaded onto these if they were connected to a PC via USB
-CONS( 2008, teleshi,   0,          0,  trkfldch, konsb,   trkfldch_state,      empty_init,    "Konami",                                     "Teleshibai (Japan)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // テレしばい - this one is orange  
-CONS( 2008, teleship,  0,          0,  trkfldch, konsb,   trkfldch_state,      empty_init,    "Konami",                                     "Teleshibai - Purple Version (Japan)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // テレしばい (パープルバージョン) - this has Purple Version as part of the name  on the box
+CONS( 2008, teleshi,    0,        0, trkfldch, konsb,    trkfldch_state,      empty_init, "Konami", "Teleshibai (Japan)",                  MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // テレしばい - this one is orange
+CONS( 2008, teleship,   0,        0, trkfldch, konsb,    trkfldch_state,      empty_init, "Konami", "Teleshibai: Purple Version (Japan)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND ) // テレしばい (パープルバージョン) - this has Purple Version as part of the name  on the box

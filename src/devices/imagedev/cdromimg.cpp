@@ -79,9 +79,9 @@ void cdrom_image_device::setup_current_preset_image()
 	m_dvdrom_handle.reset();
 
 	chd_file *chd = current_preset_image_chd();
-	if (chd->is_cd() || (m_gd_compat && chd->is_gd()))
+	if (!chd->check_is_cd() || (m_gd_compat && !chd->check_is_gd()))
 		m_cdrom_handle = std::make_unique<cdrom_file>(chd);
-	else if(m_dvd_compat && chd->is_dvd())
+	else if(m_dvd_compat && !chd->check_is_dvd())
 		m_dvdrom_handle = std::make_unique<dvdrom_file>(chd);
 	else
 		fatalerror("chd for region %s is not compatible with the cdrom image device\n", preset_images_list()[current_preset_image_id()]);
@@ -113,10 +113,7 @@ std::pair<std::error_condition, std::string> cdrom_image_device::call_load()
 	{
 		if (is_filetype("chd") && is_loaded())
 		{
-			util::core_file::ptr proxy;
-			err = util::core_file::open_proxy(image_core_file(), proxy);
-			if (!err)
-				err = m_self_chd.open(std::move(proxy)); // CDs are never writeable
+			err = m_self_chd.open(image_core_file()); // CDs are never writeable
 			if (err)
 				goto error;
 			chd = &m_self_chd;
@@ -130,15 +127,31 @@ std::pair<std::error_condition, std::string> cdrom_image_device::call_load()
 	// open the CHD file
 	if (chd)
 	{
-		if (chd->is_cd() || (m_gd_compat && chd->is_gd()))
-			m_cdrom_handle.reset(new cdrom_file(chd));
-		else if (m_dvd_compat && chd->is_dvd())
-			m_dvdrom_handle.reset(new dvdrom_file(chd));
-		else
+		err = chd->check_is_cd();
+		if (err == chd_file::error::METADATA_NOT_FOUND && m_gd_compat)
+			err = chd->check_is_gd();
+		if (!err)
 		{
-			err = image_error::INVALIDIMAGE;
-			goto error;
+			m_cdrom_handle.reset(new cdrom_file(chd));
+			return std::make_pair(std::error_condition(), std::string());
 		}
+		if (err != chd_file::error::METADATA_NOT_FOUND)
+			goto error;
+
+		if (m_dvd_compat)
+		{
+			err = chd->check_is_dvd();
+			if (!err)
+			{
+				m_dvdrom_handle.reset(new dvdrom_file(chd));
+				return std::make_pair(std::error_condition(), std::string());
+			}
+			if (err != chd_file::error::METADATA_NOT_FOUND)
+				goto error;
+		}
+
+		err = image_error::INVALIDIMAGE;
+		goto error;
 	}
 	else
 	{
@@ -265,3 +278,12 @@ bool cdrom_image_device::is_dvd() const
 	return m_dvdrom_handle != nullptr;
 }
 
+
+device_cd_player_interface::device_cd_player_interface(const machine_config &mconfig, device_t &device)
+	: device_interface(device, "cd_player")
+{
+}
+
+device_cd_player_interface::~device_cd_player_interface()
+{
+}

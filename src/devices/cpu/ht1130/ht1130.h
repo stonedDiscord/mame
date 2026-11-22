@@ -11,7 +11,7 @@
 #define HT1130_EXT_WAKEUP_LINE 0
 
 
-class ht1130_device : public cpu_device
+class ht1130_device : public cpu_device, public device_sound_interface
 {
 public:
 	ht1130_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
@@ -38,14 +38,19 @@ public:
 	// LCD output: COM in offset, SEG in data
 	auto segment_out_cb() { return m_segment_out.bind(); }
 
+	// sound configuration
+	void set_sound_freq_div(u8 div) { m_sound_freq_div = div; }
+	template <typename T> void set_sound_effect(T &&effect) { m_sound_effect.set_tag(std::forward<T>(effect)); }
+	template <typename T> void set_sound_speed_div(T &&speed_div) { m_sound_speed_div.set_tag(std::forward<T>(speed_div)); }
+	template <typename T> void set_melody_rom(T &&melody) { m_melody_rom.set_tag(std::forward<T>(melody)); }
+
 protected:
 	ht1130_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, address_map_constructor data);
 
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	virtual void execute_run() override;
-	virtual u32 execute_input_lines() const noexcept override { return 1; }
 	virtual bool execute_input_edge_triggered(int inputnum) const noexcept override { return inputnum == HT1130_EXT_WAKEUP_LINE; }
 	virtual void execute_set_input(int inputnum, int state) override;
 	virtual u32 execute_max_cycles() const noexcept override { return 2; }
@@ -54,8 +59,11 @@ protected:
 
 	virtual space_config_vector memory_space_config() const override;
 
-	void internal_map(address_map &map);
-	void internal_data_map(address_map &map);
+	// device_sound_interface overrides
+	virtual void sound_stream_update(sound_stream &stream) override;
+
+	void internal_map(address_map &map) ATTR_COLD;
+	void internal_data_map(address_map &map) ATTR_COLD;
 
 	void tempram_w(offs_t offset, u8 data);
 	void displayram_w(offs_t offset, u8 data);
@@ -123,6 +131,27 @@ protected:
 	devcb_write8 m_port_out_pa;
 
 	devcb_write64 m_segment_out;
+
+	sound_stream *m_stream;
+
+	u8 m_sound_freq_div;
+	optional_region_ptr<u8> m_sound_effect;
+	optional_region_ptr<u8> m_sound_speed_div;
+	optional_region_ptr<u8> m_melody_rom;
+
+	bool m_sound_on;
+	bool m_sound_repeat;
+	u8 m_sound_channel;
+	u8 m_note_counter;
+	u32 m_sound_clock_counter;
+
+	u32 m_sound_pos;
+	s32 m_sound_signal;
+	u32 m_sound_rand;
+
+	// sound: LFSR-state -> frequency-divisor lookup, built at start
+	u8 m_lfsr2div[128];
+	void build_lfsr_div_table();
 };
 
 class ht1190_device : public ht1130_device
@@ -131,11 +160,11 @@ public:
 	ht1190_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
 
 protected:
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 	virtual u64 get_segs(u8 coms) override;
 
 private:
-	void internal_data_map_ht1190(address_map &map);
+	void internal_data_map_ht1190(address_map &map) ATTR_COLD;
 };
 
 

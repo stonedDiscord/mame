@@ -119,6 +119,7 @@ void smc91c9x_device::device_start()
 	save_item(NAME(m_recd));
 	save_item(NAME(m_alloc_rx));
 	save_item(NAME(m_alloc_tx));
+	save_item(NAME(m_alloc_pending));
 	save_item(NAME(m_tx_active));
 	save_item(NAME(m_rx_active));
 	save_item(NAME(m_tx_retry_count));
@@ -179,8 +180,6 @@ void smc91c9x_device::device_reset()
 
 	m_reg[B3_ERCV]         = 0x331f;   m_regmask[B3_ERCV]         = 0x009f;
 
-	set_promisc(false);
-
 	update_ethernet_irq();
 
 	// Reset MMU
@@ -192,6 +191,7 @@ void smc91c9x_device::mmu_reset()
 	// Reset MMU allocations
 	m_alloc_rx = 0;
 	m_alloc_tx = 0;
+	m_alloc_pending = false;
 
 	// The register defaults to the MEMORY SIZE upon reset or upon the RESET MMU command.
 	m_reg[B0_MIR] &= 0xff;
@@ -244,6 +244,23 @@ void smc91c9x_device::alloc_release(const int packet_num)
 	}
 	m_alloc_tx &= clear_mask;
 	m_alloc_rx &= clear_mask;
+
+	int pending_num = 0;
+	if (m_alloc_pending && alloc_req(1, pending_num))
+	{
+		m_alloc_pending = false;
+		alloc_tx_complete(pending_num);
+	}
+}
+
+void smc91c9x_device::alloc_tx_complete(int packet_num)
+{
+	// Set ARR register
+	m_reg[B2_PNR_ARR] &= ~0xff00;
+	m_reg[B2_PNR_ARR] |= packet_num << 8;
+	m_reg[B2_INTERRUPT] |= EINT_ALLOC;
+
+	update_ethernet_irq();
 }
 
 /***************************************************************************
@@ -512,7 +529,7 @@ void smc91c9x_device::recv_complete_cb(int result)
 	// Couldn't allocate memory
 	else if (result == -2)
 	{
-		m_reg[B2_INTERRUPT] |= EINT_ALLOC;
+		m_reg[B2_INTERRUPT] |= EINT_RX_OVRN;
 	}
 
 	update_ethernet_irq();
@@ -708,16 +725,15 @@ void smc91c9x_device::process_command(uint16_t data)
 				if (alloc_req(1, packet_num))
 				{
 					LOG(" packet_num = %02x\n", (packet_num));
-					// Set ARR register
-					m_reg[B2_PNR_ARR] &= ~0xff00;
-					m_reg[B2_PNR_ARR] |= packet_num << 8;
-					m_reg[B2_INTERRUPT] |= EINT_ALLOC;
-
-					update_ethernet_irq();
+					alloc_tx_complete(packet_num);
 				}
 				else
 				{
-					logerror("ECMD_ALLOCATE: Couldn't allocate TX memory\n");
+					LOG(" failed, pending\n");
+					m_reg[B2_PNR_ARR] |= 0x8000;
+					m_reg[B2_INTERRUPT] &= ~EINT_ALLOC;
+					m_alloc_pending = true;
+					update_ethernet_irq();
 				}
 			}
 			break;
@@ -816,11 +832,12 @@ u16 smc91c9x_device::read(offs_t offset, u16 mem_mask)
 	{
 		case B2_MMU_COMMAND:
 			// Clear busy
-			m_reg[B2_MMU_COMMAND] &= ~0x0001;
+			if (!machine().side_effects_disabled())
+				m_reg[B2_MMU_COMMAND] &= ~0x0001;
 			break;
 
 		case B2_PNR_ARR:
-			if ( ACCESSING_BITS_8_15 )
+			if (ACCESSING_BITS_8_15 && !machine().side_effects_disabled())
 			{
 				m_reg[B2_INTERRUPT] &= ~EINT_ALLOC;
 				update_ethernet_irq();
@@ -856,13 +873,13 @@ u16 smc91c9x_device::read(offs_t offset, u16 mem_mask)
 				result = buffer[addr++];
 			if ( ACCESSING_BITS_8_15 )
 				result |= buffer[addr++] << 8;
-			if ( m_reg[B2_POINTER] & 0x4000 )
+			if ((m_reg[B2_POINTER] & 0x4000) && !machine().side_effects_disabled())
 				m_reg[B2_POINTER] = (m_reg[B2_POINTER] & ~0x7ff) | (addr & 0x7ff);
 			break;
 		}
 	}
 
-	if (offset != B0_BANK)
+	if ((offset != B0_BANK) && !machine().side_effects_disabled())
 		LOG("%s:smc91c9x_r(%s) = %04X & %04X\n", machine().describe_context(), ethernet_regname[offset], result, mem_mask);
 	return result;
 }
@@ -935,11 +952,6 @@ void smc91c9x_device::write(offs_t offset, u16 data, u16 mem_mask)
 				m_reg[B0_EPH_STATUS] |= LINK_OK;
 			}
 
-			if ((old_reg ^ new_reg) & PRMS)
-			{
-				set_promisc(new_reg & PRMS);
-			}
-
 			if (VERBOSE & LOG_GENERAL)
 			{
 				if (data & SOFT_RST)    LOG("   SOFT RST\n");
@@ -972,8 +984,6 @@ void smc91c9x_device::write(offs_t offset, u16 data, u16 mem_mask)
 		case B1_IA4_5:
 			if ( ACCESSING_BITS_8_15 )
 			{
-				set_promisc(m_reg[B0_RCR] & PRMS);
-
 				u8 mac[6];
 				put_u16le(&mac[0], m_reg[B1_IA0_1]);
 				put_u16le(&mac[2], m_reg[B1_IA2_3]);

@@ -47,7 +47,6 @@ void kayproii_state::kayproii_pio_system_w(u8 data)
 	m_bankr->set_entry(BIT(data, 7));
 	m_bankw->set_entry(BIT(data, 7));
 	m_bank3->set_entry(BIT(data, 7));
-	m_is_motor_off = BIT(data, 6);
 
 	m_floppy = nullptr;
 	if (BIT(data, 0))
@@ -110,7 +109,6 @@ void kaypro84_state::kaypro484_system_port_w(u8 data)
 	m_bankr->set_entry(BIT(data, 7));
 	m_bankw->set_entry(BIT(data, 7));
 	m_bank3->set_entry(BIT(data, 7));
-	m_is_motor_off = !BIT(data, 4);
 
 	m_floppy = nullptr;
 	if (!BIT(data, 0))
@@ -170,46 +168,31 @@ void kaypro84_state::kaypro484_system_port_w(u8 data)
 
     Floppy Disk
 
-    If DRQ or IRQ is set, and cpu is halted, the NMI goes low.
-    Since the HALT occurs last (and has no callback mechanism), we need to set
-    a short delay, to give time for the processor to execute the HALT before NMI
-    becomes active.
+    If DRQ or INTRQ is set, and the CPU is halted, the NMI goes low.
 
 *************************************************************************************/
 
-TIMER_DEVICE_CALLBACK_MEMBER(kaypro_state::floppy_timer)
+void kaypro_state::update_nmi()
 {
-	bool halt;
-	halt = (bool)m_maincpu->state_int(Z80_HALT);
-	if (m_is_motor_off)
-	{
-		m_floppy_timer->adjust(attotime::from_hz(10));
-		return;
-	}
-
-	if ((halt) && (m_fdc_rq & 3) && (m_fdc_rq < 0x80))
-	{
-		m_maincpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
-		m_fdc_rq |= 0x80;
-	}
-	else
-	if ((m_fdc_rq == 0x80) || ((!halt) && BIT(m_fdc_rq, 7)))
-	{
-		m_maincpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
-		m_fdc_rq &= 0x7f;
-	}
-	m_floppy_timer->adjust(attotime::from_hz(1e5));
+	m_maincpu->set_input_line(INPUT_LINE_NMI, (m_cpu_halted && m_fdc_rq) ? ASSERT_LINE : CLEAR_LINE);
 }
 
+void kaypro_state::cpu_halt_w(int state)
+{
+	m_cpu_halted = bool(state);
+	update_nmi();
+}
 
 void kaypro_state::fdc_intrq_w(int state)
 {
-	m_fdc_rq = (m_fdc_rq & 0x82) | state;
+	m_fdc_rq = (m_fdc_rq & 2) | state;
+	update_nmi();
 }
 
 void kaypro_state::fdc_drq_w(int state)
 {
-	m_fdc_rq = (m_fdc_rq & 0x81) | (state << 1);
+	m_fdc_rq = (m_fdc_rq & 1) | (state << 1);
+	update_nmi();
 }
 
 
@@ -236,14 +219,12 @@ void kaypro84_state::rtc_w(u8 data)
 ************************************************************/
 void kaypro_state::machine_start()
 {
-	m_leds.resolve();
-
 	save_pointer(NAME(m_vram), 0x1000);
 	save_pointer(NAME(m_ram),  0x4000);
 
 	save_item(NAME(m_framecnt));
 	save_item(NAME(m_centronics_busy));
-	save_item(NAME(m_is_motor_off));
+	save_item(NAME(m_cpu_halted));
 	save_item(NAME(m_fdc_rq));
 	save_item(NAME(m_system_port));
 
@@ -269,6 +250,17 @@ void kaypro84_state::machine_start()
 		save_item(NAME(m_rtc_address));
 }
 
+void kaypro10_state::machine_start()
+{
+	kaypro84_state::machine_start();
+
+	m_hdc_buf = std::make_unique<u8[]>(512);
+	save_pointer(NAME(m_hdc_buf), 512);
+	save_item(NAME(m_hdc_ptr));
+	m_hdc->drdy_w(m_hdd->exists() ? 1 : 0);  // WD1002 drive-ready
+	m_hdc->sc_w(1);                          // seek complete (heads at a known track)
+}
+
 void kaypro_state::machine_reset()
 {
 	m_bankr->set_entry(1); // point at rom
@@ -277,7 +269,6 @@ void kaypro_state::machine_reset()
 	m_system_port = 0x80;
 	m_fdc_rq = 0;
 	m_maincpu->reset();
-	m_floppy_timer->adjust(attotime::from_hz(1));   /* kick-start the nmi timer */
 }
 
 
@@ -300,27 +291,31 @@ QUICKLOAD_LOAD_MEMBER(kaypro_state::quickload_cb)
 
 	address_space& prog_space = m_maincpu->space(AS_PROGRAM);
 
-	/* Avoid loading a program if CP/M-80 is not in memory */
+	// Avoid loading a program if CP/M-80 is not in memory
 	if ((prog_space.read_byte(0) != 0xc3) || (prog_space.read_byte(5) != 0xc3))
-		return std::make_pair(image_error::UNSUPPORTED, std::string());
+		return std::make_pair(image_error::UNSUPPORTED, "CP/M must already be running");
 
-	if (image.length() >= 0xfd00)
-		return std::make_pair(image_error::INVALIDLENGTH, std::string());
+	// Check for sufficient RAM based on position of CPM
+	const int mem_avail = 256 * prog_space.read_byte(7) + prog_space.read_byte(6) - 512;
+	if (mem_avail < image.length())
+		return std::make_pair(image_error::UNSPECIFIED, "Insufficient memory available");
 
-	/* Load image to the TPA (Transient Program Area) */
+	// Load image to the TPA (Transient Program Area)
 	u16 quickload_size = image.length();
 	for (u16 i = 0; i < quickload_size; i++)
 	{
 		u8 data;
 		if (image.fread(&data, 1) != 1)
-			return std::make_pair(image_error::UNSPECIFIED, std::string());
-		prog_space.write_byte(i+0x100, data);
+			return std::make_pair(image_error::UNSPECIFIED, "Problem reading the image at offset " + std::to_string(i));
+		prog_space.write_byte(i + 0x100, data);
 	}
 
-	prog_space.write_byte(0x80, 0);   prog_space.write_byte(0x81, 0);    // clear out command tail
+	// clear out command tail
+	prog_space.write_byte(0x80, 0);
+	prog_space.write_byte(0x81, 0);
 
-	m_maincpu->set_pc(0x100);    // start program
-	m_maincpu->set_state_int(Z80_SP, 256 * prog_space.read_byte(7) - 300);   // put the stack a bit before BDOS
+	m_maincpu->set_state_int(Z80_SP, mem_avail + 384); // put the stack a bit before BDOS
+	m_maincpu->set_pc(0x100); // start program
 
 	return std::make_pair(std::error_condition(), std::string());
 }

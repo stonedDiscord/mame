@@ -84,7 +84,7 @@ public:
 	auto cb2_handler() { return m_cb2_handler.bind(); }
 	auto irq_handler() { return m_irq_handler.bind(); }
 
-	void map(address_map &map);
+	void map(address_map &map) ATTR_COLD;
 
 	u8 read(offs_t offset);
 	void write(offs_t offset, u8 data);
@@ -115,14 +115,20 @@ public:
 
 	uint8_t read_pa() const;
 	uint8_t read_pb() const;
+	void shift_out();
+	void shift_in();
+
+	int ca2_r() const { return m_out_ca2; }
+	int cb1_r() const { return m_out_cb1; }
+	int cb2_r() const { return m_out_cb2; }
 
 protected:
 	// construction/destruction
 	via6522_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	TIMER_CALLBACK_MEMBER(shift_irq_tick);
 	TIMER_CALLBACK_MEMBER(shift_tick);
@@ -130,14 +136,24 @@ protected:
 	TIMER_CALLBACK_MEMBER(t2_tick);
 	TIMER_CALLBACK_MEMBER(ca2_tick);
 
-private:
-	uint16_t get_counter1_value();
-	void counter2_decrement();
-
 	void set_int(int data);
 	void clear_int(int data);
-	void shift_out();
-	void shift_in();
+
+	int m_in_cb1;
+	int m_in_cb2;
+
+	uint8_t m_acr;
+
+private:
+	uint64_t clocks_since(const attotime &start) const;
+	uint16_t get_counter1_value() const;
+	uint16_t get_counter2_value() const;
+	void reanchor_counter1();
+	bool shift_blocked() const;
+	bool shift_clock_level() const;
+	uint32_t t2_underflow_delay() const;
+	void counter2_decrement();
+
 	void set_pa_line(int line, int state);
 	void set_pb_line(int line, int state);
 
@@ -169,8 +185,6 @@ private:
 	uint8_t m_latch_a;
 
 	uint8_t m_in_b;
-	int m_in_cb1;
-	int m_in_cb2;
 	uint8_t m_out_b;
 	int m_out_cb1;
 	int m_out_cb2;
@@ -183,12 +197,14 @@ private:
 	uint8_t m_t1lh;
 	uint8_t m_t2cl;
 	uint8_t m_t2ch;
+	bool m_shift_done;
+	uint16_t m_t1_value;
+	uint16_t m_t2_start;
 	uint8_t m_t2ll;
 	uint8_t m_t2lh;
 
 	uint8_t m_sr;
 	uint8_t m_pcr;
-	uint8_t m_acr;
 	uint8_t m_ier;
 	uint8_t m_ifr;
 
@@ -198,6 +214,7 @@ private:
 	int m_t1_pb7;
 	emu_timer *m_t2;
 	attotime m_time2;
+	attotime m_t2_load;
 	uint8_t m_t2_active;
 	emu_timer *m_ca2_timer;
 	emu_timer *m_cb2_timer;

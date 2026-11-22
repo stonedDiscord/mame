@@ -53,7 +53,7 @@ public:
 	void mmahjong(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -68,7 +68,7 @@ private:
 	TILE_GET_INFO_MEMBER(get_tile_info) { tileinfo.set(0, m_vram[tile_index], 0, 0); }
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	void main_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
 
 	void vram_w(offs_t offset, u8 data);
 	void input_w(u8 data);
@@ -205,7 +205,7 @@ void mmahjong_state::mmahjong(machine_config &config)
 
 	TILEMAP(config, m_tilemap, "gfxdecode", 0, 8, 8, TILEMAP_SCAN_ROWS, 32, 32).set_info_callback(FUNC(mmahjong_state::get_tile_info));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_size(8*32, 8*32);
 	m_screen->set_visarea(0, 8*32-1, 0, 8*24-1);
@@ -242,5 +242,5 @@ ROM_END
     Drivers
 *******************************************************************************/
 
-//    YEAR  NAME      PARENT  COMPAT  MACHINE   INPUT     CLASS           INIT        COMPANY, FULLNAME, FLAGS
+//    YEAR  NAME      PARENT  COMPAT  MACHINE   INPUT     CLASS           INIT        COMPANY                FULLNAME         FLAGS
 SYST( 1982, mmahjong, 0,      0,      mmahjong, mmahjong, mmahjong_state, empty_init, "Nippon Mail Service", "Micom Mahjong", MACHINE_SUPPORTS_SAVE )

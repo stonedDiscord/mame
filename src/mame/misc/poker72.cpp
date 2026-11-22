@@ -23,7 +23,7 @@ TODO:
 - Demo Sound enabled doesn't produce any sound (?)
 
 Notes:
-- On first boot it will moan about uninitailized RAM, enable service mode then
+- On first boot it will moan about uninitialized RAM, enable service mode then
   press all five hold buttons at same time
   (game is fussy on being exactly pressed together)
 
@@ -31,7 +31,7 @@ Notes:
 
 #include "emu.h"
 
-#include "cpu/mcs51/mcs51.h"
+#include "cpu/mcs51/i80c51.h"
 #include "cpu/z80/z80.h"
 #include "sound/ay8910.h"
 
@@ -60,8 +60,8 @@ public:
 	void init_poker72();
 
 protected:
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_shared_ptr<uint8_t> m_vram;
@@ -77,7 +77,7 @@ private:
 	void output_w(uint8_t data);
 	void tile_bank_w(uint8_t data);
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void prg_map(address_map &map);
+	void prg_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -361,7 +361,7 @@ void poker72_state::poker72(machine_config &config)
 	I80C51(config, "subcpu", 8000000); // actually 89C51, ? MHz
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(64*8, 32*8);
@@ -404,6 +404,7 @@ void poker72_state::init_poker72()
 	m_rombank->configure_entries(0, 4, memregion("maincpu")->base(), 0x8000);
 	m_rombank->set_entry(0);
 
+	// HACK: what is this for?
 	//rom[0x4a9] = 0x28;
 	rom[0x4aa] = 0x00;
 }

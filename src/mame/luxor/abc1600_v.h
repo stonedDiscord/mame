@@ -11,9 +11,10 @@
 #pragma once
 
 
+#include "machine/timer.h"
 #include "video/mc6845.h"
 #include "emupal.h"
-
+#include "screen.h"
 
 
 ///*************************************************************************
@@ -29,30 +30,43 @@
 // ======================> abc1600_mover_device
 
 class abc1600_mover_device :  public device_t,
-								public device_memory_interface
+							  public device_memory_interface
 {
 public:
 	// construction/destruction
 	abc1600_mover_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
-	virtual void vram_map(address_map &map);
-	virtual void crtc_map(address_map &map);
-	virtual void iowr0_map(address_map &map);
-	virtual void iowr1_map(address_map &map);
-	virtual void iowr2_map(address_map &map);
+	auto amm_callback() { return m_write_amm.bind(); }
 
-	void mover_map(address_map &map);
+	u64 cpu_pack_tick(u64 das, bool write) const;
+
+	virtual void vram_map(address_map &map) ATTR_COLD;
+	virtual void crtc_map(address_map &map) ATTR_COLD;
+	virtual void iowr0_map(address_map &map) ATTR_COLD;
+	virtual void iowr1_map(address_map &map) ATTR_COLD;
+	virtual void iowr2_map(address_map &map) ATTR_COLD;
+
+	void mover_map(address_map &map) ATTR_COLD;
+
+	DECLARE_INPUT_CHANGED_MEMBER(screenpos_changed);
+
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual const tiny_rom_entry *device_rom_region() const override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual ioport_constructor device_input_ports() const override ATTR_COLD;
 
 	// device_memory_interface overrides
 	virtual space_config_vector memory_space_config() const override;
 
 private:
+	static constexpr u32 HTOTAL = 0x3e0;
+	static constexpr u32 HDISP = 0x300;
+	static constexpr u32 VTOTAL = 0x433;
+	static constexpr u32 VDISP = 0x400;
+
 	inline uint16_t get_drmsk();
 	inline void get_shinf();
 	inline uint16_t get_wrmsk();
@@ -101,14 +115,23 @@ private:
 	inline uint16_t read_videoram(offs_t offset);
 	inline void write_videoram(offs_t offset, uint16_t data, uint16_t mask);
 	inline uint16_t get_crtca(uint16_t ma, uint8_t ra, uint8_t column);
+	attotime wclk(int cycles) const { return attotime::from_hz(XTAL(64'000'000)/16) * cycles; }
+	bool dtack_clk(u64 slot) const;
+	void select_screenpos_view();
 
 	const address_space_config m_space_config;
 
+	devcb_write_line m_write_amm;
+
 	required_device<mc6845_device> m_crtc;
 	required_device<palette_device> m_palette;
+	required_device<timer_device> m_timer_amm;
 	required_region_ptr<uint16_t> m_wrmsk_rom;
 	required_region_ptr<uint8_t> m_shinf_rom;
 	required_region_ptr<uint16_t> m_drmsk_rom;
+	required_ioport m_screenpos;
+
+	TIMER_DEVICE_CALLBACK_MEMBER(amm);
 
 	int m_endisp = 0;               // enable display
 	int m_clocks_disabled = 0;      // clocks disabled

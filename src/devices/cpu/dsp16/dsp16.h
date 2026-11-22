@@ -12,10 +12,9 @@
 
 #include "dsp16dis.h"
 
-#include "cpu/drccache.h"
-
 #include <memory>
 #include <utility>
+
 
 class dsp16_device_base : public cpu_device, protected dsp16_disassembler::cpu
 {
@@ -75,14 +74,13 @@ protected:
 			address_map_constructor &&data_map);
 
 	// device_t implementation
-	virtual void device_start() override;
-	virtual void device_stop() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_stop() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// device_execute_interface implementation
 	virtual u64 execute_clocks_to_cycles(u64 clocks) const noexcept override { return (clocks + 2 - 1) >> 1; }
 	virtual u64 execute_cycles_to_clocks(u64 cycles) const noexcept override { return cycles << 1; }
-	virtual u32 execute_input_lines() const noexcept override { return 5U; }
 	virtual void execute_run() override;
 	virtual void execute_set_input(int inputnum, int state) override;
 
@@ -174,13 +172,13 @@ private:
 
 	// recompiler helpers
 	class core_state;
+	class opcode_desc;
 	class frontend;
 	class recompiler;
-	using core_state_ptr = std::unique_ptr<core_state, void (*)(core_state *)>;
 	using recompiler_ptr = std::unique_ptr<recompiler>;
 
 	// internal address maps
-	void program_map(address_map &map);
+	void program_map(address_map &map) ATTR_COLD;
 
 	// instruction execution
 	template <bool Debugger, bool Caching> void execute_some_rom();
@@ -278,9 +276,9 @@ private:
 	u16                         m_workram_mask;
 
 	// recompiler stuff
-	drc_cache                   m_drc_cache;
-	core_state_ptr              m_core;
+	core_state                  *m_core;
 	recompiler_ptr              m_recompiler;
+	std::unique_ptr<core_state> m_heap_core;
 
 	// execution state
 	cache       m_cache_mode;
@@ -344,11 +342,14 @@ public:
 	dsp16_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
 
 protected:
+	// device_t implementation
+	virtual void device_start() override ATTR_COLD;
+
 	// dsp16_device_base implementation
 	virtual void external_memory_enable(address_space &space, bool enable) override;
 
 	// internal address maps
-	void data_map(address_map &map);
+	void data_map(address_map &map) ATTR_COLD;
 
 private:
 	required_region_ptr<u16>    m_rom;
@@ -362,11 +363,14 @@ public:
 	dsp16a_device(machine_config const &mconfig, char const *tag, device_t *owner, u32 clock);
 
 protected:
+	// device_t implementation
+	virtual void device_start() override ATTR_COLD;
+
 	// dsp16_device_base implementation
 	virtual void external_memory_enable(address_space &space, bool enable) override;
 
 	// internal address maps
-	void data_map(address_map &map);
+	void data_map(address_map &map) ATTR_COLD;
 
 private:
 	required_region_ptr<u16>    m_rom;

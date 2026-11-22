@@ -8,7 +8,7 @@
  *                                Version 4.50
  *
  * A portable Motorola M680x0 processor emulation engine.
- * Copyright Karl Stenerud.  All rights reserved.
+ * Copyright Karl Stenerud
  *
  */
 
@@ -100,6 +100,10 @@ static constexpr int M68K_CACR_CI  = 0x08; // Clear Instruction Cache
 static constexpr int M68K_CACR_CEI = 0x04; // Clear Entry in Instruction Cache
 static constexpr int M68K_CACR_FI  = 0x02; // Freeze Instruction Cache
 static constexpr int M68K_CACR_EI  = 0x01; // Enable Instruction Cache
+
+static constexpr u32 M68K_CACR_040_DE   = 0x80000000; // Enable Data Cache
+static constexpr u32 M68K_CACR_040_IE   = 0x00008000; // Enable Instruction Cache
+static constexpr u32 M68K_CACR_040_MASK = M68K_CACR_040_DE | M68K_CACR_040_IE;
 
 /* ======================================================================== */
 /* ================================ MACROS ================================ */
@@ -215,24 +219,54 @@ inline u32 &REG_SP()          { return m_dar[15]; }
 /* Disable certain comparisons if we're not using all CPU types */
 inline u32 CPU_TYPE_IS_COLDFIRE() const    { return ((m_cpu_type) & (CPU_TYPE_COLDFIRE)); }
 
-inline u32 CPU_TYPE_IS_040_PLUS() const    { return ((m_cpu_type) & (CPU_TYPE_040 | CPU_TYPE_EC040)); }
+inline u32 CPU_TYPE_IS_040_PLUS() const    { return ((m_cpu_type) & (CPU_TYPE_040 | CPU_TYPE_EC040 | CPU_TYPE_LC040)); }
 
-inline u32 CPU_TYPE_IS_030_PLUS() const    { return ((m_cpu_type) & (CPU_TYPE_030 | CPU_TYPE_EC030 | CPU_TYPE_040 | CPU_TYPE_EC040)); }
+inline u32 CPU_TYPE_IS_030_PLUS() const    { return ((m_cpu_type) & (CPU_TYPE_030 | CPU_TYPE_EC030 | CPU_TYPE_040 | CPU_TYPE_EC040 | CPU_TYPE_EC040 | CPU_TYPE_LC040)); }
 
-inline u32 CPU_TYPE_IS_020_PLUS() const    { return ((m_cpu_type) & (CPU_TYPE_020 | CPU_TYPE_030 | CPU_TYPE_EC030 | CPU_TYPE_040 | CPU_TYPE_EC040 | CPU_TYPE_FSCPU32 | CPU_TYPE_COLDFIRE)); }
+inline u32 CPU_TYPE_IS_020_PLUS() const    { return ((m_cpu_type) & (CPU_TYPE_020 | CPU_TYPE_030 | CPU_TYPE_EC030 | CPU_TYPE_040 | CPU_TYPE_EC040 | CPU_TYPE_LC040 | CPU_TYPE_FSCPU32 | CPU_TYPE_COLDFIRE)); }
 
 inline u32 CPU_TYPE_IS_020_VARIANT() const { return ((m_cpu_type) & (CPU_TYPE_EC020 | CPU_TYPE_020 | CPU_TYPE_FSCPU32)); }
 
-inline u32 CPU_TYPE_IS_EC020_PLUS() const  { return ((m_cpu_type) & (CPU_TYPE_EC020 | CPU_TYPE_020 | CPU_TYPE_030 | CPU_TYPE_EC030 | CPU_TYPE_040 | CPU_TYPE_EC040 | CPU_TYPE_FSCPU32 | CPU_TYPE_COLDFIRE)); }
+inline u32 CPU_TYPE_IS_EC020_PLUS() const  { return ((m_cpu_type) & (CPU_TYPE_EC020 | CPU_TYPE_020 | CPU_TYPE_030 | CPU_TYPE_EC030 | CPU_TYPE_040 | CPU_TYPE_EC040 | CPU_TYPE_LC040 | CPU_TYPE_FSCPU32 | CPU_TYPE_COLDFIRE)); }
 inline u32 CPU_TYPE_IS_EC020_LESS() const  { return ((m_cpu_type) & (CPU_TYPE_000 | CPU_TYPE_008 | CPU_TYPE_010 | CPU_TYPE_EC020)); }
 
 inline u32 CPU_TYPE_IS_010() const         { return ((m_cpu_type) == CPU_TYPE_010); }
-inline u32 CPU_TYPE_IS_010_PLUS() const    { return ((m_cpu_type) & (CPU_TYPE_010 | CPU_TYPE_EC020 | CPU_TYPE_020 | CPU_TYPE_EC030 | CPU_TYPE_030 | CPU_TYPE_040 | CPU_TYPE_EC040 | CPU_TYPE_FSCPU32 | CPU_TYPE_COLDFIRE)); }
+inline u32 CPU_TYPE_IS_010_PLUS() const    { return ((m_cpu_type) & (CPU_TYPE_010 | CPU_TYPE_EC020 | CPU_TYPE_020 | CPU_TYPE_EC030 | CPU_TYPE_030 | CPU_TYPE_040 | CPU_TYPE_EC040 | CPU_TYPE_LC040 | CPU_TYPE_FSCPU32 | CPU_TYPE_COLDFIRE)); }
 inline u32 CPU_TYPE_IS_010_LESS() const    { return ((m_cpu_type) & (CPU_TYPE_000 | CPU_TYPE_008 | CPU_TYPE_010 | CPU_TYPE_SCC070)); }
 
 inline u32 CPU_TYPE_IS_000() const         { return ((m_cpu_type) == CPU_TYPE_000 || (m_cpu_type) == CPU_TYPE_008); }
 
 inline u32 CPU_TYPE_IS_070() const         { return ((m_cpu_type) == CPU_TYPE_SCC070); }
+
+inline u32 m68ki_shift_cycles(u32 shift) const
+{
+	// this calculation is only for '030+
+	if (!CPU_TYPE_IS_030_PLUS())
+		return 0;
+
+	if (m_cpu_type & (CPU_TYPE_EC030 | CPU_TYPE_030))
+	{
+		if (!BIT_5(m_ir))
+			return 0;
+
+		const u32 operand_bits = 8U << ((m_ir >> 6) & 3);
+		if (shift > operand_bits)
+		{
+			switch ((m_ir >> 3) & 3)
+			{
+			case 0: // ASx
+				return BIT_8(m_ir) ? 0 : 4;
+
+			case 1: // LSx
+				return 2;
+			}
+		}
+
+		return 0;
+	}
+
+	return shift * m_cyc_shift;
+}
 
 
 /* Initiates trace checking before each instruction (t1) */
@@ -604,11 +638,14 @@ inline u32 m68ki_read_imm_16()
 	result = MASK_OUT_ABOVE_16(m_pref_data);
 	m_pc += 2;
 	if (!m_mmu_tmp_buserror_occurred) {
+
 		// prefetch only if no bus error occurred in opcode fetch
 		m_pref_data = m68ki_ic_readimm16(m_pc);
 		m_pref_addr = m_mmu_tmp_buserror_occurred ? ~0 : m_pc;
-		// ignore bus error on prefetch
-		m_mmu_tmp_buserror_occurred = 0;
+		if (!CPU_TYPE_IS_010())
+		{
+			m_mmu_tmp_buserror_occurred = 0;
+		}
 	}
 
 	return result;
@@ -651,15 +688,76 @@ inline u32 m68ki_read_imm_32()
  * These functions will also check for address error and set the function
  * code if they are enabled in m68kconf.h.
  */
+inline void m68ki_rerun_expire()
+{
+	if (m_rerun_count != 0 && m_ppc != m_rerun_pc)
+		m_rerun_count = 0;
+}
+
+/* RR set: one byte or word read is supplied from the data input buffer.
+ * The instruction input buffer, long reads, and writes are not handled.
+ * The 16 internal words are not restored, and RM is never set.
+ */
+inline void m68ki_rerun_supply(u32 pc, u16 ssw, u32 address, u16 dib)
+{
+	u32 size = (ssw & 0x0200) ? 1 : 2;
+	u32 data = dib;
+	if (size == 1)
+		data = (ssw & 0x0400) ? ((dib >> 8) & 0xff) : (dib & 0xff);
+	if (m_rerun_count != 0 && m_rerun_pc != pc)
+		m_rerun_count = 0;
+	m_rerun_pc = pc;
+	if (m_rerun_count == M68K_RERUN_ENTRIES)
+	{
+		for (int i = 1; i < M68K_RERUN_ENTRIES; i++)
+			m_rerun[i - 1] = m_rerun[i];
+		m_rerun_count--;
+	}
+	m_rerun[m_rerun_count].address = address;
+	m_rerun[m_rerun_count].size = size;
+	m_rerun[m_rerun_count].data = data;
+	m_rerun[m_rerun_count].write = (ssw & 0x0100) ? 0 : 1;
+	m_rerun_count++;
+}
+
+inline bool m68ki_rerun_match(u32 address, u32 size, u32 write, u32 &data)
+{
+	for (u32 i = 0; i < m_rerun_count; i++)
+	{
+		if (m_rerun[i].address == address && m_rerun[i].size == size && m_rerun[i].write == write)
+		{
+			data = m_rerun[i].data;
+			return true;
+		}
+	}
+	return false;
+}
+
 inline u32 m68ki_read_8_fc(u32 address, u32 fc)
 {
+	u32 supplied;
+	if (m68ki_rerun_match(address, 1, 0, supplied))
+		return supplied;
 	m_mmu_tmp_fc = fc;
 	m_mmu_tmp_rw = 1;
 	m_mmu_tmp_sz = M68K_SZ_BYTE;
+	// Check for reading the FPU's CIRs if this is an '020 or '030.
+	// In CPU space (FC 7), addresses 0x0002xxxx are coprocessor interface registers.
+	// Bits 15-13 are the coprocessor ID, and bits 0-4 are the register select.
+	if ((fc == 7) && CPU_TYPE_IS_020_PLUS() && !CPU_TYPE_IS_040_PLUS())
+	{
+		if ((address & 0xffffeff0) == 0x00022000)
+		{
+			return m6888x_read_cir(address);
+		}
+	}
 	return m_read8(address);
 }
 inline u32 m68ki_read_16_fc(u32 address, u32 fc)
 {
+	u32 supplied;
+	if (m68ki_rerun_match(address, 2, 0, supplied))
+		return supplied;
 	if (CPU_TYPE_IS_010_LESS())
 	{
 		m68ki_check_address_error(address, MODE_READ, fc);
@@ -667,6 +765,13 @@ inline u32 m68ki_read_16_fc(u32 address, u32 fc)
 	m_mmu_tmp_fc = fc;
 	m_mmu_tmp_rw = 1;
 	m_mmu_tmp_sz = M68K_SZ_WORD;
+	if ((fc == 7) && CPU_TYPE_IS_020_PLUS() && !CPU_TYPE_IS_040_PLUS())
+	{
+		if ((address & 0xffffeff0) == 0x00022000)
+		{
+			return m6888x_read_cir(address);
+		}
+	}
 	return m_read16(address);
 }
 inline u32 m68ki_read_32_fc(u32 address, u32 fc)
@@ -678,6 +783,13 @@ inline u32 m68ki_read_32_fc(u32 address, u32 fc)
 	m_mmu_tmp_fc = fc;
 	m_mmu_tmp_rw = 1;
 	m_mmu_tmp_sz = M68K_SZ_LONG;
+	if ((fc == 7) && CPU_TYPE_IS_020_PLUS() && !CPU_TYPE_IS_040_PLUS())
+	{
+		if ((address & 0xffffeff0) == 0x00022000)
+		{
+			return m6888x_read_cir(address);
+		}
+	}
 	return m_read32(address);
 }
 
@@ -686,6 +798,14 @@ inline void m68ki_write_8_fc(u32 address, u32 fc, u32 value)
 	m_mmu_tmp_fc = fc;
 	m_mmu_tmp_rw = 0;
 	m_mmu_tmp_sz = M68K_SZ_BYTE;
+	if ((fc == 7) && CPU_TYPE_IS_020_PLUS() && !CPU_TYPE_IS_040_PLUS())
+	{
+		if ((address & 0xffffeff0) == 0x00022000)
+		{
+			m6888x_write_cir(address, value);
+			return;
+		}
+	}
 	m_write8(address, value);
 }
 inline void m68ki_write_16_fc(u32 address, u32 fc, u32 value)
@@ -697,6 +817,14 @@ inline void m68ki_write_16_fc(u32 address, u32 fc, u32 value)
 	m_mmu_tmp_fc = fc;
 	m_mmu_tmp_rw = 0;
 	m_mmu_tmp_sz = M68K_SZ_WORD;
+	if ((fc == 7) && CPU_TYPE_IS_020_PLUS() && !CPU_TYPE_IS_040_PLUS())
+	{
+		if ((address & 0xffffeff0) == 0x00022000)
+		{
+			m6888x_write_cir(address, value);
+			return;
+		}
+	}
 	m_write16(address, value);
 }
 inline void m68ki_write_32_fc(u32 address, u32 fc, u32 value)
@@ -708,6 +836,14 @@ inline void m68ki_write_32_fc(u32 address, u32 fc, u32 value)
 	m_mmu_tmp_fc = fc;
 	m_mmu_tmp_rw = 0;
 	m_mmu_tmp_sz = M68K_SZ_LONG;
+	if ((fc == 7) && CPU_TYPE_IS_020_PLUS() && !CPU_TYPE_IS_040_PLUS())
+	{
+		if ((address & 0xffffeff0) == 0x00022000)
+		{
+			m6888x_write_cir(address, value);
+			return;
+		}
+	}
 	m_write32(address, value);
 }
 
@@ -1020,6 +1156,8 @@ inline void m68ki_set_s_flag(u32 value)
 	REG_SP() = REG_SP_BASE()[m_s_flag | ((m_s_flag>>1) & m_m_flag)];
 	if ((old_s_flag ^ m_s_flag) & SFLAG_SET)
 	{
+	  // The prefetched word was fetched with the old mode's function code
+		m_pref_addr = ~0;
 		debugger_privilege_hook();
 	}
 }
@@ -1039,6 +1177,8 @@ inline void m68ki_set_sm_flag(u32 value)
 	REG_SP() = REG_SP_BASE()[m_s_flag | ((m_s_flag>>1) & m_m_flag)];
 	if ((old_s_flag ^ m_s_flag) & SFLAG_SET)
 	{
+		/* The prefetched word was fetched with the old mode's function code */
+		m_pref_addr = ~0;
 		debugger_privilege_hook();
 	}
 }
@@ -1052,6 +1192,8 @@ inline void m68ki_set_sm_flag_nosp(u32 value)
 	m_m_flag = value & MFLAG_SET;
 	if ((old_s_flag ^ m_s_flag) & SFLAG_SET)
 	{
+		/* The prefetched word was fetched with the old mode's function code */
+		m_pref_addr = ~0;
 		debugger_privilege_hook();
 	}
 }
@@ -1136,6 +1278,14 @@ inline void m68ki_stack_frame_3word(u32 pc, u32 sr)
  */
 inline void m68ki_stack_frame_0000(u32 pc, u32 sr, u32 vector)
 {
+	if (CPU_TYPE_IS_COLDFIRE())
+	{
+		u32 const format = 4 | (REG_A()[7] & 3);
+		REG_A()[7] &= ~3U;
+		m68ki_push_32(pc);
+		m68ki_push_32((format << 28) | (vector << 18) | sr);
+		return;
+	}
 	/* Stack a 3-word frame if we are 68000 */
 	if(CPU_TYPE_IS_000())
 	{
@@ -1227,8 +1377,26 @@ inline void m68ki_stack_frame_1000(u32 pc, u32 sr, u32 vector, u32 fault_address
 	/* FAULT ADDRESS */
 	m68ki_push_32(fault_address);
 
-	/* SPECIAL STATUS WORD */
-	m68ki_push_16(orig_fc | (orig_rw<<8));
+	/* SPECIAL STATUS WORD
+	 * 68010: RR=15, IF=13, DF=12, RM=11, HB=10, BY=9, RW=8, FC=2..0.
+	 * RR stays 0 so RTE reruns the cycle. Program FC 2/6 => IF, else DF.
+	 */
+	{
+		u16 ssw = u16(orig_fc & 7) | u16(orig_rw << 8);
+		u16 const fcl = u16(orig_fc & 7);
+		if (fcl == 2 || fcl == 6)
+			ssw |= 0x2000;
+		else
+			ssw |= 0x1000;
+		if (m_mmu_tmp_buserror_sz == M68K_SZ_BYTE)
+		{
+			ssw |= 0x0200; // BY
+			// Even byte uses D15-D8 (HB=1); odd byte uses D7-D0 (HB=0).
+			if ((fault_address & 1) == 0)
+				ssw |= 0x0400;
+		}
+		m68ki_push_16(ssw);
+	}
 
 	/* 1000, VECTOR OFFSET */
 	m68ki_push_16(0x8000 | (vector<<2));
@@ -1461,7 +1629,7 @@ inline void m68ki_exception_trap(u32 vector)
 {
 	u32 sr = m68ki_init_exception(vector);
 
-	if(CPU_TYPE_IS_010_LESS())
+	if(CPU_TYPE_IS_010_LESS() || CPU_TYPE_IS_COLDFIRE())
 		m68ki_stack_frame_0000(m_pc, sr, vector);
 	else
 		m68ki_stack_frame_0010(sr, vector);
@@ -1545,6 +1713,24 @@ inline void m68ki_exception_1111()
 
 	/* Use up some clock cycles and undo the instruction's cycles */
 	m_icount -= m_cyc_exception[EXCEPTION_1111] - m_cyc_instruction[m_ir];
+}
+
+// Helper for unimplemented coprocessor instructions
+inline void m68ki_cp_unimplemented(const char *name)
+{
+	const int cpid = (m_ir >> 9) & 7;
+
+	if ((cpid == 0 && m_has_pmmu) || (cpid == 1 && m_has_fpu))
+	{
+		logerror("%s at %08x: called unimplemented instruction %04x (%s)\n",
+				tag(), m_ppc, m_ir, name);
+	}
+	else
+	{
+		logerror("%s at %08x: coprocessor %d not present (%s %04x)\n",
+				tag(), m_ppc, cpid, name, m_ir);
+		m68ki_exception_1111();
+	}
 }
 
 /* Exception for illegal instructions */

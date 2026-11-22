@@ -38,8 +38,8 @@ protected:
 	smc91c9x_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, dev_type device_type);
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// device_network_interface overrides
 	virtual void send_complete_cb(int result) override;
@@ -225,12 +225,14 @@ private:
 
 	// The bits in these vectors indicate a packet has been allocated
 	u32 m_alloc_rx, m_alloc_tx;
+	bool m_alloc_pending;
 
 	// Requests a packet allocation and returns true
 	// and sets the packet number if successful
 	bool alloc_req(const int tx, int &packet_num);
 	// Releases an allocation
 	void alloc_release(const int packet_num);
+	void alloc_tx_complete(int packet_num);
 	// Resets the MMU
 	void mmu_reset();
 
@@ -305,13 +307,13 @@ private:
 class smc91c94_device : public smc91c9x_device
 {
 public:
-	smc91c94_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	smc91c94_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 class smc91c96_device : public smc91c9x_device
 {
 public:
-	smc91c96_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	smc91c96_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 

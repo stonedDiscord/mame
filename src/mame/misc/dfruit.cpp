@@ -1,24 +1,20 @@
 // license:BSD-3-Clause
 // copyright-holders: Angelo Salese
+/**************************************************************************************************
 
-/***************************************************************************
+Fruit Dream (c) 1993 Nippon Data Kiki / Star Fish
+Gemcrush (c) 1996 Star Fish
 
-    Fruit Dream (c) 1993 Nippon Data Kiki / Star Fish
-    Gemcrush (c) 1996 Star Fish
+Uses a TC0091LVC, a variant of the one used on Taito L HW
 
-    driver by Angelo Salese
+TODO:
+- inputs are grossly mapped, lack of any input test doesn't help at all;
+- lamps?
+- service mode?
+- nvram?
+- dfruit: has an X on top-left corner after POST, is it supposed to be disabled somehow?
 
-    Uses a TC0091LVC, a variant of the one used on Taito L HW
-
-    TODO:
-    - inputs are grossly mapped, lack of any input test doesn't help at all;
-    - lamps?
-    - service mode?
-    - nvram?
-    - dfruit: (possible bug) has an X on top-left corner after POST,
-              is it supposed to be disabled somehow?
-
-***************************************************************************/
+**************************************************************************************************/
 
 #include "emu.h"
 
@@ -46,14 +42,30 @@ public:
 private:
 	required_device<tc0091lvc_device> m_maincpu;
 
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+
 	void screen_vblank(int state);
 
 	void output_w(uint8_t data);
 
-	TIMER_DEVICE_CALLBACK_MEMBER(scanline_callback);
-	void program_map(address_map &map);
-	void tc0091lvc_map(address_map &map);
+	TIMER_DEVICE_CALLBACK_MEMBER(scanline_cb);
+	IRQ_CALLBACK_MEMBER(cpu_acknowledge_irq);
+	void main_map(address_map &map) ATTR_COLD;
+	void tc0091lvc_map(address_map &map) ATTR_COLD;
+
+	uint8_t m_irq_vector;
 };
+
+void dfruit_state::machine_start()
+{
+	save_item(NAME(m_irq_vector));
+}
+
+void dfruit_state::machine_reset()
+{
+	m_irq_vector = 0;
+}
 
 void dfruit_state::screen_vblank(int state)
 {
@@ -75,7 +87,7 @@ void dfruit_state::tc0091lvc_map(address_map &map)
 	map(0xff08, 0xff08).rw(m_maincpu, FUNC(tc0091lvc_device::rom_bank_r), FUNC(tc0091lvc_device::rom_bank_w));
 }
 
-void dfruit_state::program_map(address_map &map)
+void dfruit_state::main_map(address_map &map)
 {
 	tc0091lvc_map(map);
 	map(0xa000, 0xa003).rw("i8255", FUNC(i8255_device::read), FUNC(i8255_device::write));
@@ -257,24 +269,32 @@ static INPUT_PORTS_START( gemcrush )
 	PORT_DIPSETTING(    0x00, DEF_STR( On ) )
 INPUT_PORTS_END
 
-TIMER_DEVICE_CALLBACK_MEMBER(dfruit_state::scanline_callback)
+TIMER_DEVICE_CALLBACK_MEMBER(dfruit_state::scanline_cb)
 {
 	int scanline = param;
 
 	if (scanline == 240 && (m_maincpu->irq_enable() & 4))
 	{
-		m_maincpu->set_input_line_and_vector(0, HOLD_LINE, m_maincpu->irq_vector(2)); // TC0091LVC
+		m_irq_vector = m_maincpu->irq_vector(2);
+		m_maincpu->set_input_line(0, HOLD_LINE);
 	}
 
 	if (scanline == 0 && (m_maincpu->irq_enable() & 2))
 	{
-		m_maincpu->set_input_line_and_vector(0, HOLD_LINE, m_maincpu->irq_vector(1)); // TC0091LVC
+		m_irq_vector = m_maincpu->irq_vector(1);
+		m_maincpu->set_input_line(0, HOLD_LINE);
 	}
 
 	if (scanline == 196 && (m_maincpu->irq_enable() & 1))
 	{
-		//m_maincpu->set_input_line_and_vector(0, HOLD_LINE, m_maincpu->irq_vector(0)); // TC0091LVC
+		//m_irq_vector = m_maincpu->irq_vector(0);
+		//m_maincpu->set_input_line(0, HOLD_LINE);
 	}
+}
+
+IRQ_CALLBACK_MEMBER(dfruit_state::cpu_acknowledge_irq)
+{
+	return m_irq_vector;
 }
 
 void dfruit_state::output_w(uint8_t data)
@@ -291,12 +311,13 @@ void dfruit_state::dfruit(machine_config &config)
 
 	// basic machine hardware
 	TC0091LVC(config, m_maincpu, MASTER_CLOCK / 2);
-	m_maincpu->set_addrmap(AS_PROGRAM, &dfruit_state::program_map);
+	m_maincpu->set_addrmap(AS_PROGRAM, &dfruit_state::main_map);
+	m_maincpu->set_irq_acknowledge_callback(FUNC(dfruit_state::cpu_acknowledge_irq));
 
-	TIMER(config, "scantimer").configure_scanline(FUNC(dfruit_state::scanline_callback), "screen", 0, 1);
+	TIMER(config, "scantimer").configure_scanline(FUNC(dfruit_state::scanline_cb), "screen", 0, 1);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(64*8, 32*8);

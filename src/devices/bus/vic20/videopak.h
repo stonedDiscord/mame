@@ -15,7 +15,6 @@
 
 #include "exp.h"
 #include "video/mc6845.h"
-#include "emupal.h"
 
 
 
@@ -34,23 +33,22 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// optional information overrides
-	virtual const tiny_rom_entry *device_rom_region() const override;
-	virtual void device_add_mconfig(machine_config &config) override;
-
-	// device_vic20_expansion_card_interface overrides
-	virtual uint8_t vic20_cd_r(offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3) override;
-	virtual void vic20_cd_w(offs_t offset, uint8_t data, int ram1, int ram2, int ram3, int blk1, int blk2, int blk3, int blk5, int io2, int io3) override;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 private:
 	MC6845_UPDATE_ROW( crtc_update_row );
 
+	void control_w(uint8_t data);
+	void update_map();
+
 	required_device<mc6845_device> m_crtc;
-	required_device<palette_device> m_palette;
 	required_memory_region m_char_rom;
+	required_memory_region m_rom;
 	memory_share_creator<uint8_t> m_videoram;
 	memory_share_creator<uint8_t> m_ram;
 

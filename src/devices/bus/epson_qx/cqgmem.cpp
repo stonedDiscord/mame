@@ -80,10 +80,27 @@ void cqgmem_device::device_reset()
 		m_installed = true;
 	}
 
-	m_banks_enabled = 0; // FIXME: should probably unmap any enabled banks before clearing this on reset
-
-	for (int i = 0; i < m_banks.size(); ++i) {
+	memory_view::memory_view_entry &view = m_bus->memview();
+	for (int i = 0; i < int(m_banks.size()); ++i) {
+		uint16_t const bank_addr = i * 0x2000;
+		view.unmap_readwrite(bank_addr, bank_addr + 0x1fff);
 		m_banks[i]->set_entry(0);
+	}
+	m_banks_enabled = 0;
+}
+
+//-------------------------------------------------
+//  device_post_load - install correct R/W handlers
+//-------------------------------------------------
+void cqgmem_device::device_post_load()
+{
+	memory_view::memory_view_entry &view = m_bus->memview();
+	for (int i = 0; i < int(m_banks.size()); ++i) {
+		uint16_t const bank_addr = i * 0x2000;
+		view.unmap_readwrite(bank_addr, bank_addr + 0x1fff);
+		if (m_banks_enabled & (0x80 >> i)) {
+			view.install_readwrite_bank(bank_addr, bank_addr + 0x1fff, m_banks[i]);
+		}
 	}
 }
 
@@ -129,7 +146,7 @@ void cqgmem_device::write(offs_t offset, uint8_t data)
 
 void cqgmem_device::io_map(address_map &map)
 {
-	map(0x00, 0x06).w(FUNC(cqgmem_device::write));
+	map(0x00, 0x06).mirror(0xff00).w(FUNC(cqgmem_device::write));
 }
 
 } // namespace bus::epson_qx

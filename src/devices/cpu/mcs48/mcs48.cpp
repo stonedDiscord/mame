@@ -1,6 +1,6 @@
 // license:BSD-3-Clause
 // copyright-holders:Dan Boris, Mirko Buffoni, Aaron Giles, Couriersud
-/***************************************************************************
+/*******************************************************************************
 
     Intel MCS-48/UPI-41 Portable Emulator
 
@@ -10,13 +10,51 @@
     TODO:
     - add CMOS devices, 1 new opcode (01 IDL)
     - add special 8022 opcodes (RAD, SEL AN0, SEL AN1, RETI)
-    - according to the user manual, some opcodes(dis/enable timer/interrupt)
-      don't increment the timer, does it affect the prescaler too?
-      Most likely, timer input (prescaler overflow or T1 edge) still occurs,
-      just that m_timer increment is delayed 1 opcode.
-    - IRQ timing is hacked due to WY-100 needing to take JNI branch before servicing interrupt
+    - any difference between 8035 & MB8884, 8049 & M58715?
+    - IRQ and/or timer increment timing is wrong? See test below. After IRQ,
+      A = 0x20 on MAME, A = 0x22 on the real 8048 as tested by bataais.
 
-****************************************************************************
+      stop tcnt
+      mov a,0xff
+      mov t,a
+      inc a
+
+      en tcnti
+      strt t
+
+      inc a
+      inc a
+      inc a
+      (etc.)
+
+      With the following test, on MAME, A = 0xff after 30 NOPs, A = 0 after 31
+      NOPs. On the real 8048, A = 0xff after 31 NOPs, A = 0 after 32 NOPs.
+      It can mean that STRT T has a 1 cycle delay, or simply that MOV A,T gets
+      the timer value pre-increment.
+
+      stop tcnt
+      mov a,0xff
+      mov t,a
+      strt t
+
+      nop
+      nop
+      nop
+      (etc.)
+      mov a,t
+
+    - IRQ timing is hacked due to WY-100 needing to take JNI branch before
+      servicing interrupt (see m_irq_polled), probably related to note above?
+
+    UPD7751 pin names differ from 8048, though pin numbers are the same:
+    - T0/T1/EA = TEST1/2/3
+    - INT = /START
+    - P10-P17 = VO0-VO7
+    - P20-P23 = AD0-AD3
+    - P24-P26 = /SEL0-/SEL2
+    - P27 = /BUSY
+
+********************************************************************************
 
     Note that the default internal divisor for this chip is by 3 and
     then again by 5, or by 15 total.
@@ -27,21 +65,22 @@
     8022    64   2k   26  (ROM, reduced instruction set, analog comparator)
 
     8035    64    0   27  (external ROM)
+    MB8884  64    0   27  (8035 clone)
     8048    64   1k   27  (ROM)
     8648    64   1k   27  (OTPROM)
     8748    64   1k   27  (EPROM)
-    8884    64   1k
-    UPD7751 64   1k       (8048, speech synthesizer in internal ROM)
+    UPD7751 64   1k   27  (8048, speech synthesizer in internal ROM)
 
     8039   128    0   27  (external ROM)
+    MB8881 128    0   27  (8039 clone)
     8049   128   2k   27  (ROM)
     8749   128   2k   27  (EPROM)
-    M58715 128    0       (external ROM)
+    M58715 128   2k   27  (8049 clone)
 
     8040   256    0   27  (external ROM)
     8050   256   4k   27  (ROM)
 
-****************************************************************************
+********************************************************************************
 
     UPI-41/42 chips are MCS-48 derived, with some opcode changes:
 
@@ -78,16 +117,16 @@
     8742   128   2k       (EPROM)
     8742AH 256   2k       (EPROM)
 
-***************************************************************************/
+*******************************************************************************/
 
 #include "emu.h"
 #include "mcs48.h"
 #include "mcs48dsm.h"
 
 
-/***************************************************************************
+/*******************************************************************************
     CONSTANTS
-***************************************************************************/
+*******************************************************************************/
 
 // timer/counter enable bits
 #define TIMER_ENABLED   0x01
@@ -121,9 +160,9 @@
 #define I8048_FEATURE   (MB_FEATURE | EXT_BUS_FEATURE)
 
 
-/***************************************************************************
+/*******************************************************************************
     MACROS
-***************************************************************************/
+*******************************************************************************/
 
 // r0-r7 map to memory via the regptr
 #define R0              m_regptr[0]
@@ -136,9 +175,9 @@
 #define R7              m_regptr[7]
 
 
-/***************************************************************************
+/*******************************************************************************
     DEVICE TYPES
-***************************************************************************/
+*******************************************************************************/
 
 DEFINE_DEVICE_TYPE(I8021,   i8021_device,   "i8021",   "Intel 8021")
 DEFINE_DEVICE_TYPE(I8022,   i8022_device,   "i8022",   "Intel 8022")
@@ -163,12 +202,13 @@ DEFINE_DEVICE_TYPE(I8742AH, i8742ah_device, "i8742ah", "Intel 8742AH")
 
 DEFINE_DEVICE_TYPE(MB8884,  mb8884_device,  "mb8884",  "Fujitsu MB8884")
 DEFINE_DEVICE_TYPE(UPD7751, upd7751_device, "upd7751", "NEC uPD7751")
+DEFINE_DEVICE_TYPE(MB8881,  mb8881_device,  "mb8881",  "Fujitsu MB8881")
 DEFINE_DEVICE_TYPE(M58715,  m58715_device,  "m58715",  "Mitsubishi M58715")
 
 
-/***************************************************************************
+/*******************************************************************************
     CONSTRUCTOR
-***************************************************************************/
+*******************************************************************************/
 
 mcs48_cpu_device::mcs48_cpu_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, int rom_size, int ram_size, u8 feature_mask, const mcs48_cpu_device::mcs48_ophandler *opcode_table)
 	: cpu_device(mconfig, type, tag, owner, clock)
@@ -269,6 +309,11 @@ upd7751_device::upd7751_device(const machine_config &mconfig, const char *tag, d
 {
 }
 
+mb8881_device::mb8881_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock)
+	: mcs48_cpu_device(mconfig, MB8881, tag, owner, clock, 0, 128, I8048_FEATURE, s_mcs48_opcodes)
+{
+}
+
 m58715_device::m58715_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock)
 	: mcs48_cpu_device(mconfig, M58715, tag, owner, clock, 2048, 128, I8048_FEATURE, s_mcs48_opcodes)
 {
@@ -340,9 +385,9 @@ std::unique_ptr<util::disasm_interface> mcs48_cpu_device::create_disassembler()
 }
 
 
-/***************************************************************************
+/*******************************************************************************
     ADDRESS MAPS
-***************************************************************************/
+*******************************************************************************/
 
 void mcs48_cpu_device::program_map(address_map &map)
 {
@@ -364,9 +409,9 @@ void mcs48_cpu_device::data_map(address_map &map)
 }
 
 
-/***************************************************************************
+/*******************************************************************************
     INLINE FUNCTIONS
-***************************************************************************/
+*******************************************************************************/
 
 /*-------------------------------------------------
     opcode_fetch - fetch an opcode byte
@@ -549,8 +594,6 @@ u8 mcs48_cpu_device::p2_mask()
 	u8 result = 0xff;
 	if ((m_feature_mask & UPI41_FEATURE) == 0)
 		return result;
-	if (m_flags_enabled)
-		result &= ~(P2_OBF | P2_NIBF);
 	if (m_dma_enabled)
 		result &= ~(P2_DRQ | P2_NDACK);
 	return result;
@@ -588,9 +631,9 @@ void mcs48_cpu_device::expander_operation(expander_op operation, u8 port)
 
 
 
-/***************************************************************************
+/*******************************************************************************
     OPCODE HANDLERS
-***************************************************************************/
+*******************************************************************************/
 
 #define OPHANDLER(_name) void mcs48_cpu_device::_name()
 
@@ -598,7 +641,7 @@ void mcs48_cpu_device::expander_operation(expander_op operation, u8 port)
 OPHANDLER( illegal )
 {
 	burn_cycles(1);
-	logerror("MCS-48 PC:%04X - Illegal opcode = %02x\n", m_prevpc, program_r(m_prevpc));
+	logerror("Illegal opcode = %02x @ %04X\n", program_r(m_prevpc), m_prevpc);
 }
 
 OPHANDLER( add_a_r0 )       { burn_cycles(1); execute_add(R0); }
@@ -729,8 +772,8 @@ OPHANDLER( in_a_dbb )
 	m_sts &= ~STS_IBF;
 
 	// if P2 flags are enabled, update the state of P2
-	if (m_flags_enabled && (m_p2 & P2_NIBF) == 0)
-		port_w(2, m_p2 |= P2_NIBF);
+	if (m_flags_enabled)
+		port_w(2, m_p2);
 	m_a = m_dbbi;
 }
 
@@ -869,10 +912,9 @@ OPHANDLER( out_dbb_a )
 	m_sts |= STS_OBF;
 
 	// if P2 flags are enabled, update the state of P2
-	if (m_flags_enabled && (m_p2 & P2_OBF) == 0)
-		port_w(2, m_p2 |= P2_OBF);
+	if (m_flags_enabled)
+		port_w(2, m_p2);
 }
-
 
 OPHANDLER( ret )            { burn_cycles(2); pull_pc(); }
 OPHANDLER( retr )
@@ -937,9 +979,9 @@ OPHANDLER( xrl_a_n )        { burn_cycles(2); m_a ^= argument_fetch(); }
 
 
 
-/***************************************************************************
+/*******************************************************************************
     OPCODE TABLES
-***************************************************************************/
+*******************************************************************************/
 
 #define OP(_a) &mcs48_cpu_device::_a
 
@@ -1031,7 +1073,7 @@ const mcs48_cpu_device::mcs48_ophandler mcs48_cpu_device::s_i8021_opcodes[256] =
 	OP(anl_a_r0),   OP(anl_a_r1),   OP(anl_a_r2),  OP(anl_a_r3),  OP(anl_a_r4),  OP(anl_a_r5),   OP(anl_a_r6),  OP(anl_a_r7),
 	OP(add_a_xr0),  OP(add_a_xr1),  OP(mov_t_a),   OP(illegal),   OP(jmp_3),     OP(stop_tcnt),  OP(illegal),   OP(rrc_a),      // 60
 	OP(add_a_r0),   OP(add_a_r1),   OP(add_a_r2),  OP(add_a_r3),  OP(add_a_r4),  OP(add_a_r5),   OP(add_a_r6),  OP(add_a_r7),
-	OP(adc_a_xr0),  OP(adc_a_xr1),  OP(illegal),   OP(illegal),   OP(call_3),    OP(illegal),    OP(illegal),   OP(rr_a),       // 70
+	OP(adc_a_xr0),  OP(adc_a_xr1),  OP(illegal),   OP(illegal),   OP(call_3),    OP(illegal),    OP(jnc),       OP(rr_a),       // 70
 	OP(adc_a_r0),   OP(adc_a_r1),   OP(adc_a_r2),  OP(adc_a_r3),  OP(adc_a_r4),  OP(adc_a_r5),   OP(adc_a_r6),  OP(adc_a_r7),
 	OP(illegal),    OP(illegal),    OP(illegal),   OP(ret),       OP(jmp_4),     OP(illegal),    OP(illegal),   OP(illegal),    // 80
 	OP(illegal),    OP(illegal),    OP(illegal),   OP(illegal),   OP(orld_p4_a), OP(orld_p5_a),  OP(orld_p6_a), OP(orld_p7_a),
@@ -1067,7 +1109,7 @@ const mcs48_cpu_device::mcs48_ophandler mcs48_cpu_device::s_i8022_opcodes[256] =
 	OP(anl_a_r0),   OP(anl_a_r1),   OP(anl_a_r2),  OP(anl_a_r3),  OP(anl_a_r4),  OP(anl_a_r5),   OP(anl_a_r6),  OP(anl_a_r7),
 	OP(add_a_xr0),  OP(add_a_xr1),  OP(mov_t_a),   OP(illegal),   OP(jmp_3),     OP(stop_tcnt),  OP(illegal),   OP(rrc_a),      // 60
 	OP(add_a_r0),   OP(add_a_r1),   OP(add_a_r2),  OP(add_a_r3),  OP(add_a_r4),  OP(add_a_r5),   OP(add_a_r6),  OP(add_a_r7),
-	OP(adc_a_xr0),  OP(adc_a_xr1),  OP(illegal),   OP(illegal),   OP(call_3),    OP(illegal),    OP(illegal),   OP(rr_a),       // 70
+	OP(adc_a_xr0),  OP(adc_a_xr1),  OP(illegal),   OP(illegal),   OP(call_3),    OP(illegal),    OP(jnc),       OP(rr_a),       // 70
 	OP(adc_a_r0),   OP(adc_a_r1),   OP(adc_a_r2),  OP(adc_a_r3),  OP(adc_a_r4),  OP(adc_a_r5),   OP(adc_a_r6),  OP(adc_a_r7),
 	OP(illegal),    OP(illegal),    OP(illegal),   OP(ret),       OP(jmp_4),     OP(illegal),    OP(illegal),   OP(illegal),    // 80
 	OP(illegal),    OP(illegal),    OP(illegal),   OP(illegal),   OP(orld_p4_a), OP(orld_p5_a),  OP(orld_p6_a), OP(orld_p7_a),
@@ -1089,9 +1131,9 @@ const mcs48_cpu_device::mcs48_ophandler mcs48_cpu_device::s_i8022_opcodes[256] =
 
 
 
-/***************************************************************************
+/*******************************************************************************
     INITIALIZATION/RESET
-***************************************************************************/
+*******************************************************************************/
 
 void mcs48_cpu_device::device_config_complete()
 {
@@ -1150,7 +1192,7 @@ void mcs48_cpu_device::device_start()
 	state_add(STATE_GENPC,     "GENPC",     m_pc).mask(0xfff).noshow();
 	state_add(STATE_GENPCBASE, "CURPC",     m_prevpc).mask(0xfff).noshow();
 	state_add(MCS48_SP,        "SP",        m_psw).mask(0x7).noshow();
-	state_add(STATE_GENFLAGS,  "GENFLAGS",  m_psw).noshow().formatstr("%11s");
+	state_add(STATE_GENFLAGS,  "GENFLAGS",  m_psw).noshow().formatstr("%12s");
 	state_add(MCS48_A,         "A",         m_a);
 	state_add(MCS48_TC,        "TC",        m_timer);
 	state_add(MCS48_TPRE,      "TPRE",      m_prescaler).mask(0x1f);
@@ -1161,7 +1203,7 @@ void mcs48_cpu_device::device_start()
 	state_add(MCS48_P2,        "P2",        m_p2);
 
 	for (int regnum = 0; regnum < 8; regnum++)
-		state_add(MCS48_R0 + regnum, string_format("R%d", regnum).c_str(), m_rtemp).callimport().callexport();
+		state_add(MCS48_R0 + regnum, string_format("R%d", regnum), m_rtemp).callimport().callexport();
 
 	if (!(m_feature_mask & I802X_FEATURE))
 		state_add(MCS48_EA,    "EA",        m_ea).mask(0x1);
@@ -1244,9 +1286,9 @@ void mcs48_cpu_device::device_reset()
 }
 
 
-/***************************************************************************
+/*******************************************************************************
     EXECUTION
-***************************************************************************/
+*******************************************************************************/
 
 /*-------------------------------------------------
     check_irqs - check for and process IRQs
@@ -1313,7 +1355,7 @@ void mcs48_cpu_device::burn_cycles(int count)
 			m_prescaler += count;
 			m_timer += m_prescaler >> 5;
 			m_prescaler &= 0x1f;
-			timerover = (oldtimer != 0 && m_timer == 0);
+			timerover = m_timer < oldtimer;
 		}
 
 		// if the counter is enabled, poll the T1 test input once for each cycle
@@ -1374,9 +1416,39 @@ void mcs48_cpu_device::execute_run()
 
 
 
-/***************************************************************************
+/*******************************************************************************
     DATA ACCESS HELPERS
-***************************************************************************/
+*******************************************************************************/
+
+/*-------------------------------------------------
+    p2_output - apply UPI-41 buffer flags to the
+    port pins without changing the port latch
+-------------------------------------------------*/
+
+u8 upi41_cpu_device::p2_output(u8 data) const
+{
+	if (m_flags_enabled)
+	{
+		if (!(m_sts & STS_OBF))
+			data &= ~P2_OBF;
+		if (m_sts & STS_IBF)
+			data &= ~P2_NIBF;
+	}
+	return data;
+}
+
+
+u8 upi41_cpu_device::port_r(offs_t a)
+{
+	const u8 data = mcs48_cpu_device::port_r(a);
+	return (a == 2) ? p2_output(data) : data;
+}
+
+void upi41_cpu_device::port_w(offs_t a, u8 v)
+{
+	mcs48_cpu_device::port_w(a, (a == 2) ? p2_output(v) : v);
+}
+
 
 /*-------------------------------------------------
     upi41_master_r - master CPU data/status
@@ -1394,7 +1466,7 @@ u8 upi41_cpu_device::upi41_master_r(offs_t offset)
 	{
 		m_sts &= ~STS_OBF;
 		if (m_flags_enabled)
-			port_w(2, m_p2 &= ~P2_OBF);
+			port_w(2, m_p2);
 	}
 	return m_dbbo;
 }
@@ -1415,7 +1487,7 @@ TIMER_CALLBACK_MEMBER(upi41_cpu_device::master_callback)
 	{
 		m_sts |= STS_IBF;
 		if (m_flags_enabled)
-			port_w(2, m_p2 &= ~P2_NIBF);
+			port_w(2, m_p2);
 	}
 
 	// set F1 accordingly
@@ -1429,9 +1501,9 @@ void upi41_cpu_device::upi41_master_w(offs_t offset, u8 data)
 }
 
 
-/***************************************************************************
+/*******************************************************************************
     GENERAL CONTEXT ACCESS
-***************************************************************************/
+*******************************************************************************/
 
 /*-------------------------------------------------
     mcs48_import_state - import state from the

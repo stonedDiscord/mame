@@ -39,17 +39,20 @@ public:
 
 	uint8_t read();
 	void write(uint8_t data);
+	void write_strobe(uint8_t data);
 
 	void clock_w(int state);
 
 	uint8_t do_r() { return m_data; }
+	int sr_r() { return m_sr; }
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 private:
+	void clock_falling();
 	void set_sr_line(bool state);
 
 	TIMER_CALLBACK_MEMBER(update_do);
@@ -60,6 +63,7 @@ private:
 	devcb_read8        m_read_data;
 	devcb_write8       m_write_data;
 
+	bool m_mode;                // mode input
 	bool m_new_data;            // new data written
 	u8 m_data;                  // data latch
 

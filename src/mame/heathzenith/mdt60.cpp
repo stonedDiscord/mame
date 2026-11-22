@@ -46,8 +46,8 @@ public:
 	void mdt60(machine_config &mconfig);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	MC6845_UPDATE_ROW(update_row);
@@ -58,7 +58,7 @@ private:
 	u8 dip0_r(offs_t offset);
 	void reg_w(u8 data);
 
-	void mem_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<z29_keyboard_port_device> m_keyboard;
@@ -233,7 +233,7 @@ void mdt60_state::mdt60(machine_config &config)
 	m_keyboard->keyin_callback().set(FUNC(mdt60_state::keyin_w)).invert();
 	// Reset output (pin 2) is not connected
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_color(rgb_t::amber());
 	screen.set_raw(16.5888_MHz_XTAL, 918, 0, 720, 301, 0, 288);
 	screen.set_screen_update(m_crtc, FUNC(r6545_1_device::screen_update));

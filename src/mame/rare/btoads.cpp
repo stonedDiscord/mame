@@ -27,8 +27,8 @@ namespace {
 class btoads_state : public driver_device
 {
 public:
-	btoads_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
+	btoads_state(const machine_config &mconfig, device_type type, const char *tag) :
+		driver_device(mconfig, type, tag),
 		m_vram_fg(*this, "vram_fg%u", 0U, 0x200000U, ENDIANNESS_LITTLE),
 		m_vram_fg_data(*this, "vram_fg_data"),
 		m_vram_bg(*this, "vram_bg%u", 0U, 0x400000U, ENDIANNESS_LITTLE),
@@ -38,17 +38,18 @@ public:
 		m_audiocpu(*this, "audiocpu"),
 		m_bsmt(*this, "bsmt"),
 		m_tlc34076(*this, "tlc34076"),
-		m_screen(*this, "screen") { }
+		m_screen(*this, "screen")
+	{ }
 
 	int main_to_sound_r();
 	int sound_to_main_r();
 
-	void btoads(machine_config &config);
+	void btoads(machine_config &config) ATTR_COLD;
 
 protected:
 	// driver_device overrides
-	virtual void machine_start() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	// shared pointers
@@ -113,9 +114,9 @@ private:
 	TMS340X0_FROM_SHIFTREG_CB_MEMBER(from_shiftreg);
 	TMS340X0_SCANLINE_RGB32_CB_MEMBER(scanline_update);
 
-	void main_map(address_map &map);
-	void sound_io_map(address_map &map);
-	void sound_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void sound_io_map(address_map &map) ATTR_COLD;
+	void sound_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -273,7 +274,7 @@ uint16_t btoads_state::vram_fg_draw_r(offs_t offset)
 
 void btoads_state::render_sprite_row(uint16_t *sprite_source, uint32_t address)
 {
-	int const flipxor = ((*m_sprite_control >> 10) & 1) ? 0xffff : 0x0000;
+	int const flipxor = BIT(*m_sprite_control, 10) ? 0xffff : 0x0000;
 	int const width = (~*m_sprite_control & 0x1ff) + 2;
 	int const color = (~*m_sprite_control >> 8) & 0xf0;
 	int srcoffs = m_sprite_source_offs << 8;
@@ -878,9 +879,9 @@ static INPUT_PORTS_START( btoads )
 	PORT_BIT( 0xffffffff, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("SPECIAL")
-	PORT_BIT( 0x00000001, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(btoads_state, sound_to_main_r)
+	PORT_BIT( 0x00000001, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(FUNC(btoads_state::sound_to_main_r))
 	PORT_SERVICE_NO_TOGGLE( 0x0002, IP_ACTIVE_LOW )
-	PORT_BIT( 0x00000080, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(btoads_state, main_to_sound_r)
+	PORT_BIT( 0x00000080, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(FUNC(btoads_state::main_to_sound_r))
 	PORT_BIT( 0xffffff7c, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("SW1")
@@ -941,17 +942,16 @@ void btoads_state::btoads(machine_config &config)
 	// video hardware
 	TLC34076(config, m_tlc34076, tlc34076_device::TLC34076_6_BIT);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(VIDEO_CLOCK / 2, 640, 0, 512, 257, 0, 224);
 	m_screen->set_screen_update("maincpu", FUNC(tms34020_device::tms340x0_rgb32));
 
 	// sound hardware
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	BSMT2000(config, m_bsmt, SOUND_CLOCK);
-	m_bsmt->add_route(0, "lspeaker", 1.0);
-	m_bsmt->add_route(1, "rspeaker", 1.0);
+	m_bsmt->add_route(0, "speaker", 1.0, 0);
+	m_bsmt->add_route(1, "speaker", 1.0, 1);
 }
 
 

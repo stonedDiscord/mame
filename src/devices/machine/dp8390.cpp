@@ -3,6 +3,12 @@
 #include "emu.h"
 #include "dp8390.h"
 
+#include "multibyte.h"
+
+#include <algorithm>
+#include <iterator>
+#include <vector>
+
 #define DP8390_BYTE_ORDER(w) ((m_regs.dcr & 3) == 3 ? swapendian_int16(data) : data)
 #define LOOPBACK (!(m_regs.dcr & 8) && (m_regs.tcr & 6))
 
@@ -33,6 +39,8 @@ dp8390_device::dp8390_device(const machine_config &mconfig, device_type type, co
 }
 
 void dp8390_device::device_start() {
+	save_item(NAME(m_loopback_fifo));
+	save_item(NAME(m_loopback_fifo_index));
 }
 
 void dp8390_device::stop() {
@@ -43,6 +51,8 @@ void dp8390_device::stop() {
 }
 
 void dp8390_device::device_reset() {
+	std::fill(std::begin(m_loopback_fifo), std::end(m_loopback_fifo), 0);
+	m_loopback_fifo_index = 0;
 	memset(&m_regs, 0, sizeof(m_regs));
 	m_regs.cr =  0x21;
 	m_regs.isr = 0x80;
@@ -60,6 +70,8 @@ void dp8390_device::check_dma_complete() {
 	m_regs.isr |= 0x40;
 	check_irq();
 	m_rdma_active = 0;
+	// Required by pc98_cbus:lgy98 DOS driver init
+	m_regs.cr |= 0x20;
 }
 
 void dp8390_device::do_tx() {
@@ -67,7 +79,6 @@ void dp8390_device::do_tx() {
 	int i;
 	uint32_t high16 = (m_regs.dcr & 4)?m_regs.rsar<<16:0;
 	if(m_reset) return;
-	if(LOOPBACK) return;  // TODO: loopback
 	m_regs.tsr = 0;
 	if(m_regs.tbcr > 1518) logerror("dp8390: trying to send overlong frame\n");
 	if(!m_regs.tbcr) { // ? Bochs says solaris actually does this
@@ -76,6 +87,10 @@ void dp8390_device::do_tx() {
 		return;
 	}
 
+	if(LOOPBACK) {
+		do_loopback();
+		return;
+	}
 	buf.resize(m_regs.tbcr);
 	for(i = 0; i < m_regs.tbcr; i++) buf[i] = m_mem_read_cb(high16 + (m_regs.tpsr << 8) + i);
 
@@ -86,6 +101,53 @@ void dp8390_device::do_tx() {
 		m_regs.tsr = 8; // not quite right but there isn't a generic "tx failed"
 		m_regs.isr |= 8;
 	}
+	m_regs.cr &= ~4;
+	check_irq();
+}
+
+void dp8390_device::do_loopback() {
+	std::vector<uint8_t> packet;
+	uint32_t const high16 = (m_regs.dcr & 4) ? uint32_t(m_regs.rsar) << 16 : 0;
+	// One byte is fetched per DMA transfer in loopback, so in word mode the
+	// packet occupies one byte lane and TBCR is twice its length (datasheet
+	// section 12).
+	uint32_t const stride = (m_regs.dcr & 1) ? 2 : 1;
+	uint32_t const lane = ((m_regs.dcr & 1) && !(m_regs.dcr & 2)) ? 1 : 0;
+	for (uint32_t i = lane; i < m_regs.tbcr; i += stride)
+		packet.push_back(m_mem_read_cb(high16 + (m_regs.tpsr << 8) + i));
+	bool const multicast = (packet.size() >= 6) && (packet[0] & 1);
+	bool const match = (packet.size() >= 6) && address_match(packet.data());
+	uint32_t const crc_length = ((m_regs.tcr & 1) && packet.size() >= 4) ? packet.size() - 4 : packet.size();
+	uint32_t const crc = util::crc32_creator::simple(packet.data(), crc_length);
+	std::fill(std::begin(m_loopback_fifo), std::end(m_loopback_fifo), 0);
+	uint32_t position = 0;
+	auto const append = [this, &position] (uint8_t byte) { m_loopback_fifo[position++ & 7] = byte; };
+	for (uint8_t byte : packet)
+		append(byte);
+	uint32_t count = packet.size();
+	bool const append_crc = !(m_regs.tcr & 1);
+	// a CRC error is always indicated when the transmitter appends the CRC
+	bool const bad_crc = append_crc || (count < 4) || (get_u32le(&packet[count - 4]) != crc);
+	if (append_crc) {
+		for (uint32_t i = 0; i < 4; ++i)
+			append(crc >> (8 * i));
+		count += 4;
+	}
+	// the FIFO ends with the byte count, upper byte twice (datasheet section 12)
+	append(count);
+	append(count >> 8);
+	append(count >> 8);
+	m_loopback_fifo_index = 0;
+	m_regs.fifo = m_loopback_fifo[0];
+	m_regs.rsr = (match && bad_crc) ? 2 : 1;
+	if (match && multicast)
+		m_regs.rsr |= 0x20;
+	// TSR from the loopback tests in datasheet section 12: CRS and CDH are set
+	// in NIC loopback, only CDH through the ENDEC, and neither to the cable
+	m_regs.tsr = ((m_regs.tcr & 6) == 2) ? 0x53 : ((m_regs.tcr & 6) == 4) ? 0x43 : 0x03;
+	// loopback packets are not written to the receive ring, so CURR and
+	// ISR.PRX are left unchanged and only PTX is set
+	m_regs.isr |= 2;
 	m_regs.cr &= ~4;
 	check_irq();
 }
@@ -116,6 +178,23 @@ void dp8390_device::recv_overflow() {
 	return;
 }
 
+bool dp8390_device::address_match(uint8_t const *buf) const {
+	if (buf[0] & 1) {
+		if (!memcmp(buf, "\xff\xff\xff\xff\xff\xff", 6)) {
+			// broadcast
+			return m_regs.rcr & 4;
+		}
+		// multicast
+		if (!(m_regs.rcr & 8))
+			return false;
+		// The MAR index is the top six bits of the uncomplemented MSB-first CRC.
+		uint32_t const crc = bitswap<6>(~uint32_t(util::crc32_creator::simple(buf, 6)), 0, 1, 2, 3, 4, 5);
+		return BIT(m_regs.mar[crc >> 3], crc & 7);
+	}
+	// promiscuous or physical
+	return (m_regs.rcr & 0x10) || !memcmp(m_regs.par, buf, 6);
+}
+
 void dp8390_device::recv(uint8_t *buf, int len) {
 	int i;
 	uint16_t start = (m_regs.curr << 8), offset;
@@ -124,14 +203,8 @@ void dp8390_device::recv(uint8_t *buf, int len) {
 	if(m_regs.curr == m_regs.pstop) start = m_regs.pstart << 8;
 	offset = start + 4;
 	high16 = (m_regs.dcr & 4)?m_regs.rsar<<16:0;
-	if(buf[0] & 1) {
-		if(!memcmp((const char *)buf, "\xff\xff\xff\xff\xff\xff", 6)) {
-			if(!(m_regs.rcr & 4)) return;
-		} else if (memcmp((const char *)buf, "\x09\x00\x07\xff\xff\xff", 6) != 0) { // not AppleTalk broadcast
-			return; // multicast
-		}
-		m_regs.rsr = 0x20;
-	} else m_regs.rsr = 0;
+	if(!address_match(buf)) return;
+	m_regs.rsr = (buf[0] & 1) ? 0x20 : 0;
 	len &= 0xffff;
 
 	for(i = 0; i < len; i++) {
@@ -155,7 +228,6 @@ void dp8390_device::recv(uint8_t *buf, int len) {
 	m_regs.isr |= 1;
 	m_regs.curr = (offset >> 8) + ((offset & 0xff)?1:0);
 	if(m_regs.curr == m_regs.pstop) m_regs.curr = m_regs.pstart;
-	len += 4;
 	m_mem_write_cb((offs_t)start, m_regs.rsr);
 	m_mem_write_cb((offs_t)start+1, m_regs.curr);
 	m_mem_write_cb((offs_t)start+2, len & 0xff);
@@ -212,7 +284,9 @@ uint8_t dp8390_device::cs_read(offs_t offset) {
 		data = m_regs.ncr;
 		break;
 	case 0x06:
-		data = m_regs.fifo;
+		data = LOOPBACK ? m_loopback_fifo[m_loopback_fifo_index & 7] : m_regs.fifo;
+		if (LOOPBACK && !machine().side_effects_disabled())
+			++m_loopback_fifo_index;
 		break;
 	case 0x07:
 		data = m_regs.isr;
@@ -403,7 +477,6 @@ void dp8390_device::cs_write(offs_t offset, uint8_t data) {
 		break;
 	case 0x0c:
 		m_regs.rcr = data;
-		set_promisc((data & 0x10)?true:false);
 		break;
 	case 0x0d:
 		m_regs.tcr = data;

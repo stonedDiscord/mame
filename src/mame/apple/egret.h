@@ -6,12 +6,7 @@
 #pragma once
 
 #include "cpu/m6805/m68hc05e1.h"
-
-#define USE_BUS_ADB (0)
-
-#if USE_BUS_ADB
-#include "bus/adb/adb.h"
-#endif
+#include "machine/macseconds.h"
 
 //**************************************************************************
 //  TYPE DEFINITIONS
@@ -23,7 +18,7 @@
 /// on-board RAM and ROM plus several GPIO pins.  Egret handles
 /// simple power management, the Apple Desktop Bus, I2C, real-time
 /// clock, and parameter RAM.
-class egret_device :  public device_t, public device_nvram_interface
+class egret_device :  public device_t, public device_nvram_interface, public macseconds_interface
 {
 public:
 	// construction/destruction
@@ -33,12 +28,6 @@ public:
 	virtual void nvram_default() override;
 	virtual bool nvram_read(util::read_stream &file) override;
 	virtual bool nvram_write(util::write_stream &file) override;
-
-#if USE_BUS_ADB
-	void adb_w(int id, int state);
-	void adb_poweron_w(int id, int state);
-	void adb_change();
-#endif
 
 	// interface routines
 	u8 get_xcvr_session() { return m_xcvr_session; }
@@ -65,10 +54,10 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual const tiny_rom_entry *device_rom_region() const override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
 
 private:
 	u8 m_xcvr_session;
@@ -84,14 +73,6 @@ private:
 	s32 m_adb_dtime;
 	u8 m_disk_pram[0x100]{};
 	bool m_pram_loaded;
-
-#if USE_BUS_ADB
-	optional_device <adb_connector> m_adb_connector[2];
-	adb_device *m_adb_device[2]{};
-	bool m_adb_device_out[2]{};
-	bool m_adb_device_poweron[2]{};
-	bool m_adb_out = false;
-	#endif
 
 	u8 pa_r();
 	u8 pb_r();

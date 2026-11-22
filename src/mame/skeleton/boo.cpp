@@ -46,7 +46,7 @@ private:
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
-	void program_map(address_map &map);
+	void program_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -133,7 +133,7 @@ void boo_state::boo(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &boo_state::program_map);
 
 	// TODO: everything
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(64*8, 32*8);
@@ -169,4 +169,4 @@ ROM_END
 } // anonymous namespace
 
 
-GAME( 2000, boo1000, 0, boo, boo, boo_state, empty_init, ROT0, "JK Amusement", "Boo 1000", MACHINE_IS_SKELETON )
+GAME( 2000, boo1000, 0, boo, boo, boo_state, empty_init, ROT0, "JK Amusement", "Boo 1000", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

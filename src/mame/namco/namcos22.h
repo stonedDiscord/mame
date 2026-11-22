@@ -11,17 +11,22 @@
 
 #pragma once
 
-#include "machine/eeprompar.h"
-#include "machine/mb87078.h"
 #include "namcomcu.h"
+
+#include "bus/snes_ctrl/ctrl.h"
+
+#include "machine/eeprompar.h"
 #include "machine/timer.h"
 #include "sound/c352.h"
+#include "sound/mb87077.h"
 #include "video/rgbutil.h"
 #include "video/poly.h"
 
 #include "emupal.h"
 #include "screen.h"
 #include "tilemap.h"
+
+#include "endianness.h"
 
 class namcos22_state;
 
@@ -90,7 +95,7 @@ struct namcos22_scenenode
 			int cz_type;
 			int cz_adjust;
 			int objectflags;
-			int direct;
+			bool direct;
 			namcos22_polyvertex v[4];
 		} quad;
 
@@ -132,9 +137,6 @@ struct namcos22_object_data
 	rgbaint_t fadecolor;
 	int fadefactor;
 	bool pfade_enabled;
-	bool zfog_enabled;
-	int cz_sdelta;
-	const u8 *czram;
 	bool alpha_enabled;
 	int alpha;
 
@@ -175,6 +177,9 @@ private:
 	void free_scenenode(struct namcos22_scenenode *node);
 	struct namcos22_scenenode *alloc_scenenode(running_machine &machine, struct namcos22_scenenode *node);
 
+	using scanline_func = void (namcos22_renderer::*)(int32_t scanline, const extent_t &extent, const namcos22_object_data &extra, int threadid);
+
+	void dispatch_scanline_poly(scanline_func callback, int clipverts, vertex_t const *clipv);
 	void renderscanline_poly(int32_t scanline, const extent_t &extent, const namcos22_object_data &extra, int threadid);
 	void renderscanline_poly_ss22(int32_t scanline, const extent_t &extent, const namcos22_object_data &extra, int threadid);
 	void renderscanline_sprite(int32_t scanline, const extent_t &extent, const namcos22_object_data &extra, int threadid);
@@ -198,7 +203,7 @@ public:
 		driver_device(mconfig, type, tag),
 		m_palette(*this, "palette"),
 		m_czram(*this, "czram"),
-		m_spriteram(*this, "spriteram"),
+		m_spriteram(*this, "spriteram", 0x8000, ENDIANNESS_BIG),
 		m_gfxdecode(*this, "gfxdecode"),
 		m_maincpu(*this, "maincpu"),
 		m_master(*this, "master"),
@@ -217,15 +222,15 @@ public:
 		m_polygonram(*this, "polygonram"),
 		m_mixer(*this, "video_mixer"),
 		m_gamma_proms(*this, "gamma_proms"),
-		m_vics_data(*this, "vics_data"),
-		m_vics_control(*this, "vics_control"),
+		m_pointrom(*this, "pointrom"),
 		m_screen(*this, "screen"),
 		m_adc_ports(*this, "ADC.%u", 0),
 		m_inputs(*this, "INPUTS"),
-		m_custom(*this, "CUSTOM.%u", 0),
+		m_devpad(*this, "devpad%u", 0),
 		m_opt(*this, "OPT.%u", 0),
 		m_mcu_out(*this, "mcuout%u", 0U),
-		m_cpuled_out(*this, "cpuled%u", 0U)
+		m_cpuled_out(*this, "cpuled%u", 0U),
+		m_wheel_motor(*this, "wheel_motor")
 	{ }
 
 	void cybrcomm(machine_config &config);
@@ -268,14 +273,13 @@ public:
 
 	required_device<palette_device> m_palette;
 	optional_shared_ptr<u32> m_czram;
-	optional_shared_ptr<u32> m_spriteram;
+	memory_share_creator<u16> m_spriteram;
 	required_device<gfxdecode_device> m_gfxdecode;
 
 protected:
-	virtual void machine_reset() override;
-	virtual void machine_start() override;
-	virtual void video_start() override;
-	virtual void device_post_load() override;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 	void namcos22_textram_w(offs_t offset, u32 data, u32 mem_mask = ~0);
 	u16 namcos22_tilemapattr_r(offs_t offset);
@@ -295,8 +299,8 @@ protected:
 	void point_address_w(u16 data);
 	void point_loword_iw(u16 data);
 	void point_hiword_w(u16 data);
-	u16 point_loword_r();
-	u16 point_hiword_ir();
+	u16 point_loword_ir();
+	u16 point_hiword_r();
 	void dsp_unk2_w(u16 data);
 	u16 dsp_unk_port3_r();
 	void upload_code_to_slave_dsp_w(u16 data);
@@ -324,8 +328,8 @@ protected:
 	void namcos22_shared_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	u16 namcos22_keycus_r(offs_t offset);
 	void namcos22_keycus_w(offs_t offset, u16 data, u16 mem_mask = ~0);
-	u16 namcos22_portbit_r(offs_t offset);
-	void namcos22_portbit_w(offs_t offset, u16 data);
+	u16 namcos22_devpad_r(offs_t offset);
+	void namcos22_devpad_w(offs_t offset, u16 data);
 	void namcos22_cpuleds_w(offs_t offset, u32 data, u32 mem_mask = ~0);
 	u8 mcu_port4_s22_r();
 	u8 iomcu_port4_s22_r();
@@ -350,7 +354,7 @@ protected:
 	inline void pdp_polygonram_write(offs_t offs, u32 data) { m_polygonram[offs & 0x7fff] = data; }
 	void point_write(offs_t offs, u32 data);
 	s32 pointram_read(offs_t offs);
-	inline s32 point_read(offs_t offs) { offs &= 0x00ffffff; return (offs < m_pointrom_size) ? m_pointrom[offs] : pointram_read(offs); }
+	inline s32 point_read(offs_t offs) { offs &= 0x00ffffff; return (offs < m_pointrom.length()) ? m_pointrom[offs] : pointram_read(offs); }
 	void master_enable(bool enable);
 	void slave_enable(bool enable);
 
@@ -388,8 +392,6 @@ protected:
 	void update_palette();
 	void draw_direct_poly(const u16 *src);
 	void draw_polygons();
-	void draw_sprites();
-	void draw_sprite_group(const u32 *src, const u32 *attr, int num_sprites, int deltax, int deltay, int y_lowres);
 	void namcos22_mix_text_layer(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void install_c74_speedup();
@@ -399,19 +401,21 @@ protected:
 	void update_text_rowscroll();
 	void apply_text_scroll();
 	u32 screen_update_namcos22(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
+	void render_frame_active();
+	virtual void screen_vblank(int state);
 	INTERRUPT_GEN_MEMBER(namcos22_interrupt);
 	INTERRUPT_GEN_MEMBER(dsp_vblank_irq);
 	TIMER_DEVICE_CALLBACK_MEMBER(dsp_serial_pulse);
 
-	void iomcu_s22_program(address_map &map);
-	void master_dsp_data(address_map &map);
-	void master_dsp_io(address_map &map);
-	void master_dsp_program(address_map &map);
-	void mcu_s22_program(address_map &map);
-	void namcos22_am(address_map &map);
-	void slave_dsp_data(address_map &map);
-	void slave_dsp_io(address_map &map);
-	void slave_dsp_program(address_map &map);
+	void iomcu_s22_program(address_map &map) ATTR_COLD;
+	void master_dsp_data(address_map &map) ATTR_COLD;
+	void master_dsp_io(address_map &map) ATTR_COLD;
+	void master_dsp_program(address_map &map) ATTR_COLD;
+	void mcu_s22_program(address_map &map) ATTR_COLD;
+	void namcos22_am(address_map &map) ATTR_COLD;
+	void slave_dsp_data(address_map &map) ATTR_COLD;
+	void slave_dsp_io(address_map &map) ATTR_COLD;
+	void slave_dsp_program(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<cpu_device> m_master;
@@ -430,15 +434,15 @@ protected:
 	required_shared_ptr<u32> m_polygonram;
 	required_shared_ptr<u32> m_mixer;
 	optional_region_ptr<u8> m_gamma_proms;
-	optional_shared_ptr<u32> m_vics_data;
-	optional_shared_ptr<u32> m_vics_control;
+	required_region_ptr<s32> m_pointrom;
 	required_device<screen_device> m_screen;
 	optional_ioport_array<8> m_adc_ports;
 	required_ioport m_inputs;
-	optional_ioport_array<2> m_custom;
+	required_device_array<snes_control_port_device, 2> m_devpad;
 	optional_ioport_array<2> m_opt;
 	output_finder<16> m_mcu_out;
 	output_finder<8> m_cpuled_out;
+	output_finder<> m_wheel_motor;
 
 	u8 m_syscontrol[0x20] = { };
 	bool m_dsp_irq_enabled = false;
@@ -453,7 +457,6 @@ protected:
 	u16 m_SerialDataSlaveToMasterCurrent = 0;
 	int m_RenderBufSize = 0;
 	u16 m_RenderBufData[NAMCOS22_MAX_RENDER_CMD_SEQ] = { };
-	u16 m_portbits[2] = { };
 	int m_irq_state = 0;
 	int m_irq_enabled = 0;
 	namcos22_dsp_upload_state m_dsp_upload_state;
@@ -475,15 +478,17 @@ protected:
 	u8 m_reflection = 0;
 	bool m_cullflip = false;
 	u8 m_LitSurfaceInfo[NAMCOS22_MAX_LIT_SURFACES] = { };
-	int m_SurfaceNormalFormat = 0;
 	unsigned m_LitSurfaceCount = 0;
 	unsigned m_LitSurfaceIndex = 0;
-	int m_pointrom_size = 0;
-	std::unique_ptr<s32[]> m_pointrom;
+	int m_LitSurfaceWidth = 0;
+	int m_LitSurfaceIntensity = 0;
+	bool m_LitSurfaceGouraud = false;
+	bool m_LitSurfaceTriangles = false;
+
 	std::unique_ptr<u8[]> m_dirtypal;
 	std::unique_ptr<bitmap_ind16> m_mix_bitmap;
 
-	tilemap_t *m_bgtilemap;
+	tilemap_t *m_text_tilemap;
 	u16 m_tilemapattr[8] = { };
 	u16 m_rowscroll[480] = { };
 	u16 m_lastrow = 0;
@@ -506,8 +511,6 @@ protected:
 	int m_camera_power = 0;   // 0.0..1.0
 
 	bool m_skipped_this_frame = false;
-	void render_frame_active();
-	void screen_vblank(int state);
 	bool m_pdp_render_done = false;
 	bool m_render_refresh = false;
 	u64 m_pdp_frame = 0;
@@ -518,7 +521,10 @@ class namcos22s_state : public namcos22_state
 {
 public:
 	namcos22s_state(const machine_config &mconfig, device_type type, const char *tag) :
-		namcos22_state(mconfig, type, tag)
+		namcos22_state(mconfig, type, tag),
+		m_attributeram(*this, "attributeram", 0xa00, ENDIANNESS_BIG),
+		m_vics_data(*this, "vics_data", 0x10000, ENDIANNESS_BIG),
+		m_vics_control(*this, "vics_control")
 	{ }
 
 	void namcos22s(machine_config &config);
@@ -534,7 +540,7 @@ public:
 	void init_airco22();
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 	virtual void init_tables() override;
 	virtual void draw_text_layer(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect) override;
@@ -550,8 +556,14 @@ protected:
 	u16 namcos22s_czattr_r(offs_t offset);
 	void namcos22s_czram_w(offs_t offset, u32 data, u32 mem_mask = ~0);
 	u32 namcos22s_czram_r(offs_t offset);
+	u16 namcos22s_vics_data_r(offs_t offset);
+	void namcos22s_vics_data_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	u32 namcos22s_vics_control_r(offs_t offset);
 	void namcos22s_vics_control_w(offs_t offset, u32 data, u32 mem_mask = ~0);
+	u16 namcos22s_spriteram_r(offs_t offset);
+	void namcos22s_spriteram_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	u16 namcos22s_attributeram_r(offs_t offset);
+	void namcos22s_attributeram_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	u16 spotram_r(offs_t offset);
 	void spotram_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 
@@ -568,11 +580,18 @@ protected:
 	u16 mcu130_speedup_r();
 	u16 mcu141_speedup_r();
 
+	void draw_sprites();
+	void vics_copy_sprite_data();
+	virtual void screen_vblank(int state) override;
 	INTERRUPT_GEN_MEMBER(namcos22s_interrupt);
 	TIMER_DEVICE_CALLBACK_MEMBER(mcu_irq);
 
-	void mcu_program(address_map &map);
-	void namcos22s_am(address_map &map);
+	void mcu_program(address_map &map) ATTR_COLD;
+	void namcos22s_am(address_map &map) ATTR_COLD;
+
+	memory_share_creator<u16> m_attributeram;
+	memory_share_creator<u16> m_vics_data;
+	required_shared_ptr<u32> m_vics_control;
 
 	int m_spotram_enable = 0;
 	int m_spotram_address = 0;
@@ -602,7 +621,7 @@ public:
 protected:
 	required_device<timer_device> m_motor_timer;
 
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 	void alpine_mcu_port4_w(u8 data);
 	TIMER_DEVICE_CALLBACK_MEMBER(alpine_steplock_callback);
@@ -625,7 +644,7 @@ private:
 	required_memory_bank m_rombank;
 
 	void rombank_w(u32 data);
-	void alpines_am(address_map &map);
+	void alpines_am(address_map &map) ATTR_COLD;
 };
 
 class timecris_state : public namcos22s_state
@@ -640,7 +659,7 @@ public:
 
 private:
 	u16 gun_r(offs_t offset);
-	void timecris_am(address_map &map);
+	void timecris_am(address_map &map) ATTR_COLD;
 };
 
 class propcycl_state : public namcos22s_state
@@ -675,7 +694,7 @@ public:
 	void init_adillor();
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	required_device_array<timer_device, 2> m_trackball_interrupt;

@@ -69,7 +69,7 @@ INPUT_PORTS_END
 void pcksurfer_state::pcksurfer(machine_config &config)
 {
 	// Basic machine hardware
-	ARM7(config, m_maincpu, 76'205'000); // Sharp LH79524-NOF (BGA-208)
+	ARM720T(config, m_maincpu, 76'205'000); // Sharp LH79524-NOF (BGA-208)
 }
 
 // ROM definitions
@@ -88,4 +88,4 @@ ROM_END
 } // anonymous namespace
 
 //    YEAR  NAME       PARENT COMPAT MACHINE    INPUT      CLASS            INIT        COMPANY     FULLNAME                     FLAGS
-COMP( 2006, pcksurfer, 0,     0,     pcksurfer, pcksurfer, pcksurfer_state, empty_init, "Datawind", "Pocket Surfer (prototype)", MACHINE_IS_SKELETON )
+COMP( 2006, pcksurfer, 0,     0,     pcksurfer, pcksurfer, pcksurfer_state, empty_init, "Datawind", "Pocket Surfer (prototype)", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

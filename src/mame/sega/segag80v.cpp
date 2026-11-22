@@ -413,15 +413,6 @@ int segag80v_state::draw_r()
  *
  *************************************/
 
-void segag80v_state::vblank_callback(screen_device &screen, bool state)
-{
-	if (!state)
-	{
-		m_edgint_ff_state = 1;
-		update_int();
-	}
-}
-
 void segag80v_state::update_int()
 {
 	//
@@ -512,17 +503,17 @@ void segag80v_state::spacfurybl_speech_io_map(address_map &map) // TODO: everyth
 
 static INPUT_PORTS_START( g80v_generic )
 	PORT_START("D7D6")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_WRITE_LINE_MEMBER(segag80v_state, coin_w<0>) // P1.5
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_COIN1 ) PORT_WRITE_LINE_MEMBER(FUNC(segag80v_state::coin_w<0>)) // P1.5
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_UNUSED )                 // n/c
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNUSED )                 // n/c
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNUSED )                 // n/c
-	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_WRITE_LINE_MEMBER(segag80v_state, coin_w<1>) // P1.8
-	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(segag80v_state, draw_r)   // P1.13
+	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_COIN2 ) PORT_WRITE_LINE_MEMBER(FUNC(segag80v_state::coin_w<1>)) // P1.8
+	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(FUNC(segag80v_state::draw_r))   // P1.13
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_UNUSED )                 // P1.14
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNUSED )                 // n/c
 
 	PORT_START("D5D4")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_WRITE_LINE_MEMBER(segag80v_state, coin_w<2>) // P1.10
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_SERVICE1 ) PORT_WRITE_LINE_MEMBER(FUNC(segag80v_state::coin_w<2>)) // P1.10
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_START1 )                 // P1.15
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNUSED )                 // P1.16
 	PORT_BIT( 0x08, IP_ACTIVE_LOW, IPT_UNUSED )                 // P1.17
@@ -588,7 +579,7 @@ static INPUT_PORTS_START( g80v_generic )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_UNUSED )                // P1.30
 
 	PORT_START("SERVICESW")
-	PORT_SERVICE_NO_TOGGLE( 0x01, IP_ACTIVE_HIGH ) PORT_WRITE_LINE_MEMBER(segag80v_state, service_switch_w)
+	PORT_SERVICE_NO_TOGGLE( 0x01, IP_ACTIVE_HIGH ) PORT_WRITE_LINE_MEMBER(FUNC(segag80v_state::service_switch_w))
 INPUT_PORTS_END
 
 
@@ -663,7 +654,7 @@ static INPUT_PORTS_START( elim4 )
 	PORT_INCLUDE( g80v_generic )
 
 	PORT_MODIFY("D7D6")
-	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(segag80v_state, elim4_joint_coin_r)   // combination of all four coin inputs
+	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(FUNC(segag80v_state::elim4_joint_coin_r))   // combination of all four coin inputs
 	PORT_BIT( 0x10, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x40, IP_ACTIVE_LOW, IPT_BUTTON1 ) PORT_PLAYER(2)
 
@@ -914,17 +905,12 @@ void segag80v_state::g80v_base(machine_config &config)
 	m_maincpu->set_addrmap(AS_OPCODES, &segag80v_state::opcodes_map);
 	m_maincpu->set_addrmap(AS_IO, &segag80v_state::main_portmap);
 	m_maincpu->irqack_cb().set(FUNC(segag80v_state::irq_ack_w));
-//  m_maincpu->set_vblank_int("screen", FUNC(segag80v_state::irq0_line_hold));
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_VECTOR);
-	m_screen->set_refresh_hz(40);
-	m_screen->set_size(400, 300);
-	m_screen->set_visarea(512, 1536, 640-32, 1408+32);
-	m_screen->set_screen_update(FUNC(segag80v_state::screen_update_segag80v));
-	m_screen->register_vblank_callback(vblank_state_delegate(&segag80v_state::vblank_callback, this));
-
 	VECTOR(config, m_vector);
+	m_vector->set_refresh_hz(40);
+	m_vector->set_visarea(512, 1536, 640-32, 1408+32);
+	m_vector->set_vector_update(FUNC(segag80v_state::vector_update_segag80v));
 
 	// sound hardware
 	SPEAKER(config, "speaker").front_center();
@@ -933,14 +919,14 @@ void segag80v_state::g80v_base(machine_config &config)
 void segag80v_state::elim2(machine_config &config)
 {
 	g80v_base(config);
-	ELIMINATOR_AUDIO(config, m_g80_audio, 0).add_route(ALL_OUTPUTS, "speaker", 1.0);
+	ELIMINATOR_AUDIO(config, m_g80_audio).add_route(ALL_OUTPUTS, "speaker", 1.0);
 }
 
 void segag80v_state::spacfury(machine_config &config)
 {
 	g80v_base(config);
-	SPACE_FURY_AUDIO(config, m_g80_audio, 0).add_route(ALL_OUTPUTS, "speech", 1.0);
-	SEGA_SPEECH_BOARD(config, "speech", 0).add_route(ALL_OUTPUTS, "speaker", 1.0);
+	SPACE_FURY_AUDIO(config, m_g80_audio).add_route(ALL_OUTPUTS, "speech", 1.0, 1);
+	SEGA_SPEECH_BOARD(config, "speech").add_route(ALL_OUTPUTS, "speaker", 1.0);
 }
 
 void segag80v_state::spacfurybl(machine_config &config)
@@ -953,27 +939,27 @@ void segag80v_state::spacfurybl(machine_config &config)
 
 	TMS5100(config, "tms5100", 640'000).add_route(ALL_OUTPUTS, "speaker", 0.5); // clock not verified TODO: hook up
 
-	SPACE_FURY_AUDIO(config, m_g80_audio, 0).add_route(ALL_OUTPUTS, "speaker", 1.0);
+	SPACE_FURY_AUDIO(config, m_g80_audio).add_route(ALL_OUTPUTS, "speaker", 1.0);
 }
 
 void segag80v_state::zektor(machine_config &config)
 {
 	g80v_base(config);
-	ZEKTOR_AUDIO(config, m_g80_audio, 0).add_route(ALL_OUTPUTS, "speech", 0.7);
-	SEGA_SPEECH_BOARD(config, "speech", 0).add_route(ALL_OUTPUTS, "speaker", 1.0);
+	ZEKTOR_AUDIO(config, m_g80_audio).add_route(ALL_OUTPUTS, "speech", 0.7, 1);
+	SEGA_SPEECH_BOARD(config, "speech").add_route(ALL_OUTPUTS, "speaker", 1.0);
 }
 
 void segag80v_state::tacscan(machine_config &config)
 {
 	g80v_base(config);
-	SEGAUSB(config, m_usb, 0, m_maincpu).add_route(ALL_OUTPUTS, "speaker", 1.0);
+	SEGAUSB(config, m_usb, m_maincpu).add_route(ALL_OUTPUTS, "speaker", 1.0);
 }
 
 void segag80v_state::startrek(machine_config &config)
 {
 	g80v_base(config);
-	SEGAUSB(config, m_usb, 0, m_maincpu).add_route(ALL_OUTPUTS, "speech", 1.0);
-	SEGA_SPEECH_BOARD(config, "speech", 0).add_route(ALL_OUTPUTS, "speaker", 1.0);
+	SEGAUSB(config, m_usb, m_maincpu).add_route(ALL_OUTPUTS, "speech", 1.0, 1);
+	SEGA_SPEECH_BOARD(config, "speech").add_route(ALL_OUTPUTS, "speaker", 1.0);
 }
 
 

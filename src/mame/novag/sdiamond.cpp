@@ -7,7 +7,8 @@ Novag (Perfect Technology*) Star Diamond (model 1004)
 
 *: Novag Industries dissolved in 2000. The Novag brand continued for a few years
 under Perfect Technology, Ltd., established by the daughter of Novag's founder.
-The main programmer (David Kittinger) also moved to the new company.
+The chief engineer (Wayne Chow) and the chess programmer (David Kittinger) also
+moved to the new company.
 
 Although there may be newer Novag products with (old) software by David Kittinger,
 Star Diamond was the last chess computer that he personally worked on.
@@ -39,7 +40,7 @@ TODO:
 #include "sound/dac.h"
 #include "video/pwm.h"
 
-#include "screen.h"
+#include "screen_svg.h"
 #include "speaker.h"
 
 // internal artwork
@@ -63,13 +64,13 @@ public:
 		m_out_lcd(*this, "s%u.%u", 0U, 0U)
 	{ }
 
-	void sdiamond(machine_config &config);
+	void sdiamond(machine_config &config) ATTR_COLD;
 
 	DECLARE_INPUT_CHANGED_MEMBER(power_switch);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override { set_power(true); }
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD { set_power(true); }
 
 private:
 	// devices/pointers
@@ -88,7 +89,7 @@ private:
 	u16 m_lcd_segs = 0;
 	u8 m_lcd_com = 0;
 
-	void main_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
 
 	// I/O handlers
 	void standby(int state);
@@ -108,8 +109,6 @@ private:
 
 void sdiamond_state::machine_start()
 {
-	m_out_lcd.resolve();
-
 	// register for savestates
 	save_item(NAME(m_power));
 	save_item(NAME(m_inp_mux));
@@ -294,8 +293,8 @@ static INPUT_PORTS_START( sdiamond )
 	PORT_CONFSETTING(    0x00, DEF_STR( Normal ) )
 
 	PORT_START("POWER")
-	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_POWER_ON) PORT_CHANGED_MEMBER(DEVICE_SELF, sdiamond_state, power_switch, 1)
-	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_POWER_OFF) PORT_CHANGED_MEMBER(DEVICE_SELF, sdiamond_state, power_switch, 0)
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_POWER_ON) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(sdiamond_state::power_switch), 1)
+	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_POWER_OFF) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(sdiamond_state::power_switch), 0)
 INPUT_PORTS_END
 
 
@@ -333,10 +332,9 @@ void sdiamond_state::sdiamond(machine_config &config)
 	PWM_DISPLAY(config, m_lcd_pwm).set_size(4, 16);
 	m_lcd_pwm->output_x().set(FUNC(sdiamond_state::lcd_pwm_w));
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_SVG));
+	screen_svg_device &screen(SCREEN_SVG(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_size(1920/5, 671/5);
-	screen.set_visarea_full();
 
 	PWM_DISPLAY(config, m_led_pwm).set_size(2, 8);
 	config.set_default_layout(layout_novag_sdiamond);
@@ -373,4 +371,4 @@ ROM_END
 *******************************************************************************/
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE   INPUT     CLASS           INIT        COMPANY, FULLNAME, FLAGS
-SYST( 2003, sdiamond, 0,      0,      sdiamond, sdiamond, sdiamond_state, empty_init, "Perfect Technology", "Star Diamond", MACHINE_SUPPORTS_SAVE )
+SYST( 2003, sdiamond, 0,      0,      sdiamond, sdiamond, sdiamond_state, empty_init, "Perfect Technology / Intelligent Heuristic Programming", "Star Diamond", MACHINE_SUPPORTS_SAVE )

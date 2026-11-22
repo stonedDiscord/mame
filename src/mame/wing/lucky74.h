@@ -27,10 +27,9 @@ public:
 	void lucky74(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void video_start() override;
-	virtual void machine_reset() override;
-	virtual void sound_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	uint8_t custom_09R81P_port_r(offs_t offset);
@@ -52,8 +51,8 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	INTERRUPT_GEN_MEMBER(nmi_interrupt);
 	void adpcm_int(int state);
-	void prg_map(address_map &map);
-	void portmap(address_map &map);
+	void prg_map(address_map &map) ATTR_COLD;
+	void portmap(address_map &map) ATTR_COLD;
 
 	uint8_t m_ym2149_portb = 0U;
 	uint8_t m_usart_8251 = 0U;

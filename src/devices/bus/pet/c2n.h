@@ -33,10 +33,10 @@ protected:
 	c2n_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// optional information overrides
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 	// device_pet_datassette_port_interface overrides
 	virtual int datassette_read() override;
@@ -44,12 +44,11 @@ protected:
 	virtual int datassette_sense() override;
 	virtual void datassette_motor(int state) override;
 
+private:
+	void cassette_changed(int state);
 	TIMER_CALLBACK_MEMBER(read_tick);
 
-private:
 	required_device<cassette_image_device> m_cassette;
-
-	bool m_motor;
 
 	// timers
 	emu_timer *m_read_timer;

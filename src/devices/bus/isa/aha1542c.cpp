@@ -101,9 +101,9 @@ http://download.adaptec.com/pdfs/installation_guides/aha1540cf_ig.pdf
 
 /*
 Adaptec QFP ASICs
-— AHA-1540/42C: AIC-???? (covered by sticker)
-— AHA-1540/42CP: AIC-7970Q
-— AHA-1540/42CF: AIC-3370P, AIC-???? (covered by sticker)
+— AHA-1540/42C: AIC-???? (covered by sticker)
+— AHA-1540/42CP: AIC-7970Q
+— AHA-1540/42CF: AIC-3370P, AIC-???? (covered by sticker)
 */
 
 #include "emu.h"
@@ -172,20 +172,8 @@ DEFINE_DEVICE_TYPE(AHA1542CP, aha1542cp_device, "aha1542cp", "AHA-1542CP SCSI Co
 
 #define Z84C0010_TAG "z84c0010"
 
-u8 aha1542c_device::aha1542_r(offs_t offset)
-{
-	logerror("%s aha1542_r(): offset=%d\n", machine().describe_context(), offset);
-	return 0xff;
-}
-
-void aha1542c_device::aha1542_w(offs_t offset, u8 data)
-{
-	logerror("%s aha1542_w(): offset=%d data=0x%02x\n", machine().describe_context(), offset, data);
-}
-
-
 ROM_START( aha1542c )
-	ROM_REGION( 0x8000, "aha1542", 0 )
+	ROM_REGION( 0x8000, "bios", 0 )
 	ROM_SYSTEM_BIOS( 0, "v101", "AHA-1540C/1542C BIOS v1.01" )
 	ROMX_LOAD( "adaptec_inc_534201-00_d_bios_144c_1993.u15", 0x0000, 0x8000, CRC(35178004) SHA1(2b38f2e40cd02a1b32966ead7b202b0fca130cb8), ROM_BIOS(0) )
 	ROM_SYSTEM_BIOS( 1, "v102", "AHA-1540C/1542C BIOS v1.02" )
@@ -197,7 +185,7 @@ ROM_START( aha1542c )
 ROM_END
 
 ROM_START( aha1542cf )
-	ROM_REGION( 0x8000, "aha1542", 0 )
+	ROM_REGION( 0x8000, "bios", 0 )
 	ROM_SYSTEM_BIOS( 0, "v201", "Adaptec 1540CF/1542CF BIOS v2.01" )
 	ROMX_LOAD( "adaptec_inc_553601-00_c_bios_c38d_1993.u16", 0x0000, 0x8000, CRC(ab22fc02) SHA1(f9f783e0272fc14ba3de32316997f1f6cadc67d0), ROM_BIOS(0) )
 	ROM_SYSTEM_BIOS( 1, "v210", "Adaptec 1540CF/1542CF BIOS v2.10" )
@@ -212,7 +200,7 @@ ROM_START( aha1542cf )
 ROM_END
 
 ROM_START( aha1542cp )
-	ROM_REGION( 0x8000, "aha1542", 0 )
+	ROM_REGION( 0x8000, "bios", 0 )
 	ROM_LOAD( "adaptec_inc_908501-00_d_bios_a91e_1995.u7", 0x0000, 0x8000, CRC(0646c35e) SHA1(3a7c2731abd8295438cfa1f2a525be53e9512b1a) )
 
 	ROM_REGION( 0x8000, Z84C0010_TAG, 0 )
@@ -232,7 +220,7 @@ void aha1542c_device::z84c0010_mem(address_map &map)
 {
 	map(0x0000, 0x7fff).rom().region(Z84C0010_TAG, 0);
 	map(0x8000, 0x9fff).ram();        // 2kb RAM chip
-	map(0xa000, 0xa000).portr("SWITCHES");
+	map(0xa000, 0xa000).portr(m_switches);
 	map(0xb000, 0xb000).w(FUNC(aha1542c_device::local_latch_w));
 	map(0xe000, 0xe0ff).ram();        // probably PC<->Z80 communication area
 	map(0xe003, 0xe003).lr8(NAME([] () { return 0x20; }));
@@ -255,7 +243,7 @@ void aha1542cp_device::local_mem(address_map &map)
 {
 	map(0x0000, 0x7fff).rom().region(Z84C0010_TAG, 0);
 	map(0x8000, 0x9fff).ram();
-	map(0xc000, 0xc000).portr("SWITCHES");
+	map(0xc000, 0xc000).portr(m_switches);
 	map(0xc001, 0xc001).rw(FUNC(aha1542cp_device::eeprom_r), FUNC(aha1542cp_device::eeprom_w));
 	map(0xe003, 0xe003).nopr();
 }
@@ -281,7 +269,7 @@ static INPUT_PORTS_START( aha1542c )
 	PORT_DIPSETTING(0x50, "D4000h")
 	PORT_DIPSETTING(0x60, "D8000h")
 	PORT_DIPSETTING(0x70, "DC000h")
-	PORT_BIT(0x80, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_serial_93cxx_device, do_read)
+	PORT_BIT(0x80, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_DEVICE_MEMBER("eeprom", FUNC(eeprom_serial_93cxx_device::do_read))
 
 	PORT_START("FDC_CONFIG")
 	PORT_DIPNAME(0x1, 0x1, "Floppy Disk Controller") PORT_DIPLOCATION("S1:5")
@@ -362,6 +350,7 @@ aha1542c_device::aha1542c_device(const machine_config &mconfig, device_type type
 	: device_t(mconfig, type, tag, owner, clock)
 	, device_isa16_card_interface(mconfig, *this)
 	, m_eeprom(*this, "eeprom")
+	, m_switches(*this, "SWITCHES")
 {
 }
 
@@ -383,13 +372,37 @@ aha1542cp_device::aha1542cp_device(const machine_config &mconfig, const char *ta
 void aha1542c_device::device_start()
 {
 	set_isa_device();
-	m_isa->install_rom(this, 0xdc000, 0xdffff, "aha1542");
-	m_isa->install_device(0x330, 0x333,
-			read8sm_delegate(*this, FUNC(aha1542cf_device::aha1542_r)),
-			write8sm_delegate(*this, FUNC(aha1542cf_device::aha1542_w)));
 }
 
 
 void aha1542c_device::device_reset()
 {
+	remap(AS_PROGRAM, 0, 0xfffff);
+	remap(AS_IO, 0, 0xffff);
+}
+
+void aha1542c_device::remap(int space_id, offs_t start, offs_t end)
+{
+	if (space_id == AS_PROGRAM)
+	{
+		// TODO: purged by Award BIOS, banked?
+		m_isa->install_rom(this, 0xdc000, 0xdffff, "bios");
+	}
+	else if (space_id == AS_IO)
+	{
+		m_isa->install_device(0x330, 0x333,
+				read8sm_delegate(*this, FUNC(aha1542cf_device::aha1542_r)),
+				write8sm_delegate(*this, FUNC(aha1542cf_device::aha1542_w)));
+	}
+}
+
+u8 aha1542c_device::aha1542_r(offs_t offset)
+{
+	logerror("%s aha1542_r(): offset=%d\n", machine().describe_context(), offset);
+	return 0xff;
+}
+
+void aha1542c_device::aha1542_w(offs_t offset, u8 data)
+{
+	logerror("%s aha1542_w(): offset=%d data=0x%02x\n", machine().describe_context(), offset, data);
 }

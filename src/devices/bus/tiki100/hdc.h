@@ -31,9 +31,9 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 	// device_tiki100bus_card_interface overrides
 	virtual uint8_t iorq_r(offs_t offset, uint8_t data) override;
@@ -41,6 +41,23 @@ protected:
 
 private:
 	required_device<wd2010_device> m_hdc;
+	required_device_array<harddisk_image_device, 2> m_hd;
+
+	uint8_t m_buffer[0x400];
+	uint16_t m_counter;
+	bool m_bdrq;
+	bool m_bcs;
+	bool m_wg;
+
+	harddisk_image_device *selected_drive();
+	uint32_t selected_lba(harddisk_image_device *hd);
+	int sector_size();
+
+	void bdrq_w(int state);
+	void bcr_w(int state);
+	void bcs_w(int state);
+	void wg_w(int state);
+	int drdy_r();
 };
 
 

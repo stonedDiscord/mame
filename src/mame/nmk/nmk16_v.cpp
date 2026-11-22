@@ -89,13 +89,14 @@ void nmk16_state::video_init()
 	m_tilerambank = 0;
 	m_bgbank = 0;
 	m_mustang_bg_xscroll = 0;
+	m_mustang_bg_yscroll = 0;
 
 	save_pointer(NAME(m_spriteram_old), 0x1000/2);
 	save_pointer(NAME(m_spriteram_old2), 0x1000/2);
 	save_item(NAME(m_bgbank));
 	save_item(NAME(m_mustang_bg_xscroll));
-	save_item(NAME(m_scroll[0]));
-	save_item(NAME(m_scroll[1]));
+	save_item(NAME(m_mustang_bg_yscroll));
+	save_item(NAME(m_scroll));
 	save_item(NAME(m_vscroll));
 	save_item(NAME(m_tilerambank));
 }
@@ -112,14 +113,14 @@ VIDEO_START_MEMBER(nmk16_state, bioship)
 	m_tx_tilemap->set_transparent_pen(15);
 
 	video_init();
-	m_bioship_background_bank=0;
+	m_bioship_background_bank = 0;
 	save_item(NAME(m_bioship_background_bank));
 	m_bg_tilemap[0]->set_scrolldx(92, 92);
 	m_bg_tilemap[1]->set_scrolldx(92, 92);
 	m_tx_tilemap->set_scrolldx(92, 92);
 }
 
-VIDEO_START_MEMBER(nmk16_state,macross)
+VIDEO_START_MEMBER(nmk16_state,manybloc)
 {
 	m_bg_tilemap[0] = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, NAME((&nmk16_state::common_get_bg_tile_info<0, 1>))), tilemap_mapper_delegate(*this, FUNC(nmk16_state::tilemap_scan_pages)), 16, 16, 256, 32);
 	m_bg_tilemap[1] = nullptr;
@@ -128,6 +129,12 @@ VIDEO_START_MEMBER(nmk16_state,macross)
 	m_tx_tilemap->set_transparent_pen(15);
 
 	video_init();
+	// no tilemap offset in this hardware? need to verification
+}
+
+VIDEO_START_MEMBER(nmk16_state,macross)
+{
+	VIDEO_START_CALL_MEMBER(manybloc);
 	m_bg_tilemap[0]->set_scrolldx(92, 92);
 	m_tx_tilemap->set_scrolldx(92, 92);
 }
@@ -204,42 +211,63 @@ VIDEO_START_MEMBER(nmk16_state, powerins)
 
 void nmk16_state::mustang_scroll_w(u16 data)
 {
-//  osd_printf_debug("mustang %04x %04x %04x\n",offset,data,mem_mask);
-
-	switch (data & 0xff00)
+	// UPL 90058 PCB: only D8-D9 are latched as the register index, D0-D7 are
+	// the data. The registers feed 74LS283 adders on the BG RAM/ROM address.
+	switch (BIT(data, 8, 2))
 	{
-		case 0x0000:
-			m_mustang_bg_xscroll = (m_mustang_bg_xscroll & 0x00ff) | ((data & 0x00ff)<<8);
+		case 0: // X bits 11-8 (a 74LS174 latches D0-D3 only: the BG is 4096 pixels wide)
+			m_mustang_bg_xscroll = (m_mustang_bg_xscroll & 0x00ff) | ((data & 0x000f) << 8);
 			break;
 
-		case 0x0100:
-			m_mustang_bg_xscroll = (m_mustang_bg_xscroll & 0xff00) | (data & 0x00ff);
+		case 1: // X bits 7-0
+			m_mustang_bg_xscroll = (m_mustang_bg_xscroll & 0x0f00) | (data & 0x00ff);
 			break;
 
-		case 0x0200:
+		case 2: // D0 reaches BG Y bit 8 only through jumper JP-A12, whose standard setting is GND
 			break;
 
-		case 0x0300:
-			break;
-
-		default:
+		case 3: // Y scroll
+			m_mustang_bg_yscroll = data & 0x00ff;
 			break;
 	}
 
-	m_bg_tilemap[0]->set_scrollx(0,m_mustang_bg_xscroll);
+	m_bg_tilemap[0]->set_scrollx(0, m_mustang_bg_xscroll);
+	m_bg_tilemap[0]->set_scrolly(0, m_mustang_bg_yscroll);
+}
+
+void nmk16_state::mustangb3_scroll_w(u16 data)
+{
+	// The Lettering bootleg's IRQ4 handler (0x612) writes the whole X scroll
+	// once per frame as 0x9000 | X, from the variable the original splits
+	// into the index 0 / index 1 pair. The decode is inferred from the code:
+	// this board's video logic is not traced.
+	if ((data & 0xf000) == 0x9000)
+	{
+		m_mustang_bg_xscroll = data & 0x0fff;
+		m_bg_tilemap[0]->set_scrollx(0, m_mustang_bg_xscroll);
+	}
+	else
+		mustang_scroll_w(data);
+}
+
+void nmk16_state::mustang_bgbank_w(u8 data)
+{
+	// 0x080018 D0 is latched to the BG ROM's A19 (pin 1). The 4 Mbit mask ROM
+	// ignores it, so with the stock ROM bank 1 mirrors bank 0.
+	tilebank_w(data & 1);
 }
 
 void nmk16_state::bjtwin_scroll_w(offs_t offset, u8 data)
 {
-	m_bg_tilemap[0]->set_scrolly(0,-data);
+	m_bg_tilemap[0]->set_scrolly(0, -data);
 }
 
 void nmk16_state::vandyke_scroll_w(offs_t offset, u16 data)
 {
 	m_vscroll[offset] = data;
 
-	m_bg_tilemap[0]->set_scrollx(0,m_vscroll[0] * 256 + (m_vscroll[1] >> 8));
-	m_bg_tilemap[0]->set_scrolly(0,m_vscroll[2] * 256 + (m_vscroll[3] >> 8));
+	m_bg_tilemap[0]->set_scrollx(0, m_vscroll[0] * 256 + (m_vscroll[1] >> 8));
+	m_bg_tilemap[0]->set_scrolly(0, m_vscroll[2] * 256 + (m_vscroll[3] >> 8));
 }
 
 void nmk16_state::vandykeb_scroll_w(offs_t offset, u16 data, u16 mem_mask)
@@ -252,21 +280,21 @@ void nmk16_state::vandykeb_scroll_w(offs_t offset, u16 data, u16 mem_mask)
 	case 6: COMBINE_DATA(&m_vscroll[0]); break;
 	}
 
-	m_bg_tilemap[0]->set_scrollx(0,m_vscroll[0] * 256 + (m_vscroll[1] >> 8));
-	m_bg_tilemap[0]->set_scrolly(0,m_vscroll[2] * 256 + (m_vscroll[3] >> 8));
+	m_bg_tilemap[0]->set_scrollx(0, m_vscroll[0] * 256 + (m_vscroll[1] >> 8));
+	m_bg_tilemap[0]->set_scrolly(0, m_vscroll[2] * 256 + (m_vscroll[3] >> 8));
 }
 
 void nmk16_state::manybloc_scroll_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	COMBINE_DATA(&m_gunnail_scrollram[offset]);
 
-	m_bg_tilemap[0]->set_scrollx(0,m_gunnail_scrollram[0x82/2]);
-	m_bg_tilemap[0]->set_scrolly(0,m_gunnail_scrollram[0xc2/2]);
+	m_bg_tilemap[0]->set_scrollx(0, m_gunnail_scrollram[0x82/2]);
+	m_bg_tilemap[0]->set_scrolly(0, m_gunnail_scrollram[0xc2/2]);
 }
 
 void nmk16_state::flipscreen_w(u8 data)
 {
-	flip_screen_set(data & 0x01);
+	flip_screen_set(BIT(data, 0));
 	m_spritegen->set_flip_screen(flip_screen());
 }
 
@@ -287,12 +315,41 @@ void nmk16_state::tilebank_w(u8 data)
 	}
 }
 
+// Thunder Dragon 2 / Macross II PCB: U5 (74LS174, clocked by the NMK005's
+// tilebank strobe) latches D0-D1 to the BG ROM bank and D2-D3, through U4,
+// to BG RAM A13/A14 -- the page the tilemap displays. Both games' scroll
+// routine writes tilebank = bank | (scroll X high & 0x30) >> 2 (tdragon2
+// $6B5A, macross2 $6588), which is why taking the page from the scroll
+// register gave the same picture.
+void nmk16_state::macross2_tilebank_w(u8 data)
+{
+	const u8 bank = data & 0x03;
+	const u32 page = BIT(data, 2, 2);
+	if ((m_bgbank != bank) || (m_tilerambank != page))
+	{
+		m_bgbank = bank;
+		m_tilerambank = page;
+		m_bg_tilemap[0]->mark_all_dirty();
+	}
+}
+
+// scroll_w<0> without the BG RAM page select, which comes from the tilebank latch on this PCB
+void nmk16_state::macross2_scroll_w(offs_t offset, u8 data)
+{
+	m_scroll[0][offset] = data;
+
+	if (BIT(offset, 1))
+		m_bg_tilemap[0]->set_scrolly(0, (m_scroll[0][2] << 8) | m_scroll[0][3]);
+	else
+		m_bg_tilemap[0]->set_scrollx(0, (m_scroll[0][0] << 8) | m_scroll[0][1]);
+}
+
 void nmk16_state::raphero_scroll_w(offs_t offset, u16 data, u16 mem_mask)
 {
 	COMBINE_DATA(&m_gunnail_scrollram[offset]);
 	if ((m_bgvideoram[0].bytes() > 0x4000) && (offset == 0))
 	{
-		int newbank = (m_gunnail_scrollram[0] >> 12) & ((m_bgvideoram[0].bytes() >> 14) - 1);
+		const int newbank = (m_gunnail_scrollram[0] >> 12) & ((m_bgvideoram[0].bytes() >> 14) - 1);
 		if (m_tilerambank != newbank)
 		{
 			m_tilerambank = newbank;
@@ -343,13 +400,13 @@ void nmk16_state::get_colour_6bit(u32 &colour, u32 &pri_mask)
 
 void nmk16_state::get_sprite_flip(u16 attr, int &flipx, int &flipy, int &code)
 {
-	flipy = (attr & 0x200) >> 9;
-	flipx = (attr & 0x100) >> 8;
+	flipy = BIT(attr, 9);
+	flipx = BIT(attr, 8);
 }
 
 void nmk16_state::get_flip_extcode_powerins(u16 attr, int &flipx, int &flipy, int &code)
 {
-	flipx = (attr & 0x1000) >> 12;
+	flipx = BIT(attr, 12);
 	code = (code & 0x7fff) | ((attr & 0x100) << 7);
 }
 
@@ -370,6 +427,8 @@ void nmk16_state::bg_update(screen_device &screen, bitmap_ind16 &bitmap, const r
 {
 	if (m_gunnail_scrollram && m_gunnail_scrollramy)
 	{
+		m_bg_tilemap[layer]->set_scroll_rows(512);
+
 		// the hardware supports per-scanline X *and* Y scroll which isn't
 		// supported by tilemaps so we have to draw the tilemap one line at a time
 		int i = 16;
@@ -381,8 +440,6 @@ void nmk16_state::bg_update(screen_device &screen, bitmap_ind16 &bitmap, const r
 
 			bgclip.min_y = y1;
 			bgclip.max_y = y1;
-
-			m_bg_tilemap[layer]->set_scroll_rows(512);
 
 			m_bg_tilemap[layer]->set_scrolly(0, yscroll);
 			m_bg_tilemap[layer]->set_scrollx((i + yscroll) & 0x1ff, m_gunnail_scrollram[0] + m_gunnail_scrollram[i]);
@@ -425,7 +482,7 @@ u32 nmk16_state::screen_update_tharrier(screen_device &screen, bitmap_ind16 &bit
 {
 	screen.priority().fill(0, cliprect);
 	/* I think the protection device probably copies this to the regs... */
-	u16 tharrier_scroll = m_mainram[0x9f00/2];
+	const u16 tharrier_scroll = m_mainram[0x9f00/2];
 
 	m_bg_tilemap[0]->set_scrollx(0, tharrier_scroll);
 
@@ -459,7 +516,7 @@ void nmk16_state::screen_vblank_powerins_bootleg(int state)
 	{
 		m_maincpu->set_input_line(4, HOLD_LINE);
 		// bootlegs don't have DMA?
-		memcpy(m_spriteram_old2.get(),m_spriteram_old.get(), 0x1000);
+		memcpy(m_spriteram_old2.get(), m_spriteram_old.get(), 0x1000);
 		memcpy(m_spriteram_old.get(), m_mainram + m_sprdma_base / 2, 0x1000);
 	}
 }
@@ -511,8 +568,8 @@ void afega_state::video_update(screen_device &screen, bitmap_ind16 &bitmap, cons
 	screen.priority().fill(0, cliprect);
 	if (dsw_flipscreen)
 	{
-		flip_screen_x_set(~m_dsw_io[0]->read() & 0x0100);
-		flip_screen_y_set(~m_dsw_io[0]->read() & 0x0200);
+		flip_screen_x_set(BIT(~m_dsw_io[0]->read(), 8));
+		flip_screen_y_set(BIT(~m_dsw_io[0]->read(), 9));
 	}
 
 	m_bg_tilemap[0]->set_scrollx(0, m_afega_scroll[0][1] + xoffset);
@@ -531,8 +588,8 @@ void afega_state::video_update(screen_device &screen, bitmap_ind16 &bitmap, cons
 void afega_state::redhawki_video_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
 {
 	screen.priority().fill(0, cliprect);
-	m_bg_tilemap[0]->set_scrollx(0, m_afega_scroll[1][0]&0xff);
-	m_bg_tilemap[0]->set_scrolly(0, m_afega_scroll[1][1]&0xff);
+	m_bg_tilemap[0]->set_scrollx(0, m_afega_scroll[1][0] & 0xff);
+	m_bg_tilemap[0]->set_scrolly(0, m_afega_scroll[1][1] & 0xff);
 
 	m_bg_tilemap[0]->draw(screen, bitmap, cliprect, 0, 1);
 

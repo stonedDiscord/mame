@@ -64,7 +64,7 @@ public:
 	uint8_t cpt_r();
 	uint8_t addr0_r();
 	uint8_t addr1_r();
-	void map(address_map &map);
+	void map(address_map &map) ATTR_COLD;
 
 private:
 
@@ -89,12 +89,13 @@ private:
 
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	void update_int();
 	void handle_command();
 	void run_fsm();
+	bool rdy() const { return !m_apt_flag && !m_cpt_flag && !m_din_flag; }
 	void run_sh_fsm();
 	void run_ah_fsm();
 	void run_dt_fsm();

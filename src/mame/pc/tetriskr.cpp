@@ -29,8 +29,8 @@ public:
 	isa8_cga_tetriskr_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
 
 	virtual uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect) override;
-	virtual void device_start() override;
-	virtual const tiny_rom_entry *device_rom_region() const override;
+	virtual void device_start() override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
 
 	uint8_t bg_bank_r();
 	void bg_bank_w(uint8_t data);
@@ -78,20 +78,21 @@ uint32_t isa8_cga_tetriskr_device::screen_update(screen_device &screen, bitmap_r
 
 	bitmap.fill(rgb_t::black(), cliprect);
 
-	for(int y=cliprect.min_y;y<=cliprect.max_y;y++)
+	for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
 	{
+		auto *const dst = &bitmap.pix(y);
 		int yi = y % 8;
 		int yj = y / 8;
-		for(int x=cliprect.min_x;x<=cliprect.max_x;x++)
+		for (int x = cliprect.left(); x <= cliprect.right(); x++)
 		{
 			int xi = x % 8;
 			int xj = x / 8;
 			uint8_t color = 0;
 			/* TODO: first byte seems bogus? */
-			for(int pen_i = 0;pen_i<4;pen_i++)
-				color |= ((m_bg[yj*320/8+xj+(pen_i*0x20000)+yi*0x400+m_bg_bank*0x2000+1] >> (7-xi)) & 1) << pen_i;
+			for (int pen_i = 0; pen_i < 4; pen_i++)
+				color |= BIT(m_bg[yj*320/8+xj+(pen_i*0x20000)+yi*0x400+m_bg_bank*0x2000+1], 7-xi) << pen_i;
 
-			bitmap.pix(y, x) = m_palette->pen(color);
+			dst[x] = m_palette->pen(color);
 		}
 	}
 
@@ -132,11 +133,11 @@ public:
 		, m_mb(*this, "mb")
 	{ }
 
-	void tetriskr(machine_config &config);
+	void tetriskr(machine_config &config) ATTR_COLD;
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	TIMER_CALLBACK_MEMBER(sample_tick);
 
@@ -150,8 +151,8 @@ private:
 
 	required_device<cpu_device> m_maincpu;
 	required_device<pc_noppi_mb_device> m_mb;
-	void tetriskr_io(address_map &map);
-	void tetriskr_map(address_map &map);
+	void tetriskr_io(address_map &map) ATTR_COLD;
+	void tetriskr_map(address_map &map) ATTR_COLD;
 };
 
 uint8_t tetriskr_state::port_a_r()
@@ -256,7 +257,7 @@ void tetriskr_state::tetriskr(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &tetriskr_state::tetriskr_io);
 	m_maincpu->set_irq_acknowledge_callback("mb:pic8259", FUNC(pic8259_device::inta_cb));
 
-	PCNOPPI_MOTHERBOARD(config, m_mb, 0).set_cputag(m_maincpu);
+	PCNOPPI_MOTHERBOARD(config, m_mb).set_cputag(m_maincpu);
 	m_mb->int_callback().set_inputline(m_maincpu, 0);
 	m_mb->nmi_callback().set_inputline(m_maincpu, INPUT_LINE_NMI);
 

@@ -20,9 +20,9 @@ To Do:
   Hook up inputs and EEPROM in Kick for the Goal / World PK Soccer
 
 2008-08
-Dip locations have been added assuming that the layout is the same as the
-m92 boards (and earlier Irem boards). However, it would be nice to have them
-confirmed for m107 games as well.
+DIP switch locations have been added assuming that the layout is the same as
+the m92 boards (and earlier Irem boards). However, it would be nice to have
+them confirmed for m107 games as well.
 
 *******************************************************************************/
 
@@ -68,17 +68,17 @@ public:
 	{
 	}
 
-	void airass(machine_config &config);
-	void firebarr(machine_config &config);
-	void dsoccr94(machine_config &config);
-	void wpksoc(machine_config &config);
+	void airass(machine_config &config) ATTR_COLD;
+	void firebarr(machine_config &config) ATTR_COLD;
+	void dsoccr94(machine_config &config) ATTR_COLD;
+	void wpksoc(machine_config &config) ATTR_COLD;
 
-	void init_dsoccr94();
-	void init_firebarr();
-	void init_wpksoc();
+	void init_dsoccr94() ATTR_COLD;
+	void init_firebarr() ATTR_COLD;
+	void init_wpksoc() ATTR_COLD;
 
 protected:
-	virtual void video_start() override;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -126,14 +126,15 @@ private:
 	void update_scroll_positions();
 	void tilemap_draw(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect, int laynum, int category, int opaque);
 	void screen_refresh(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void dsoccr94_io_map(address_map &map);
-	void dsoccr94_map(address_map &map);
-	void firebarr_map(address_map &map);
-	void main_map(address_map &map);
-	void main_portmap(address_map &map);
-	void sound_map(address_map &map);
-	void wpksoc_io_map(address_map &map);
-	void wpksoc_map(address_map &map);
+
+	void main_map(address_map &map) ATTR_COLD;
+	void firebarr_map(address_map &map) ATTR_COLD;
+	void dsoccr94_map(address_map &map) ATTR_COLD;
+	void main_portmap(address_map &map) ATTR_COLD;
+	void dsoccr94_io_map(address_map &map) ATTR_COLD;
+	void wpksoc_map(address_map &map) ATTR_COLD;
+	void wpksoc_io_map(address_map &map) ATTR_COLD;
+	void sound_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -439,10 +440,10 @@ void m107_state::tilemap_draw(screen_device &screen, bitmap_ind16 &bitmap, const
 
 	if (m_control[0x08 + laynum] & 0x02)
 	{
-		for (int line = cliprect.min_y; line <= cliprect.max_y; line++)
+		for (int line = cliprect.top(); line <= cliprect.bottom(); line++)
 		{
 			const uint16_t *scrolldata = m_vram_data + (0xe800 + 0x200 * laynum) / 2;
-			clip.min_y = clip.max_y = line;
+			clip.sety(line, line);
 
 			m_pf_layer[laynum].tmap->set_scrollx(0,  m_control[1 + 2 * laynum]);
 			m_pf_layer[laynum].tmap->set_scrolly(0,  (m_control[0 + 2 * laynum] + scrolldata[line]));
@@ -522,7 +523,7 @@ TIMER_DEVICE_CALLBACK_MEMBER(m107_state::scanline_interrupt)
 	else
 	{
 		// VBLANK interrupt
-		if (scanline == m_screen->visible_area().max_y + 1)
+		if (scanline == m_screen->visible_area().bottom() + 1)
 		{
 			m_screen->update_partial(scanline);
 			m_upd71059c->ir0_w(1);
@@ -661,7 +662,7 @@ static INPUT_PORTS_START( m107_2player )
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_SERVICE1 )
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_SERVICE )
 	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_BIT( 0x0080, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_VBLANK("screen") //this is sprite flag on Irem M92, if this is active low then Dream Soccer '94 is unplayably slow
+	PORT_BIT( 0x0080, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("screen", FUNC(screen_device::vblank)) //this is sprite flag on Irem M92, if this is active low then Dream Soccer '94 is unplayably slow
 
 	PORT_DIPUNKNOWN_DIPLOC( 0x0100, 0x0100, "SW3:1" )
 	PORT_DIPUNKNOWN_DIPLOC( 0x0200, 0x0200, "SW3:2" )
@@ -810,7 +811,7 @@ static INPUT_PORTS_START( wpksoc )
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_SERVICE1 )
 	PORT_BIT( 0x0020, IP_ACTIVE_LOW, IPT_SERVICE )
 	PORT_BIT( 0x0040, IP_ACTIVE_LOW, IPT_UNUSED )
-	PORT_BIT( 0x0080, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_VBLANK("screen") //this is sprite flag on Irem M92, if this is active low then Dream Soccer '94 is unplayably slow
+	PORT_BIT( 0x0080, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("screen", FUNC(screen_device::vblank)) //this is sprite flag on Irem M92, if this is active low then Dream Soccer '94 is unplayably slow
 	PORT_DIPNAME( 0x0100, 0x0000, "DSW3" )
 	PORT_DIPSETTING(    0x0000, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x0100, DEF_STR( On ) )
@@ -1207,7 +1208,7 @@ void m107_state::firebarr(machine_config &config)
 	m_soundcpu->set_addrmap(AS_PROGRAM, &m107_state::sound_map);
 	m_soundcpu->set_decryption_table(rtypeleo_decryption_table);
 
-	PIC8259(config, m_upd71059c, 0);
+	PIC8259(config, m_upd71059c);
 	m_upd71059c->out_int_callback().set_inputline(m_maincpu, 0);
 
 	TIMER(config, "scantimer").configure_scanline(FUNC(m107_state::scanline_interrupt), "screen", 0, 1);
@@ -1215,7 +1216,7 @@ void m107_state::firebarr(machine_config &config)
 	// video hardware
 	BUFFERED_SPRITERAM16(config, "spriteram");
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	m_screen->set_size(512, 256);
@@ -1227,8 +1228,7 @@ void m107_state::firebarr(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xBGR_555, 2048);
 
 	// sound hardware
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	generic_latch_8_device &soundlatch(GENERIC_LATCH_8(config, "soundlatch"));
 	soundlatch.data_pending_callback().set_inputline(m_soundcpu, NEC_INPUT_LINE_INTP1);
@@ -1238,12 +1238,12 @@ void m107_state::firebarr(machine_config &config)
 
 	ym2151_device &ymsnd(YM2151(config, "ymsnd", XTAL(14'318'181) / 4));
 	ymsnd.irq_handler().set_inputline(m_soundcpu, NEC_INPUT_LINE_INTP0);
-	ymsnd.add_route(0, "lspeaker", 0.40);
-	ymsnd.add_route(1, "rspeaker", 0.40);
+	ymsnd.add_route(0, "speaker", 0.40, 0);
+	ymsnd.add_route(1, "speaker", 0.40, 1);
 
 	iremga20_device &ga20(IREMGA20(config, "irem", XTAL(14'318'181) / 4));
-	ga20.add_route(0, "lspeaker", 1.0);
-	ga20.add_route(1, "rspeaker", 1.0);
+	ga20.add_route(0, "speaker", 1.0, 0);
+	ga20.add_route(1, "speaker", 1.0, 1);
 }
 
 void m107_state::dsoccr94(machine_config &config)

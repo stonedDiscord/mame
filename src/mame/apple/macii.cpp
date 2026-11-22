@@ -16,11 +16,12 @@
 #include "emu.h"
 
 #include "adbmodem.h"
-#include "macadb.h"
 #include "macrtc.h"
 #include "macscsi.h"
 #include "mactoolbox.h"
 
+#include "bus/adb/adb.h"
+#include "bus/adb/cards.h"
 #include "bus/nscsi/cd.h"
 #include "bus/nscsi/devices.h"
 #include "bus/macpds/macpds.h"
@@ -48,6 +49,10 @@
 
 #include "formats/ap_dsk35.h"
 
+#include "endianness.h"
+
+//#define VERBOSE 1
+#include "logmacro.h"
 
 namespace {
 
@@ -72,17 +77,16 @@ public:
 		m_via2(*this, "via6522_1"),
 		m_asc(*this, "asc"),
 		m_adbmodem(*this, "adbmodem"),
-		m_macadb(*this, "macadb"),
+		m_adbbus(*this, "adb"),
 		m_ram(*this, RAM_TAG),
 		m_scc(*this, "scc"),
-		m_ncr5380(*this, "scsi:7:ncr5380"),
+		m_ncr5380(*this, "ncr5380"),
 		m_scsihelp(*this, "scsihelp"),
 		m_fdc(*this, "fdc"),
 		m_floppy(*this, "fdc:%d", 0U),
 		m_rtc(*this, "rtc"),
 		m_vram(*this,"vram"),
 		m_screen(*this, "screen"),
-		m_palette(*this, "palette"),
 		m_overlay(0),
 		m_via2_vbl(0),
 		m_se30_vbl_enable(0),
@@ -104,18 +108,18 @@ public:
 	{
 	}
 
-	void macii(machine_config &config);
-	void maciihmu(machine_config &config);
-	void maciihd(machine_config &config);
-	void maciix(machine_config &config);
-	void maciicx(machine_config &config);
-	void macse30(machine_config &config);
+	void macii(machine_config &config) ATTR_COLD;
+	void maciihmu(machine_config &config) ATTR_COLD;
+	void maciihd(machine_config &config) ATTR_COLD;
+	void maciix(machine_config &config) ATTR_COLD;
+	void maciicx(machine_config &config) ATTR_COLD;
+	void macse30(machine_config &config) ATTR_COLD;
 
-	void macii_init();
+	void macii_init() ATTR_COLD;
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	void set_memory_overlay(int overlay);
@@ -149,13 +153,13 @@ private:
 	void mac_asc_irq(int state);
 	void adb_irq_w(int state) { m_adb_irq_pending = state; }
 
-	void macii_map(address_map &map);
-	void macse30_map(address_map &map);
+	void macii_map(address_map &map) ATTR_COLD;
+	void macse30_map(address_map &map) ATTR_COLD;
 
 	void phases_w(u8 phases);
 	void devsel_w(u8 devsel);
 
-	u32 screen_update_macse30(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
+	u32 screen_update_macse30(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	TIMER_CALLBACK_MEMBER(scanline_tick);
 	u8 via_in_a();
@@ -170,16 +174,17 @@ private:
 	void via2_out_a(u8 data);
 	void via2_out_b(u8 data);
 	void hmmu_via2_out_b(u8 data);
+	void cpu_reset_w(int state);
 	void state_load();
 	void via_irq(int state);
 	void via2_irq(int state);
 
-	required_device<cpu_device> m_maincpu;
+	required_device<m68000_musashi_device> m_maincpu;
 	required_device<via6522_device> m_via1;
 	required_device<via6522_device> m_via2;
 	required_device<asc_device> m_asc;
 	optional_device<adbmodem_device> m_adbmodem;
-	required_device<macadb_device> m_macadb;
+	required_device<adb_bus_device> m_adbbus;
 	required_device<ram_device> m_ram;
 	required_device<z80scc_device> m_scc;
 	required_device<ncr53c80_device> m_ncr5380;
@@ -189,7 +194,6 @@ private:
 	required_device<rtc3430042_device> m_rtc;
 	optional_shared_ptr<u32> m_vram;
 	optional_device<screen_device> m_screen;
-	optional_device<palette_device> m_palette;
 
 	u32 m_overlay;
 	u32 m_via2_vbl;
@@ -213,21 +217,21 @@ private:
 	floppy_image_device *m_cur_floppy;
 };
 
-u32 macii_state::screen_update_macse30(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect)
+u32 macii_state::screen_update_macse30(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
 	u32 const video_base = (m_screen_buffer ? 0x8000 : 0) + (MAC_H_VIS / 8);
-	u16 const *const video_ram = (const u16 *)&m_vram[video_base / 4];
+	auto const video_ram = util::big_endian_cast<const u16>(&m_vram[video_base / 4]);
 
-	for (int y = 0; y < MAC_V_VIS; y++)
+	for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
 	{
-		u16 *const line = &bitmap.pix(y);
+		u32 *const line = &bitmap.pix(y);
 
 		for (int x = 0; x < MAC_H_VIS; x += 16)
 		{
-			u16 const word = video_ram[((y * MAC_H_VIS) / 16) + ((x / 16) ^ 1)];
+			u16 const word = video_ram[((y * MAC_H_VIS) / 16) + (x / 16)];
 			for (int b = 0; b < 16; b++)
 			{
-				line[x + b] = (word >> (15 - b)) & 0x0001;
+				line[x + b] = BIT(word, 15 - b) ? 0 : 0xffffff;
 			}
 		}
 	}
@@ -373,6 +377,7 @@ void macii_state::scsi_w(offs_t offset, u16 data, u16 mem_mask)
 
 void macii_state::scsi_irq(int state)
 {
+	m_via2->write_cb2(state ^ 1);
 }
 
 void macii_state::scsi_berr_w(u8 data)
@@ -424,7 +429,7 @@ u8 macii_state::iicx_via_in_a()
 
 u8 macii_state::via_in_b()
 {
-	int val = 0;
+	u8 val = 0;
 
 	if (!m_adb_irq_pending)
 	{
@@ -772,6 +777,32 @@ void macii_state::machine_reset()
 	m_last_taken_interrupt = 0;
 }
 
+// The RESET instruction drives the CPU's RESET pin, which is the board's
+// /RESET: it brings "all of the internal devices" to their initial state
+// (Guide to the Macintosh Family Hardware, 2nd ed., p. 244).  On the Mac II
+// logic board (820-0228) the 68020's RESET shares a net with both VIAs, the
+// IWM, the 5380 and the ADB modem (sheet 3, B13 pin 4), reset here, and with
+// the ASC and the 68851, which are not; the later machines are assumed to
+// match.  The IIcx (sheet 4, UL6 pin 4) and SE/30 (050-0253 sheet 4,
+// UL11 pin 4) schematics show the ADB modem on /RESET too.  The SCC has no
+// reset input.
+void macii_state::cpu_reset_w(int state)
+{
+	if (!state)
+		return;
+
+	LOG("RESET from CPU\n");
+
+	// VIA1 first: its PA4 going high brings back the ROM overlay (p. 244), so
+	// VIA2's RAM-size outputs then leave the RAM map alone
+	m_via1->reset();
+	m_via2->reset();
+	m_fdc->reset();
+	m_ncr5380->reset();
+	m_scsihelp->reset();
+	m_adbmodem->reset();
+}
+
 void macii_state::state_load()
 {
 	int overlay = m_overlay;
@@ -801,7 +832,7 @@ void macii_state::macii_init()
 
 void macii_state::nubus_slot_interrupt(u8 slot, u32 state)
 {
-	static const u8 masks[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
+	constexpr u8 masks[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
 	u8 mask = 0x3f;
 
 	slot -= 9;
@@ -899,8 +930,8 @@ void macii_state::macii_map(address_map &map)
 	map(0x50000000, 0x50001fff).rw(FUNC(macii_state::via_r), FUNC(macii_state::via_w)).mirror(0x00f00000);
 	map(0x50002000, 0x50003fff).rw(FUNC(macii_state::via2_r), FUNC(macii_state::via2_w)).mirror(0x00f00000);
 	map(0x50004000, 0x50005fff).rw(FUNC(macii_state::scc_r), FUNC(macii_state::scc_w)).mirror(0x00f00000);
-	map(0x50006000, 0x50006003).w(FUNC(macii_state::scsi_drq_w)).mirror(0x00f00000);
-	map(0x50006060, 0x50006063).r(FUNC(macii_state::scsi_drq_r)).mirror(0x00f00000);
+	map(0x50006000, 0x50006003).rw(FUNC(macii_state::scsi_drq_r), FUNC(macii_state::scsi_drq_w)).mirror(0x00f00000);
+	map(0x50006060, 0x50006063).rw(FUNC(macii_state::scsi_drq_r), FUNC(macii_state::scsi_drq_w)).mirror(0x00f00000);
 	map(0x50010000, 0x50011fff).rw(FUNC(macii_state::scsi_r), FUNC(macii_state::scsi_w)).mirror(0x00f00000);
 	map(0x50012000, 0x50013fff).rw(FUNC(macii_state::scsi_drq_r), FUNC(macii_state::scsi_drq_w)).mirror(0x00f00000);
 	map(0x50014000, 0x50015fff).rw(m_asc, FUNC(asc_device::read), FUNC(asc_device::write)).mirror(0x00f00000);
@@ -924,15 +955,15 @@ void macii_state::macse30_map(address_map &map)
 void macii_state::macii(machine_config &config)
 {
 	M68020PMMU(config, m_maincpu, C15M);
+	m_maincpu->reset_cb().set(FUNC(macii_state::cpu_reset_w));
 	m_maincpu->set_addrmap(AS_PROGRAM, &macii_state::macii_map);
 	m_maincpu->set_dasm_override(std::function(&mac68k_dasm_override), "mac68k_dasm_override");
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
-	ASC(config, m_asc, C15M, asc_device::asc_type::ASC);
+	SPEAKER(config, "speaker", 2).front();
+	ASC(config, m_asc, C15M);
 	m_asc->irqf_callback().set(FUNC(macii_state::mac_asc_irq));
-	m_asc->add_route(0, "lspeaker", 1.0);
-	m_asc->add_route(1, "rspeaker", 1.0);
+	m_asc->add_route(0, "speaker", 1.0, 0);
+	m_asc->add_route(1, "speaker", 1.0, 1);
 
 	RTC3430042(config, m_rtc, XTAL(32'768));
 	m_rtc->cko_cb().set(m_via1, FUNC(via6522_device::write_ca2));
@@ -946,35 +977,38 @@ void macii_state::macii(machine_config &config)
 	SCC85C30(config, m_scc, C7M);
 	m_scc->configure_channels(3'686'400, 3'686'400, 3'686'400, 3'686'400);
 	m_scc->out_int_callback().set(FUNC(macii_state::set_scc_interrupt));
-	m_scc->out_txda_callback().set("printer", FUNC(rs232_port_device::write_txd));
-	m_scc->out_txdb_callback().set("modem", FUNC(rs232_port_device::write_txd));
+	m_scc->out_txda_callback().set("modem", FUNC(rs232_port_device::write_txd));
+	m_scc->out_txdb_callback().set("printer", FUNC(rs232_port_device::write_txd));
+	// mini-DIN-8 serial ports: HSKo (pin 1) is driven from the SCC's /DTR
+	// through a 26LS30 line driver; GPi (pin 7) reaches /DCD
+	m_scc->out_dtra_callback().set("modem", FUNC(rs232_port_device::write_dtr));
+	m_scc->out_dtrb_callback().set("printer", FUNC(rs232_port_device::write_dtr));
 
-	rs232_port_device &rs232a(RS232_PORT(config, "printer", default_rs232_devices, nullptr));
+	rs232_port_device &rs232a(RS232_PORT(config, "modem", default_rs232_devices, nullptr));
 	rs232a.rxd_handler().set(m_scc, FUNC(z80scc_device::rxa_w));
 	rs232a.dcd_handler().set(m_scc, FUNC(z80scc_device::dcda_w));
 	rs232a.cts_handler().set(m_scc, FUNC(z80scc_device::ctsa_w));
 
-	rs232_port_device &rs232b(RS232_PORT(config, "modem", default_rs232_devices, nullptr));
+	rs232_port_device &rs232b(RS232_PORT(config, "printer", default_rs232_devices, nullptr));
 	rs232b.rxd_handler().set(m_scc, FUNC(z80scc_device::rxb_w));
 	rs232b.dcd_handler().set(m_scc, FUNC(z80scc_device::dcdb_w));
 	rs232b.cts_handler().set(m_scc, FUNC(z80scc_device::ctsb_w));
 
-	NSCSI_BUS(config, "scsi");
-	NSCSI_CONNECTOR(config, "scsi:0", mac_scsi_devices, nullptr);
+	auto &scsi(NSCSI_BUS(config, "scsi"));
+	NSCSI_CONNECTOR(config, "scsi:0", mac_scsi_devices, "harddisk");
 	NSCSI_CONNECTOR(config, "scsi:1", mac_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:2", mac_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:3").option_set("cdrom", NSCSI_CDROM_APPLE).machine_config([](device_t *device)
 																							{
-			device->subdevice<cdda_device>("cdda")->add_route(0, "^^lspeaker", 1.0);
-			device->subdevice<cdda_device>("cdda")->add_route(1, "^^rspeaker", 1.0); });
+			device->subdevice<cdda_device>("cdda")->add_route(0, "^^speaker", 1.0, 0);
+			device->subdevice<cdda_device>("cdda")->add_route(1, "^^speaker", 1.0, 1); });
 	NSCSI_CONNECTOR(config, "scsi:4", mac_scsi_devices, nullptr);
 	NSCSI_CONNECTOR(config, "scsi:5", mac_scsi_devices, nullptr);
-	NSCSI_CONNECTOR(config, "scsi:6", mac_scsi_devices, "harddisk");
-	NSCSI_CONNECTOR(config, "scsi:7").option_set("ncr5380", NCR53C80).machine_config([this](device_t *device)
-																					 {
-		ncr53c80_device &adapter = downcast<ncr53c80_device &>(*device);
-		adapter.irq_handler().set(*this, FUNC(macii_state::scsi_irq));
-		adapter.drq_handler().set(m_scsihelp, FUNC(mac_scsi_helper_device::drq_w)); });
+	NSCSI_CONNECTOR(config, "scsi:6", mac_scsi_devices, nullptr);
+	NCR53C80(config, m_ncr5380);
+	scsi.set_external_device(7, m_ncr5380);
+	m_ncr5380->irq_handler().set(DEVICE_SELF, FUNC(macii_state::scsi_irq));
+	m_ncr5380->drq_handler().set(m_scsihelp, FUNC(mac_scsi_helper_device::drq_w));
 
 	MAC_SCSI_HELPER(config, m_scsihelp);
 	m_scsihelp->scsi_read_callback().set(m_ncr5380, FUNC(ncr53c80_device::read));
@@ -984,10 +1018,10 @@ void macii_state::macii(machine_config &config)
 	m_scsihelp->cpu_halt_callback().set_inputline(m_maincpu, INPUT_LINE_HALT);
 	m_scsihelp->timeout_error_callback().set(FUNC(macii_state::scsi_berr_w));
 
-	SOFTWARE_LIST(config, "hdd_list").set_original("mac_hdd");
+	SOFTWARE_LIST(config, "hdd_list").set_original("mac_hdd").set_filter("MC68020");
 	SOFTWARE_LIST(config, "cd_list").set_original("mac_cdrom").set_filter("MC68020");
 
-	nubus_device &nubus(NUBUS(config, "nubus", 0));
+	nubus_device &nubus(NUBUS(config, "nubus"));
 	nubus.set_space(m_maincpu, AS_PROGRAM);
 	nubus.out_irq9_callback().set(FUNC(macii_state::nubus_irq_w<9>));
 	nubus.out_irqa_callback().set(FUNC(macii_state::nubus_irq_w<0xa>));
@@ -1019,13 +1053,15 @@ void macii_state::macii(machine_config &config)
 	ADBMODEM(config, m_adbmodem, C7M);
 	m_adbmodem->via_clock_callback().set(m_via1, FUNC(via6522_device::write_cb1));
 	m_adbmodem->via_data_callback().set(m_via1, FUNC(via6522_device::write_cb2));
-	m_adbmodem->linechange_callback().set(m_macadb, FUNC(macadb_device::adb_linechange_w));
+	m_adbmodem->linechange_callback().set(m_adbbus, FUNC(adb_bus_device::adb_host_line_w));
 	m_adbmodem->irq_callback().set(FUNC(macii_state::adb_irq_w));
 	m_via1->cb2_handler().set(m_adbmodem, FUNC(adbmodem_device::set_via_data));
 	config.set_perfect_quantum(m_maincpu);
 
-	MACADB(config, m_macadb, C15M);
-	m_macadb->adb_data_callback().set(m_adbmodem, FUNC(adbmodem_device::set_adb_line));
+	ADB_BUS(config, m_adbbus);
+	m_adbbus->out_adb_callback().set(m_adbmodem, FUNC(adbmodem_device::set_adb_line));
+	ADB_CONNECTOR(config, "adb:0", adb_devices, "hle_keyboard");
+	ADB_CONNECTOR(config, "adb:1", adb_devices, "hle_mouse");
 
 	RAM(config, m_ram);
 	m_ram->set_default_size("2M");
@@ -1033,9 +1069,9 @@ void macii_state::macii(machine_config &config)
 	// This was fixed for the II FDHD/IIx/IIcx/SE30 ROM.
 	m_ram->set_extra_options("1M,4M,5M,8M");
 
-	SOFTWARE_LIST(config, "flop_mac35_orig").set_original("mac_flop_orig");
-	SOFTWARE_LIST(config, "flop_mac35_clean").set_original("mac_flop_clcracked");
-	SOFTWARE_LIST(config, "flop35_list").set_original("mac_flop");
+	SOFTWARE_LIST(config, "flop_mac35_orig").set_original("mac_flop_orig").set_filter("MC68020");
+	SOFTWARE_LIST(config, "flop_mac35_clean").set_original("mac_flop_clcracked").set_filter("MC68020");
+	SOFTWARE_LIST(config, "flop35_list").set_original("mac_flop").set_filter("MC68020");
 }
 
 void macii_state::maciihmu(machine_config &config)
@@ -1043,6 +1079,7 @@ void macii_state::maciihmu(machine_config &config)
 	macii(config);
 
 	M68020HMMU(config.replace(), m_maincpu, C15M);
+	m_maincpu->reset_cb().set(FUNC(macii_state::cpu_reset_w));
 	m_maincpu->set_addrmap(AS_PROGRAM, &macii_state::macii_map);
 	m_maincpu->set_dasm_override(std::function(&mac68k_dasm_override), "mac68k_dasm_override");
 
@@ -1060,7 +1097,7 @@ void macii_state::maciihd(machine_config &config)
 
 	applefdintf_device::add_35_hd(config, m_floppy[0]);
 	applefdintf_device::add_35_hd(config, m_floppy[1]);
-	SOFTWARE_LIST(config, "flop35hd_list").set_original("mac_hdflop");
+	SOFTWARE_LIST(config, "flop35hd_list").set_original("mac_hdflop").set_filter("MC68020");
 
 	// The table of valid RAM sizes is at 0x4080366E in the 97221136 ROM (II FDHD, IIx, IIcx, SE/30).
 	// Shift each byte left by 20 bits to get the size in bytes.  0x01 => 0x00100000 (1 MiB) and so on.
@@ -1073,12 +1110,17 @@ void macii_state::maciix(machine_config &config)
 
 	// IIx = Mac II FDHD with a 68030 instead of the 020
 	M68030(config.replace(), m_maincpu, C15M);
+	m_maincpu->reset_cb().set(FUNC(macii_state::cpu_reset_w));
 	m_maincpu->set_addrmap(AS_PROGRAM, &macii_state::macii_map);
 	m_maincpu->set_dasm_override(std::function(&mac68k_dasm_override), "mac68k_dasm_override");
 
 	m_via2->readpb_handler().set(FUNC(macii_state::iix_via2_in_b));
 
-	SOFTWARE_LIST(config.replace(), "cd_list").set_original("mac_cdrom").set_filter("MC68030");
+	subdevice<software_list_device>("hdd_list")->set_filter("MC68030");
+	subdevice<software_list_device>("cd_list")->set_filter("MC68030");
+	subdevice<software_list_device>("flop_mac35_orig")->set_filter("MC68030");
+	subdevice<software_list_device>("flop_mac35_clean")->set_filter("MC68030");
+	subdevice<software_list_device>("flop35_list")->set_filter("MC68030");
 }
 
 void macii_state::maciicx(machine_config &config)
@@ -1107,34 +1149,30 @@ void macii_state::macse30(machine_config &config)
 	m_via2->readpb_handler().set(FUNC(macii_state::iix_via2_in_b));
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_video_attributes(VIDEO_UPDATE_BEFORE_VBLANK);
-	m_screen->set_refresh_hz(60.15);
-	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(1260));
-	m_screen->set_size(MAC_H_TOTAL, MAC_V_TOTAL);
-	m_screen->set_visarea(0, MAC_H_VIS-1, 0, MAC_V_VIS-1);
+	m_screen->set_raw(15.6672_MHz_XTAL, MAC_H_TOTAL, 0, MAC_H_VIS, MAC_V_TOTAL, 0, MAC_V_VIS);
 	m_screen->set_screen_update(FUNC(macii_state::screen_update_macse30));
-	m_screen->set_palette(m_palette);
-
-	PALETTE(config, m_palette, palette_device::MONOCHROME_INVERTED);
 
 	config.device_remove("nb9");
 	config.device_remove("nba");
 	config.device_remove("nbb");
 	config.device_remove("nubus");
 
-	nubus_device &nubus(NUBUS(config, "pds", 0));
-	nubus.set_space(m_maincpu, AS_PROGRAM);
-	nubus.out_irq9_callback().set(FUNC(macii_state::nubus_irq_w<9>));
-	nubus.out_irqa_callback().set(FUNC(macii_state::nubus_irq_w<0xa>));
-	nubus.out_irqb_callback().set(FUNC(macii_state::nubus_irq_w<0xb>));
-	nubus.out_irqc_callback().set(FUNC(macii_state::nubus_irq_w<0xc>));
-	nubus.out_irqd_callback().set(FUNC(macii_state::nubus_irq_w<0xd>));
-	nubus.out_irqe_callback().set(FUNC(macii_state::nubus_irq_w<0xe>));
+	se30_pds_bus_device &se30bus(MACSE30_PDS_BUS(config, "pds"));
+	se30bus.set_space(m_maincpu, AS_PROGRAM);
+	se30bus.set_bus_mode(nubus_device::nubus_mode_t::SE30);
+	se30bus.set_screen_tag("screen");
+	se30bus.out_irq9_callback().set(FUNC(macii_state::nubus_irq_w<9>));
+	se30bus.out_irqa_callback().set(FUNC(macii_state::nubus_irq_w<0xa>));
+	se30bus.out_irqb_callback().set(FUNC(macii_state::nubus_irq_w<0xb>));
+	se30bus.out_irqc_callback().set(FUNC(macii_state::nubus_irq_w<0xc>));
+	se30bus.out_irqd_callback().set(FUNC(macii_state::nubus_irq_w<0xd>));
+	se30bus.out_irqe_callback().set(FUNC(macii_state::nubus_irq_w<0xe>));
 	NUBUS_SLOT(config, "pds030", "pds", mac_pds030_cards, nullptr);
 }
 
-static INPUT_PORTS_START( macadb )
+static INPUT_PORTS_START( macii )
 INPUT_PORTS_END
 
 ROM_START( macii )
@@ -1179,9 +1217,9 @@ ROM_END
 } // anonymous namespace
 
 //    YEAR  NAME       PARENT    COMPAT  MACHINE   INPUT    CLASS        INIT        COMPANY           FULLNAME
-COMP( 1987, macii,     0,        0,      macii,    macadb,  macii_state, macii_init, "Apple Computer", "Macintosh II",                 MACHINE_SUPPORTS_SAVE )
-COMP( 1987, maciihmu,  macii,    0,      maciihmu, macadb,  macii_state, macii_init, "Apple Computer", "Macintosh II (w/o 68851 MMU)", MACHINE_SUPPORTS_SAVE )
-COMP( 1988, mac2fdhd,  0,        0,      maciihd,  macadb,  macii_state, macii_init, "Apple Computer", "Macintosh II (FDHD)",          MACHINE_SUPPORTS_SAVE )
-COMP( 1988, maciix,    mac2fdhd, 0,      maciix,   macadb,  macii_state, macii_init, "Apple Computer", "Macintosh IIx",                MACHINE_SUPPORTS_SAVE )
-COMP( 1989, macse30,   mac2fdhd, 0,      macse30,  macadb,  macii_state, macii_init, "Apple Computer", "Macintosh SE/30",              MACHINE_SUPPORTS_SAVE )
-COMP( 1989, maciicx,   mac2fdhd, 0,      maciicx,  macadb,  macii_state, macii_init, "Apple Computer", "Macintosh IIcx",               MACHINE_SUPPORTS_SAVE )
+COMP( 1987, macii,     0,        0,      macii,    macii,   macii_state, macii_init, "Apple Computer", "Macintosh II",                 MACHINE_SUPPORTS_SAVE )
+COMP( 1987, maciihmu,  macii,    0,      maciihmu, macii,   macii_state, macii_init, "Apple Computer", "Macintosh II (w/o 68851 MMU)", MACHINE_SUPPORTS_SAVE )
+COMP( 1988, mac2fdhd,  0,        0,      maciihd,  macii,   macii_state, macii_init, "Apple Computer", "Macintosh II (FDHD)",          MACHINE_SUPPORTS_SAVE )
+COMP( 1988, maciix,    mac2fdhd, 0,      maciix,   macii,   macii_state, macii_init, "Apple Computer", "Macintosh IIx",                MACHINE_SUPPORTS_SAVE )
+COMP( 1989, macse30,   mac2fdhd, 0,      macse30,  macii,   macii_state, macii_init, "Apple Computer", "Macintosh SE/30",              MACHINE_SUPPORTS_SAVE )
+COMP( 1989, maciicx,   mac2fdhd, 0,      maciicx,  macii,   macii_state, macii_init, "Apple Computer", "Macintosh IIcx",               MACHINE_SUPPORTS_SAVE )

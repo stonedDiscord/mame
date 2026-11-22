@@ -76,7 +76,6 @@ TODO:
 
 #include "emu.h"
 
-
 #include "cpu/z80/z80.h"
 #include "machine/nvram.h"
 #include "sound/ay8910.h"
@@ -107,7 +106,7 @@ public:
 	void init_lvcardsa();
 
 protected:
-	virtual void video_start() override;
+	virtual void video_start() override ATTR_COLD;
 
 	void videoram_w(offs_t offset, uint8_t data);
 	void colorram_w(offs_t offset, uint8_t data);
@@ -123,9 +122,9 @@ private:
 	TILE_GET_INFO_MEMBER(get_bg_tile_info);
 	void palette(palette_device &palette) const;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
-	void io_map(address_map &map);
-	void lvcards_map(address_map &map);
-	void lvcardsa_decrypted_opcodes_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
+	void lvcards_map(address_map &map) ATTR_COLD;
+	void lvcardsa_decrypted_opcodes_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -141,16 +140,16 @@ public:
 	void ponttehk(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	void control_port_2_w(uint8_t data);
 	void control_port_2a_w(uint8_t data);
 	uint8_t payout_r();
 
-	void lvpoker_map(address_map &map);
-	void ponttehk_map(address_map &map);
+	void lvpoker_map(address_map &map) ATTR_COLD;
+	void ponttehk_map(address_map &map) ATTR_COLD;
 
 	required_ioport m_in2;
 
@@ -325,8 +324,8 @@ void lvcards_state::lvcards_map(address_map &map)
 void lvcards_state::io_map(address_map &map)
 {
 	map.global_mask(0xff);
-	map(0x00, 0x00).r("aysnd", FUNC(ay8910_device::data_r));
-	map(0x00, 0x01).w("aysnd", FUNC(ay8910_device::data_address_w));
+	map(0x00, 0x00).r("aysnd", FUNC(ym2149_device::data_r));
+	map(0x00, 0x01).w("aysnd", FUNC(ym2149_device::data_address_w));
 }
 
 void lvcards_state::lvcardsa_decrypted_opcodes_map(address_map &map)
@@ -505,7 +504,7 @@ static INPUT_PORTS_START( lvpoker )
 	PORT_DIPSETTING(    0x18, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 1C_5C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_6C ) )
-	PORT_DIPSETTING(    0x00, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x00, DEF_STR( 1C_10C ) )
 	PORT_DIPNAME( 0x40, 0x40, "Coin C (Service Switch)" )
 	PORT_DIPSETTING(    0x40, "1 Push/1 Credit" )
 	PORT_DIPSETTING(    0x00, "1 Push/10 Credits" )
@@ -583,7 +582,7 @@ static INPUT_PORTS_START( ponttehk )
 	PORT_DIPSETTING(    0x18, DEF_STR( 1C_4C ) )
 	PORT_DIPSETTING(    0x10, DEF_STR( 1C_5C ) )
 	PORT_DIPSETTING(    0x08, DEF_STR( 1C_6C ) )
-	PORT_DIPSETTING(    0x00, "1 Coin/10 Credits" )
+	PORT_DIPSETTING(    0x00, DEF_STR( 1C_10C ) )
 	PORT_DIPNAME( 0x40, 0x40, "Coin C (Service Switch)" )
 	PORT_DIPSETTING(    0x40, "1 Push/1 Credit" )
 	PORT_DIPSETTING(    0x00, "1 Push/10 Credits" )
@@ -609,7 +608,7 @@ void lvcards_state::lvcards(machine_config &config)
 	m_maincpu->set_vblank_int("screen", FUNC(lvcards_state::irq0_line_hold));
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	screen.set_size(32*8, 32*8);
@@ -623,7 +622,8 @@ void lvcards_state::lvcards(machine_config &config)
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
 
-	ay8910_device &aysnd(AY8910(config, "aysnd", 18'432'000 / 12)); // unknown frequency, assume same as tehkanwc.cpp
+	// unknown frequency, assume same as tehkanwc.cpp
+	ym2149_device &aysnd(YM2149(config, "aysnd", 18'432'000 / 12));
 	aysnd.port_a_read_callback().set_ioport("DSW0");
 	aysnd.port_b_read_callback().set_ioport("DSW1");
 	aysnd.add_route(ALL_OUTPUTS, "mono", 0.25);

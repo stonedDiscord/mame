@@ -118,8 +118,8 @@ public:
 	void falco500(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<z80_device> m_maincpu;
@@ -132,9 +132,9 @@ private:
 	required_shared_ptr<uint8_t> m_charram;
 	required_device<f5220_kbd_device> m_kbd;
 
-	void mem_map(address_map &map);
-	void bank_map(address_map &map);
-	void io_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
+	void bank_map(address_map &map) ATTR_COLD;
+	void io_map(address_map &map) ATTR_COLD;
 
 	uint8_t asic_data_r();
 	uint8_t asic_status_r();
@@ -302,7 +302,7 @@ void falco500_state::asic_mode_w(uint8_t data)
 
 	// timing wrong
 	rectangle visarea(0, (BIT(data, 0) ? 1320 : 1120) - 1, 0, 400 - 1);
-	m_screen->configure(1500, 422, visarea, HZ_TO_ATTOSECONDS(60));
+	m_screen->configure(1500, 422, visarea, attotime::from_hz(60));
 }
 
 void falco500_state::kbd_int_w(int state)
@@ -369,7 +369,7 @@ uint32_t falco500_state::screen_update(screen_device &screen, bitmap_rgb32 &bitm
 		line_height++;
 
 		// safety check to prevent writing out of bounds
-		if (y + line_height > (cliprect.max_y + 1))
+		if (y + line_height > (cliprect.bottom() + 1))
 			return 0;
 
 		if (BIT(la3, 4))
@@ -577,7 +577,7 @@ void falco500_state::falco500(machine_config &config)
 
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0); // CXK5864AP-10L + battery
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_color(rgb_t::amber());
 	m_screen->set_raw(37.98_MHz_XTAL, 1500, 0, 800, 422, 0, 400); // 25.32 kHz/60 Hz confirmed
 	m_screen->set_screen_update(FUNC(falco500_state::screen_update));
@@ -656,5 +656,5 @@ ROM_END
 
 //    YEAR  NAME        PARENT      COMPAT  MACHINE   INPUT  CLASS            INIT        COMPANY                FULLNAME       FLAGS
 COMP( 1987, falco5220e, 0,          0,      falco500, 0,     falco500_state, empty_init, "Falco Data Products", "Falco 5220e", MACHINE_NOT_WORKING | MACHINE_SUPPORTS_SAVE )
-COMP( 1991, falco500e,  falco5220e, 0,      falco500, 0,     falco500_state, empty_init, "Falco Data Products", "Falco 500e",  MACHINE_IS_SKELETON )
-COMP( 1989, falco5220s, falco5220e, 0,      falco500, 0,     falco500_state, empty_init, "Falco Data Products", "Falco 5220s", MACHINE_IS_SKELETON )
+COMP( 1991, falco500e,  falco5220e, 0,      falco500, 0,     falco500_state, empty_init, "Falco Data Products", "Falco 500e",  MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+COMP( 1989, falco5220s, falco5220e, 0,      falco500, 0,     falco500_state, empty_init, "Falco Data Products", "Falco 5220s", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

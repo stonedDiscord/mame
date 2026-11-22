@@ -1,4 +1,4 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE softwarelist SYSTEM "softwarelist.dtd">
 <!--
 license:CC0-1.0
@@ -2489,7 +2489,7 @@ The following floppies came with the machines.
 	<software name="chukatai">
 		<description>Chuka Taisen (Japan)</description>
 		<year>1988</year>
-		<publisher>Hot-B</publisher>
+		<publisher>Hot-B Co.</publisher>
 		<info name="alt_title" value="中華大仙"/>
 		<info name="serial" value="MXHB-22002"/>
 		<info name="gtin" value="04967948000225"/>
@@ -2503,7 +2503,7 @@ The following floppies came with the machines.
 	<software name="chukataia" cloneof="chukatai">
 		<description>Chuka Taisen (Japan, alt)</description>
 		<year>1988</year>
-		<publisher>Hot-B</publisher>
+		<publisher>Hot-B Co.</publisher>
 		<info name="alt_title" value="中華大仙"/>
 		<info name="serial" value="MXHB-22002"/>
 		<info name="gtin" value="04967948000225"/>
@@ -2517,7 +2517,7 @@ The following floppies came with the machines.
 	<software name="chukataib" cloneof="chukatai">
 		<description>Chuka Taisen (Japan, alt 2)</description>
 		<year>1988</year>
-		<publisher>Hot-B</publisher>
+		<publisher>Hot-B Co.</publisher>
 		<info name="alt_title" value="中華大仙"/>
 		<info name="serial" value="MXHB-22002"/>
 		<info name="gtin" value="04967948000225"/>
@@ -3308,6 +3308,18 @@ The following floppies came with the machines.
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="737280">
 				<rom name="dante yuushuu sakuhin cross kingdom - msx magazine.dsk" size="737280" crc="5b38db6d" sha1="9ff9b9f932588b979725c72690540eddac53b50f"/>
+			</dataarea>
+		</part>
+	</software>
+
+	<!-- Released via the Takeru kiosk disk vending service. -->
+	<software name="darkcast">
+		<description>Dark Castle (Japan)</description>
+		<year>1993</year>
+		<publisher>Brother Industries</publisher>
+		<part name="flop1" interface="floppy_3_5">
+			<dataarea name="flop" size="737280">
+				<rom name="dark castle.dsk" size="737280" crc="E13EF70A" sha1="2303A28D6B73D0B5D404D1915C3CB0A26B67A40F" />
 			</dataarea>
 		</part>
 	</software>
@@ -8801,7 +8813,7 @@ The following floppies came with the machines.
 	</software>
 
 	<software name="inindo">
-		<description>Inindou - Datou Nobunaga (Japan)</description>
+		<description>Inindou: Datou Nobunaga (Japan)</description>
 		<year>1991</year>
 		<publisher>Koei</publisher>
 		<info name="alt_title" value="伊忍道打倒信長"/>
@@ -8829,7 +8841,7 @@ The following floppies came with the machines.
 	</software>
 
 	<software name="inindoa" cloneof="inindo">
-		<description>Inindou - Datou Nobunaga (Japan, alt)</description>
+		<description>Inindou: Datou Nobunaga (Japan, alt)</description>
 		<year>1991</year>
 		<publisher>Koei</publisher>
 		<info name="alt_title" value="伊忍道打倒信長"/>
@@ -12017,7 +12029,7 @@ The following floppies came with the machines.
 	<software name="palameds">
 		<description>Palamedes (Japan)</description>
 		<year>1990</year>
-		<publisher>Hot-B</publisher>
+		<publisher>Hot-B Co.</publisher>
 		<info name="alt_title" value="パラメデス"/>
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="737280">
@@ -12029,7 +12041,7 @@ The following floppies came with the machines.
 	<software name="palamedsa" cloneof="palameds">
 		<description>Palamedes (Japan, alt)</description>
 		<year>1990</year>
-		<publisher>Hot-B</publisher>
+		<publisher>Hot-B Co.</publisher>
 		<info name="alt_title" value="パラメデス"/>
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="368640">
@@ -12042,7 +12054,7 @@ The following floppies came with the machines.
 	<software name="palamedsb" cloneof="palameds">
 		<description>Palamedes (Japan, alt 2)</description>
 		<year>1990</year>
-		<publisher>Hot-B</publisher>
+		<publisher>Hot-B Co.</publisher>
 		<info name="alt_title" value="パラメデス"/>
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="737280">
@@ -15832,7 +15844,7 @@ The following floppies came with the machines.
 	<software name="sshangh">
 		<description>Super Shanghai - Dragon's Eye (Japan)</description>
 		<year>1991</year>
-		<publisher>Hot-B</publisher>
+		<publisher>Hot-B Co.</publisher>
 		<info name="usage" value="Requires a system with Kanji ROM."/>
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="737280">
@@ -19197,7 +19209,7 @@ HOMEBREW
 		<description>ASO Remake (UK?)</description>
 		<year>2012</year>
 		<publisher>&lt;homebrew&gt;</publisher>
-		<info name="developer" value="sharksym " />
+		<info name="developer" value="sharksym" />
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="737280">
 				<rom name="aso_remake_20120205.dsk" size="737280" crc="63505503" sha1="01a2285990d33a927c266812097139a4a443b10d"/>
@@ -24190,7 +24202,8 @@ HOMEBREW
 		<description>Pumpkin Adventure III (Netherlands, demo)</description>
 		<year>1995</year>
 		<publisher>&lt;homebrew&gt;</publisher>
-		<info name="developer" value="Umax / Sunrise" />
+		<info name="developer" value="Umax" />
+		<info name="developer" value="Sunrise" />
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="737280">
 				<rom name="pumpkin adventure iii (demo) (1995)(umax)(nl).dsk" size="737280" crc="74644973" sha1="13f80299e5567c96859fe2ae9a26e935374d9b41"/>
@@ -24202,7 +24215,8 @@ HOMEBREW
 		<description>Pumpkin Adventure III (Netherlands, demo, alt)</description>
 		<year>1995</year>
 		<publisher>&lt;homebrew&gt;</publisher>
-		<info name="developer" value="Umax / Sunrise" />
+		<info name="developer" value="Umax" />
+		<info name="developer" value="Sunrise" />
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="737280">
 				<rom name="pumpkin adventure iii (demo) (1995)(umax)(nl)[a].dsk" size="737280" crc="cf8f48ac" sha1="15137daead8f3b2d15d2ed9ac154a6a4dbe68d74"/>
@@ -24328,7 +24342,8 @@ HOMEBREW
 		<description>Quinch (Netherlands)</description>
 		<year>1993</year>
 		<publisher>&lt;homebrew&gt;</publisher>
-		<info name="developer" value="MCE/MSCV" />
+		<info name="developer" value="MCE" />
+		<info name="developer" value="MSCV" />
 		<part name="flop1" interface="floppy_3_5">
 			<dataarea name="flop" size="737280">
 				<rom name="quinch (19xx)(mcev).dsk" size="737280" crc="500f39a1" sha1="dfe3cd2fe5a74bccb9dddfa5a9491737e94d9b77"/>

@@ -43,7 +43,7 @@ public:
 	IRQ_CALLBACK_MEMBER(inta_cb);
 
 protected:
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 };
 
 DEFINE_DEVICE_TYPE(F1_DAISY, f1_daisy_device, "f1_daisy", "F1 daisy chain abstraction")
@@ -92,7 +92,7 @@ public:
 private:
 	static void floppy_formats(format_registration &fr);
 
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<z80ctc_device> m_ctc;
@@ -124,8 +124,8 @@ private:
 	int m_width80 = 0;
 	int m_lines200 = 0;
 
-	void main_io(address_map &map);
-	void main_map(address_map &map);
+	void main_io(address_map &map) ATTR_COLD;
+	void main_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -392,7 +392,7 @@ void f1_state::act_f1(machine_config &config)
 	syslatch.q_out_cb<7>().set(m_centronics, FUNC(centronics_device::write_strobe)).invert();
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(14_MHz_XTAL, 896, 0, 640, 312, 0, 256);
 	//screen.set_raw(14_MHz_XTAL, 896, 0, 640, 260, 0, 200);
 	screen.set_screen_update(FUNC(f1_state::screen_update));
@@ -403,7 +403,7 @@ void f1_state::act_f1(machine_config &config)
 	GFXDECODE(config, "gfxdecode", m_palette, gfx_act_f1);
 
 	/* Devices */
-	APRICOT_KEYBOARD(config, APRICOT_KEYBOARD_TAG, 0);
+	APRICOT_KEYBOARD(config, APRICOT_KEYBOARD_TAG);
 
 	Z80SIO(config, m_sio, CLK5 / 2); // Z80-CTC @ 13D
 	m_sio->out_txda_callback().set("speaker", FUNC(speaker_sound_device::level_w));

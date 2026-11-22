@@ -55,9 +55,9 @@ protected:
 
 	u8 m_mpb;
 
-	void mainmap(address_map &map);
-	void submap(address_map &map);
-	void lcdmap(address_map &map);
+	void mainmap(address_map &map) ATTR_COLD;
+	void submap(address_map &map) ATTR_COLD;
+	void lcdmap(address_map &map) ATTR_COLD;
 
 	u8 mlatch_r();
 	void mlatch_w(u8 data);
@@ -76,7 +76,7 @@ protected:
 
 	void lcd_palette(palette_device &palette) const;
 
-	void machine_start() override;
+	void machine_start() override ATTR_COLD;
 };
 
 class eos_b900_state : public qs300_state
@@ -214,8 +214,8 @@ void qs300_state::qs300(machine_config &config)
 	m_subcpu->read_porta().set(FUNC(qs300_state::spa_r));
 
 	SWP00(config, m_swp00);
-	m_swp00->add_route(0, "lspeaker", 1.0);
-	m_swp00->add_route(1, "rspeaker", 1.0);
+	m_swp00->add_route(0, "speaker", 1.0, 0);
+	m_swp00->add_route(1, "speaker", 1.0, 1);
 
 	T6963C(config, m_lcdc, 270000);
 	m_lcdc->set_addrmap(0, &qs300_state::lcdmap);
@@ -224,7 +224,7 @@ void qs300_state::qs300(machine_config &config)
 
 	PALETTE(config, "palette", FUNC(qs300_state::lcd_palette), 2);
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device &screen(SCREEN(config, "screen").set_lcd());
 	screen.set_refresh_hz(60);
 	screen.set_size(240, 80);
 	screen.set_visarea(0, 239, 0, 63);
@@ -233,8 +233,7 @@ void qs300_state::qs300(machine_config &config)
 
 	NVRAM(config, m_nvram, nvram_device::DEFAULT_NONE);
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	auto &mdin(MIDI_PORT(config, "mdin"));
 	midiin_slot(mdin);
@@ -380,5 +379,5 @@ ROM_END
 
 } // anonymous namespace
 
-SYST( 1999, qs300,       0, 0, qs300, qs300, qs300_state,    empty_init, "Yamaha", "QS300",    MACHINE_NOT_WORKING )
-SYST( 1999, eosb900, qs300, 0, qs300, qs300, eos_b900_state, empty_init, "Yamaha", "EOS B900", MACHINE_NOT_WORKING )
+SYST( 1999, qs300,       0, 0, qs300, qs300, qs300_state,    empty_init, "Yamaha", "QS300 Music Production Synthesizer",    MACHINE_NOT_WORKING )
+SYST( 1999, eosb900, qs300, 0, qs300, qs300, eos_b900_state, empty_init, "Yamaha", "EOS B900 Music Production Synthesizer", MACHINE_NOT_WORKING )

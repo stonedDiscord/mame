@@ -64,17 +64,17 @@ public:
 private:
 	uint8_t keyboard_r(offs_t offset);
 	void latch_w(uint8_t data);
-	void machine_start() override;
-	void machine_reset() override;
+	void machine_start() override ATTR_COLD;
+	void machine_reset() override ATTR_COLD;
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 	TIMER_CALLBACK_MEMBER(gal_video);
 	IRQ_CALLBACK_MEMBER(irq_callback);
 	void set_timer();
 	void setup_snapshot (const uint8_t * data, uint32_t size);
 	DECLARE_SNAPSHOT_LOAD_MEMBER(snapshot_cb);
-	void galaxy_mem(address_map &map);
-	void galaxyp_io(address_map &map);
-	void galaxyp_mem(address_map &map);
+	void galaxy_mem(address_map &map) ATTR_COLD;
+	void galaxyp_io(address_map &map) ATTR_COLD;
+	void galaxyp_mem(address_map &map) ATTR_COLD;
 
 	int m_interrupts_enabled = 0;
 	uint8_t m_latch_value = 0U;
@@ -490,7 +490,7 @@ void galaxy_state::galaxy(machine_config &config)
 	m_maincpu->set_irq_acknowledge_callback(FUNC(galaxy_state::irq_callback));
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(50);
 	m_screen->set_palette("palette");
 	m_screen->set_size(384, 212);
@@ -527,7 +527,7 @@ void galaxy_state::galaxyp(machine_config &config)
 	m_maincpu->set_irq_acknowledge_callback(FUNC(galaxy_state::irq_callback));
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(50);
 	m_screen->set_palette("palette");
 	m_screen->set_size(384, 208);

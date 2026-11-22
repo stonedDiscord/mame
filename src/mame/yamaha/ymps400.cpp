@@ -32,7 +32,7 @@ public:
 	void ps400(machine_config &config);
 
 private:
-	void ps400_map(address_map &map);
+	void ps400_map(address_map &map) ATTR_COLD;
 
 	required_device<i8039_device> m_maincpu;
 };
@@ -64,5 +64,5 @@ ROM_END
 
 } // anonymous namespace
 
-//    YEAR  NAME     PARENT  COMPAT  MACHINE  INPUT   CLASS        INIT         COMPANY   FULLNAME  FLAGS
-SYST( 1982, ps400,   0,      0,      ps400,   ps400,  ps400_state, empty_init,  "Yamaha", "PS-400", MACHINE_IS_SKELETON )
+//    YEAR  NAME     PARENT  COMPAT  MACHINE  INPUT   CLASS        INIT         COMPANY   FULLNAME             FLAGS
+SYST( 1982, ps400,   0,      0,      ps400,   ps400,  ps400_state, empty_init,  "Yamaha", "PortaSound PS-400", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

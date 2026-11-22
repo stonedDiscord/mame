@@ -20,12 +20,12 @@
 #include "formats/dsk_dsk.h"
 #include "formats/pc_dsk.h"
 #include "formats/ipf_dsk.h"
+#include "formats/86f_dsk.h"
 
 #include "formats/fs_unformatted.h"
 #include "formats/fsblk_vec.h"
 
 #include "softlist_dev.h"
-#include "speaker.h"
 
 #include "formats/imageutl.h"
 
@@ -35,28 +35,28 @@
 
 #include <algorithm>
 
-/*
-    Debugging flags. Set to 0 or 1.
-*/
+// Some debug output
 
-// Show step operation
-#define TRACE_STEP 0
-#define TRACE_AUDIO 0
+#define LOG_STEP        (1U << 1)
+#define LOG_MACDRIVE    (1U << 2)
+#define VERBOSE 0
 
-#define PITCH_SEEK_SAMPLES 1
+#include "logmacro.h"
 
-#define FLUX_SCREEN 0
-
-#define FLOPSND_TAG "floppysound"
+#define FLOPSND_TAG "flopsnd"
 
 // device type definition
 DEFINE_DEVICE_TYPE(FLOPPY_CONNECTOR, floppy_connector, "floppy_connector", "Floppy drive connector abstraction")
 
 // generic 3" drives
-DEFINE_DEVICE_TYPE(FLOPPY_3_SSDD, floppy_3_ssdd, "floppy_3_ssdd", "3\" single-sided floppy drive")
-DEFINE_DEVICE_TYPE(FLOPPY_3_DSDD, floppy_3_dsdd, "floppy_3_dsdd", "3\" double-sided floppy drive")
+DEFINE_DEVICE_TYPE(FLOPPY_3_SSSD, floppy_3_sssd, "floppy_3_sssd", "3\" single-sided single density floppy drive")
+DEFINE_DEVICE_TYPE(FLOPPY_3_DSSD, floppy_3_dssd, "floppy_3_dssd", "3\" double-sided single density floppy drive")
+DEFINE_DEVICE_TYPE(FLOPPY_3_SSDD, floppy_3_ssdd, "floppy_3_ssdd", "3\" single-sided double density floppy drive")
+DEFINE_DEVICE_TYPE(FLOPPY_3_DSDD, floppy_3_dsdd, "floppy_3_dsdd", "3\" double-sided double density floppy drive")
+DEFINE_DEVICE_TYPE(FLOPPY_3_DSQD, floppy_3_dsqd, "floppy_3_dsqd", "3\" double-sided quad density floppy drive")
 
 // generic 3.5" drives
+DEFINE_DEVICE_TYPE(FLOPPY_35_SSSD, floppy_35_sssd, "floppy_35_sssd", "3.5\" single-sided single density floppy drive")
 DEFINE_DEVICE_TYPE(FLOPPY_35_SSDD, floppy_35_ssdd, "floppy_35_ssdd", "3.5\" single-sided double density floppy drive")
 DEFINE_DEVICE_TYPE(FLOPPY_35_DD,   floppy_35_dd,   "floppy_35_dd",   "3.5\" double density floppy drive")
 DEFINE_DEVICE_TYPE(FLOPPY_35_HD,   floppy_35_hd,   "floppy_35_hd",   "3.5\" high density floppy drive")
@@ -66,6 +66,7 @@ DEFINE_DEVICE_TYPE(FLOPPY_35_ED,   floppy_35_ed,   "floppy_35_ed",   "3.5\" exte
 DEFINE_DEVICE_TYPE(FLOPPY_525_SSSD_35T, floppy_525_sssd_35t, "floppy_525_sssd_35t", "5.25\" single-sided single density 35-track floppy drive")
 DEFINE_DEVICE_TYPE(FLOPPY_525_SD_35T,   floppy_525_sd_35t,   "floppy_525_sd_35t",   "5.25\" double-sided single density 35-track floppy drive")
 DEFINE_DEVICE_TYPE(FLOPPY_525_VTECH,    floppy_525_vtech,    "floppy_525_vtech",    "5.25\" single-sided single density VTECH floppy drive")
+DEFINE_DEVICE_TYPE(FLOPPY_525_COMPUCOLOR, floppy_525_compucolor, "floppy_525_compucolor", "5.25\" single-sided single density Compucolor floppy drive")
 DEFINE_DEVICE_TYPE(FLOPPY_525_SSSD,     floppy_525_sssd,     "floppy_525_sssd",     "5.25\" single-sided single density floppy drive")
 DEFINE_DEVICE_TYPE(FLOPPY_525_SD,       floppy_525_sd,       "floppy_525_sd",       "5.25\" single density floppy drive")
 DEFINE_DEVICE_TYPE(FLOPPY_525_SSDD,     floppy_525_ssdd,     "floppy_525_ssdd",     "5.25\" single-sided double density floppy drive")
@@ -122,6 +123,7 @@ DEFINE_DEVICE_TYPE(EPSON_SD_680L, epson_sd_680l, "epson_sd_680l", "EPSON SD-680L
 
 // Panasonic 3.5" drive
 DEFINE_DEVICE_TYPE(PANA_JU_363, pana_ju_363, "pana_ju_363", "Panasonic JU-363 Flexible Disk Drive")
+DEFINE_DEVICE_TYPE(PANA_JU_386, pana_ju_386, "pana_ju_386", "Panasonic JU-386 Flexible Disk Drive")
 
 // Sony 3.5" drives
 DEFINE_DEVICE_TYPE(SONY_OA_D31V, sony_oa_d31v, "sony_oa_d31v", "Sony OA-D31V Micro Floppydisk Drive")
@@ -149,6 +151,9 @@ DEFINE_DEVICE_TYPE(OAD34V, oa_d34v_device, "oa_d34v", "Apple/Sony 3.5 SD (400K G
 DEFINE_DEVICE_TYPE(MFD51W, mfd51w_device,  "mfd51w",  "Apple/Sony 3.5 DD (400/800K GCR)")
 DEFINE_DEVICE_TYPE(MFD75W, mfd75w_device,  "mfd75w",  "Apple/Sony 3.5 HD (Superdrive)")
 
+// Apple Twiggy 5.25" drive
+DEFINE_DEVICE_TYPE(FLOPPY_TWIGGY, floppy_twiggy, "floppy_twiggy", "5.25\" twiggy drive")
+
 
 format_registration::format_registration()
 {
@@ -163,6 +168,7 @@ void format_registration::add_fm_containers()
 	add(FLOPPY_MFM_FORMAT);
 	add(FLOPPY_TD0_FORMAT);
 	add(FLOPPY_IMD_FORMAT);
+	add(FLOPPY_86F_FORMAT);
 }
 
 void format_registration::add_mfm_containers()
@@ -211,12 +217,35 @@ floppy_connector::floppy_connector(const machine_config &mconfig, const char *ta
 	device_t(mconfig, FLOPPY_CONNECTOR, tag, owner, clock),
 	device_slot_interface(mconfig, *this),
 	formats(nullptr),
-	m_enable_sound(false)
+	m_use_sound(false),
+	m_sample_set(nullptr),
+	m_media_change_time(attotime::zero)
 {
 }
 
 floppy_connector::~floppy_connector()
 {
+}
+
+//-------------------------------------------
+// Activate floppy sounds with default lists
+//-------------------------------------------
+
+void floppy_connector::enable_sound(bool use_sound)
+{
+	m_use_sound = use_sound;
+	if (use_sound) enable_sound(nullptr);
+}
+
+//------------------------------------------------------
+// Activate floppy sounds with lists for various formats
+//------------------------------------------------------
+
+void floppy_connector::enable_sound(const char *samplename)
+{
+	if (samplename == nullptr) samplename = "default";
+	m_sample_set = samplename;
+	m_use_sound = true;
 }
 
 void floppy_connector::device_start()
@@ -229,7 +258,8 @@ void floppy_connector::device_config_complete()
 	if(dev)
 	{
 		dev->set_formats(formats);
-		dev->enable_sound(m_enable_sound);
+		dev->set_sectoring_type(m_sectoring_type);
+		dev->set_media_change_time(m_media_change_time);
 	}
 }
 
@@ -242,33 +272,41 @@ floppy_image_device *floppy_connector::get_device()
 //  floppy_image_device - constructor
 //-------------------------------------------------
 
-floppy_image_device::floppy_image_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock)
-	: device_t(mconfig, type, tag, owner, clock),
-		device_image_interface(mconfig, *this),
-		m_input_format(nullptr),
-		m_output_format(nullptr),
-		m_image(),
-		m_index_timer(nullptr),
-		m_tracks(0),
-		m_sides(0),
-		m_form_factor(0),
-		m_motor_always_on(false),
-		m_dskchg_writable(false),
-		m_has_trk00_sensor(true),
-		m_dir(0), m_stp(0), m_wtg(0), m_mon(0), m_ss(0), m_ds(-1), m_idx(0), m_wpt(0), m_rdy(0), m_dskchg(0),
-		m_ready(false),
-		m_rpm(0),
-		m_angular_speed(0),
-		m_revolution_count(0),
-		m_cyl(0),
-		m_subcyl(0),
-		m_amplifier_freakout_time(attotime::from_usec(16)),
-		m_image_dirty(false),
-		m_track_dirty(false),
-		m_ready_counter(0),
-		m_make_sound(false),
-		m_sound_out(nullptr),
-		m_flux_screen(*this, "flux")
+floppy_image_device::floppy_image_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock) :
+	device_t(mconfig, type, tag, owner, clock),
+	device_image_interface(mconfig, *this),
+	m_input_format(nullptr),
+	m_output_format(nullptr),
+	m_image(),
+	m_index_timer(nullptr),
+	m_tracks(0),
+	m_sides(0),
+	m_form_factor(0),
+	m_sectoring_type(floppy_image::SOFT),
+	m_motor_always_on(false),
+	m_dskchg_writable(false),
+	m_has_trk00_sensor(true),
+	m_media_change_time(attotime::zero),
+	m_dir(0), m_stp(0), m_wtg(0), m_mon(1), m_ss(0), m_ds(-1), m_idx(0), m_wpt(0), m_rdy(0), m_dskchg(0),
+	m_ready(false),
+	m_media_changing(false),
+	m_media_change_wpt(false),
+	m_rpm(0),
+	m_angular_speed(0),
+	m_revolution_count(0),
+	m_stopped_position(0),
+	m_cyl(0),
+	m_subcyl(0),
+	m_amplifier_freakout_time(attotime::from_usec(16)),
+	m_image_dirty(false),
+	m_track_dirty(false),
+	m_writing(false),
+	m_write_cyl(0),
+	m_write_ss(0),
+	m_write_subcyl(0),
+	m_ready_counter(0),
+	m_make_sound(false),
+	m_sound_out(*this, FLOPSND_TAG)
 {
 	m_extension_list[0] = '\0';
 }
@@ -361,6 +399,72 @@ void floppy_image_device::register_formats()
 	}
 }
 
+void floppy_image_device::add_variant(uint32_t variant)
+{
+	uint32_t actual_variant = variant;
+
+	if (m_sectoring_type == floppy_image::H10) {
+		switch (variant) {
+		case floppy_image::SSSD:
+			actual_variant = floppy_image::SSSD10;
+			break;
+		case floppy_image::SSDD:
+			actual_variant = floppy_image::SSDD10;
+			break;
+		case floppy_image::SSQD:
+			actual_variant = floppy_image::SSQD10;
+			break;
+		case floppy_image::DSSD:
+			actual_variant = floppy_image::DSSD10;
+			break;
+		case floppy_image::DSDD:
+			actual_variant = floppy_image::DSDD10;
+			break;
+		case floppy_image::DSQD:
+			actual_variant = floppy_image::DSQD10;
+			break;
+		}
+	} else if (m_sectoring_type == floppy_image::H16) {
+		switch (variant) {
+		case floppy_image::SSSD:
+			actual_variant = floppy_image::SSDD16;
+			break;
+		case floppy_image::SSDD:
+			actual_variant = floppy_image::SSSD16;
+			break;
+		case floppy_image::SSQD:
+			actual_variant = floppy_image::SSQD16;
+			break;
+		case floppy_image::DSSD:
+			actual_variant = floppy_image::DSSD16;
+			break;
+		case floppy_image::DSDD:
+			actual_variant = floppy_image::DSDD16;
+			break;
+		case floppy_image::DSQD:
+			actual_variant = floppy_image::DSQD16;
+			break;
+		}
+	} else if (m_sectoring_type == floppy_image::H32) {
+		switch (variant) {
+		case floppy_image::SSSD:
+			actual_variant = floppy_image::SSSD32;
+			break;
+		case floppy_image::SSDD:
+			actual_variant = floppy_image::SSDD32;
+			break;
+		case floppy_image::DSSD:
+			actual_variant = floppy_image::DSSD32;
+			break;
+		case floppy_image::DSDD:
+			actual_variant = floppy_image::DSDD32;
+			break;
+		}
+	}
+
+	m_variants.push_back(actual_variant);
+}
+
 void floppy_image_device::set_formats(std::function<void (format_registration &fr)> formats)
 {
 	m_format_registration_cb = formats;
@@ -386,6 +490,16 @@ void floppy_image_device::set_rpm(float _rpm)
 	m_angular_speed = m_rpm/60.0*2e8;
 }
 
+void floppy_image_device::set_sectoring_type(uint32_t sectoring_type)
+{
+	m_sectoring_type = sectoring_type;
+}
+
+uint32_t floppy_image_device::get_sectoring_type()
+{
+	return m_sectoring_type;
+}
+
 void floppy_image_device::setup_write(const floppy_image_format_t *_output_format)
 {
 	m_output_format = _output_format;
@@ -395,11 +509,8 @@ void floppy_image_device::setup_write(const floppy_image_format_t *_output_forma
 
 void floppy_image_device::commit_image()
 {
-	if(FLUX_SCREEN && m_track_dirty) {
-		flux_image_compute_for_track(((m_cyl << 2) | m_subcyl) >> (2 - m_image->get_resolution()), m_ss);
-		m_track_dirty = false;
-	}
-
+	if(m_writing)
+		write_do_flush(machine().time());
 	m_image_dirty = false;
 	if(!m_output_format || !m_output_format->supports_save())
 		return;
@@ -434,7 +545,6 @@ const software_list_loader &floppy_image_device::get_software_list_loader() cons
 	return image_software_list_loader::instance();
 }
 
-
 //-------------------------------------------------
 //  device_start - device-specific startup
 //-------------------------------------------------
@@ -451,20 +561,26 @@ void floppy_image_device::device_start()
 
 	m_cyl = 0;
 	m_subcyl = 0;
-	m_ss  = 0;
+	m_ss = 0;
 	m_actual_ss = 0;
 	m_ds = -1;
 	m_stp = 1;
 	m_wpt = 0;
 	m_dskchg = exists() ? 1 : 0;
 	m_index_timer = timer_alloc(FUNC(floppy_image_device::index_resync), this);
+	m_media_change_timer = timer_alloc(FUNC(floppy_image_device::media_change_done), this);
 	m_image_dirty = false;
 	m_ready = true;
 	m_ready_counter = 0;
 	m_phases = 0;
 
-
-	if (m_make_sound) m_sound_out = subdevice<floppy_sound_device>(FLOPSND_TAG);
+	floppy_connector *conn = dynamic_cast<floppy_connector*>(device().owner());
+	if (conn != nullptr)  // just in case that the floppy connects to something else
+	{
+		m_make_sound = conn->use_sound();
+		if (m_make_sound)
+			m_sound_out->set_samples(conn->get_samples_name(), m_form_factor, m_tracks);
+	}
 
 	save_item(NAME(m_dir));
 	save_item(NAME(m_stp));
@@ -478,11 +594,14 @@ void floppy_image_device::device_start()
 	save_item(NAME(m_rdy));
 	save_item(NAME(m_dskchg));
 	save_item(NAME(m_ready));
+	save_item(NAME(m_media_changing));
+	save_item(NAME(m_media_change_wpt));
 	save_item(NAME(m_rpm));
 	save_item(NAME(m_angular_speed));
 	save_item(NAME(m_revolution_start_time));
 	save_item(NAME(m_rev_time));
 	save_item(NAME(m_revolution_count));
+	save_item(NAME(m_stopped_position));
 	save_item(NAME(m_cyl));
 	save_item(NAME(m_subcyl));
 	save_item(NAME(m_cache_start_time));
@@ -490,32 +609,11 @@ void floppy_image_device::device_start()
 	save_item(NAME(m_cache_index));
 	save_item(NAME(m_cache_entry));
 	save_item(NAME(m_cache_weak));
+	save_item(NAME(m_cache_weak_start));
+	save_item(NAME(m_cache_weak_id));
 	save_item(NAME(m_image_dirty));
 	save_item(NAME(m_ready_counter));
 	save_item(NAME(m_phases));
-
-	if(FLUX_SCREEN) {
-		m_flux_per_pixel_infos.resize(flux_screen_sx*flux_screen_sy);
-		flux_per_pixel_info *ppi = m_flux_per_pixel_infos.data();
-		for(int y = 0; y != flux_screen_sy; y++) {
-			int head = y >= flux_screen_sy / 2 ? 1 : 0;
-			int yc = (flux_screen_sy/2-1)/2 + (flux_screen_sy/2)*head;
-			int dy = y - yc;
-			for(int x = 0; x != flux_screen_sx; x++) {
-				const int xc = (flux_screen_sx - 1)/2;
-				int dx = x - xc;
-				int r = int(sqrt(dx*dx + dy*dy) + 0.5);
-				ppi->m_r = r;
-				if(r > flux_max_r || r < flux_min_r)
-					ppi->m_position = 0xffffffff;
-				else
-					ppi->m_position = int((200e6 / 2 / M_PI) * atan2(dy, dx) + 100000000.5) % 200000000;
-				ppi->m_combined_track = 0;
-				ppi->m_color = 0;
-				ppi ++;
-			}
-		}
-	}
 }
 
 void floppy_image_device::device_reset()
@@ -528,11 +626,17 @@ void floppy_image_device::device_reset()
 
 	m_revolution_start_time = attotime::never;
 	m_revolution_count = 0;
+	m_stopped_position = 0;
 	m_mon = 1;
 	set_ready(true);
 	if(m_motor_always_on && m_image)
 		mon_w(0);
 	cache_clear();
+}
+
+void floppy_image_device::device_add_mconfig(machine_config &config)
+{
+	FLOPPYSOUND(config, FLOPSND_TAG, 44100);
 }
 
 std::pair<std::error_condition, const floppy_image_format_t *> floppy_image_device::identify(std::string_view filename)
@@ -557,33 +661,59 @@ std::pair<std::error_condition, const floppy_image_format_t *> floppy_image_devi
 		}
 	}
 
-	return{ std::error_condition(), best_format };
+	if(best_format)
+		return{ std::error_condition(), best_format };
+	else
+		return{ image_error::INVALIDIMAGE, nullptr };
 }
 
 void floppy_image_device::init_floppy_load(bool write_supported)
 {
 	cache_clear();
+	m_writing = false;
+	m_write_transition_times.clear();
 	m_revolution_start_time = m_mon ? attotime::never : machine().time();
 	m_revolution_count = 0;
+	m_stopped_position = 0;
 
 	index_resync(0);
 
-	m_wpt = 1; // disk sleeve is covering the sensor
-	if (!m_cur_wpt_cb.isnull())
-		m_cur_wpt_cb(this, m_wpt);
-
-	m_wpt = is_readonly() || (!write_supported);
-	if (!m_cur_wpt_cb.isnull())
-		m_cur_wpt_cb(this, m_wpt);
+	change_media(is_readonly() || (!write_supported));
 
 	if (m_motor_always_on) {
 		// When disk is inserted, start motor
 		mon_w(0);
+		m_ready_counter = 2;
+
 	} else if(!m_mon)
 		m_ready_counter = 2;
 
 	if (m_dskchg_writable)
 		m_dskchg = 1;
+}
+
+void floppy_image_device::change_media(bool wpt)
+{
+	m_wpt = 1; // disk sleeve is covering the sensor
+	if (!m_cur_wpt_cb.isnull())
+		m_cur_wpt_cb(this, m_wpt);
+
+	m_media_change_wpt = wpt;
+	if (m_media_change_time.is_zero() || machine().phase() != machine_phase::RUNNING)
+		media_change_done(0);
+	else
+	{
+		m_media_changing = true;
+		m_media_change_timer->adjust(m_media_change_time);
+	}
+}
+
+TIMER_CALLBACK_MEMBER(floppy_image_device::media_change_done)
+{
+	m_media_changing = false;
+	m_wpt = m_media_change_wpt;
+	if (!m_cur_wpt_cb.isnull())
+		m_cur_wpt_cb(this, m_wpt);
 }
 
 std::pair<std::error_condition, std::string> floppy_image_device::call_load()
@@ -597,9 +727,9 @@ std::pair<std::error_condition, std::string> floppy_image_device::call_load()
 	const floppy_image_format_t *best_format = nullptr;
 	for (const floppy_image_format_t *format : m_fif_list) {
 		int score = format->identify(*io, m_form_factor, m_variants);
-		if(score && format->extension_matches(filename()))
+		if (score && format->extension_matches(filename()))
 			score |= floppy_image_format_t::FIFID_EXT;
-		if(score > best) {
+		if (score > best) {
 			best = score;
 			best_format = format;
 		}
@@ -613,154 +743,25 @@ std::pair<std::error_condition, std::string> floppy_image_device::call_load()
 		m_image.reset();
 		return std::make_pair(image_error::INVALIDIMAGE, "Incompatible image file format or corrupted data");
 	}
+
+	char const *const wp = get_feature("write_protected");
+	bool const protect = wp && !std::strcmp(wp, "true");
+	if (protect)
+		make_readonly();
+
 	m_output_format = is_readonly() ? nullptr : best_format;
 
 	m_image_dirty = false;
+
+	osd_printf_verbose("%s: Loaded %s, %s\n", tag(), best_format->description(),
+		protect ? "write protected by softlist" : is_readonly() ? "read-only" : "write permitted");
 
 	init_floppy_load(m_output_format != nullptr);
 
 	if (!m_cur_load_cb.isnull())
 		m_cur_load_cb(this);
 
-	flux_image_prepare();
-
 	return std::make_pair(std::error_condition(), std::string());
-}
-
-void floppy_image_device::flux_image_prepare()
-{
-	if(!FLUX_SCREEN)
-		return;
-
-	int tracks = 0, heads = 0, rez = 0;
-	m_image->get_maximal_geometry(tracks, heads);
-	rez = m_image->get_resolution();
-
-	int trackm = (tracks - 1) << rez;
-	int tmask = (1 << rez) - 1;
-
-	m_flux_per_combined_track_infos.clear();
-	m_flux_per_combined_track_infos.resize(trackm+1);
-	for(int track = 0; track <= trackm; track++) {
-		int refr = 200 + (trackm - 0.5 - track) * 290 / (trackm+1) + 200;
-		int span = int((200e6 / 2 / M_PI) / refr);
-		m_flux_per_combined_track_infos[track].m_span = span;
-		m_flux_per_combined_track_infos[track].m_track = track >> rez;
-		m_flux_per_combined_track_infos[track].m_subtrack = track & tmask;
-	}
-
-	flux_per_pixel_info *ppi = m_flux_per_pixel_infos.data();
-	for(int head = 0; head != heads; head++)
-		for(unsigned int i=0; i != flux_screen_sx*flux_screen_sy/2; i++) {
-			if(ppi->m_position != 0xffffffff) {
-				int trk = (trackm + 1) * (flux_max_r - ppi->m_r) / (flux_max_r - flux_min_r + 1);
-				ppi->m_combined_track = trk;
-				m_flux_per_combined_track_infos[trk].m_pixels[head].push_back(ppi);
-			}
-			ppi++;
-		}
-
-	for(auto &t : m_flux_per_combined_track_infos) {
-		std::sort(t.m_pixels[0].begin(), t.m_pixels[0].end(), [](const flux_per_pixel_info *a, const flux_per_pixel_info *b) -> bool { return a->m_position < b->m_position; });
-		if(heads == 2)
-			std::sort(t.m_pixels[1].begin(), t.m_pixels[1].end(), [](const flux_per_pixel_info *a, const flux_per_pixel_info *b) -> bool { return a->m_position < b->m_position; });
-	}
-
-	for(int head = 0; head != heads; head++)
-		for(int track = 0; track <= trackm; track++)
-			flux_image_compute_for_track(track, head);
-}
-
-void floppy_image_device::flux_image_compute_for_track(int track, int head)
-{
-	auto *pcti = m_flux_per_combined_track_infos.data() + track;
-	const std::vector<uint32_t> &buffer = m_image->get_buffer(pcti->m_track, head, pcti->m_subtrack);
-	int sz = buffer.size();
-	if(!sz) {
-		for(flux_per_pixel_info *p : m_flux_per_combined_track_infos[track].m_pixels[head])
-			p->m_color = 255;
-		return;
-	}
-
-	int spos = pcti->m_pixels[head][0]->m_position - pcti->m_span + 200000000;
-	int bpos = sz;
-	while(bpos && (buffer[bpos-1] & floppy_image::TIME_MASK) < spos)
-		bpos --;
-	if(bpos == sz)
-		bpos = 0;
-
-	int pspos = spos;
-	for(flux_per_pixel_info *p : m_flux_per_combined_track_infos[track].m_pixels[head]) {
-		int spos = p->m_position - pcti->m_span;
-		int epos = p->m_position + pcti->m_span;
-		if(spos < 0)
-			spos += 200000000;
-		if(epos >= 200000000)
-			epos -= 200000000;
-
-		if(spos < pspos)
-			bpos = 0;
-		while(bpos != sz-1 && (buffer[bpos+1] & floppy_image::TIME_MASK) < spos)
-			bpos ++;
-
-		int bpos2 = spos < epos ? bpos : 0;
-		while(bpos2 != sz-1 && (buffer[bpos2+1] & floppy_image::TIME_MASK) < epos)
-			bpos2 ++;
-
-		int count;
-		if(bpos <= bpos2)
-			count = bpos2 - bpos;
-		else {
-			count = (sz - 1 - bpos) + bpos2;
-			if((buffer[0] ^ buffer[sz-1]) & floppy_image::MG_MASK)
-				count ++;
-		}
-
-		count *= 5;
-		if(count > 255)
-			count = 255;
-		p->m_color = 255 - count;
-		pspos = spos;
-	}
-}
-
-uint32_t floppy_image_device::flux_screen_update(screen_device &device, bitmap_rgb32 &bitmap, const rectangle &cliprect)
-{
-	if(m_image.get()) {
-		int ctrack = ((m_cyl << 2) | m_subcyl) >> (2 - m_image->get_resolution());
-		if(m_mon)
-			ctrack = -1;
-		for(int y = cliprect.min_y; y <= cliprect.max_y; y++) {
-			int head = y >= flux_screen_sy / 2;
-			flux_per_pixel_info *ppi = m_flux_per_pixel_infos.data() + y * flux_screen_sx + cliprect.min_x;
-			uint32_t *p = &bitmap.pix(y, cliprect.min_x);
-			for(int x = cliprect.min_x; x <= cliprect.max_x; x++) {
-				if(ppi->m_position == 0xffffffff)
-					*p++ = 0;
-				else {
-					u32 color = 0x010101 * ppi->m_color;
-					if(ppi->m_combined_track == ctrack && head == m_ss)
-						color &= 0x0000ff;
-					*p++ = color;
-				}
-				ppi++;
-			}
-		}
-	} else {
-		for(int y = cliprect.min_y; y <= cliprect.max_y; y++) {
-			flux_per_pixel_info *ppi = m_flux_per_pixel_infos.data() + y * flux_screen_sx + cliprect.min_x;
-			uint32_t *p = &bitmap.pix(y, cliprect.min_x);
-			for(int x = cliprect.min_x; x <= cliprect.max_x; x++) {
-				if(ppi->m_position == 0xffffffff)
-					*p++ = 0;
-				else
-					*p++ = 0x404040;
-				ppi++;
-			}
-		}
-	}
-
-	return 0;
 }
 
 void floppy_image_device::call_unload()
@@ -774,13 +775,7 @@ void floppy_image_device::call_unload()
 		m_image.reset();
 	}
 
-	m_wpt = 1; // disk sleeve is covering the sensor
-	if (!m_cur_wpt_cb.isnull())
-		m_cur_wpt_cb(this, m_wpt);
-
-	m_wpt = 0; // sensor is uncovered
-	if (!m_cur_wpt_cb.isnull())
-		m_cur_wpt_cb(this, m_wpt);
+	change_media(false);
 
 	if (!m_cur_unload_cb.isnull())
 		m_cur_unload_cb(this);
@@ -789,6 +784,8 @@ void floppy_image_device::call_unload()
 		// When disk is removed, stop motor
 		mon_w(1);
 	}
+
+	if (m_make_sound) m_sound_out->unload();
 
 	set_ready(true);
 }
@@ -817,8 +814,6 @@ std::pair<std::error_condition, std::string> floppy_image_device::call_create(in
 	}
 
 	init_floppy_load(true);
-
-	flux_image_prepare();
 
 	return std::make_pair(std::error_condition(), std::string());
 }
@@ -862,7 +857,7 @@ void floppy_image_device::mon_w(int state)
 	/* off -> on */
 	if (!m_mon && m_image)
 	{
-		m_revolution_start_time = machine().time();
+		m_revolution_start_time = position_to_time(machine().time(), -int(m_stopped_position));
 		cache_clear();
 		if (m_motor_always_on) {
 			// Drives with motor that is always spinning are immediately ready when a disk is loaded
@@ -876,6 +871,11 @@ void floppy_image_device::mon_w(int state)
 
 	/* on -> off */
 	else {
+		if (!m_revolution_start_time.is_never())
+		{
+			attotime base;
+			m_stopped_position = find_position(base, machine().time());
+		}
 		if(m_image_dirty)
 			commit_image();
 		cache_clear();
@@ -915,20 +915,26 @@ TIMER_CALLBACK_MEMBER(floppy_image_device::index_resync)
 	}
 	int position = int(delta.as_double()*m_angular_speed + 0.5);
 
-	int new_idx = position < 2000000;
+	uint32_t last_index = 0, next_index = 200000000;
+	// if hard-sectored floppy, has extra IDX pulses
+	if(m_image)
+		m_image->find_index_hole(position, last_index, next_index);
+	int new_idx = position - last_index < 2000000;
 
 	if(new_idx) {
-		attotime index_up_time = attotime::from_double(2000000/m_angular_speed);
+		uint32_t index_up = last_index + 2000000;
+		attotime index_up_time = attotime::from_double(index_up/m_angular_speed);
 		m_index_timer->adjust(index_up_time - delta);
-	} else
-		m_index_timer->adjust(m_rev_time - delta);
+	} else {
+		attotime next_index_time = next_index >= 200000000 ? m_rev_time : attotime::from_double(next_index/m_angular_speed);
+		m_index_timer->adjust(next_index_time - delta);
+	}
 
 	if(new_idx != m_idx) {
 		m_idx = new_idx;
 		if(m_idx && m_ready) {
 			m_ready_counter--;
 			if(!m_ready_counter) {
-				// logerror("Drive spun up\n");
 				set_ready(false);
 			}
 		}
@@ -959,18 +965,57 @@ void floppy_image_device::check_led()
 		m_cur_led_cb(this, (m_ds == m_drive_index) && !m_ready ? 1 : 0);
 }
 
-double floppy_image_device::get_pos()
-{
-	return m_index_timer->elapsed().as_double();
-}
-
 bool floppy_image_device::twosid_r()
 {
-	int tracks = 0, heads = 0;
+	// Report media-sided-ness from the variant tag, not from observed track
+	// data.  Drives sense single- vs double-sided media physically (e.g. 8"
+	// Shugart TS# on pin 30, derived from index-hole position); the answer
+	// must come from the media itself, not from whether the host happens to
+	// have written to head 1 yet.  An unformatted SSSD diskette is still SS.
+	if (m_sides == 1)
+		return true;
+	if (!m_image)
+		return false;
+	switch (m_image->get_variant()) {
+	case floppy_image::SSSD:
+	case floppy_image::SSSD10:
+	case floppy_image::SSSD16:
+	case floppy_image::SSSD32:
+	case floppy_image::SSDD:
+	case floppy_image::SSDD10:
+	case floppy_image::SSDD16:
+	case floppy_image::SSDD32:
+	case floppy_image::SSQD:
+	case floppy_image::SSQD16:
+		return true;
+	case 0:
+		{
+			// The loaded format did not tag a variant; fall back to the
+			// observed geometry so formats that never call set_variant()
+			// keep their previous behaviour (no regression).
+			int tracks = 0, heads = 0;
+			m_image->get_actual_geometry(tracks, heads);
+			return heads == 1;
+		}
+	default:
+		return false;
+	}
+}
 
-	if (m_image) m_image->get_actual_geometry(tracks, heads);
+bool floppy_image_device::floppy_is_hd()
+{
+	if (!m_image)
+		return false;
+	u32 const variant = m_image->get_variant();
+	return variant == floppy_image::DSHD;
+}
 
-	return heads == 1;
+bool floppy_image_device::floppy_is_ed()
+{
+	if (!m_image)
+		return false;
+	u32 const variant = m_image->get_variant();
+	return variant == floppy_image::DSED;
 }
 
 void floppy_image_device::track_changed()
@@ -979,34 +1024,24 @@ void floppy_image_device::track_changed()
 
 void floppy_image_device::stp_w(int state)
 {
-	// Before spin-up is done, ignore step pulses
-	// TODO: There are reports about drives supporting step operation with
-	// stopped spindle. Need to check that on real drives.
-	// if (m_ready_counter > 0) return;
-
 	if ( m_stp != state ) {
 		cache_clear();
 		m_stp = state;
 		if ( m_stp == 0 ) {
-			if(FLUX_SCREEN && m_track_dirty) {
-				flux_image_compute_for_track(((m_cyl << 2) | m_subcyl) >> (2 - m_image->get_resolution()), m_ss);
-				m_track_dirty = false;
-			}
-
-			int ocyl = m_cyl;
+			// Allow to reach track -1 or track==max for the sound routine
 			if ( m_dir ) {
-				if ( m_cyl ) m_cyl--;
+				m_cyl--;
 			} else {
-				if ( m_cyl < m_tracks-1 ) m_cyl++;
+				m_cyl++;
 			}
-			if(ocyl != m_cyl)
-			{
-				if (TRACE_STEP) logerror("track %d\n", m_cyl);
-				// Do we want a stepper sound?
-				// We plan for 5 zones with possibly specific sounds
-				if (m_make_sound) m_sound_out->step(m_cyl*5/m_tracks);
-				track_changed();
-			}
+			LOGMASKED(LOG_STEP, "track %d [%f]\n", m_cyl, machine().time().as_double());
+			if (m_make_sound) m_sound_out->step(m_cyl);
+
+			// Correct the possibly invalid track number
+			if (m_cyl < 0) m_cyl = 0;
+			else if (m_cyl > m_tracks-1) m_cyl = m_tracks-1;
+			else track_changed();
+
 			/* Update disk detection if applicable */
 			if (exists() && !m_dskchg_writable)
 			{
@@ -1014,6 +1049,18 @@ void floppy_image_device::stp_w(int state)
 			}
 		}
 		m_subcyl = 0;
+	}
+}
+
+void floppy_image_device::ss_w(int state)
+{
+	m_actual_ss = state;
+	if (m_sides > 1 && m_ss != state)
+	{
+		// The flux cache describes the old surface, and on an empty or
+		// all-neutral one it never expires by itself
+		cache_clear();
+		m_ss = state;
 	}
 }
 
@@ -1049,19 +1096,14 @@ void floppy_image_device::seek_phase_w(int _phases)
 	else if(next_pos > (m_tracks-1)*4)
 		next_pos = (m_tracks-1)*4;
 
-	if(FLUX_SCREEN && m_track_dirty) {
-		flux_image_compute_for_track(((m_cyl << 2) | m_subcyl) >> (2 - m_image->get_resolution()), m_ss);
-		m_track_dirty = false;
-	}
-
 	m_cyl = next_pos >> 2;
 	m_subcyl = next_pos & 3;
 
 	cache_clear();
 
 	if(next_pos != cur_pos) {
-		if (TRACE_STEP) logerror("track %d.%d\n", m_cyl, m_subcyl);
-		if (m_make_sound) m_sound_out->step(m_subcyl);
+		LOGMASKED(LOG_STEP, "track %d.%d [%f]\n", m_cyl, m_subcyl, machine().time().as_double());
+		if (m_make_sound) m_sound_out->step(m_cyl, m_subcyl);
 	}
 
 	/* Update disk detection if applicable */
@@ -1111,18 +1153,45 @@ attotime floppy_image_device::position_to_time(const attotime &base, int positio
 	return base + attotime::from_double(position/m_angular_speed);
 }
 
+namespace {
+
+bool is_neutral(u32 entry)
+{
+	u32 const type = entry & floppy_image::MG_MASK;
+	return type == floppy_image::MG_N || type == floppy_image::MG_D;
+}
+
+constexpr s64 WEAK_SLOT_NS = 60000;
+constexpr u32 WEAK_SPREAD_NS = 50000;
+
+} // anonymous namespace
+
 void floppy_image_device::cache_fill_index(const std::vector<uint32_t> &buf, int &index, attotime &base)
 {
-	int cells = buf.size();
+	int const cells = buf.size();
 
 	m_cache_index = index;
 	m_cache_start_time = position_to_time(base, buf[index] & floppy_image::TIME_MASK);
 	m_cache_entry = buf[m_cache_index];
 
-	index ++;
-	if(index >= cells) {
-		index = 0;
-		base += m_rev_time;
+	bool const neutral = is_neutral(m_cache_entry);
+	int span = 0;
+	do {
+		index ++;
+		span ++;
+		if(index >= cells) {
+			index = 0;
+			base += m_rev_time;
+		}
+	} while(neutral && span < cells && is_neutral(buf[index]));
+
+	if(neutral && span >= cells) {
+		// Nothing but neutral surface, there is no zone boundary at all
+		m_cache_index = 0;
+		m_cache_entry = floppy_image::MG_N;
+		m_cache_start_time = attotime::zero;
+		m_cache_end_time = attotime::never;
+		return;
 	}
 
 	m_cache_end_time = position_to_time(base, buf[index] & floppy_image::TIME_MASK);
@@ -1133,11 +1202,14 @@ void floppy_image_device::cache_clear()
 	m_cache_start_time = m_cache_end_time = m_cache_weak_start = attotime::zero;
 	m_cache_index = 0;
 	m_cache_entry = 0;
+	m_cache_weak_id = 0;
 	m_cache_weak = false;
 }
 
 void floppy_image_device::cache_fill(const attotime &when)
 {
+	if(m_writing)
+		write_do_flush(when);
 	std::vector<uint32_t> &buf = m_image->get_buffer(m_cyl, m_ss, m_subcyl);
 	uint32_t const cells = buf.size();
 	if(cells <= 1) {
@@ -1164,6 +1236,18 @@ void floppy_image_device::cache_fill(const attotime &when)
 		index = int(it - buf.begin()) - 1;
 	}
 
+	// If in the middle of a neutral run, go back to its first entry
+	if(is_neutral(buf[index])) {
+		for(uint32_t step = 1; step < cells && is_neutral(buf[index ? index - 1 : cells - 1]); step++) {
+			if(index) {
+				index--;
+			} else {
+				index = cells - 1;
+				base -= m_rev_time;
+			}
+		}
+	}
+
 	for(;;) {
 		cache_fill_index(buf, index, base);
 		if(m_cache_end_time > when) {
@@ -1175,8 +1259,9 @@ void floppy_image_device::cache_fill(const attotime &when)
 
 void floppy_image_device::cache_weakness_setup()
 {
-	u32 type = m_cache_entry & floppy_image::MG_MASK;
-	if(type == floppy_image::MG_N || type == floppy_image::MG_D) {
+	m_cache_weak_id = m_cache_entry & floppy_image::TIME_MASK;
+
+	if(is_neutral(m_cache_entry)) {
 		m_cache_weak = true;
 		m_cache_weak_start = m_cache_start_time;
 		return;
@@ -1192,28 +1277,26 @@ void floppy_image_device::cache_weakness_setup()
 
 attotime floppy_image_device::get_next_transition(const attotime &from_when)
 {
-	if(!m_image || m_mon)
+	if(!m_image || m_mon || m_media_changing)
 		return attotime::never;
 
-	if(from_when < m_cache_start_time || m_cache_start_time.is_zero() || (!m_cache_end_time.is_never() && from_when >= m_cache_end_time))
+	if(from_when < m_cache_start_time || (!m_cache_end_time.is_never() && from_when >= m_cache_end_time))
 		cache_fill(from_when);
 
 	if(!m_cache_weak)
 		return m_cache_end_time;
 
-	// Put a flux transition in the middle of a 4us interval with a 50% probability
-	uint64_t interval_index = (from_when < m_cache_weak_start) ? 0 : (from_when - m_cache_weak_start).as_ticks(250000);
-	attotime weak_time = m_cache_weak_start + attotime::from_ticks(interval_index*2+1, 500000);
-	for(;;) {
-		if(weak_time >= m_cache_end_time)
+	u32 const key = hash32(hash32(m_revolution_count ^ 0x4242) + m_cache_weak_id);
+	u64 slot = from_when > m_cache_weak_start
+		? (from_when - m_cache_weak_start).as_ticks(1000000) / (WEAK_SLOT_NS / 1000)
+		: 0;
+	for(;; slot++) {
+		u32 const h = hash32(key + u32(slot) * 0x9e3779b9U);
+		attotime const trigger = m_cache_weak_start + attotime::from_nsec(s64(slot) * WEAK_SLOT_NS + h % WEAK_SPREAD_NS);
+		if(trigger >= m_cache_end_time)
 			return m_cache_end_time;
-		if(weak_time > from_when) {
-			u32 test = hash32(hash32(hash32(hash32(m_revolution_count) ^ 0x4242) + m_cache_index) + interval_index);
-			if(test & 1)
-				return weak_time;
-		}
-		weak_time += attotime::from_usec(4);
-		interval_index ++;
+		if(trigger > from_when)
+			return trigger;
 	}
 }
 
@@ -1224,7 +1307,7 @@ bool floppy_image_device::writing_disabled() const
 	return m_wpt || (m_phases & 2);
 }
 
-void floppy_image_device::write_flux(const attotime &start, const attotime &end, int transition_count, const attotime *transitions)
+void floppy_image_device::write_start(const attotime &when)
 {
 	if(!m_image || m_mon)
 		return;
@@ -1232,23 +1315,83 @@ void floppy_image_device::write_flux(const attotime &start, const attotime &end,
 	if(writing_disabled())
 		return;
 
+	if(m_writing)
+		write_do_flush(when);
+
+	m_writing = true;
+	m_write_cyl = m_cyl;
+	m_write_ss = m_ss;
+	m_write_subcyl = m_subcyl;
+	m_write_start_time = when;
+	m_write_transition_times.clear();
 	m_image_dirty = true;
 	m_track_dirty = true;
-	cache_clear();
+}
+
+void floppy_image_device::write_flux_change(const attotime &when)
+{
+	if(!m_writing)
+		return;
+
+	// Some controllers speculatively run ahead of machine time then
+	// replay from an earlier point.  Discard stale entries so the
+	// replayed transitions replace them cleanly.
+	if(!m_write_transition_times.empty() && when <= m_write_transition_times.back()) {
+		auto it = std::lower_bound(m_write_transition_times.begin(), m_write_transition_times.end(), when);
+		m_write_transition_times.erase(it, m_write_transition_times.end());
+	}
+	// Best-effort rewind if replay crosses a flush boundary.  Does not
+	// reconstruct transitions already committed to the track, but no
+	// current controller replays across a committed flush point.
+	if(when < m_write_start_time)
+		m_write_start_time = when;
+	m_write_transition_times.push_back(when);
+}
+
+void floppy_image_device::write_end(const attotime &when)
+{
+	if(!m_writing)
+		return;
+
+	write_do_flush(when);
+	m_writing = false;
+}
+
+void floppy_image_device::write_flush(const attotime &when)
+{
+	if(!m_writing)
+		return;
+
+	write_do_flush(when);
+}
+
+void floppy_image_device::write_do_flush(const attotime &when)
+{
+	// A rollback replay can call us with `when` earlier than a prior
+	// speculative flush already advanced m_write_start_time to; treating
+	// that as a forward span would wrap around and wipe the track. Skip
+	// it -- the replay's next forward flush will overwrite correctly.
+	if(when < m_write_start_time)
+		return;
+
+	int committed = 0;
+	for(int i = 0; i != int(m_write_transition_times.size()); i++)
+		if(m_write_transition_times[i] < when)
+			committed = i + 1;
+
+	if(when == m_write_start_time && !committed)
+		return;
 
 	std::vector<wspan> wspans(1);
-
 	attotime base;
-	wspans[0].start = find_position(base, start);
-	wspans[0].end   = find_position(base, end);
-
-	for(int i=0; i != transition_count; i++)
-		wspans[0].flux_change_positions.push_back(find_position(base, transitions[i]));
+	wspans[0].start = find_position(base, m_write_start_time);
+	wspans[0].end = find_position(base, when);
+	for(int i = 0; i != committed; i++)
+		wspans[0].flux_change_positions.push_back(find_position(base, m_write_transition_times[i]));
 
 	wspan_split_on_wrap(wspans);
 
-	std::vector<uint32_t> &buf = m_image->get_buffer(m_cyl, m_ss, m_subcyl);
-
+	std::vector<uint32_t> &buf = m_image->get_buffer(m_write_cyl, m_write_ss, m_write_subcyl);
 	if(buf.empty()) {
 		buf.push_back(floppy_image::MG_N);
 		buf.push_back(floppy_image::MG_E | 199999999);
@@ -1257,6 +1400,9 @@ void floppy_image_device::write_flux(const attotime &start, const attotime &end,
 	wspan_remove_damaged(wspans, buf);
 	wspan_write(wspans, buf);
 
+	if(committed)
+		m_write_transition_times.erase(m_write_transition_times.begin(), m_write_transition_times.begin() + committed);
+	m_write_start_time = when;
 	cache_clear();
 }
 
@@ -1383,6 +1529,8 @@ void floppy_image_device::wspan_write(const std::vector<wspan> &wspans, std::vec
 void floppy_image_device::set_write_splice(const attotime &when)
 {
 	if(m_image && !m_mon) {
+		if(m_writing)
+			write_do_flush(when);
 		m_image_dirty = true;
 		attotime base;
 		int splice_pos = find_position(base, when);
@@ -1400,407 +1548,56 @@ uint32_t floppy_image_device::get_variant() const
 	return m_image ? m_image->get_variant() : 0;
 }
 
-//===================================================================
-//   Floppy sound
-//
-//   In order to enable floppy sound you must call
-//      enable_sound(true)
-//   and you must put audio samples (44100Hz, mono) with names as
-//   shown in floppy_sample_names into the directory samples/floppy
-//   Sound will be disabled when these samples are missing.
-//
-//   MZ, Aug 2015
-//===================================================================
-
-enum
-{
-	QUIET=-1,
-	SPIN_START_EMPTY=0,
-	SPIN_START_LOADED,
-	SPIN_EMPTY,
-	SPIN_LOADED,
-	SPIN_END
-};
-
-enum
-{
-	STEP_SINGLE=0,
-	STEP_SEEK2,
-	STEP_SEEK6,
-	STEP_SEEK12,
-	STEP_SEEK20
-};
-
-/*
-    Unless labeled "constructed", all samples were recorded from real floppy drives.
-    The 3.5" floppy drive is a Sony MPF420-1.
-    The 5.25" floppy drive is a Chinon FZ502.
-*/
-static const char *const floppy35_sample_names[] =
-{
-// Subdirectory
-	"*floppy",
-// Spinning sounds
-	"35_spin_start_empty",
-	"35_spin_start_loaded",
-	"35_spin_empty",
-	"35_spin_loaded",
-	"35_spin_end",
-// Stepping sounds
-	"35_step_1_1",
-// Seeking sounds
-	"35_seek_2ms",      // constructed
-	"35_seek_6ms",
-	"35_seek_12ms",
-	"35_seek_20ms",
-	nullptr
-};
-
-static const char *const floppy525_sample_names[] =
-{
-// Subdirectory
-	"*floppy",
-// Spinning sounds
-	"525_spin_start_empty",
-	"525_spin_start_loaded",
-	"525_spin_empty",
-	"525_spin_loaded",
-	"525_spin_end",
-// Stepping sounds
-	"525_step_1_1",
-// Seeking sounds
-	"525_seek_2ms",    // unrealistically fast, but needed for 3.5 (constructed)
-	"525_seek_6ms",
-	"525_seek_12ms",
-	"525_seek_20ms",
-	nullptr
-};
-
-floppy_sound_device::floppy_sound_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: samples_device(mconfig, FLOPPYSOUND, tag, owner, clock),
-		m_sound(nullptr),
-		m_step_base(0),
-		m_spin_samples(0),
-		m_step_samples(0),
-		m_spin_samplepos(0),
-		m_step_samplepos(0),
-		m_seek_sound_timeout(0),
-		m_zones(0),
-		m_spin_playback_sample(QUIET),
-		m_step_playback_sample(QUIET),
-		m_seek_playback_sample(QUIET),
-		m_motor_on(false),
-		m_with_disk(false),
-		m_loaded(false),
-		m_seek_pitch(1.0),
-		m_seek_samplepos(0.0)
-{
-}
-
-void floppy_sound_device::register_for_save_states()
-{
-	save_item(NAME(m_step_base));
-	save_item(NAME(m_spin_samples));
-	save_item(NAME(m_step_samples));
-	save_item(NAME(m_spin_samplepos));
-	save_item(NAME(m_step_samplepos));
-	save_item(NAME(m_seek_samplepos));
-	save_item(NAME(m_seek_sound_timeout));
-	save_item(NAME(m_zones));
-	save_item(NAME(m_spin_playback_sample));
-	save_item(NAME(m_step_playback_sample));
-	save_item(NAME(m_seek_playback_sample));
-	save_item(NAME(m_motor_on));
-	save_item(NAME(m_with_disk));
-	save_item(NAME(m_loaded));
-	save_item(NAME(m_seek_pitch));
-}
-
-void floppy_sound_device::device_start()
-{
-	// What kind of drive do we have?
-	bool is525 = strstr(tag(), "525") != nullptr;
-	set_samples_names(is525 ? floppy525_sample_names : floppy35_sample_names);
-
-	m_motor_on = false;
-
-	// Offsets in the sample collection
-	m_spin_samples = 5;
-	m_step_base = 5;
-	m_step_samples = 1;
-	m_zones = 1;             // > 1 needs more than one step sample
-
-	m_spin_samplepos = m_step_samplepos = m_seek_samplepos = 0;
-	m_spin_playback_sample = m_step_playback_sample = QUIET;
-
-	// Read audio samples. The samples are stored in the list m_samples.
-	m_loaded = load_samples();
-
-	// If we don't have all samples, don't allocate a stream or access sample data.
-	if (m_loaded)
-	{
-		m_sound = stream_alloc(0, 1, clock()); // per-floppy stream
-	}
-	register_for_save_states();
-}
-
-/*
-    Motor sound. Select appropriate sound sample, depending on whether the
-    motor is started or keeps running. Motor samples are always fully
-    played.
-*/
-void floppy_sound_device::motor(bool running, bool withdisk)
-{
-	if (samples_loaded())
-	{
-		m_sound->update(); // required
-
-		if ((m_spin_playback_sample==QUIET || m_spin_playback_sample==SPIN_END) && running) // motor was either off or already spinning down
-		{
-			m_spin_samplepos = 0;
-			m_spin_playback_sample = withdisk ? SPIN_START_LOADED : SPIN_START_EMPTY; // (re)start the motor sound
-		}
-		else
-		{
-			// Motor has been running and is turned off now
-			if ((m_spin_playback_sample == SPIN_EMPTY || m_spin_playback_sample == SPIN_LOADED) && !running)
-			{
-				m_spin_samplepos = 0;
-				m_spin_playback_sample = SPIN_END; // go to spin down sound when loop is finished
-			}
-		}
-	}
-	m_motor_on = running;
-	m_with_disk = withdisk;
-}
-
-/*
-    Activate the step sound.
-    The zone parameter should be used to select specific samples for the
-    current head position (if available). Its value should range from 0 to 4.
-*/
-void floppy_sound_device::step(int zone)
-{
-	if (samples_loaded())
-	{
-		m_sound->update();  // required
-
-		// Pick one of the step samples
-		// TODO: This is only preliminary, need to complete that.
-		if (zone >= m_zones) zone = m_zones-1;
-		m_step_playback_sample = (zone * m_step_samples) + (machine().rand() % m_step_samples);
-
-		if (m_step_samplepos > 0)
-		{
-			if (m_seek_playback_sample == QUIET)
-			{
-				// The last step sample was not completed;
-				// we need to find out the step rate
-				// With a sample rate of 44100 Hz we can calculate the
-				// rate from the sample position
-				// 2ms = 88
-				// 6ms = 265
-				// 12ms = 529
-				// 20ms = 882
-
-				if (m_step_samplepos < 100)
-				{
-					// Should only used for 3.5 drives
-					m_seek_playback_sample = STEP_SEEK2;
-					m_seek_pitch = 1.0;  // don't use a pitch
-				}
-				else
-				{
-					if (m_step_samplepos < 400)       // Use this for 8 ms also
-					{
-						m_seek_playback_sample = STEP_SEEK6;
-						m_seek_pitch = 265.0 / m_step_samplepos;
-					}
-					else
-					{
-						if (m_step_samplepos < 600)
-						{
-							m_seek_playback_sample = STEP_SEEK12;
-							m_seek_pitch = 529.0 / m_step_samplepos;
-						}
-						else
-						{
-							if (m_step_samplepos < 1200)
-							{
-								m_seek_playback_sample = STEP_SEEK20;
-								m_seek_pitch = 882.0 / m_step_samplepos;
-							}
-							else
-								// For 30ms and longer we replay the step sound
-								m_seek_playback_sample = QUIET;
-						}
-					}
-				}
-
-				// Start the new seek sound from the beginning.
-				m_seek_samplepos = 0;
-			}
-
-			// Changing the pitch does not always sound convincing
-			if (!PITCH_SEEK_SAMPLES) m_seek_pitch = 1;
-
-			if (TRACE_AUDIO) logerror("Seek sample = %d, pitch = %f\n", m_seek_playback_sample, m_seek_pitch);
-
-			// Set the timeout for the seek sound. When it expires,
-			// we assume that the seek process is over, and we'll play the
-			// rest of the step sound.
-			// This will be retriggered with each step pulse.
-			m_seek_sound_timeout = m_step_samplepos * 2;
-		}
-		else
-		{
-			// Last step sample was completed, this is not a seek process
-			m_seek_playback_sample = QUIET;
-		}
-
-		// If we switch to the seek sample, let's keep the position of the
-		// step sample; else reset the step sample position.
-		if (m_seek_playback_sample == QUIET)
-			m_step_samplepos = 0;
-	}
-}
-
-//-------------------------------------------------
-//  sound_stream_update - update the sound stream
-//-------------------------------------------------
-
-void floppy_sound_device::sound_stream_update(sound_stream &stream, std::vector<read_stream_view> const &inputs, std::vector<write_stream_view> &outputs)
-{
-	// We are using only one stream, unlike the parent class
-	// Also, there is no need for interpolation, as we only expect
-	// one sample rate of 44100 for all samples
-
-	int16_t out;
-	auto &samplebuffer = outputs[0];
-	int m_idx = 0;
-	int sampleend = 0;
-
-	for (int sampindex = 0; sampindex < samplebuffer.samples(); sampindex++)
-	{
-		out = 0;
-
-		// Motor sound
-		if (m_spin_playback_sample != QUIET)
-		{
-			m_idx = m_spin_playback_sample;
-			sampleend = m_sample[m_idx].data.size();
-			out = m_sample[m_idx].data[m_spin_samplepos++];
-
-			if (m_spin_samplepos >= sampleend)
-			{
-				// Motor sample has completed
-				switch (m_spin_playback_sample)
-				{
-				case SPIN_START_EMPTY:
-					// After start, switch to the continued spinning sound
-					m_spin_playback_sample = SPIN_EMPTY; // move to looping sound
-					break;
-				case SPIN_START_LOADED:
-					// After start, switch to the continued spinning sound
-					m_spin_playback_sample = SPIN_LOADED; // move to looping sound
-					break;
-				case SPIN_EMPTY:
-					// As long as the motor pin is asserted, restart the sample
-					// play the spindown sample
-					if (!m_motor_on) m_spin_playback_sample = SPIN_END; // motor was turned off already (during spin-up maybe) -> spin down
-					break;
-				case SPIN_LOADED:
-					if (!m_motor_on) m_spin_playback_sample = SPIN_END; // motor was turned off already (during spin-up maybe) -> spin down
-					break;
-				case SPIN_END:
-					// Spindown sample over, be quiet or restart if the
-					// motor has been restarted
-					if (m_motor_on)
-						m_spin_playback_sample = m_with_disk ? SPIN_START_LOADED : SPIN_START_EMPTY;
-					else
-						m_spin_playback_sample = QUIET;
-					break;
-				}
-				// Restart the selected sample
-				m_spin_samplepos = 0;
-			}
-		}
-
-		// Seek sound
-		// As long as we have a seek sound, there is no step sound
-		if (m_seek_sound_timeout == 1)
-		{
-			// Not retriggered; switch back to the last step sound
-			m_seek_playback_sample = QUIET;
-			m_seek_sound_timeout = 0;
-			// Skip 1/100 sec to dampen the loudest pulse
-			// yep, a somewhat dirty trick; we don't have to record yet another sample
-			m_step_samplepos += 441;
-		}
-
-		if (m_seek_playback_sample != QUIET)
-		{
-			m_seek_sound_timeout--;
-
-			m_idx = m_step_base + m_seek_playback_sample;
-			sampleend = m_sample[m_idx].data.size();
-			// Mix it into the stream value
-			out += m_sample[m_idx].data[(int)m_seek_samplepos];
-			// By adding different values than 1, we can change the playback speed
-			// This will be used to adjust the seek sound
-			m_seek_samplepos += m_seek_pitch;
-
-			// The seek sample will be replayed without interrupt
-			if (m_seek_samplepos >= sampleend)
-				m_seek_samplepos = 0;
-		}
-		else
-		{
-			// Stepper sound
-			if (m_step_playback_sample != QUIET)
-			{
-				m_idx = m_step_base + m_step_playback_sample;
-				sampleend = m_sample[m_idx].data.size();
-
-				// Mix it into the stream value
-				out += m_sample[m_idx].data[m_step_samplepos++];
-				if (m_step_samplepos >= sampleend)
-				{
-					// Step sample done
-					m_step_samplepos = 0;
-					m_step_playback_sample = QUIET;
-				}
-			}
-		}
-
-		// Write to the stream buffer
-		samplebuffer.put_int(sampindex, out, 32768);
-	}
-}
-
-#define FLOPSPK "flopsndout"
-
-void floppy_image_device::device_add_mconfig(machine_config &config)
-{
-	SPEAKER(config, FLOPSPK).front_center();
-	FLOPPYSOUND(config, FLOPSND_TAG, 44100).add_route(ALL_OUTPUTS, FLOPSPK, 0.5);
-
-	if (FLUX_SCREEN)
-	{
-		SCREEN(config, m_flux_screen, SCREEN_TYPE_RASTER);
-		m_flux_screen->set_screen_update(FUNC(floppy_image_device::flux_screen_update));
-		m_flux_screen->set_raw(30*(flux_screen_sx+1)*(flux_screen_sy+1), flux_screen_sx+1, 0, flux_screen_sx, flux_screen_sy+1, 0, flux_screen_sy);
-		m_flux_screen->set_physical_aspect(1, 2);
-	}
-}
-
-
-DEFINE_DEVICE_TYPE(FLOPPYSOUND, floppy_sound_device, "flopsnd", "Floppy sound")
-
-
 //**************************************************************************
 //  GENERIC FLOPPY DRIVE DEFINITIONS
 //**************************************************************************
+
+//-------------------------------------------------
+//  3" single-sided single density
+//-------------------------------------------------
+
+floppy_3_sssd::floppy_3_sssd(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	floppy_image_device(mconfig, FLOPPY_3_SSSD, tag, owner, clock)
+{
+}
+
+floppy_3_sssd::~floppy_3_sssd()
+{
+}
+
+void floppy_3_sssd::setup_characteristics()
+{
+	m_form_factor = floppy_image::FF_3;
+	m_tracks = 42;
+	m_sides = 1;
+	set_rpm(300);
+
+	add_variant(floppy_image::SSSD);
+}
+
+//-------------------------------------------------
+//  3" double-sided single density
+//-------------------------------------------------
+
+floppy_3_dssd::floppy_3_dssd(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	floppy_image_device(mconfig, FLOPPY_3_DSSD, tag, owner, clock)
+{
+}
+
+floppy_3_dssd::~floppy_3_dssd()
+{
+}
+
+void floppy_3_dssd::setup_characteristics()
+{
+	m_form_factor = floppy_image::FF_3;
+	m_tracks = 42;
+	m_sides = 2;
+	set_rpm(300);
+
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::DSSD);
+}
 
 //-------------------------------------------------
 //  3" single-sided double density
@@ -1822,7 +1619,8 @@ void floppy_3_ssdd::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
 }
 
 //-------------------------------------------------
@@ -1845,9 +1643,62 @@ void floppy_3_dsdd::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::DSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
+
+//-------------------------------------------------
+//  3" double-sided quad density
+//-------------------------------------------------
+
+floppy_3_dsqd::floppy_3_dsqd(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	floppy_image_device(mconfig, FLOPPY_3_DSQD, tag, owner, clock)
+{
+}
+
+floppy_3_dsqd::~floppy_3_dsqd()
+{
+}
+
+void floppy_3_dsqd::setup_characteristics()
+{
+	m_form_factor = floppy_image::FF_3;
+	m_tracks = 84;
+	m_sides = 2;
+	set_rpm(300);
+
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::DSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSQD);
+}
+
+//-------------------------------------------------
+//  3.5" single-sided single density
+//-------------------------------------------------
+
+floppy_35_sssd::floppy_35_sssd(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	floppy_image_device(mconfig, FLOPPY_35_SSSD, tag, owner, clock)
+{
+}
+
+floppy_35_sssd::~floppy_35_sssd()
+{
+}
+
+void floppy_35_sssd::setup_characteristics()
+{
+	m_form_factor = floppy_image::FF_35;
+	m_tracks = 42;
+	m_sides = 1;
+	set_rpm(300);
+
+	add_variant(floppy_image::SSSD);
+}
+
 
 //-------------------------------------------------
 //  3.5" single-sided double density
@@ -1869,8 +1720,8 @@ void floppy_35_ssdd::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
 }
 
 //-------------------------------------------------
@@ -1893,9 +1744,9 @@ void floppy_35_dd::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
 
 //-------------------------------------------------
@@ -1918,10 +1769,10 @@ void floppy_35_hd::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
-	m_variants.push_back(floppy_image::DSHD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSHD);
 }
 
 //-------------------------------------------------
@@ -1944,11 +1795,11 @@ void floppy_35_ed::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
-	m_variants.push_back(floppy_image::DSHD);
-	m_variants.push_back(floppy_image::DSED);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSHD);
+	add_variant(floppy_image::DSED);
 }
 
 //-------------------------------------------------
@@ -1971,7 +1822,7 @@ void floppy_525_sssd_35t::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
+	add_variant(floppy_image::SSSD);
 }
 
 //-------------------------------------------------
@@ -1994,8 +1845,8 @@ void floppy_525_sd_35t::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::DSSD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::DSSD);
 }
 
 //-------------------------------------------------
@@ -2019,7 +1870,31 @@ void floppy_525_vtech::setup_characteristics()
 	m_sides = 1;
 	set_rpm(85);
 
-	m_variants.push_back(floppy_image::SSSD);
+	add_variant(floppy_image::SSSD);
+}
+
+//-------------------------------------------------
+//  5.25" single-sided single density, Compucolor edition
+//-------------------------------------------------
+
+floppy_525_compucolor::floppy_525_compucolor(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	floppy_image_device(mconfig, FLOPPY_525_COMPUCOLOR, tag, owner, clock)
+{
+	m_amplifier_freakout_time = attotime::never;
+}
+
+floppy_525_compucolor::~floppy_525_compucolor()
+{
+}
+
+void floppy_525_compucolor::setup_characteristics()
+{
+	m_form_factor = floppy_image::FF_525;
+	m_tracks = 42;
+	m_sides = 1;
+	set_rpm(300);
+
+	add_variant(floppy_image::SSSD);
 }
 
 //-------------------------------------------------
@@ -2042,7 +1917,7 @@ void floppy_525_sssd::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
+	add_variant(floppy_image::SSSD);
 }
 
 //-------------------------------------------------
@@ -2065,7 +1940,7 @@ void floppy_525_sd::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
+	add_variant(floppy_image::SSSD);
 }
 
 //-------------------------------------------------
@@ -2088,8 +1963,8 @@ void floppy_525_ssdd::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
 }
 
 //-------------------------------------------------
@@ -2112,9 +1987,9 @@ void floppy_525_dd::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
 
 //-------------------------------------------------
@@ -2137,9 +2012,9 @@ void floppy_525_ssqd::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::SSQD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::SSQD);
 }
 
 //-------------------------------------------------
@@ -2162,12 +2037,12 @@ void floppy_525_qd::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::SSQD);
-	m_variants.push_back(floppy_image::DSSD);
-	m_variants.push_back(floppy_image::DSDD);
-	m_variants.push_back(floppy_image::DSQD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::SSQD);
+	add_variant(floppy_image::DSSD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSQD);
 }
 
 //-------------------------------------------------
@@ -2190,12 +2065,12 @@ void floppy_525_hd::setup_characteristics()
 	m_sides = 2;
 	set_rpm(360);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::SSQD);
-	m_variants.push_back(floppy_image::DSDD);
-	m_variants.push_back(floppy_image::DSQD);
-	m_variants.push_back(floppy_image::DSHD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::SSQD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSQD);
+	add_variant(floppy_image::DSHD);
 }
 
 //-------------------------------------------------
@@ -2219,7 +2094,7 @@ void floppy_8_sssd::setup_characteristics()
 	m_motor_always_on = true;
 	set_rpm(360);
 
-	m_variants.push_back(floppy_image::SSSD);
+	add_variant(floppy_image::SSSD);
 }
 
 //-------------------------------------------------
@@ -2243,8 +2118,8 @@ void floppy_8_dssd::setup_characteristics()
 	m_motor_always_on = true;
 	set_rpm(360);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::DSSD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::DSSD);
 }
 
 //-------------------------------------------------
@@ -2268,8 +2143,8 @@ void floppy_8_ssdd::setup_characteristics()
 	m_motor_always_on = true;
 	set_rpm(360);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
 }
 
 //-------------------------------------------------
@@ -2293,9 +2168,9 @@ void floppy_8_dsdd::setup_characteristics()
 	m_motor_always_on = true;
 	set_rpm(360);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
 
 
@@ -2329,8 +2204,8 @@ void epson_smd_165::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::DSSD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::DSSD);
 }
 
 //-------------------------------------------------
@@ -2376,9 +2251,9 @@ void epson_sd_320::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
 
 //-------------------------------------------------
@@ -2404,9 +2279,9 @@ void epson_sd_321::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
 
 
@@ -2437,10 +2312,46 @@ void pana_ju_363::setup_characteristics()
 	m_dskchg_writable = true;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
+
+
+//-------------------------------------------------
+//  3.5" Panasonic Flexible Disk Drive JU-386
+//
+//  track to track: 3 ms
+//  settling time: 15 ms
+//  motor start time: 300 ms
+//  transfer rate: 500 Kbits/s
+//  (can also be configured for 300 RPM @ 250 Kb/s with a jumper)
+//
+//-------------------------------------------------
+
+pana_ju_386::pana_ju_386(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	floppy_image_device(mconfig, PANA_JU_386, tag, owner, clock)
+{
+}
+
+pana_ju_386::~pana_ju_386()
+{
+}
+
+void pana_ju_386::setup_characteristics()
+{
+	m_form_factor = floppy_image::FF_35;
+	m_tracks = 84;
+	m_sides = 2;
+	m_dskchg_writable = true;
+	set_rpm(360);
+
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSHD);
+}
+
 
 //-------------------------------------------------
 //  Sony OA-D31V
@@ -2469,8 +2380,8 @@ void sony_oa_d31v::setup_characteristics()
 	m_dskchg_writable = true;
 	set_rpm(600);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
 }
 
 //-------------------------------------------------
@@ -2501,9 +2412,9 @@ void sony_oa_d32w::setup_characteristics()
 	m_dskchg_writable = true;
 	set_rpm(600);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
 
 //-------------------------------------------------
@@ -2534,8 +2445,8 @@ void sony_oa_d32v::setup_characteristics()
 	m_dskchg_writable = true;
 	set_rpm(600);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
 }
 
 //-------------------------------------------------
@@ -2564,7 +2475,7 @@ void teac_fd_30a::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSDD);
 }
 
 //-------------------------------------------------
@@ -2593,8 +2504,8 @@ void teac_fd_55a::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
 }
 
 //-------------------------------------------------
@@ -2623,10 +2534,10 @@ void teac_fd_55b::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSSD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSSD);
+	add_variant(floppy_image::DSDD);
 }
 
 //-------------------------------------------------
@@ -2655,9 +2566,9 @@ void teac_fd_55e::setup_characteristics()
 	m_sides = 1;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::SSQD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::SSQD);
 }
 
 //-------------------------------------------------
@@ -2686,12 +2597,12 @@ void teac_fd_55f::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::SSQD);
-	m_variants.push_back(floppy_image::DSSD);
-	m_variants.push_back(floppy_image::DSDD);
-	m_variants.push_back(floppy_image::DSQD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::SSQD);
+	add_variant(floppy_image::DSSD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSQD);
 }
 
 //-------------------------------------------------
@@ -2720,18 +2631,18 @@ void teac_fd_55g::setup_characteristics()
 	m_sides = 2;
 	set_rpm(360);
 
-	m_variants.push_back(floppy_image::SSSD);
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::SSQD);
-	m_variants.push_back(floppy_image::DSDD);
-	m_variants.push_back(floppy_image::DSQD);
-	m_variants.push_back(floppy_image::DSHD);
+	add_variant(floppy_image::SSSD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::SSQD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSQD);
+	add_variant(floppy_image::DSHD);
 }
 
 //-------------------------------------------------
 //  ALPS 32551901 (black) / 32551902 (brown)
 //
-//  used in the Commodoere 1541 disk drive
+//  used in the Commodore 1541 disk drive
 //-------------------------------------------------
 
 alps_3255190x::alps_3255190x(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
@@ -2751,7 +2662,7 @@ void alps_3255190x::setup_characteristics()
 	set_rpm(300);
 	m_cyl = 34;
 
-	m_variants.push_back(floppy_image::SSSD);
+	add_variant(floppy_image::SSSD);
 }
 
 //-------------------------------------------------
@@ -2776,7 +2687,7 @@ void ibm_6360::setup_characteristics()
 	m_has_trk00_sensor = false;
 	set_rpm(360);
 
-	m_variants.push_back(floppy_image::SSSD);
+	add_variant(floppy_image::SSSD);
 }
 
 
@@ -2795,6 +2706,7 @@ void mac_floppy_device::device_start()
 	floppy_image_device::device_start();
 	save_item(NAME(m_reg));
 	save_item(NAME(m_strb));
+	save_item(NAME(m_mfm));
 }
 
 void mac_floppy_device::device_reset()
@@ -2831,7 +2743,7 @@ bool mac_floppy_device::wpt_r()
 	m_reg = (m_reg & 7) | (m_actual_ss ? 8 : 0);
 
 	if(0 && (m_reg != 4 && m_reg != 12 && m_reg != 5 && m_reg != 13))
-		logerror("fdc disk sense reg %x %s %p\n", m_reg, regnames[m_reg], m_image.get());
+		LOGMASKED(LOG_MACDRIVE, "fdc disk sense reg %x %s %p\n", m_reg, regnames[m_reg], m_image.get());
 
 	switch(m_reg) {
 	case 0x0: // Step direction
@@ -2869,12 +2781,12 @@ bool mac_floppy_device::wpt_r()
 	case 0xa: // Not on track 0?
 		return m_cyl != 0;
 
-	case 0xb:{// Tachometer, 60 pulses/rotation
+	case 0xb:{// Tachometer, 120 inversions/rotation
 		if(m_image.get() != nullptr && !m_mon) {
 			attotime base;
 			uint32_t pos = find_position(base, machine().time());
 			uint32_t subpos = pos % 3333334;
-			return subpos < 20000;
+			return subpos < 3333334/2;
 		} else
 			return false;
 	}
@@ -2910,43 +2822,43 @@ void mac_floppy_device::seek_phase_w(int phases)
 	if(m_strb && !prev_strb) {
 		switch(m_reg) {
 		case 0x0: // Step to cylinder + 1
-			logerror("cmd step dir +1\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd step dir +1\n");
 			dir_w(0);
 			break;
 
 		case 0x1: // Step on
-			logerror("cmd step on\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd step on\n");
 			stp_w(0);
 			// There should be a delay, but it's not necessary
 			stp_w(1);
 			break;
 
 		case 0x2: // Motor on
-			logerror("cmd motor on\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd motor on\n");
 			floppy_image_device::mon_w(0);
 			break;
 
 		case 0x3: // End eject
-			logerror("cmd end eject\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd end eject\n");
 			break;
 
 		case 0x4: // Step to cylinder - 1
-			logerror("cmd step dir -1\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd step dir -1\n");
 			dir_w(1);
 			break;
 
 		case 0x6: // Motor off
-			logerror("cmd motor off\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd motor off\n");
 			floppy_image_device::mon_w(1);
 			break;
 
 		case 0x7: // Start eject
-			logerror("cmd start eject\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd start eject\n");
 			unload();
 			break;
 
 		case 0x9: // MFM mode on
-			logerror("cmd mfm on\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd mfm on\n");
 			if(m_has_mfm) {
 				m_mfm = true;
 				track_changed();
@@ -2954,18 +2866,18 @@ void mac_floppy_device::seek_phase_w(int phases)
 			break;
 
 		case 0xc: // Clear m_dskchg
-			logerror("cmd clear m_dskchg\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd clear m_dskchg\n");
 			m_dskchg = 1;
 			break;
 
 		case 0xd: // GCR mode on
-			logerror("cmd gcr on\n");
+			LOGMASKED(LOG_MACDRIVE, "cmd gcr on\n");
 			m_mfm = false;
 			track_changed();
 			break;
 
 		default:
-			logerror("cmd reg %x %s\n", m_reg, regnames[m_reg]);
+			LOGMASKED(LOG_MACDRIVE, "cmd reg %x %s\n", m_reg, regnames[m_reg]);
 			break;
 		}
 	}
@@ -3018,7 +2930,7 @@ void oa_d34v_device::setup_characteristics()
 	m_sides = 1;
 	set_rpm(394);
 
-	m_variants.push_back(floppy_image::SSDD);
+	add_variant(floppy_image::SSDD);
 }
 
 bool oa_d34v_device::is_2m() const
@@ -3044,8 +2956,8 @@ void mfd51w_device::setup_characteristics()
 	m_sides = 2;
 	set_rpm(394);
 
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
 }
 
 bool mfd51w_device::is_2m() const
@@ -3065,9 +2977,9 @@ void mfd75w_device::setup_characteristics()
 	m_sides = 2;
 	set_rpm(300);
 
-	m_variants.push_back(floppy_image::SSDD);
-	m_variants.push_back(floppy_image::DSDD);
-	m_variants.push_back(floppy_image::DSHD);
+	add_variant(floppy_image::SSDD);
+	add_variant(floppy_image::DSDD);
+	add_variant(floppy_image::DSHD);
 }
 
 bool mfd75w_device::is_2m() const
@@ -3079,4 +2991,27 @@ bool mfd75w_device::is_2m() const
 		return true;
 
 	return false;
+}
+
+//-------------------------------------------------
+//  5.25" twiggy drive
+//-------------------------------------------------
+
+floppy_twiggy::floppy_twiggy(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	floppy_image_device(mconfig, FLOPPY_TWIGGY, tag, owner, clock)
+{
+}
+
+floppy_twiggy::~floppy_twiggy()
+{
+}
+
+void floppy_twiggy::setup_characteristics()
+{
+	m_form_factor = floppy_image::FF_TWIG;
+	m_tracks = 46;
+	m_sides = 2;
+	set_rpm(218); // Variable between 218 and 320
+
+	add_variant(floppy_image::DSHD);
 }

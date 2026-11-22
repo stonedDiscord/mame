@@ -41,11 +41,13 @@ public:
 
 	void dma_write(const uint64_t hi, const uint64_t lo);
 	void tag_write(uint32_t *data);
+	uint16_t top() const { return m_top; }
+	uint16_t itop() const { return m_itop; }
 	bool fifo_available(uint32_t count) const { return (BUFFER_SIZE - m_end) >= count; }
 
 protected:
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 	virtual void execute_run() override;
 
 	uint32_t calculate_unpack_count();

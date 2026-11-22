@@ -39,7 +39,7 @@ public:
 	void tgtpanic(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -52,8 +52,8 @@ private:
 	void color_w(uint8_t data) { m_color = data; }
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
-	void io_map(address_map &map);
-	void prg_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
+	void prg_map(address_map &map) ATTR_COLD;
 };
 
 void tgtpanic_state::machine_start()
@@ -163,7 +163,7 @@ void tgtpanic_state::tgtpanic(machine_config &config)
 	m_maincpu->set_periodic_int(FUNC(tgtpanic_state::irq0_line_hold), irq_period);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60); // Unverified
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // Unverified
 	m_screen->set_size(256, 256);

@@ -8,10 +8,15 @@
 
     TODO:
 
-    Using V20/V30 cycle counts for now. V25/V35 cycle counts
-    vary based on whether internal RAM access is enabled (RAMEN).
+    The V25 carries the clock counts of its own data sheet (section 2.9); the
+    V35 is still on the V30's, and section 2.10 has its own.  Those counts are
+    given as a base plus EA plus a multiple of the wait states: EA is taken as
+    three, its value for every addressing mode but the one with a sixteen bit
+    displacement, and the wait states as none, this core having no model of the
+    READY pin.  The figures are the ones for internal RAM access enabled, which
+    costs two clocks more for each memory write than disabled does.
 
-    BTCLR and STOP instructions not implemented.
+    STOP instruction not implemented.
 
     IBRK flag (trap I/O instructions) not implemented.
 
@@ -19,12 +24,12 @@
 
     Port implementation is incomplete: mode control registers are ignored.
 
-    Timer implementation is incomplete: polling is not implemented
-    (reading any of the registers just returns the last value written)
+    Timer 0 implementation is incomplete: polling is not implemented
+    (reading TM0 returns the last value written)
 
-    Serial interface and DMA functions not implemented.
-    Note that these functions differ considerably between
-    the V25/35 and the V25+/35+.
+    The serial interface implements asynchronous mode only; I/O interface
+    mode is not emulated.  Note that the serial interface and the DMA
+    controller differ considerably between the V25/35 and the V25+/35+.
 
     Make internal RAM into a real RAM region, and use an
     internal address map (remapped when IDB is written to)
@@ -37,6 +42,13 @@
 #include "emu.h"
 #include "v25.h"
 #include "necdasm.h"
+
+#define LOG_BUSLOCK (1 << 1)
+//#define VERBOSE (...)
+
+#include "logmacro.h"
+
+#include <bit>
 
 typedef uint8_t BOOLEAN;
 typedef uint8_t BYTE;
@@ -64,16 +76,22 @@ v25_common_device::v25_common_device(const machine_config &mconfig, device_type 
 	, m_p0_out(*this)
 	, m_p1_out(*this)
 	, m_p2_out(*this)
+	, m_dma_read(*this, 0xffff)
+	, m_dma_write(*this)
+	, m_txd_handler(*this)
+	, m_tc_handler(*this)
 	, m_prefetch_size(prefetch_size)
 	, m_prefetch_cycles(prefetch_cycles)
 	, m_chip_type(chip_type)
+	// TODO: unconfirmed for V25/V35, for now assume true
+	, m_has_div_quirk(true)
 	, m_v25v35_decryptiontable(nullptr)
 {
 }
 
 
 v25_device::v25_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: v25_common_device(mconfig, V25, tag, owner, clock, false, 4, 4, V20_TYPE)
+	: v25_common_device(mconfig, V25, tag, owner, clock, false, 6, 2, V25_TYPE)
 {
 }
 
@@ -94,7 +112,196 @@ device_memory_interface::space_config_vector v25_common_device::memory_space_con
 
 TIMER_CALLBACK_MEMBER(v25_common_device::v25_timer_callback)
 {
+	if (param == INTTU2)
+	{
+		// Timer 1 reloads the current modulo at expiry. In timer 0's
+		// one-shot mode, INTTU1 belongs to MD0 rather than TM1.
+		tm1_w(m_MD1);
+		if (!BIT(m_TMC0, 0))
+			param |= INTTU1;
+	}
 	m_pending_irq |= param;
+}
+
+static const uint32_t s_serial_irq[2][3] =
+{
+	{ INTSER0, INTSR0, INTST0 },
+	{ INTSER1, INTSR1, INTST1 }
+};
+
+attotime v25_common_device::serial_bit_time(unsigned n) const
+{
+	const unsigned brg = m_brg[n] ? m_brg[n] : 256;
+	return clocks_to_attotime(uint64_t(m_PCK) * (2 << (m_scc[n] & 0x0f)) * brg);
+}
+
+unsigned v25_common_device::serial_data_bits(unsigned n) const
+{
+	return BIT(m_scm[n], 3) ? 8 : 7;
+}
+
+// PRTY1:PRTY0 selects no parity, a parity bit fixed at zero, odd parity or even parity
+static uint8_t v25_parity_bit(uint8_t mode, uint8_t data)
+{
+	if (mode < 2)
+		return 0;
+	const unsigned ones = std::popcount(data);
+	return (mode == 3) ? (ones & 1) : ((ones & 1) ^ 1);
+}
+
+void v25_common_device::scm_w(unsigned n, uint8_t d)
+{
+	const uint8_t old = m_scm[n];
+	m_scm[n] = d;
+
+	if (!BIT(d, 0))
+	{
+		if (BIT(d, 0) != BIT(old, 0))
+			logerror("%06x: SCM%u set to %02x: I/O interface mode not emulated\n", PC(), n, d);
+		return;
+	}
+
+	if (!BIT(d, 6) && BIT(old, 6))
+	{
+		m_rx_timer[n]->adjust(attotime::never);
+		m_rx_count[n] = 0;
+	}
+
+	if (!BIT(d, 7) && BIT(old, 7))
+	{
+		m_tx_timer[n]->adjust(attotime::never);
+		m_tx_count[n] = 0;
+		m_tx_pending[n] = false;
+		m_txd_handler[n](1);
+	}
+	else if (BIT(d, 7) && !BIT(old, 7))
+		serial_tx_enabled(n);
+}
+
+// Appendix A.3 of the user's manual has it that enabling transmission, by setting TxRDY or
+// by taking CTS low, raises a transmission completion interrupt of its own.  Firmware that
+// keeps its output in a queue relies on it: it appends a byte, sets TxRDY, and leaves the
+// handler to move the first byte into the transmit buffer.
+void v25_common_device::serial_tx_enabled(unsigned n)
+{
+	if (!BIT(m_scm[n], 7) || !BIT(m_scm[n], 0) || m_cts_state[n])
+		return;
+
+	if (m_tx_pending[n])
+		serial_load_tx(n);
+	else if (!m_tx_count[n])
+		m_pending_irq |= s_serial_irq[n][2];
+}
+
+uint8_t v25_common_device::rxb_r(unsigned n)
+{
+	if (!machine().side_effects_disabled())
+		m_rx_full[n] = false;
+	return m_rxb[n];
+}
+
+void v25_common_device::txb_w(unsigned n, uint8_t d)
+{
+	m_txb[n] = d;
+	m_tx_pending[n] = true;
+	if (!m_tx_count[n])
+		serial_load_tx(n);
+}
+
+// the frame is shifted out LSB first below a run of ones, so that the line idles high
+// once it has emptied
+void v25_common_device::serial_load_tx(unsigned n)
+{
+	if (!BIT(m_scm[n], 7) || !BIT(m_scm[n], 0) || m_cts_state[n])
+		return;
+
+	const unsigned bits = serial_data_bits(n);
+	const uint8_t data = m_txb[n] & make_bitmask<uint8_t>(bits);
+	const uint8_t parity = BIT(m_scm[n], 4, 2);
+
+	uint16_t frame = uint16_t(data) << 1;
+	unsigned length = 1 + bits;
+	if (parity)
+		frame |= uint16_t(v25_parity_bit(parity, data)) << length++;
+	frame |= 0xffff << length;
+	length += BIT(m_scm[n], 2) ? 2 : 1;
+
+	m_tx_shift[n] = frame;
+	m_tx_count[n] = length;
+	m_tx_pending[n] = false;
+
+	m_txd_handler[n](BIT(frame, 0));
+	m_tx_timer[n]->adjust(serial_bit_time(n), n);
+}
+
+TIMER_CALLBACK_MEMBER(v25_common_device::serial_tx_callback)
+{
+	const unsigned n = param;
+
+	m_tx_shift[n] >>= 1;
+	if (--m_tx_count[n])
+	{
+		m_txd_handler[n](BIT(m_tx_shift[n], 0));
+		m_tx_timer[n]->adjust(serial_bit_time(n), n);
+		return;
+	}
+
+	m_txd_handler[n](1);
+	m_pending_irq |= s_serial_irq[n][2];
+
+	if (m_tx_pending[n])
+		serial_load_tx(n);
+}
+
+void v25_common_device::serial_rxd_w(unsigned n, int state)
+{
+	const uint8_t level = state ? 1 : 0;
+	if (m_rxd_state[n] == level)
+		return;
+	m_rxd_state[n] = level;
+
+	// a start bit is only looked for between frames; the first sample sits one and a
+	// half bits into it, so that it and the rest land in the middle of their cells
+	if (!level && BIT(m_scm[n], 6) && BIT(m_scm[n], 0) && !m_rx_count[n])
+	{
+		m_rx_shift[n] = 0;
+		m_rx_count[n] = 1;
+		m_rx_timer[n]->adjust(serial_bit_time(n) * 3 / 2, n);
+	}
+}
+
+TIMER_CALLBACK_MEMBER(v25_common_device::serial_rx_callback)
+{
+	const unsigned n = param;
+	const unsigned bits = serial_data_bits(n);
+	const uint8_t parity = BIT(m_scm[n], 4, 2);
+
+	if (m_rx_count[n] <= bits + (parity ? 1 : 0))
+	{
+		m_rx_shift[n] |= uint16_t(m_rxd_state[n]) << (m_rx_count[n] - 1);
+		m_rx_count[n]++;
+		m_rx_timer[n]->adjust(serial_bit_time(n), n);
+		return;
+	}
+
+	const uint8_t data = m_rx_shift[n] & make_bitmask<uint16_t>(bits);
+
+	// the last sample is the stop bit: a low one is a framing error, and a byte still
+	// unread in the buffer is an overrun
+	uint8_t error = 0;
+	if (!m_rxd_state[n])
+		error |= 0x02;
+	if (m_rx_full[n])
+		error |= 0x01;
+	if (parity > 1 && BIT(m_rx_shift[n], bits) != v25_parity_bit(parity, data))
+		error |= 0x04;
+
+	m_rxb[n] = data;
+	m_rx_full[n] = true;
+	m_sce[n] = error;
+	m_rx_count[n] = 0;
+
+	m_pending_irq |= s_serial_irq[n][error ? 0 : 1];
 }
 
 void v25_common_device::prefetch()
@@ -102,21 +309,19 @@ void v25_common_device::prefetch()
 	m_prefetch_count--;
 }
 
-void v25_common_device::do_prefetch(int previous_ICount)
+void v25_common_device::do_prefetch()
 {
-	int diff = previous_ICount - (int) m_icount;
-
 	/* The implementation is not accurate, but comes close.
 	 * It does not respect that the V30 will fetch two bytes
 	 * at once directly, but instead uses only 2 cycles instead
 	 * of 4. There are however only very few sources publicly
 	 * available and they are vague.
 	 */
-	while (m_prefetch_count<0)
+	while (m_prefetch_count < 0)
 	{
 		m_prefetch_count++;
-		if (diff>m_prefetch_cycles)
-			diff -= m_prefetch_cycles;
+		if (m_cur_cycles > m_prefetch_cycles)
+			m_cur_cycles -= m_prefetch_cycles;
 		else
 			m_icount -= m_prefetch_cycles;
 	}
@@ -128,18 +333,17 @@ void v25_common_device::do_prefetch(int previous_ICount)
 		return;
 	}
 
-	while (diff>=m_prefetch_cycles && m_prefetch_count < m_prefetch_size)
+	while (m_cur_cycles >= m_prefetch_cycles && m_prefetch_count < m_prefetch_size)
 	{
-		diff -= m_prefetch_cycles;
+		m_cur_cycles -= m_prefetch_cycles;
 		m_prefetch_count++;
 	}
-
 }
 
 uint8_t v25_common_device::fetch()
 {
 	prefetch();
-	return m_dr8((Sreg(PS)<<4)+m_ip++);
+	return m_dr8((Sreg(PS)<<4) + m_ip++);
 }
 
 uint16_t v25_common_device::fetchword()
@@ -149,6 +353,7 @@ uint16_t v25_common_device::fetchword()
 	return r;
 }
 
+// TODO: make V25 a subclass instead
 #define nec_common_device v25_common_device
 
 #include "v25instr.h"
@@ -163,7 +368,7 @@ uint8_t v25_common_device::fetchop()
 	uint8_t ret;
 
 	prefetch();
-	ret = m_dr8((Sreg(PS)<<4)+m_ip++);
+	ret = m_dr8((Sreg(PS)<<4) + m_ip++);
 
 	if (m_MF == 0)
 		if (m_v25v35_decryptiontable)
@@ -181,6 +386,7 @@ void v25_common_device::device_reset()
 {
 	m_ip = 0;
 	m_prev_ip = 0;
+	m_rep_ip = 0;
 	m_IBRK = 1;
 	m_F0 = 0;
 	m_F1 = 0;
@@ -209,9 +415,36 @@ void v25_common_device::device_reset()
 	m_mode_state = m_MF = (m_v25v35_decryptiontable) ? 0 : 1;
 	m_intm = 0;
 	m_halted = 0;
+	m_rep_params = 0;
+	m_io_retry = false;
+	m_io_word_pending = false;
+	m_io_word_latch = 0;
 
-	m_TM0 = m_MD0 = m_TM1 = m_MD1 = 0;
 	m_TMC0 = m_TMC1 = 0;
+
+	for (int i = 0; i < 2; i++)
+	{
+		m_scm[i] = 0;
+		m_scc[i] = 0;
+		m_brg[i] = 0;
+		m_sce[i] = 0;
+		m_txb[i] = 0;
+		m_rxb[i] = 0;
+		m_tx_shift[i] = 0;
+		m_tx_count[i] = 0;
+		m_tx_pending[i] = false;
+		m_rx_shift[i] = 0;
+		m_rx_count[i] = 0;
+		m_rx_full[i] = false;
+		m_tx_timer[i]->adjust(attotime::never);
+		m_rx_timer[i]->adjust(attotime::never);
+		m_txd_handler[i](1);
+	}
+
+	m_dmam[0] = m_dmam[1] = 0;
+	m_dmarq_edge[0] = m_dmarq_edge[1] = false;
+	m_dma_channel = -1;
+	m_last_dma_channel = 0;
 
 	m_RAMEN = 1;
 	m_TB = 20;
@@ -242,6 +475,7 @@ void v25_common_device::nec_interrupt(unsigned int_num, int /*INTSOURCES*/ sourc
 {
 	uint32_t dest_seg, dest_off;
 
+	m_rep_params = 0;
 	i_pushf();
 	m_TF = m_IF = 0;
 	m_MF = m_mode_state;
@@ -280,6 +514,7 @@ void v25_common_device::nec_bankswitch(unsigned bank_num)
 {
 	int tmp = CompressFlags();
 
+	m_rep_params = 0;
 	m_TF = m_IF = 0;
 	m_MF = m_mode_state;
 
@@ -470,6 +705,148 @@ void v25_common_device::external_int()
 	}
 }
 
+// Single step and burst mode start from the TDMA bit; the modes that move bytes between
+// memory and I/O start from the DMARQ pin instead, one transfer per rising edge or, in
+// demand release mode, for as long as the pin is held high.
+void v25_common_device::dmarq_state_w(unsigned n, int state)
+{
+	const uint8_t level = state ? 1 : 0;
+	if (m_dmarq_state[n] == level)
+		return;
+	m_dmarq_state[n] = level;
+	if (level)
+		m_dmarq_edge[n] = true;
+}
+
+bool v25_common_device::dma_requested(unsigned n) const
+{
+	if (!BIT(m_dmam[n], 3))
+		return false;
+
+	switch (BIT(m_dmam[n], 5, 3))
+	{
+	case 0: case 4:
+		return BIT(m_dmam[n], 2);
+	case 1: case 2:
+		return m_dmarq_state[n] != 0;
+	case 5: case 6:
+		return m_dmarq_edge[n];
+	default:
+		return false;
+	}
+}
+
+void v25_common_device::dma_process()
+{
+	uint16_t sar = m_internal_ram[m_dma_channel * 4];
+	uint16_t dar = m_internal_ram[m_dma_channel * 4 + 1];
+	uint16_t sarh_darh = m_internal_ram[m_dma_channel * 4 + 2];
+	uint8_t dmamode = BIT(m_dmam[m_dma_channel], 5, 3);
+	bool w = BIT(m_dmam[m_dma_channel], 4);
+
+	uint32_t saddr = ((uint32_t(sarh_darh) & 0xff00) << 4) + sar;
+	uint32_t daddr = ((uint32_t(sarh_darh) & 0x00ff) << 12) + dar;
+
+	if (dmamode > 4)
+		m_dmarq_edge[m_dma_channel] = false;
+
+	switch (dmamode & 3)
+	{
+	case 0:
+		// Memory to memory transfer
+		if (w)
+		{
+			uint16_t data = v25_read_word(saddr);
+			v25_write_word(daddr, data);
+		}
+		else
+		{
+			uint8_t data = v25_read_byte(saddr);
+			v25_write_byte(daddr, data);
+		}
+		CLK((w && m_program->addr_width() == 8) ? 8 : 4);
+		break;
+
+	case 1:
+		// I/O to memory transfer
+		if (w && m_program->addr_width() == 16)
+		{
+			uint16_t data = m_dma_read[m_dma_channel](daddr);
+			v25_write_word(daddr, data);
+		}
+		else
+		{
+			uint8_t data = m_dma_read[m_dma_channel](daddr);
+			v25_write_byte(daddr, data);
+			if (w)
+			{
+				logerror("Warning: V25 16-bit I/O to memory transfer\n");
+				data = m_dma_read[m_dma_channel](daddr + 1);
+				v25_write_byte(daddr + 1, data);
+				CLK(2);
+			}
+		}
+		CLK(2);
+		break;
+
+	case 2:
+		// Memory to I/O transfer
+		if (w && m_program->addr_width() == 16)
+		{
+			uint16_t data = v25_read_word(saddr);
+			m_dma_write[m_dma_channel](saddr, data);
+		}
+		else
+		{
+			uint8_t data = v25_read_byte(saddr);
+			m_dma_write[m_dma_channel](saddr, data);
+			if (w)
+			{
+				logerror("Warning: V25 16-bit memory to I/O transfer\n");
+				data = v25_read_byte(saddr + 1);
+				m_dma_write[m_dma_channel](saddr + 1, data);
+				CLK(2);
+			}
+		}
+		CLK(2);
+		break;
+
+	default:
+		logerror("Reserved DMA transfer mode\n");
+		CLK(1);
+		break;
+	}
+
+	// Update source and destination based on address control
+	uint8_t dmac = m_dmac[m_dma_channel];
+	if (BIT(dmac, 0, 2) == 1)
+		m_internal_ram[m_dma_channel * 4] = sar + (w ? 2 : 1);
+	else if (BIT(dmac, 0, 2) == 2)
+		m_internal_ram[m_dma_channel * 4] = sar - (w ? 2 : 1);
+	if (BIT(dmac, 4, 2) == 1)
+		m_internal_ram[m_dma_channel * 4 + 1] = dar + (w ? 2 : 1);
+	else if (BIT(dmac, 4, 2) == 2)
+		m_internal_ram[m_dma_channel * 4 + 1] = dar - (w ? 2 : 1);
+
+	// Update TC
+	uint16_t tc = --m_internal_ram[m_dma_channel * 4 + 3];
+	if (tc == 0)
+	{
+		// the TC pin marks the last transfer for the device on the other end
+		m_tc_handler[m_dma_channel](1);
+		m_tc_handler[m_dma_channel](0);
+		m_dmam[m_dma_channel] &= 0xf0; // disable channel
+		m_pending_irq |= m_dma_channel ? INTD1 : INTD0; // request interrupt
+	}
+
+	if (dmamode == 0 || dmamode > 4 || tc == 0)
+	{
+		// Single step/single transfer modes (or end of burst)
+		m_last_dma_channel = m_dma_channel;
+		m_dma_channel = -1;
+	}
+}
+
 /****************************************************************************/
 /*                             OPCODES                                      */
 /****************************************************************************/
@@ -522,6 +899,16 @@ std::unique_ptr<util::disasm_interface> v25_common_device::create_disassembler()
 	return std::make_unique<nec_disassembler>(this, m_v25v35_decryptiontable);
 }
 
+bool v25_common_device::get_decryption_mode() const
+{
+	return m_MF == 0;
+}
+
+std::optional<u32> v25_common_device::get_cs_base() const
+{
+	return Sreg(PS) << 4;
+}
+
 void v25_common_device::device_start()
 {
 	unsigned int i, j, c;
@@ -549,6 +936,7 @@ void v25_common_device::device_start()
 	}
 
 	m_no_interrupt = 0;
+	m_cur_cycles = 0;
 	m_prefetch_count = 0;
 	m_prefetch_reset = 0;
 	m_prefix_base = 0;
@@ -556,20 +944,48 @@ void v25_common_device::device_start()
 	m_EA = 0;
 	m_EO = 0;
 	m_E16 = 0;
+	m_io_retry = false;
+	m_io_word_pending = false;
+	m_io_word_latch = 0;
+
+	m_TM0 = m_MD0 = m_TM1 = m_MD1 = 0;
+	m_dmac[0] = m_dmac[1] = 0;
 
 	for (i = 0; i < 4; i++)
 		m_timers[i] = timer_alloc(FUNC(v25_common_device::v25_timer_callback), this);
 
+	for (i = 0; i < 2; i++)
+	{
+		m_tx_timer[i] = timer_alloc(FUNC(v25_common_device::serial_tx_callback), this);
+		m_rx_timer[i] = timer_alloc(FUNC(v25_common_device::serial_rx_callback), this);
+	}
+
+	std::fill_n(&m_dmarq_state[0], 2, 0);
+	std::fill_n(&m_rxd_state[0], 2, 1);
+	std::fill_n(&m_cts_state[0], 2, 0);
 	std::fill_n(&m_intp_state[0], 3, 0);
 	std::fill_n(&m_ems[0], 3, 0);
 	std::fill_n(&m_srms[0], 2, 0);
 	std::fill_n(&m_stms[0], 2, 0);
 	std::fill_n(&m_tmms[0], 3, 0);
 
+	save_item(NAME(m_txb));
+	save_item(NAME(m_rxb));
+	save_item(NAME(m_tx_shift));
+	save_item(NAME(m_tx_count));
+	save_item(NAME(m_tx_pending));
+	save_item(NAME(m_rx_shift));
+	save_item(NAME(m_rx_count));
+	save_item(NAME(m_rx_full));
+	save_item(NAME(m_dmarq_state));
+	save_item(NAME(m_dmarq_edge));
+	save_item(NAME(m_rxd_state));
+	save_item(NAME(m_cts_state));
 	save_item(NAME(m_intp_state));
 
 	save_item(NAME(m_ip));
 	save_item(NAME(m_prev_ip));
+	save_item(NAME(m_rep_ip));
 	save_item(NAME(m_IBRK));
 	save_item(NAME(m_F0));
 	save_item(NAME(m_F1));
@@ -607,12 +1023,25 @@ void v25_common_device::device_start()
 	save_item(NAME(m_no_interrupt));
 	save_item(NAME(m_intm));
 	save_item(NAME(m_halted));
+	save_item(NAME(m_rep_params));
+	save_item(NAME(m_prefix_base));
+	save_item(NAME(m_io_retry));
+	save_item(NAME(m_io_word_pending));
+	save_item(NAME(m_io_word_latch));
 	save_item(NAME(m_TM0));
 	save_item(NAME(m_MD0));
 	save_item(NAME(m_TM1));
 	save_item(NAME(m_MD1));
 	save_item(NAME(m_TMC0));
 	save_item(NAME(m_TMC1));
+	save_item(NAME(m_scm));
+	save_item(NAME(m_scc));
+	save_item(NAME(m_brg));
+	save_item(NAME(m_sce));
+	save_item(NAME(m_dmac));
+	save_item(NAME(m_dmam));
+	save_item(NAME(m_dma_channel));
+	save_item(NAME(m_last_dma_channel));
 	save_item(NAME(m_RAMEN));
 	save_item(NAME(m_TB));
 	save_item(NAME(m_PCK));
@@ -660,7 +1089,7 @@ void v25_common_device::device_start()
 
 	state_add( V25_IDB, "IDB", m_IDB).mask(0xffe00).callimport();
 
-	state_add( STATE_GENPC, "GENPC", m_debugger_temp).callexport().noshow();
+	state_add( STATE_GENPC, "GENPC", m_debugger_temp).callimport().callexport().noshow();
 	state_add( STATE_GENPCBASE, "CURPC", m_debugger_temp).callexport().noshow();
 	state_add( STATE_GENFLAGS, "GENFLAGS", m_debugger_temp).formatstr("%16s").noshow();
 
@@ -709,6 +1138,7 @@ void v25_common_device::state_import(const device_state_entry &entry)
 				m_ip = m_debugger_temp & 0x0000f;
 			}
 			m_prev_ip = m_ip;
+			CHANGE_PC;
 			break;
 
 		case V25_IDB:
@@ -733,10 +1163,47 @@ void v25_common_device::state_export(const device_state_entry &entry)
 }
 
 
+uint16_t v25_common_device::io_read_word(offs_t a)
+{
+	if (!(a & 1) && m_io->data_width() == 16)
+		return m_io->read_word(a);
+
+	// an odd word (or an 8-bit bus) takes two cycles; keep the first byte if the second is retried
+	if (!m_io_word_pending)
+	{
+		m_io_word_latch = m_io->read_byte(a);
+		if (access_to_be_redone_noclear())
+			return 0;
+		m_io_word_pending = true;
+	}
+	const uint16_t result = m_io_word_latch | (m_io->read_byte((a + 1) & 0xffff) << 8);
+	if (!access_to_be_redone_noclear())
+		m_io_word_pending = false;
+	return result;
+}
+
+void v25_common_device::io_write_word(offs_t a, uint16_t v)
+{
+	if (!(a & 1) && m_io->data_width() == 16)
+	{
+		m_io->write_word(a, v);
+		return;
+	}
+
+	if (!m_io_word_pending)
+	{
+		m_io->write_byte(a, v);
+		if (access_to_be_redone_noclear())
+			return;
+		m_io_word_pending = true;
+	}
+	m_io->write_byte((a + 1) & 0xffff, v >> 8);
+	if (!access_to_be_redone_noclear())
+		m_io_word_pending = false;
+}
+
 void v25_common_device::execute_run()
 {
-	int prev_ICount;
-
 	int pending = m_pending_irq & m_unmasked_irq;
 
 	if (m_halted && pending)
@@ -767,15 +1234,22 @@ void v25_common_device::execute_run()
 
 	if (m_halted)
 	{
+		debugger_wait_hook();
 		m_icount = 0;
-		debugger_instruction_hook((Sreg(PS)<<4) + m_ip);
 		return;
 	}
 
-	while(m_icount>0) {
-		/* Dispatch IRQ */
+	while(m_icount>0)
+	{
+		if (m_dma_channel != -1)
+		{
+			dma_process();
+			continue;
+		}
+
+		// Dispatch IRQ
 		m_prev_ip = m_ip;
-		if (m_no_interrupt==0 && (m_pending_irq & m_unmasked_irq))
+		if (!m_io_retry && m_no_interrupt==0 && (m_pending_irq & m_unmasked_irq))
 		{
 			if (m_pending_irq & NMI_IRQ)
 				external_int();
@@ -783,13 +1257,35 @@ void v25_common_device::execute_run()
 				external_int();
 		}
 
-		/* No interrupt allowed between last instruction and this one */
-		if (m_no_interrupt)
+		// No interrupt allowed between last instruction and this one
+		if (!m_io_retry && m_no_interrupt)
 			m_no_interrupt--;
 
 		debugger_instruction_hook((Sreg(PS)<<4) + m_ip);
-		prev_ICount = m_icount;
-		(this->*s_nec_instruction[fetchop()])();
-		do_prefetch(prev_ICount);
+		m_cur_cycles = 0;
+
+		if (m_rep_params)
+			cont_rep();
+		else
+			(this->*s_nec_instruction[fetchop()])();
+
+		// only I/O accesses may be retried; other instructions would repeat their side effects
+		m_io_retry = access_to_be_redone();
+		if (m_io_retry)
+		{
+			m_ip = m_prev_ip;
+			m_icount -= 4; // the attempted bus cycle
+			m_prefetch_reset = 1;
+			continue;
+		}
+		do_prefetch();
+
+		if (dma_requested(0) || dma_requested(1))
+		{
+			if (dma_requested(1 - m_last_dma_channel))
+				m_dma_channel = 1 - m_last_dma_channel;
+			else
+				m_dma_channel = m_last_dma_channel;
+		}
 	}
 }

@@ -16,7 +16,10 @@
 #include "tms34010.h"
 #include "34010dsm.h"
 
+#include "input.h" // for video debug keys
 #include "screen.h"
+
+#include <bit>
 
 #define LOG_CONTROL_REGS (1U << 1)
 #define LOG_GRAPHICS_OPS (1U << 2)
@@ -485,7 +488,7 @@ void tms340x0_device::write_pixel_16(offs_t offset, uint32_t data)
 void tms340x0_device::write_pixel_32(offs_t offset, uint32_t data)
 {
 	/* TODO: plane masking */
-	TMS34010_WRMEM_WORD(offset & 0xffffffe0, data);
+	TMS34010_WRMEM_DWORD(offset & 0xffffffe0, data);
 }
 
 /* No Raster Op + Transparency */
@@ -728,11 +731,11 @@ void tms340x0_device::device_start()
 
 		for (int regnum = 0; regnum < 15; regnum++)
 		{
-			state_add(TMS34010_A0 + regnum, string_format("A%d", regnum).c_str(), m_regs[regnum].reg);
+			state_add(TMS34010_A0 + regnum, string_format("A%d", regnum), m_regs[regnum].reg);
 		}
 		for (int regnum = 0; regnum < 15; regnum++)
 		{
-			state_add(TMS34010_B0 + regnum, string_format("B%d", regnum).c_str(), m_regs[30 - regnum].reg);
+			state_add(TMS34010_B0 + regnum, string_format("B%d", regnum), m_regs[30 - regnum].reg);
 		}
 	}
 
@@ -863,6 +866,7 @@ void tms340x0_device::execute_run()
 	/* Get out if CPU is halted. Absolutely no interrupts must be taken!!! */
 	if (IOREG(REG_HSTCTLH) & 0x8000)
 	{
+		debugger_wait_hook();
 		m_icount = 0;
 		return;
 	}
@@ -876,7 +880,7 @@ void tms340x0_device::execute_run()
 	/* check interrupts first */
 	m_executing = true;
 	check_interrupt();
-	if ((machine().debug_flags & DEBUG_FLAG_ENABLED) == 0)
+	if (!debugger_enabled())
 	{
 		do
 		{
@@ -1050,7 +1054,7 @@ TIMER_CALLBACK_MEMBER( tms340x0_device::scanline_callback )
 			int htotal = SMART_IOREG(HTOTAL);
 			if (htotal > 0 && vtotal > 0)
 			{
-				attoseconds_t refresh = HZ_TO_ATTOSECONDS(m_pixclock) * (htotal + 1) * (vtotal + 1);
+				attotime refresh = attotime::from_ticks((htotal + 1) * (vtotal + 1), m_pixclock);
 				int width = (htotal + 1) * m_pixperclock;
 				int height = vtotal + 1;
 				rectangle visarea;
@@ -1079,7 +1083,7 @@ TIMER_CALLBACK_MEMBER( tms340x0_device::scanline_callback )
 				}
 
 				LOG("Configuring screen: HTOTAL=%3d BLANK=%3d-%3d VTOTAL=%3d BLANK=%3d-%3d refresh=%f\n",
-						htotal, SMART_IOREG(HEBLNK), SMART_IOREG(HSBLNK), vtotal, veblnk, vsblnk, ATTOSECONDS_TO_HZ(refresh));
+						htotal, SMART_IOREG(HEBLNK), SMART_IOREG(HSBLNK), vtotal, veblnk, vsblnk, refresh.as_hz());
 
 				/* interlaced timing not supported */
 				if ((SMART_IOREG(DPYCTL) & 0x4000) == 0)

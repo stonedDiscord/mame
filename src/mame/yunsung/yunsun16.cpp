@@ -119,9 +119,9 @@ protected:
 	{ }
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 	// devices
 	required_device<cpu_device> m_maincpu;
@@ -131,7 +131,7 @@ protected:
 
 	uint32_t screen_update(screen_device &screen, bitmap_ind16 &bitmap, const rectangle &cliprect);
 
-	void main_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
 
 private:
 	// memory pointers
@@ -171,9 +171,9 @@ private:
 
 	void sound_command_w(uint8_t data);
 
-	void main_map(address_map &map);
-	void sound_map(address_map &map);
-	void sound_port_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void sound_map(address_map &map) ATTR_COLD;
+	void sound_port_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -188,16 +188,16 @@ public:
 	void shocking(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_memory_bank m_okibank;
 
 	void sound_bank_w(uint8_t data);
 
-	void main_map(address_map &map);
-	void oki_map(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void oki_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -538,7 +538,7 @@ static INPUT_PORTS_START( magicbub )
 	PORT_BIT( 0x0080, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("DSW1")  // $80001b.b -> $ff0003.b
-	PORT_DIPNAME( 0x0007, 0x0007, DEF_STR( Coinage ) )
+	PORT_DIPNAME( 0x0007, 0x0007, DEF_STR( Coinage ) )   PORT_DIPLOCATION("SW1:1,2,3")
 	PORT_DIPSETTING(      0x0002, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(      0x0004, DEF_STR( 2C_1C ) )
 	PORT_DIPSETTING(      0x0001, DEF_STR( 3C_2C ) )
@@ -547,31 +547,31 @@ static INPUT_PORTS_START( magicbub )
 	PORT_DIPSETTING(      0x0006, DEF_STR( 1C_2C ) )
 	PORT_DIPSETTING(      0x0005, DEF_STR( 1C_3C ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( Free_Play ) )
-	PORT_DIPNAME( 0x0018, 0x0018, DEF_STR( Difficulty ) )
+	PORT_DIPNAME( 0x0018, 0x0018, DEF_STR( Difficulty ) )   PORT_DIPLOCATION("SW1:4,5")
 	PORT_DIPSETTING(      0x0010, DEF_STR( Easy ) )
 	PORT_DIPSETTING(      0x0018, DEF_STR( Normal ) )
 	PORT_DIPSETTING(      0x0008, DEF_STR( Hard ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( Very_Hard ) )
-	PORT_DIPUNUSED( 0x0020, IP_ACTIVE_LOW )
-	PORT_DIPNAME( 0x0040, 0x0000, DEF_STR( Demo_Sounds ) )
+	PORT_DIPUNUSED_DIPLOC( 0x0020, IP_ACTIVE_LOW, "SW1:6" ) // Listed as "Unused"
+	PORT_DIPNAME( 0x0040, 0x0000, DEF_STR( Demo_Sounds ) )   PORT_DIPLOCATION("SW1:7")
 	PORT_DIPSETTING(      0x0040, DEF_STR( Off ) )
 	PORT_DIPSETTING(      0x0000, DEF_STR( On ) )
-	PORT_SERVICE( 0x0080, IP_ACTIVE_LOW )
+	PORT_SERVICE_DIPLOC(  0x0080, IP_ACTIVE_LOW, "SW1:8" )
 
 	PORT_START("DSW2")  // $80001d.b -> $ff0004.b
-	PORT_DIPUNUSED( 0x0001, IP_ACTIVE_LOW )
-	PORT_DIPUNUSED( 0x0002, IP_ACTIVE_LOW )
-	PORT_DIPNAME( 0x000c, 0x000c, "1P Vs 2P Rounds (Start)" )
+	PORT_DIPUNUSED_DIPLOC( 0x0001, IP_ACTIVE_LOW, "SW2:1" ) // Listed as "Unused"
+	PORT_DIPUNUSED_DIPLOC( 0x0002, IP_ACTIVE_LOW, "SW2:2" ) // Listed as "Unused"
+	PORT_DIPNAME( 0x000c, 0x000c, "1P Vs 2P Rounds (Start)" )   PORT_DIPLOCATION("SW2:3,4")
 	PORT_DIPSETTING(      0x0008, "Best of 1" )             // 1 winning round needed
 	PORT_DIPSETTING(      0x000c, "Best of 3" )             // 2 winning rounds needed
 	PORT_DIPSETTING(      0x0004, "Best of 5" )             // 3 winning rounds needed
 	PORT_DIPSETTING(      0x0000, "Best of 7" )             // 4 winning rounds needed
-	PORT_DIPNAME( 0x0010, 0x0010, "1P Vs 2P Rounds (Join-in)" )
+	PORT_DIPNAME( 0x0010, 0x0010, "1P Vs 2P Rounds (Join-in)" )   PORT_DIPLOCATION("SW2:5")   // Dip listing calls it "NEW CHALLENGE"
 	PORT_DIPSETTING(      0x0000, "Best of 1" )             // 1 winning round needed
 	PORT_DIPSETTING(      0x0010, "Best of 3" )             // 2 winning rounds needed
-	PORT_DIPUNUSED( 0x0020, IP_ACTIVE_LOW )
-	PORT_DIPUNUSED( 0x0040, IP_ACTIVE_LOW )
-	PORT_DIPUNUSED( 0x0080, IP_ACTIVE_LOW )
+	PORT_DIPUNUSED_DIPLOC( 0x0020, IP_ACTIVE_LOW, "SW2:6" ) // Listed as "Unused"
+	PORT_DIPUNUSED_DIPLOC( 0x0040, IP_ACTIVE_LOW, "SW2:7" ) // Listed as "Unused"
+	PORT_DIPUNUSED_DIPLOC( 0x0080, IP_ACTIVE_LOW, "SW2:8" ) // Listed as "Unused"
 INPUT_PORTS_END
 
 /***************************************************************************
@@ -582,11 +582,11 @@ static INPUT_PORTS_START( magicbua )
 	PORT_INCLUDE(magicbub)
 
 	PORT_MODIFY("DSW2")
-	PORT_DIPNAME( 0x0003, 0x0003, "Nudity" )                // Read notes
-	PORT_DIPSETTING(      0x0003, "Soft only" )
-	PORT_DIPSETTING(      0x0000, "Hard only" )
-	PORT_DIPSETTING(      0x0001, "Soft and Hard" )
-	PORT_DIPSETTING(      0x0002, "Soft then Hard" )
+	PORT_DIPNAME( 0x0003, 0x0003, "Nudity" )    PORT_DIPLOCATION("SW2:1,2")   // Read notes
+	PORT_DIPSETTING(      0x0003, "Soft only" )             // Dip listing shows "ONLY 1 LEVEL"
+	PORT_DIPSETTING(      0x0000, "Hard only" )             // Dip listing shows "ONLY 2 LEVEL"
+	PORT_DIPSETTING(      0x0001, "Soft and Hard" )         // Dip listing shows "RANDOM"
+	PORT_DIPSETTING(      0x0002, "Soft then Hard" )        // Dip listing shows "NORAML"
 INPUT_PORTS_END
 
 /***************************************************************************
@@ -908,7 +908,7 @@ void magicbub_state::magicbub(machine_config &config)
 	audiocpu.set_addrmap(AS_IO, &magicbub_state::sound_port_map);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(XTAL(16'000'000)/2, 512, 0x20, 0x180-0x20, 260, 0, 0xe0); // TODO: completely inaccurate
 	m_screen->set_screen_update(FUNC(magicbub_state::screen_update));
 	m_screen->set_palette(m_palette);
@@ -918,19 +918,18 @@ void magicbub_state::magicbub(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xRGB_555, 8192);
 
 	// sound hardware
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	GENERIC_LATCH_8(config, m_soundlatch);
 
 	ym3812_device &ymsnd(YM3812(config, "ymsnd", XTAL(16'000'000) / 4));
 	ymsnd.irq_handler().set_inputline("audiocpu", 0);
-	ymsnd.add_route(ALL_OUTPUTS, "lspeaker", 0.80);
-	ymsnd.add_route(ALL_OUTPUTS, "rspeaker", 0.80);
+	ymsnd.add_route(ALL_OUTPUTS, "speaker", 0.80, 0);
+	ymsnd.add_route(ALL_OUTPUTS, "speaker", 0.80, 1);
 
 	okim6295_device &oki(OKIM6295(config, "oki", XTAL(16'000'000) / 16, okim6295_device::PIN7_HIGH));
-	oki.add_route(ALL_OUTPUTS, "lspeaker", 0.80);
-	oki.add_route(ALL_OUTPUTS, "rspeaker", 0.80);
+	oki.add_route(ALL_OUTPUTS, "speaker", 0.80, 0);
+	oki.add_route(ALL_OUTPUTS, "speaker", 0.80, 1);
 }
 
 
@@ -945,7 +944,7 @@ void shocking_state::shocking(machine_config &config)
 	m_maincpu->set_addrmap(AS_PROGRAM, &shocking_state::main_map);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(XTAL(16'000'000)/2, 512, 0, 0x180-4, 260, 0, 0xe0); // TODO: completely inaccurate
 	m_screen->set_screen_update(FUNC(shocking_state::screen_update));
 	m_screen->set_palette(m_palette);
@@ -955,12 +954,11 @@ void shocking_state::shocking(machine_config &config)
 	PALETTE(config, m_palette).set_format(palette_device::xRGB_555, 8192);
 
 	// sound hardware
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
 	okim6295_device &oki(OKIM6295(config, "oki", XTAL(16'000'000) / 16, okim6295_device::PIN7_HIGH));
-	oki.add_route(ALL_OUTPUTS, "lspeaker", 1.0);
-	oki.add_route(ALL_OUTPUTS, "rspeaker", 1.0);
+	oki.add_route(ALL_OUTPUTS, "speaker", 1.0, 0);
+	oki.add_route(ALL_OUTPUTS, "speaker", 1.0, 1);
 	oki.set_addrmap(0, &shocking_state::oki_map);
 }
 

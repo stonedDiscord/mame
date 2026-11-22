@@ -195,8 +195,8 @@ private:
 	uint16_t irq1_ack_r();
 	uint16_t irq2_ack_r();
 	uint16_t irq4_ack_r();
-	void mcu_map(address_map &map);
-	void pntnpuzl_map(address_map &map);
+	void mcu_map(address_map &map) ATTR_COLD;
+	void pntnpuzl_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -350,10 +350,10 @@ INPUT_CHANGED_MEMBER(pntnpuzl_state::coin_inserted)
 
 static INPUT_PORTS_START( pntnpuzl )
 	PORT_START("IN0")   // fake inputs
-	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_VBLANK("screen")
-	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_CHANGED_MEMBER(DEVICE_SELF, pntnpuzl_state,coin_inserted, 1) PORT_IMPULSE(1)
-	PORT_SERVICE_NO_TOGGLE( 0x04, IP_ACTIVE_HIGH )PORT_CHANGED_MEMBER(DEVICE_SELF, pntnpuzl_state,coin_inserted, 2) PORT_IMPULSE(1)
-	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN2 ) PORT_CHANGED_MEMBER(DEVICE_SELF, pntnpuzl_state,coin_inserted, 4) PORT_IMPULSE(1)
+	PORT_BIT( 0x01, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("screen", FUNC(screen_device::vblank))
+	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_COIN1 ) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(pntnpuzl_state::coin_inserted), 1) PORT_IMPULSE(1)
+	PORT_SERVICE_NO_TOGGLE( 0x04, IP_ACTIVE_HIGH )PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(pntnpuzl_state::coin_inserted), 2) PORT_IMPULSE(1)
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_COIN2 ) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(pntnpuzl_state::coin_inserted), 4) PORT_IMPULSE(1)
 	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_BUTTON1 ) PORT_NAME("Touch screen");
 
 	/* game uses a touch screen */
@@ -367,7 +367,7 @@ static INPUT_PORTS_START( pntnpuzl )
 	PORT_BIT( 0x01, IP_ACTIVE_LOW, IPT_BUTTON10 ) PORT_NAME("Brown")
 	PORT_BIT( 0x02, IP_ACTIVE_LOW, IPT_BUTTON11 ) PORT_NAME("Tan")
 	PORT_BIT( 0x04, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Ticket Notch
-	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", eeprom_serial_93cxx_device, do_read)
+	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_DEVICE_MEMBER("eeprom", FUNC(eeprom_serial_93cxx_device::do_read))
 	PORT_BIT( 0x70, IP_ACTIVE_LOW, IPT_UNUSED )
 	PORT_BIT( 0x80, IP_ACTIVE_LOW, IPT_UNKNOWN ) // Ticket Motor
 
@@ -407,11 +407,11 @@ void pntnpuzl_state::pntnpuzl(machine_config &config)
 
 	EEPROM_93C46_16BIT(config, "mcu_eeprom").do_callback().set_inputline("mcu", i8x9x_device::HSI3_LINE);
 
-	TVGA9000_VGA(config, m_svga, 0);
+	TVGA9000_VGA(config, m_svga);
 	m_svga->set_screen(m_screen);
 	m_svga->set_vram_size(0x100000);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	// TODO: XTAL is not right and likely not the source,
 	// selects xtal mode 3 (36 MHz) / 2 plus another / 2 for module testing bit 7
 	m_screen->set_raw(XTAL(40'000'000) / 2, 1080, 0, 400, 265, 0, 240);
@@ -434,13 +434,12 @@ ROM_START( pntnpuzl )
 	ROM_LOAD( "trident_quadtel_tvga9000_isa16.bin", 0x0000, 0x10000, BAD_DUMP CRC(ad0e7351) SHA1(eb525460a80e1c1baa34642b93d54caf2607920d) )
 ROM_END
 
-
+// TODO: verify these patches, eventually get rid of _init if they are useless
 void pntnpuzl_state::init_pip()
 {
 //  uint16_t *rom = (uint16_t *)memregion("maincpu")->base();
 //  rom[0x2696/2] = 0x4e71;
 //  rom[0x26a0/2] = 0x4e71;
-
 }
 
 } // anonymous namespace

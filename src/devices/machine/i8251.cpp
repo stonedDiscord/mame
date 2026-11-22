@@ -10,18 +10,17 @@
     The V53/V53A use a customized version with only the Asynchronous mode
     and a split command / mode register
 
-To Do:
-- BRKDET: if, in Async mode, 16 low RxD bits in succession are clocked in,
-          the SYNDET pin & status must go high. It will go low upon a
-          status read, same as what happens with sync.
-
-- SYNC/BISYNC with PARITY is not tested, and therefore possibly buggy.
-
+    TODO:
+    - BRKDET: if, in Async mode, 16 low RxD bits in succession are clocked
+      in, the SYNDET pin & status must go high. It will go low upon a
+      status read, same as what happens with sync.
 
 *********************************************************************/
 
 #include "emu.h"
 #include "i8251.h"
+
+#include <bit>
 
 #define LOG_STAT    (1U << 1)
 #define LOG_COM     (1U << 2)
@@ -55,8 +54,8 @@ i8251_device::i8251_device(
 		device_type type,
 		const char *tag,
 		device_t *owner,
-		uint32_t clock)
-	: device_t(mconfig, type, tag, owner, clock),
+		uint32_t clock) :
+	device_t(mconfig, type, tag, owner, clock),
 	device_serial_interface(mconfig, *this),
 	m_txd_handler(*this),
 	m_dtr_handler(*this),
@@ -73,13 +72,14 @@ i8251_device::i8251_device(
 {
 }
 
-i8251_device::i8251_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: i8251_device(mconfig, I8251, tag, owner, clock)
+i8251_device::i8251_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	i8251_device(mconfig, I8251, tag, owner, clock)
 {
 }
 
-v5x_scu_device::v5x_scu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
-	: i8251_device(mconfig, V5X_SCU, tag, owner, clock)
+v5x_scu_device::v5x_scu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
+	i8251_device(mconfig, V5X_SCU, tag, owner, clock),
+	m_sint_handler(*this)
 {
 }
 
@@ -90,16 +90,44 @@ v5x_scu_device::v5x_scu_device(const machine_config &mconfig, const char *tag, d
 
 void i8251_device::device_start()
 {
+	// zerofill
+	m_flags = 0;
+	m_sync_byte_count = 0;
+	m_sync1 = 0;
+	m_sync2 = 0;
+	m_status = 0;
+	m_command = 0;
+	m_mode_byte = 0;
+	m_delayed_tx_en = false;
+	m_rxrdy = false;
+
+	m_rxc_count = 0;
+	m_txc_count = 0;
+	m_br_factor = 0;
+	m_rx_start_check = false;
+
+	m_rx_data = 0;
+	m_tx_data = 0;
+	m_sync8 = 0;
+	m_sync16 = 0;
+	m_tx_sync_shift = 0;
+	m_syndet_pin = false;
+	m_hunt_on = false;
+	m_ext_syn_set = false;
+	m_rxd_bits = 0;
+	m_data_bits_count = 0;
+
+	// register for savestates
 	save_item(NAME(m_flags));
 	save_item(NAME(m_sync_byte_count));
+	save_item(NAME(m_sync1));
+	save_item(NAME(m_sync2));
 	save_item(NAME(m_status));
 	save_item(NAME(m_command));
 	save_item(NAME(m_mode_byte));
 	save_item(NAME(m_delayed_tx_en));
-	save_item(NAME(m_sync1));
-	save_item(NAME(m_sync2));
-	save_item(NAME(m_sync8));
-	save_item(NAME(m_sync16));
+	save_item(NAME(m_rxrdy));
+
 	save_item(NAME(m_cts));
 	save_item(NAME(m_dsr));
 	save_item(NAME(m_rxd));
@@ -108,8 +136,13 @@ void i8251_device::device_start()
 	save_item(NAME(m_rxc_count));
 	save_item(NAME(m_txc_count));
 	save_item(NAME(m_br_factor));
+	save_item(NAME(m_rx_start_check));
+
 	save_item(NAME(m_rx_data));
 	save_item(NAME(m_tx_data));
+	save_item(NAME(m_sync8));
+	save_item(NAME(m_sync16));
+	save_item(NAME(m_tx_sync_shift));
 	save_item(NAME(m_syndet_pin));
 	save_item(NAME(m_hunt_on));
 	save_item(NAME(m_ext_syn_set));
@@ -119,22 +152,30 @@ void i8251_device::device_start()
 
 
 
-
 /*-------------------------------------------------
     update_rx_ready
 -------------------------------------------------*/
 
 void i8251_device::update_rx_ready()
 {
-	int state = m_status & I8251_STATUS_RX_READY;
-
-	// masked?
-	if (!BIT(m_command, 2))
-		state = 0;
-
-	m_rxrdy_handler(state != 0);
+	// Repeat a 1, but send a 0 only when the level falls.  A consumer that
+	// defers its input (input_merger, rst_pos_buffer) applies calls in time
+	// order, and a CPU access can run before an earlier-timed receive: a
+	// repeated 0 would land after the receive's 1 and lose its interrupt.
+	// A data read's 0 can still land late; the next repeated 1 restores it.
+	bool const state = rxrdy_r();
+	if (state || m_rxrdy)
+	{
+		m_rxrdy = state;
+		m_rxrdy_handler(state);
+	}
 }
 
+void v5x_scu_device::update_rx_ready()
+{
+	i8251_device::update_rx_ready();
+	sint_bit_w<0>(rxrdy_r());
+}
 
 
 /*-------------------------------------------------
@@ -152,6 +193,26 @@ void i8251_device::receive_clock()
 			--m_rxc_count;
 			if (m_rxc_count)
 				return;
+
+			// false start bit detection: a start bit must still be low at its
+			// centre, or it was a glitch and the search for one resumes
+			// (8251A data sheet, Receiver Control and Asynchronous Mode (Receive))
+			if (m_rx_start_check)
+			{
+				m_rx_start_check = false;
+				if (m_rxd)
+				{
+					receive_register_reset();
+					// the register still holds the low start bit; shift the
+					// high line in so the next falling edge is a transition
+					receive_register_update_bit(m_rxd);
+				}
+				else
+				{
+					m_rxc_count = m_br_factor;
+				}
+				return;
+			}
 		}
 
 		//logerror("I8251\n");
@@ -159,7 +220,19 @@ void i8251_device::receive_clock()
 		//LOGBITS("8251: Rx Sampled %d\n", m_rxd);
 		receive_register_update_bit(m_rxd);
 		if (is_receive_register_synchronized())
-			m_rxc_count = sync ? m_br_factor : (3 * m_br_factor / 2);
+		{
+			if (!sync && m_br_factor > 1)
+			{
+				// a start bit has just been seen: check it again half a bit
+				// from now
+				m_rx_start_check = true;
+				m_rxc_count = m_br_factor / 2;
+			}
+			else
+			{
+				m_rxc_count = m_br_factor;
+			}
+		}
 
 		if (is_receive_register_full())
 		{
@@ -173,14 +246,6 @@ void i8251_device::receive_clock()
 	}
 }
 
-bool i8251_device::calc_parity(u8 ch)
-{
-	bool data = 0;
-	for (u8 b = 0; b < 8; b++)
-		data ^= BIT(ch, b);
-	return data;
-}
-
 void i8251_device::sync1_rxc()
 {
 	// is rx enabled?
@@ -192,12 +257,14 @@ void i8251_device::sync1_rxc()
 	if (m_syndet_pin && !m_ext_syn_set)
 		return;
 
-	u8 need_parity = BIT(m_mode_byte, 4);
+	uint8_t need_parity = BIT(m_mode_byte, 4);
 
 	// see about parity
 	if (need_parity && (m_rxd_bits == m_data_bits_count))
 	{
-		if (calc_parity(m_sync1) != m_rxd)
+		// bit 5: 0 = odd parity, 1 = even parity.
+		// Total 1-bits (data + received parity + parity_type) must be odd for a correct frame.
+		if (((std::popcount(m_sync1) + m_rxd + BIT(m_mode_byte, 5)) & 1) == 0)
 			m_status |= I8251_STATUS_PARITY_ERROR;
 		// and then continue on as if everything was ok
 	}
@@ -215,6 +282,16 @@ void i8251_device::sync1_rxc()
 	{
 		if (m_sync1 == m_sync8)
 		{
+			if (need_parity && (m_rxd_bits < m_data_bits_count))
+			{
+				// Set m_rxd_bits so that the next call's parity-check
+				// branch fires, then wait.
+				m_rxd_bits = m_data_bits_count;
+				return;
+			}
+			// Either parity is not used, or we already processed the parity
+			// bit (m_rxd_bits == m_data_bits_count from the previous return).
+
 			m_rxd_bits = m_data_bits_count;
 			m_hunt_on = false;
 			was_in_hunt_mode = true;
@@ -253,12 +330,14 @@ void i8251_device::sync2_rxc()
 	if (m_syndet_pin && !m_ext_syn_set)
 		return;
 
-	u8 need_parity = BIT(m_mode_byte, 4);
+	uint8_t need_parity = BIT(m_mode_byte, 4);
 
 	// see about parity
 	if (need_parity && (m_rxd_bits == m_data_bits_count))
 	{
-		if (calc_parity(m_sync1) != m_rxd)
+		// bit 5: 0 = odd parity, 1 = even parity.
+		// Total 1-bits (data + received parity + parity_type) must be odd for a correct frame.
+		if (((std::popcount(m_sync1) + m_rxd + BIT(m_mode_byte, 5)) & 1) == 0)
 			m_status |= I8251_STATUS_PARITY_ERROR;
 		// and then continue on as if everything was ok
 	}
@@ -277,6 +356,14 @@ void i8251_device::sync2_rxc()
 	{
 		if (m_sync2 == m_sync16)
 		{
+			if (need_parity && (m_rxd_bits < m_data_bits_count))
+			{
+				// All data bits of the sync byte have been received and match,
+				// but the parity bit has not arrived yet.  Set m_rxd_bits so
+				// that the next call's parity-check branch fires, then wait.
+				m_rxd_bits = m_data_bits_count;
+				return;
+			}
 			m_rxd_bits = m_data_bits_count;
 			m_hunt_on = false;
 			was_in_hunt_mode = true;
@@ -306,28 +393,32 @@ void i8251_device::sync2_rxc()
 	m_sync2 = 0;
 }
 
+
 /*-------------------------------------------------
     is_tx_enabled
 -------------------------------------------------*/
+
 bool i8251_device::is_tx_enabled() const
 {
 	return BIT(m_command, 0) && !m_cts;
 }
 
+
 /*-------------------------------------------------
     check_for_tx_start
 -------------------------------------------------*/
+
 void i8251_device::check_for_tx_start()
 {
-	if (is_tx_enabled() && (m_status & (I8251_STATUS_TX_EMPTY | I8251_STATUS_TX_READY)) == I8251_STATUS_TX_EMPTY)
-	{
+	if (is_tx_enabled() && is_transmit_register_empty() && (m_status & (I8251_STATUS_TX_READY)) == 0)
 		start_tx();
-	}
 }
+
 
 /*-------------------------------------------------
     start_tx
 -------------------------------------------------*/
+
 void i8251_device::start_tx()
 {
 	LOG("start_tx %02x\n", m_tx_data);
@@ -335,6 +426,7 @@ void i8251_device::start_tx()
 	m_status &= ~I8251_STATUS_TX_EMPTY;
 	m_status |= I8251_STATUS_TX_READY;
 }
+
 
 /*-------------------------------------------------
     transmit_clock
@@ -353,7 +445,25 @@ void i8251_device::transmit_clock()
 		if ((m_status & I8251_STATUS_TX_READY) == 0 && (is_tx_enabled() || m_delayed_tx_en))
 			start_tx();
 		else
+		{
 			m_status |= I8251_STATUS_TX_EMPTY;
+			if (m_sync_byte_count > 0 && is_tx_enabled())
+			{
+				// In synchronous mode, transmit sync character(s) during idle instead of mark state
+				if (m_sync_byte_count == 2)
+				{
+					transmit_register_setup(uint8_t(m_sync16 >> m_tx_sync_shift));
+					m_tx_sync_shift ^= 8;  // alternate between high byte (sync1) and low byte (sync2)
+				}
+				else
+					transmit_register_setup(m_sync8);
+			}
+			else
+			{
+				// return TxD to marking state (high) if not sending break character
+				m_txd_handler(!BIT(m_command, 3));
+			}
+		}
 
 		update_tx_ready();
 		update_tx_empty();
@@ -376,20 +486,20 @@ void i8251_device::transmit_clock()
 
 void i8251_device::update_tx_ready()
 {
-	/* clear tx ready state */
-	int tx_ready;
-
 	/* tx ready output is set if:
 	    DB Buffer Empty &
 	    CTS is set &
 	    Transmit enable is 1
 	*/
 
-	tx_ready = is_tx_enabled() && (m_status & I8251_STATUS_TX_READY) != 0;
-
-	m_txrdy_handler(tx_ready);
+	m_txrdy_handler(txrdy_r());
 }
 
+void v5x_scu_device::update_tx_ready()
+{
+	i8251_device::update_tx_ready();
+	sint_bit_w<1>(txrdy_r());
+}
 
 
 /*-------------------------------------------------
@@ -398,12 +508,6 @@ void i8251_device::update_tx_ready()
 
 void i8251_device::update_tx_empty()
 {
-	if (m_status & I8251_STATUS_TX_EMPTY)
-	{
-		// return TxD to marking state (high) if not sending break character
-		m_txd_handler(!BIT(m_command, 3));
-	}
-
 	m_txempty_handler((m_status & I8251_STATUS_TX_EMPTY) != 0);
 }
 
@@ -468,10 +572,13 @@ void i8251_device::device_reset()
 	m_tx_data = 0;
 	m_rxc_count = m_txc_count = 0;
 	m_br_factor = 1;
+	m_rx_start_check = false;
 
 	/* update tx empty pin output */
 	update_tx_empty();
-	/* update rx ready pin output */
+	/* update rx ready pin output; RESET forces it low, so send the low
+	   whatever was last driven */
+	m_rxrdy = true;
 	update_rx_ready();
 	/* update tx ready pin output */
 	update_tx_ready();
@@ -485,9 +592,6 @@ void i8251_device::device_reset()
 
 void i8251_device::command_w(uint8_t data)
 {
-	/* command */
-	m_command = data;
-
 	LOG("I8251: Command byte: %02x\n", data);
 	LOGCOM(" Tx enable: %d\n", data & 0x01 ? 1 : 0); // bit 0: 0 = transmit disable 1 = transmit enable
 	LOGCOM(" DTR      : %d\n", data & 0x02 ? 1 : 0); // bit 1: 0 = /DTR set to 1    1 = /DTR set to 0
@@ -498,9 +602,6 @@ void i8251_device::command_w(uint8_t data)
 	LOGCOM(" Reset    : %d\n", data & 0x40 ? 1 : 0); // bit 6: 0 = normal operation 1 = internal reset
 	LOGCOM(" Hunt mode: %d\n", data & 0x80 ? 1 : 0); // bit 7: 0 = normal operation 1 = hunt mode
 
-	m_rts_handler(!BIT(data, 5));
-	m_dtr_handler(!BIT(data, 1));
-
 	if (BIT(data, 4))
 	{
 		LOGSTAT("status errors are reset\n");
@@ -509,11 +610,21 @@ void i8251_device::command_w(uint8_t data)
 
 	if (BIT(data, 6))
 	{
-		// datasheet says "returns to mode format", not
-		// completely resets the chip.  behavior of DEC Rainbow
-		// backs this up.
+		// Internal reset returns the device to the mode format and, per the
+		// 8251A data sheet (RESET pin), to the "Idle" state.  It stops short
+		// of a full reset (device_reset), as the DEC Rainbow's behaviour backs
+		// up.  Treating the rest of the command as 0 is inferred: the data
+		// sheet only shows a bare 0x40.
 		m_flags = I8251_NEXT_MODE;
+		data = 0x40;
 	}
+
+	// command
+	bool const was_break = BIT(m_command, 3);
+	m_command = data;
+
+	m_rts_handler(!BIT(data, 5));
+	m_dtr_handler(!BIT(data, 1));
 
 	// Hunt mode
 	m_hunt_on = false;
@@ -523,8 +634,14 @@ void i8251_device::command_w(uint8_t data)
 	if (m_hunt_on)
 		m_ext_syn_set = false;
 
+	// An empty transmitter holds TxD marking unless SBRK is set (8251A data
+	// sheet, Features and Asynchronous Mode (Transmission)), so a command that
+	// clears SBRK, an internal reset included, ends the break.  Not while a
+	// sync mode transmitter idles on SYNC characters, as transmit_clock does.
 	if (BIT(data, 3))
 		m_txd_handler(0);
+	else if (was_break && is_transmit_register_empty() && !(m_sync_byte_count && is_tx_enabled()))
+		m_txd_handler(1);
 
 	check_for_tx_start();
 	update_rx_ready();
@@ -538,50 +655,50 @@ void i8251_device::mode_w(uint8_t data)
 
 	m_mode_byte = data;
 
-		/*  Asynchronous
+	/*  Asynchronous
 
-		    bit 7,6: stop bit length
-		    0 = inhibit
-		    1 = 1 bit
-		    2 = 1.5 bits
-		    3 = 2 bits
-		    bit 5: parity type
-		    0 = parity odd
-		    1 = parity even
-		    bit 4: parity test enable
-		    0 = disable
-		    1 = enable
-		    bit 3,2: character length
-		    0 = 5 bits
-		    1 = 6 bits
-		    2 = 7 bits
-		    3 = 8 bits
-		    bit 1,0: baud rate factor
-		    0 = defines command byte for synchronous or asynchronous
-		    1 = x1
-		    2 = x16
-		    3 = x64
+	    bit 7,6: stop bit length
+	    0 = inhibit
+	    1 = 1 bit
+	    2 = 1.5 bits
+	    3 = 2 bits
+	    bit 5: parity type
+	    0 = parity odd
+	    1 = parity even
+	    bit 4: parity test enable
+	    0 = disable
+	    1 = enable
+	    bit 3,2: character length
+	    0 = 5 bits
+	    1 = 6 bits
+	    2 = 7 bits
+	    3 = 8 bits
+	    bit 1,0: baud rate factor
+	    0 = defines command byte for synchronous or asynchronous
+	    1 = x1
+	    2 = x16
+	    3 = x64
 
-		    Synchronous
-		    bit 7: Number of sync characters
-		    0 = 1 character
-		    1 = 2 character
-		    bit 6: Synchronous mode
-		    0 = Internal synchronisation
-		    1 = External synchronisation
-		    bit 5: parity type
-		    0 = parity odd
-		    1 = parity even
-		    bit 4: parity test enable
-		    0 = disable
-		    1 = enable
-		    bit 3,2: character length
-		    0 = 5 bits
-		    1 = 6 bits
-		    2 = 7 bits
-		    3 = 8 bits
-		    bit 1,0 = 0
-		        */
+	    Synchronous
+	    bit 7: Number of sync characters
+	    0 = 1 character
+	    1 = 2 character
+	    bit 6: Synchronous mode
+	    0 = Internal synchronisation
+	    1 = External synchronisation
+	    bit 5: parity type
+	    0 = parity odd
+	    1 = parity even
+	    bit 4: parity test enable
+	    0 = disable
+	    1 = enable
+	    bit 3,2: character length
+	    0 = 5 bits
+	    1 = 6 bits
+	    2 = 7 bits
+	    3 = 8 bits
+	    bit 1,0 = 0
+	*/
 
 	m_data_bits_count = ((data >> 2) & 0x03) + 5;
 	LOG("Character length: %d\n", m_data_bits_count);
@@ -660,11 +777,13 @@ void i8251_device::mode_w(uint8_t data)
 		m_syndet_pin = BIT(data, 6);
 		m_sync8 = 0;
 		m_sync16 = 0;
+		m_tx_sync_shift = 8;
 		m_rxd_bits = 0;
 		m_sync1 = 0;
 	}
 
 	receive_register_reset();
+	m_rx_start_check = false;
 	m_txc_count = 0;
 }
 
@@ -688,11 +807,9 @@ void i8251_device::control_w(uint8_t data)
 {
 	if (m_flags == I8251_NEXT_SYNC1)
 		sync1_w(data);
-	else
-	if (m_flags == I8251_NEXT_SYNC2)
+	else if (m_flags == I8251_NEXT_SYNC2)
 		sync2_w(data);
-	else
-	if (m_flags == I8251_NEXT_MODE)
+	else if (m_flags == I8251_NEXT_MODE)
 		mode_w(data);
 	else
 		command_w(data);
@@ -738,7 +855,6 @@ void i8251_device::data_w(uint8_t data)
 	check_for_tx_start();
 
 	/* if transmitter is active, then tx empty will be signalled */
-
 	update_tx_ready();
 	update_tx_empty();
 }
@@ -810,14 +926,14 @@ void i8251_device::write(offs_t offset, uint8_t data)
 
 void i8251_device::write_rxd(int state)
 {
-	m_rxd = state;
+	m_rxd = state ? 1 : 0;
 	LOGBITS("8251: Presented a %d\n", m_rxd);
-	//  device_serial_interface::rx_w(state);
+	//device_serial_interface::rx_w(m_rxd);
 }
 
 void i8251_device::write_cts(int state)
 {
-	m_cts = state;
+	m_cts = state ? 1 : 0;
 
 	if (started())
 	{
@@ -834,12 +950,13 @@ void i8251_device::write_dsr(int state)
 
 void i8251_device::write_rxc(int state)
 {
+	state = state ? 1 : 0;
+
 	if (!m_rxc && state)
 	{
 		if (m_sync_byte_count == 1)
 			sync1_rxc();
-		else
-		if (m_sync_byte_count == 2)
+		else if (m_sync_byte_count == 2)
 			sync2_rxc();
 		else
 			receive_clock();
@@ -850,6 +967,8 @@ void i8251_device::write_rxc(int state)
 
 void i8251_device::write_txc(int state)
 {
+	state = state ? 1 : 0;
+
 	if (m_txc != state)
 	{
 		m_txc = state;
@@ -875,10 +994,23 @@ int i8251_device::txrdy_r()
 	return is_tx_enabled() && (m_status & I8251_STATUS_TX_READY) != 0;
 }
 
+int i8251_device::rxrdy_r()
+{
+	// masked?
+	if (!BIT(m_command, 2))
+		return 0;
+
+	return (m_status & I8251_STATUS_RX_READY) != 0;
+}
+
 void v5x_scu_device::device_start()
 {
 	i8251_device::device_start();
 
+	m_sint = 0;
+	m_simk = 0;
+
+	save_item(NAME(m_sint));
 	save_item(NAME(m_simk));
 }
 
@@ -890,9 +1022,14 @@ void v5x_scu_device::device_reset()
 	i8251_device::device_reset();
 }
 
-u8 v5x_scu_device::read(offs_t offset)
+void v5x_scu_device::update_sint()
 {
-	u8 data = 0;
+	m_sint_handler((m_sint & ~m_simk) != 0);
+}
+
+uint8_t v5x_scu_device::read(offs_t offset)
+{
+	uint8_t data = 0;
 
 	switch (offset)
 	{

@@ -10,9 +10,7 @@
 
 // device type definition
 DEFINE_DEVICE_TYPE(ATAPI_CDROM,        atapi_cdrom_device,        "cdrom",        "ATAPI CD-ROM")
-DEFINE_DEVICE_TYPE(ATAPI_FIXED_CDROM,  atapi_fixed_cdrom_device,  "cdrom_fixed",  "ATAPI fixed CD-ROM")
 DEFINE_DEVICE_TYPE(ATAPI_DVDROM,       atapi_dvdrom_device,       "dvdrom",       "ATAPI CD/DVD-ROM")
-DEFINE_DEVICE_TYPE(ATAPI_FIXED_DVDROM, atapi_fixed_dvdrom_device, "dvdrom_fixed", "ATAPI fixed CD/DVD-ROM")
 
 atapi_cdrom_device::atapi_cdrom_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	atapi_cdrom_device(mconfig, ATAPI_CDROM, tag, owner, clock)
@@ -26,23 +24,8 @@ atapi_cdrom_device::atapi_cdrom_device(const machine_config &mconfig, device_typ
 {
 }
 
-atapi_fixed_cdrom_device::atapi_fixed_cdrom_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock) :
-	atapi_cdrom_device(mconfig, type, tag, owner, clock)
-{
-}
-
-atapi_fixed_cdrom_device::atapi_fixed_cdrom_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	atapi_fixed_cdrom_device(mconfig, ATAPI_FIXED_CDROM, tag, owner, clock)
-{
-}
-
 atapi_dvdrom_device::atapi_dvdrom_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
 	atapi_cdrom_device(mconfig, ATAPI_DVDROM, tag, owner, clock)
-{
-}
-
-atapi_fixed_dvdrom_device::atapi_fixed_dvdrom_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock) :
-	atapi_cdrom_device(mconfig, ATAPI_FIXED_DVDROM, tag, owner, clock)
 {
 }
 
@@ -52,7 +35,7 @@ atapi_fixed_dvdrom_device::atapi_fixed_dvdrom_device(const machine_config &mconf
 
 void atapi_cdrom_device::device_add_mconfig(machine_config &config)
 {
-	if(type() == ATAPI_DVDROM || type() == ATAPI_FIXED_DVDROM)
+	if(type() == ATAPI_DVDROM)
 		DVDROM(config, "image").set_interface("cdrom");
 	else if(type() == ATAPI_GDROM)
 		GDROM(config, "image").set_interface("cdrom");
@@ -68,7 +51,8 @@ void atapi_cdrom_device::device_start()
 
 	memset(m_identify_buffer, 0, sizeof(m_identify_buffer));
 
-	m_identify_buffer[0] = 0x8500; // ATAPI device, cmd set 5 compliant, DRQ within 3 ms of PACKET command
+	// ATAPI device, cmd set 5 compliant, removable media, DRQ within 3 ms of PACKET command
+	m_identify_buffer[0] = 0x8580;
 
 	m_identify_buffer[23] = ('1' << 8) | '.';
 	m_identify_buffer[24] = ('0' << 8) | ' ';
@@ -115,24 +99,10 @@ void atapi_cdrom_device::device_reset()
 	m_sequence_counter = m_image->sequence_counter();
 }
 
-void atapi_fixed_cdrom_device::device_reset()
-{
-	atapi_hle_device::device_reset();
-	m_media_change = false;
-	m_sequence_counter = m_image->sequence_counter();
-}
-
 void atapi_dvdrom_device::device_reset()
 {
 	atapi_hle_device::device_reset();
 	m_media_change = true;
-	m_sequence_counter = m_image->sequence_counter();
-}
-
-void atapi_fixed_dvdrom_device::device_reset()
-{
-	atapi_hle_device::device_reset();
-	m_media_change = false;
 	m_sequence_counter = m_image->sequence_counter();
 }
 
@@ -159,6 +129,22 @@ void atapi_cdrom_device::ExecCommand()
 {
 	switch(command[0])
 	{
+		case T10MMC_CMD_READ_DISC_STRUCTURE:
+			// Mac OS X distinguishes ATAPI CD-ROM and DVD-ROM drives by if
+			// they accept this (DVD-only) command.
+			if(type() != ATAPI_DVDROM)
+			{
+				m_phase = SCSI_PHASE_STATUS;
+				m_sense_key = SCSI_SENSE_KEY_ILLEGAL_REQUEST;
+				m_sense_asc = 0x20; // INVALID COMMAND OPERATION CODE
+				m_sense_ascq = 0;
+				m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
+				m_transfer_length = 0;
+				return;
+			}
+			break;
+
+		case T10SPC_CMD_TEST_UNIT_READY:
 		case T10SBC_CMD_READ_CAPACITY:
 		case T10SBC_CMD_READ_10:
 		case T10MMC_CMD_READ_SUB_CHANNEL:
@@ -188,10 +174,14 @@ void atapi_cdrom_device::ExecCommand()
 				m_sense_asc = SCSI_SENSE_ASC_NOT_READY_TO_READY_TRANSITION;
 				m_status_code = SCSI_STATUS_CODE_CHECK_CONDITION;
 				m_transfer_length = 0;
+				// Per SCSI-2 7.9, always clear after the unit attention is reported.
+				// Fixes Award BIOS El Torito boot.
+				m_media_change = false;
 				return;
 			}
 			break;
 		case T10SPC_CMD_INQUIRY:
+			m_media_change = false; // mtouchxl(mitsumi)
 			break;
 		case T10SPC_CMD_REQUEST_SENSE:
 			m_media_change = false;

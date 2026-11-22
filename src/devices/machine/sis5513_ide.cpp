@@ -18,7 +18,7 @@
 #define LOG_MAP    (1U << 3) // log full remaps
 
 #define VERBOSE (LOG_GENERAL | LOG_IO | LOG_TODO | LOG_MAP)
-//#define LOG_OUTPUT_FUNC osd_printf_warning
+//#define LOG_OUTPUT_FUNC osd_printf_info
 
 #include "logmacro.h"
 
@@ -132,9 +132,9 @@ void sis5513_ide_device::device_start()
 	pci_device::device_start();
 
 	add_map(8, M_IO, FUNC(sis5513_ide_device::ide1_command_map));
-	add_map(4, M_IO, FUNC(sis5513_ide_device::ide1_control_map));
+	add_map(4, M_IO | M_DISABLED, FUNC(sis5513_ide_device::ide1_control_map));
 	add_map(8, M_IO, FUNC(sis5513_ide_device::ide2_command_map));
-	add_map(4, M_IO, FUNC(sis5513_ide_device::ide2_control_map));
+	add_map(4, M_IO | M_DISABLED, FUNC(sis5513_ide_device::ide2_control_map));
 	add_map(16, M_IO, FUNC(sis5513_ide_device::bus_master_ide_control_map));
 }
 
@@ -159,6 +159,30 @@ void sis5513_ide_device::device_reset()
 	remap_cb();
 }
 
+void sis5513_ide_device::map_extra(uint64_t memory_window_start, uint64_t memory_window_end, uint64_t memory_offset, address_space *memory_space,
+								   uint64_t io_window_start, uint64_t io_window_end, uint64_t io_offset, address_space *io_space)
+{
+	if (!BIT(command, 0))
+		return;
+
+	// map only byte 2: normal mapping would hide the floppy registers at 3f4/3f5/3f7
+	for (int channel = 0; channel < 2; channel++)
+	{
+		const auto &bank = bank_infos[1 + channel * 2];
+		if (bank.adr == -1)
+			continue;
+
+		const uint64_t address = (bank.adr & ~(uint64_t(bank.size) - 1)) + io_offset + 2;
+		if (address < io_window_start || address > io_window_end)
+			continue;
+
+		if (channel == 0)
+			io_space->install_readwrite_handler(address, address, read8smo_delegate(*this, FUNC(sis5513_ide_device::ide1_read_cs1_r)), write8smo_delegate(*this, FUNC(sis5513_ide_device::ide1_write_cs1_w)));
+		else
+			io_space->install_readwrite_handler(address, address, read8smo_delegate(*this, FUNC(sis5513_ide_device::ide2_read_cs1_r)), write8smo_delegate(*this, FUNC(sis5513_ide_device::ide2_write_cs1_w)));
+	}
+}
+
 inline bool sis5513_ide_device::ide1_mode()
 {
 	return (pclass & 0x3) == 3;
@@ -169,7 +193,7 @@ inline bool sis5513_ide_device::ide2_mode()
 	return (pclass & 0xc) == 0xc;
 }
 
-// In compatible mode BARs with legacy addresses but can values written can still be readout.
+// In compatible mode BARs with legacy addresses but values written can still be readout.
 // In practice we need to override writes and make sure we flush remapping accordingly
 inline void sis5513_ide_device::flush_ide_mode()
 {

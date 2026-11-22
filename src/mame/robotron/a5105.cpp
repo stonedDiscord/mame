@@ -62,8 +62,8 @@ public:
 	void a5105(machine_config &config);
 
 protected:
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	uint8_t a5105_memsel_r();
@@ -81,9 +81,9 @@ private:
 	UPD7220_DISPLAY_PIXELS_MEMBER( hgdc_display_pixels );
 	UPD7220_DRAW_TEXT_LINE_MEMBER( hgdc_draw_text );
 
-	void a5105_io(address_map &map);
-	void a5105_mem(address_map &map);
-	void upd7220_map(address_map &map);
+	void a5105_io(address_map &map) ATTR_COLD;
+	void a5105_mem(address_map &map) ATTR_COLD;
+	void upd7220_map(address_map &map) ATTR_COLD;
 
 	uint8_t *m_ram_base = 0;
 	uint8_t *m_rom_base = 0;
@@ -591,7 +591,7 @@ void a5105_state::a5105(machine_config &config)
 	m_maincpu->set_daisy_config(a5105_daisy_chain);
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(50);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	m_screen->set_screen_update("upd7220", FUNC(upd7220_device::screen_update));

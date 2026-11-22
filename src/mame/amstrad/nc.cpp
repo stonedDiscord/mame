@@ -112,8 +112,8 @@ public:
 	void nc_base(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	void update_interrupts();
 
@@ -129,7 +129,7 @@ protected:
 	template<int N> uint8_t pcmcia_r(offs_t offset);
 	template<int N> void pcmcia_w(offs_t offset, uint8_t data);
 
-	void mem_map(address_map &map);
+	void mem_map(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<ram_device> m_ram;
@@ -204,10 +204,10 @@ public:
 	void nc150(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
-	void io_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
 
 	void display_memory_start_w(uint8_t data);
 	void card_wait_control_w(uint8_t data);
@@ -238,15 +238,15 @@ public:
 	void nc200(machine_config &config);
 
 protected:
-	void machine_start() override;
-	void machine_reset() override;
+	void machine_start() override ATTR_COLD;
+	void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<mc146818_device> m_rtc;
 	required_device<upd765a_device> m_fdc;
 	required_device<floppy_connector> m_floppy;
 
-	void io_map(address_map &map);
+	void io_map(address_map &map) ATTR_COLD;
 
 	void display_memory_start_w(uint8_t data);
 	void card_wait_control_w(uint8_t data);
@@ -441,21 +441,21 @@ static INPUT_PORTS_START( nc100 )
 	PORT_BIT(0x80, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_STOP)      PORT_CHAR('.') PORT_CHAR('>') PORT_NAME(".  >  . (Calc)")
 
 	PORT_START("power")
-	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("Power On/Off") PORT_CODE(KEYCODE_END) PORT_CHANGED_MEMBER(DEVICE_SELF, nc100_state, power_button, 0)
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("Power On/Off") PORT_CODE(KEYCODE_END) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nc100_state::power_button), 0)
 
 	PORT_START("battery")
-	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(nc100_state, centronics_ack_r)
-	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(nc100_state, centronics_busy_r)
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(nc100_state::centronics_ack_r))
+	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(nc100_state::centronics_busy_r))
 	PORT_CONFNAME(0x04, 0x00, "Lithium Battery")
 	PORT_CONFSETTING(   0x00, "Good")
 	PORT_CONFSETTING(   0x04, "Bad")
 	PORT_CONFNAME(0x08, 0x00, "Main Battery")
 	PORT_CONFSETTING(   0x00, "Good")
 	PORT_CONFSETTING(   0x08, "Bad")
-	PORT_BIT(0x10, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(nc100_state, pcmcia_battery_voltage_r)
+	PORT_BIT(0x10, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(nc100_state::pcmcia_battery_voltage_r))
 	PORT_BIT(0x20, 0x00, IPT_UNKNOWN) // input voltage?
-	PORT_BIT(0x40, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(nc100_state, pcmcia_write_protect_r)
-	PORT_BIT(0x80, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(nc100_state, pcmcia_card_detect_r)
+	PORT_BIT(0x40, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(nc100_state::pcmcia_write_protect_r))
+	PORT_BIT(0x80, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(nc100_state::pcmcia_card_detect_r))
 INPUT_PORTS_END
 
 static INPUT_PORTS_START( nc100de )
@@ -736,7 +736,7 @@ static INPUT_PORTS_START( nc200 )
 	PORT_BIT(0x02, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_0) PORT_CHAR('0') PORT_CHAR(')') PORT_NAME(u8"0  )  ÷ (Calc)")
 
 	PORT_MODIFY("power")
-	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("Power On/Off") PORT_CODE(KEYCODE_END) PORT_CHANGED_MEMBER(DEVICE_SELF, nc200_state, power_button, 0)
+	PORT_BIT(0x01, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_NAME("Power On/Off") PORT_CODE(KEYCODE_END) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(nc200_state::power_button), 0)
 
 	PORT_MODIFY("battery")
 	PORT_CONFNAME(0x01, 0x00, "Battery for Floppy Drive")
@@ -747,12 +747,12 @@ static INPUT_PORTS_START( nc200 )
 	PORT_CONFSETTING(   0x00, "Good")
 	PORT_CONFSETTING(   0x04, "Bad")
 	PORT_BIT(0x08, 0x00, IPT_UNKNOWN)
-	PORT_BIT(0x10, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(nc200_state, pcmcia_battery_voltage_r)
+	PORT_BIT(0x10, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(nc200_state::pcmcia_battery_voltage_r))
 	PORT_CONFNAME(0x20, 0x00, "Lithium Battery")
 	PORT_CONFSETTING(   0x00, "Good")
 	PORT_CONFSETTING(   0x20, "Bad")
-	PORT_BIT(0x40, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(nc200_state, pcmcia_write_protect_r)
-	PORT_BIT(0x80, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(nc200_state, pcmcia_card_detect_r)
+	PORT_BIT(0x40, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(nc200_state::pcmcia_write_protect_r))
+	PORT_BIT(0x80, IP_ACTIVE_HIGH, IPT_CUSTOM) PORT_READ_LINE_MEMBER(FUNC(nc200_state::pcmcia_card_detect_r))
 INPUT_PORTS_END
 
 
@@ -820,15 +820,16 @@ void nc200_state::display_memory_start_w(uint8_t data)
 
 uint32_t nc_state::screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect)
 {
-	for (int y = 0; y <= cliprect.max_y; y++)
+	for (int y = 0; y <= cliprect.bottom(); y++)
 	{
 		// 64 bytes/line
 		uint8_t const *line = reinterpret_cast<uint8_t const *>(m_ram->pointer()) + m_display_memory_start + (y << 6);
+		auto *const dst = &bitmap.pix(y);
 
-		for (int x = 0; x <= cliprect.max_x; x+= 8)
+		for (int x = 0; x <= cliprect.right(); x += 8)
 		{
 			for (int i = 0; i < 8; i++)
-				bitmap.pix(y, x + i) = BIT(*line, 7 - i) ? m_fg_color : m_bg_color;
+				dst[x + i] = BIT(*line, 7 - i) ? m_fg_color : m_bg_color;
 
 			line++;
 		}
@@ -1314,15 +1315,15 @@ void nc_state::nc_base(machine_config &config)
 	TIMER(config, "keyscan_timer").configure_periodic(FUNC(nc_state::keyscan_timer), attotime::from_msec(10));
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_LCD);
+	SCREEN(config, m_screen).set_lcd();
 	m_screen->set_refresh_hz(50);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500)); // not accurate
 	m_screen->set_screen_update(FUNC(nc_state::screen_update));
 
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
-	BEEP(config, m_beeper1, 0).add_route(ALL_OUTPUTS, "mono", 0.50);
-	BEEP(config, m_beeper2, 0).add_route(ALL_OUTPUTS, "mono", 0.50);
+	BEEP(config, m_beeper1).add_route(ALL_OUTPUTS, "mono", 0.50);
+	BEEP(config, m_beeper2).add_route(ALL_OUTPUTS, "mono", 0.50);
 
 	// centronics
 	CENTRONICS(config, m_centronics, centronics_devices, "printer");
@@ -1332,7 +1333,7 @@ void nc_state::nc_base(machine_config &config)
 	m_centronics->set_output_latch(cent_data_out);
 
 	// uart
-	I8251(config, m_uart, 0);
+	I8251(config, m_uart);
 	m_uart->txd_handler().set("serial", FUNC(rs232_port_device::write_txd));
 	m_uart->rts_handler().set("serial", FUNC(rs232_port_device::write_rts));
 	m_uart->dtr_handler().set("serial", FUNC(rs232_port_device::write_dtr));
@@ -1457,7 +1458,11 @@ ROM_END
 
 ROM_START( nc200 )
 	ROM_REGION(0x80000, "maincpu", 0)
-	ROM_LOAD("nc200.rom", 0x00000, 0x80000, CRC(bb8180e7) SHA1(fb5c93b0a3e199202c6a12548d2617f7a09bae47))
+	ROM_DEFAULT_BIOS("v202")
+	ROM_SYSTEM_BIOS(0, "v201", "v2.01") // 16 Aug 1993
+	ROMX_LOAD("amstrad_42112_v201.rom", 0x00000, 0x80000, CRC(bb8180e7) SHA1(fb5c93b0a3e199202c6a12548d2617f7a09bae47), ROM_BIOS(0))
+	ROM_SYSTEM_BIOS(1, "v202", "v2.02") // 10 Dec 1993
+	ROMX_LOAD("amstrad_nc200_v202.rom", 0x00000, 0x80000, CRC(0919efba) SHA1(d849fb808a84b6f73a7d5d2676d35c3629809764), ROM_BIOS(1))
 ROM_END
 
 

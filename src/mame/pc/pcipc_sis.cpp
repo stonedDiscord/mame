@@ -5,12 +5,13 @@
  *
  * Notes:
  * - sis85c471 doesn't belong here, it's a full on ISA PC/AT
+ * - (Hack Inc.) to setup working CD-ROM, set any unused HDD to None (the detection is quite slow),
+ *   then in Chipset Features set Onboard 496B IDE Port to Both
  *
  * TODO:
  * - Finish porting sis85c496 from at.cpp;
  * - Reports slower CPU speeds in Award BIOSes (i.e. "66 MHz" for actual 75);
- * - (Hack Inc.) Glue in a Voodoo 1 hookup;
- * - (Hack Inc.) Identify motherboard name(s);
+ * - (Hack Inc.) Identify -bios motherboard name(s), split them;
  *
  */
 
@@ -28,6 +29,9 @@
 #include "machine/w83787f.h"
 #include "video/voodoo_pci.h"
 
+#include "softlist_dev.h"
+
+namespace {
 
 class sis496_state : public driver_device
 {
@@ -37,14 +41,14 @@ public:
 		, m_maincpu(*this, "maincpu")
 	{ }
 
-	void sis496(machine_config &config);
+	void sis496(machine_config &config) ATTR_COLD;
 
 protected:
 	required_device<i486dx4_device> m_maincpu;
 
 private:
-	void main_io(address_map &map);
-	void main_map(address_map &map);
+	void main_io(address_map &map) ATTR_COLD;
+	void main_map(address_map &map) ATTR_COLD;
 
 	static void winbond_superio_config(device_t *device);
 };
@@ -60,7 +64,7 @@ public:
 		, m_screen(*this, "voodoo_screen")
 	{ }
 
-	void sis496_voodoo1(machine_config &config);
+	void sis496_voodoo1(machine_config &config) ATTR_COLD;
 
 protected:
 	required_device<voodoo_1_pci_device> m_voodoo;
@@ -117,13 +121,14 @@ void sis496_state::sis496(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &sis496_state::main_io);
 	m_maincpu->set_irq_acknowledge_callback("pci:05.0:pic8259_master", FUNC(pic8259_device::inta_cb));
 
-	PCI_ROOT(config, "pci", 0);
+	PCI_ROOT(config, "pci");
 	SIS85C496_HOST(config, "pci:05.0", 0, "maincpu", 32*1024*1024);
 
+	// FIXME: determine ISA bus clock
 	ISA16_SLOT(config, "board4", 0, "pci:05.0:isabus", isa_internal_devices, "w83787f", true).set_option_machine_config("w83787f", winbond_superio_config);
-	ISA16_SLOT(config, "isa1", 0, "pci:05.0:isabus",  pc_isa16_cards, "wd90c31_lr", false);
-	ISA16_SLOT(config, "isa2", 0, "pci:05.0:isabus",  pc_isa16_cards, nullptr, false);
-	ISA16_SLOT(config, "isa3", 0, "pci:05.0:isabus",  pc_isa16_cards, nullptr, false);
+	ISA16_SLOT(config, "isa1",   0, "pci:05.0:isabus",  pc_isa16_cards, "wd90c30_lr", false);
+	ISA16_SLOT(config, "isa2",   0, "pci:05.0:isabus",  pc_isa16_cards, "wss", false);
+	ISA16_SLOT(config, "isa3",   0, "pci:05.0:isabus",  pc_isa16_cards, nullptr, false);
 
 	rs232_port_device &serport0(RS232_PORT(config, "serport0", isa_com, "logitech_mouse"));
 	serport0.rxd_handler().set("board4:w83787f", FUNC(w83787f_device::rxd1_w));
@@ -140,20 +145,29 @@ void sis496_state::sis496(machine_config &config)
 	serport1.cts_handler().set("board4:w83787f", FUNC(w83787f_device::ncts2_w));
 
 	// TODO: 9-10-11-12 for PCI_SLOT (according to BIOS)
+
+	SOFTWARE_LIST(config, "pc_disk_list").set_original("ibm5150");
+	SOFTWARE_LIST(config, "at_disk_list").set_original("ibm5170");
+	SOFTWARE_LIST(config, "at_cdrom_list").set_original("ibm5170_cdrom");
+	SOFTWARE_LIST(config, "win_cdrom_list").set_original("generic_cdrom").set_filter("ibmpc");
+	SOFTWARE_LIST(config, "at_hdd_list").set_original("ibm5170_hdd");
+	SOFTWARE_LIST(config, "midi_disk_list").set_compatible("midi_flop");
+	SOFTWARE_LIST(config, "photocd_list").set_compatible("photo_cd");
 }
 
+// NOTE: this is an experiment, an actual Voodoo 1 hookup would require a Socket 7 class PC
 void sis496_voodoo1_state::sis496_voodoo1(machine_config &config)
 {
 	sis496_state::sis496(config);
 
-	VOODOO_1_PCI(config, m_voodoo, 0, m_maincpu, m_screen);
+	VOODOO_1_PCI(config, m_voodoo, m_maincpu, m_screen);
 	m_voodoo->set_fbmem(2);
 	m_voodoo->set_tmumem(4, 0);
 	// TODO: games are very annoyed with Direct3D 5 init/teardown fns around this.
 	m_voodoo->set_status_cycles(1000);
 
 	// TODO: wrong, needs VGA passthru
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(57);
 	m_screen->set_size(640, 480);
 	m_screen->set_visarea(0, 640 - 1, 0, 480 - 1);
@@ -169,7 +183,7 @@ ROM_START( sis85c496 )
 	ROM_REGION32_LE(0x20000, "pci:05.0", 0)
 	ROM_SYSTEM_BIOS(0, "funworld", "Award 486e BIOS with W83787 (photoply)")
 	// Photoplay BIOS
-	// Lucky Star LS-486EF REV:B
+	// Lucky Star LS-486EF REV:B, essentially a clone of ls486e
 	ROMX_LOAD("funworld_award_486e_w83787.bin", 0x000000, 0x20000, BAD_DUMP CRC(af7ff1d4) SHA1(72eeecf798a03817ce7ba4d65cd4128ed3ef7e68), ROM_BIOS(0) ) // 486E 96/7/19 W83787 PLUG & PLAY BIOS, AT29C010A
 
 	// MegaTouch XL BIOSes
@@ -342,7 +356,7 @@ ROM_START( jwj446a )
 	ROMX_LOAD( "j446a.rom", 0x00000, 0x20000, CRC(3e3c6abd) SHA1(04952dc143baa7b51cb6fc5eb1961007ecf36aaf), ROM_BIOS(1))
 ROM_END
 
-// LuckyStar LS-486E  - Chipset : SiS496, SiS497, SMC FDC37C665GT - CPU: AMD 486DX4-100 (Socket 3) - RAM: 4xSIMM72, Cache: 4 sockets (UM61512AK-15)+1
+// Lucky Star LS-486E  - Chipset : SiS496, SiS497, SMC FDC37C665GT - CPU: AMD 486DX4-100 (Socket 3) - RAM: 4xSIMM72, Cache: 4 sockets (UM61512AK-15)+1
 // BIOS : AMIBIOS 486PCI ISA 393824, on a 27C010 type ROM chip - Keyboard-BIOS: AMIKEY-2 - ID string : 41-PH0D-001256-00101111-101094-SIS496AB-H
 // On board: 2xISA, Floppy, par, 2xser - ISA16: 4, PCI: 3
 ROM_START( ls486e )
@@ -458,39 +472,40 @@ ROM_START( zito4dps )
 ROM_END
 
 
+} // anonymous namespace
+
 /***************************************************************************
   Game driver(s)
 ***************************************************************************/
 
-//    YEAR  NAME       PARENT   COMPAT   MACHINE    INPUT  CLASS         INIT            COMPANY        FULLNAME                FLAGS
 COMP( 199?, sis85c496, 0, 0, sis496_voodoo1, 0, sis496_voodoo1_state, empty_init, "Hack Inc.", "486 motherboards using the SiS 85C496/85C497 chipset + 3dfx Voodoo 1", MACHINE_NOT_WORKING ) // 4sim002 crashes while enabling cache?
 
-COMP( 1995, atc1425a,  0, 0, sis496, 0, sis496_state, empty_init, "A-Trend", "ATC-1425A (SiS 85C496/85C497)", MACHINE_NOT_WORKING ) // -bios 2 punts to Award BootBlock, -bios 0 and 1 crashes
-COMP( 1996, atc1425b,  0, 0, sis496, 0, sis496_state, empty_init, "A-Trend", "ATC-1425B (SiS 85C496/85C497)", MACHINE_NOT_WORKING ) // punts to Award BootBlock
+COMP( 1995, atc1425a,  0, 0, sis496, 0, sis496_state, empty_init, "A-Trend", "ATC-1425A (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // -bios 2 punts to Award BootBlock, -bios 0 and 1 crashes
+COMP( 1996, atc1425b,  0, 0, sis496, 0, sis496_state, empty_init, "A-Trend", "ATC-1425B (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // punts to Award BootBlock
 
-COMP( 1995, abpi4,     0, 0, sis496, 0, sis496_state, empty_init, "ABit", "AB-PI4 / AB-PI4T (SiS 85C496/85C497)", MACHINE_NOT_WORKING ) // hangs during irq check
-COMP( 1995, abpm4,     0, 0, sis496, 0, sis496_state, empty_init, "ABit", "AB-PM4 (SiS 85C496/85C497)", MACHINE_NOT_WORKING ) // hangs during irq check
-COMP( 1995, abpv4,     0, 0, sis496, 0, sis496_state, empty_init, "ABit", "AB-PV4 (SiS 85C496/85C497)", MACHINE_NOT_WORKING ) // hangs during irq check
+COMP( 1995, abpi4,     0, 0, sis496, 0, sis496_state, empty_init, "ABit", "AB-PI4 / AB-PI4T (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // hangs during irq check
+COMP( 1995, abpm4,     0, 0, sis496, 0, sis496_state, empty_init, "ABit", "AB-PM4 (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // hangs during irq check
+COMP( 1995, abpv4,     0, 0, sis496, 0, sis496_state, empty_init, "ABit", "AB-PV4 (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // hangs during irq check
 
-COMP( 199?, aoap43,    0, 0, sis496, 0, sis496_state, empty_init, "AOpen", "AP43 (SiS 85C496/85C497)",  MACHINE_NOT_WORKING ) // crashes while enabling cache?
+COMP( 199?, aoap43,    0, 0, sis496, 0, sis496_state, empty_init, "AOpen", "AP43 (SiS 85C496/85C497 chipset)",  MACHINE_NOT_WORKING ) // crashes while enabling cache?
 
-COMP( 1994, a486sp3,   0, 0, sis496, 0, sis496_state, empty_init, "Asus", "PVI-486SP3 (SiS 85C496/85C497)", MACHINE_NOT_WORKING ) // hangs during irq check
-COMP( 1995, aa486s,    0, 0, sis496, 0, sis496_state, empty_init, "Asus", "PCI/I-A486S (SiS 85C496/85C497)", MACHINE_NOT_WORKING ) // -bios 0 crashes on boot, -bios 1 hardlocks MAME
+COMP( 1994, a486sp3,   0, 0, sis496, 0, sis496_state, empty_init, "Asus", "PVI-486SP3 (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // hangs during irq check
+COMP( 1995, aa486s,    0, 0, sis496, 0, sis496_state, empty_init, "Asus", "PCI/I-A486S (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // -bios 0 crashes on boot, -bios 1 hardlocks MAME
 
-COMP( 199?, ch486spm,  0, 0, sis496, 0, sis496_state, empty_init, "Chaintech", "486SPM", MACHINE_NOT_WORKING )  // both versions used to show Award BootBlock, now show a black screen
-COMP( 199?, ch4spi,    0, 0, sis496, 0, sis496_state, empty_init, "Chaintech", "4SPI", MACHINE_NOT_WORKING )    // used to come up, now black screen
+COMP( 199?, ch486spm,  0, 0, sis496, 0, sis496_state, empty_init, "Chaintech", "486SPM (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING )  // both versions used to show Award BootBlock, now show a black screen
+COMP( 199?, ch4spi,    0, 0, sis496, 0, sis496_state, empty_init, "Chaintech", "4SPI (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING )    // used to come up, now black screen
 
-COMP( 1995, ft486f55,  0, 0, sis496, 0, sis496_state, empty_init, "Freetech", "486FT55", MACHINE_NOT_WORKING )  // used to show Award BootBlow, now black screen
+COMP( 1995, ft486f55,  0, 0, sis496, 0, sis496_state, empty_init, "Freetech", "486FT55 (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING )  // used to show Award BootBlow, now black screen
 
-COMP( 199?, jakms41,   0, 0, sis496, 0, sis496_state, empty_init, "Jamicon", "KM-S4-1 VER 1.1", MACHINE_NOT_WORKING )
-COMP( 199?, jwj446a,   0, 0, sis496, 0, sis496_state, empty_init, "Jetway",  "J-446A", MACHINE_NOT_WORKING )    // BIOS 0 shows BootBlock, but hangs on beep, BIOS 1 hangs, used to show BootBlock
+COMP( 199?, jakms41,   0, 0, sis496, 0, sis496_state, empty_init, "Jamicon", "KM-S4-1 (SiS 85C496/85C497 chipset, ver 1.1)", MACHINE_NOT_WORKING )
+COMP( 199?, jwj446a,   0, 0, sis496, 0, sis496_state, empty_init, "Jetway",  "J-446A (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING )    // BIOS 0 shows BootBlock, but hangs on beep, BIOS 1 hangs, used to show BootBlock
 
-COMP( 199?, ls486e,    0, 0, sis496, 0, sis496_state, empty_init, "LuckyStar",   "LS-486E Rev:C", MACHINE_NOT_WORKING ) // All versions POST, except LH5 (BootBlock)
+COMP( 199?, ls486e,    0, 0, sis496, 0, sis496_state, empty_init, "Lucky Star",   "LS-486E (SiS 85C496/85C497 chipset, rev:C)", MACHINE_NOT_WORKING ) // All versions POST, except LH5 (BootBlock)
 
-COMP( 199?, ms4144,    0, 0, sis496, 0, sis496_state, empty_init, "MSI",         "MS-4144", MACHINE_NOT_WORKING ) // WF53 and WF54 used to show Award BootBlock, now hang
+COMP( 199?, ms4144,    0, 0, sis496, 0, sis496_state, empty_init, "MSI",         "MS-4144 (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // WF53 and WF54 used to show Award BootBlock, now hang
 
-COMP( 199?, so30h,     0, 0, sis496, 0, sis496_state, empty_init, "SOYO", "30H", MACHINE_NOT_WORKING ) // used to show Award BootBlock, now hangs
-COMP( 199?, so4saw2,   0, 0, sis496, 0, sis496_state, empty_init, "SOYO", "SY-4SAW2", MACHINE_NOT_WORKING ) // BIOS 0-3 show a black screen (2-3 used to display BootBlock), #4 exits MAME with "Called modrm_to_EA with modrm value ED!"
+COMP( 199?, so30h,     0, 0, sis496, 0, sis496_state, empty_init, "SOYO", "30H (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // used to show Award BootBlock, now hangs
+COMP( 199?, so4saw2,   0, 0, sis496, 0, sis496_state, empty_init, "SOYO", "SY-4SAW2 (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // BIOS 0-3 show a black screen (2-3 used to display BootBlock), #4 exits MAME with "Called modrm_to_EA with modrm value ED!"
 
-COMP( 199?, zito4dps,  0, 0, sis496, 0, sis496_state, empty_init, "ZIDA", "Tomato board 4DPS", MACHINE_NOT_WORKING ) // BIOS 0,2,5,7,8 POST, BIOS 1,3,4,6 show a black screen
+COMP( 199?, zito4dps,  0, 0, sis496, 0, sis496_state, empty_init, "ZIDA", "Tomato board 4DPS (SiS 85C496/85C497 chipset)", MACHINE_NOT_WORKING ) // BIOS 0,2,5,7,8 POST, BIOS 1,3,4,6 show a black screen
 

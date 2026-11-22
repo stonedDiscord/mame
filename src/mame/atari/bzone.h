@@ -2,7 +2,7 @@
 // copyright-holders:Brad Oliver, Nicola Salmoria
 /*************************************************************************
 
-    Atari Battle Zone hardware
+    Atari Battlezone hardware
 
 *************************************************************************/
 #ifndef MAME_ATARI_BZONE_H
@@ -15,6 +15,7 @@
 #include "mathbox.h"
 #include "sound/discrete.h"
 #include "screen.h"
+#include "vector.h"
 
 #define BZONE_MASTER_CLOCK (XTAL(12'096'000))
 #define BZONE_CLOCK_3KHZ   (BZONE_MASTER_CLOCK / 4096)
@@ -27,33 +28,33 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_mathbox(*this, "mathbox"),
 		m_discrete(*this, "discrete"),
-		m_screen(*this, "screen"),
+		m_vector(*this, "vector"),
 		m_startled(*this, "startled")
 	{ }
 
 	int clock_r();
-	void bzone(machine_config &config);
-	void bradley(machine_config &config);
-	void dsrtwars(machine_config &config);
+
+	void bzone(machine_config &config) ATTR_COLD;
+	void bradley(machine_config &config) ATTR_COLD;
 
 protected:
 	void bzone_coin_counter_w(offs_t offset, uint8_t data);
 	uint8_t analog_data_r();
 	void analog_select_w(offs_t offset, uint8_t data);
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 	INTERRUPT_GEN_MEMBER(bzone_interrupt);
 	void bzone_sounds_w(uint8_t data);
 
-	void bzone_base(machine_config &config);
-	void bzone_audio(machine_config &config);
-	void bzone_map(address_map &map);
-	void bradley_map(address_map &map);
-	void dsrtwars_map(address_map &map);
+	void bzone_base(machine_config &config) ATTR_COLD;
+	void bzone_audio(machine_config &config) ATTR_COLD;
+	void bzone_discrete_audio(machine_config &config) ATTR_COLD;
+	void bzone_map(address_map &map) ATTR_COLD;
+	void bradley_map(address_map &map) ATTR_COLD;
 
 	required_device<cpu_device> m_maincpu;
 	required_device<mathbox_device> m_mathbox;
 	optional_device<discrete_device> m_discrete;
-	required_device<screen_device> m_screen;
+	required_device<vector_device> m_vector;
 	output_finder<> m_startled;
 
 private:
@@ -71,7 +72,7 @@ public:
 		m_fake_ports(*this, "FAKE%u", 1U)
 	{ }
 
-	void redbaron(machine_config &config);
+	void redbaron(machine_config &config) ATTR_COLD;
 
 protected:
 	uint8_t redbaron_joy_r();
@@ -80,10 +81,10 @@ protected:
 	void earom_write(offs_t offset, uint8_t data);
 	void earom_control_w(uint8_t data);
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
-	void redbaron_map(address_map &map);
+	void redbaron_map(address_map &map) ATTR_COLD;
 
 private:
 	required_device<er2055_device> m_earom;

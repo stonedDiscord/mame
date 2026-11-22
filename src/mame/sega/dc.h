@@ -12,7 +12,6 @@
 #include "powervr2.h"
 
 #include "cpu/arm7/arm7.h"
-#include "cpu/arm7/arm7core.h"
 #include "cpu/sh/sh4.h"
 #include "machine/timer.h"
 #include "sound/aica.h"
@@ -46,8 +45,8 @@ public:
 	uint8_t m_armrst = 0U;
 	emu_timer *m_ch2_dma_irq_timer = nullptr;
 
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 	void g2_dma_end_w(offs_t channel, u8 state);
 	void g2_dma_error_ia_w(offs_t channel, u8 state);
 	void g2_dma_error_ov_w(offs_t channel, u8 state);
@@ -58,7 +57,7 @@ public:
 	void dc_arm_aica_w(offs_t offset, uint32_t data, uint32_t mem_mask = ~0);
 	inline int decode_reg32_64(uint32_t offset, uint64_t mem_mask, uint64_t *shift);
 	inline int decode_reg3216_64(uint32_t offset, uint64_t mem_mask, uint64_t *shift);
-	int dc_compute_interrupt_level();
+	virtual int dc_compute_interrupt_level();
 	void dc_update_interrupt_status();
 	inline int decode_reg_64(uint32_t offset, uint64_t mem_mask, uint64_t *shift);
 	uint64_t dc_sysctrl_r(offs_t offset, uint64_t mem_mask = ~0);
@@ -75,9 +74,10 @@ public:
 	void aica_irq(int state);
 	void sh4_aica_irq(int state);
 	void external_irq(int state);
+	void maple_trigger(int state) { m_maple->maple_hw_trigger(); }
 
 
-	required_device<sh4_base_device> m_maincpu;
+	required_device<sh7091_device> m_maincpu;
 	required_device<cpu_device> m_soundcpu;
 	required_device<powervr2_device> m_powervr2;
 	required_device<maple_dc_device> m_maple;
@@ -90,10 +90,15 @@ public:
 	DECLARE_MACHINE_RESET(dc_console);
 
 	void naomi_aw_base(machine_config &config);
-	void aica_map(address_map &map);
-	void dc_audio_map(address_map &map);
+	void aica_map(address_map &map) ATTR_COLD;
+	void dc_audio_map(address_map &map) ATTR_COLD;
 
 protected:
+	static void pvr_irq_status(uint32_t *regs, uint8_t data);
+	static void interrupt_status_w(uint32_t *regs, int reg, uint32_t old, uint32_t data);
+	static void update_summary_bits(uint32_t *regs);
+	static int interrupt_level(const uint32_t *regs);
+
 	void system_bus_config(machine_config &config, const char *cpu_tag);
 };
 

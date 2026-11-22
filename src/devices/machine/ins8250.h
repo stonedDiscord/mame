@@ -48,8 +48,9 @@ protected:
 
 	ins8250_uart_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, dev_type device_type);
 
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_clock_changed() override;
 	virtual void rcv_complete() override;
 	virtual void tra_complete() override;
 	virtual void tra_callback() override;
@@ -62,6 +63,7 @@ protected:
 	void clear_int(int flag);
 
 	void update_baud_rate();
+	void set_divisor(u16 dl);
 
 	const dev_type m_device_type;
 	struct {
@@ -79,6 +81,7 @@ protected:
 	} m_regs;
 private:
 	u8 m_int_pending;
+	u32 m_baud_clock; // input clock the current rate was set from
 
 	devcb_write_line    m_out_tx_cb;
 	devcb_write_line    m_out_dtr_cb;
@@ -101,22 +104,22 @@ private:
 class ins8250_device : public ins8250_uart_device
 {
 public:
-	ins8250_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+	ins8250_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 };
 
 class ns16450_device : public ins8250_uart_device
 {
 public:
-	ns16450_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+	ns16450_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 };
 
 class ns16550_device : public ins8250_uart_device
 {
 public:
-	ns16550_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+	ns16550_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 protected:
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	virtual void rcv_complete() override;
 	virtual void tra_complete() override;
@@ -139,13 +142,13 @@ private:
 class pc16552_device : public device_t
 {
 public:
-	pc16552_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock);
+	pc16552_device(const machine_config &mconfig, const char *tag, device_t *owner, u32 clock = 0);
 
 	u8 read(offs_t offset) { return ((offset & 8) ? m_chan1 : m_chan0)->ins8250_r(offset & 7); }
 	void write(offs_t offset, u8 data) { ((offset & 8) ? m_chan1 : m_chan0)->ins8250_w(offset & 7, data); }
 
 protected:
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 private:
 	ns16550_device *m_chan0;

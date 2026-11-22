@@ -114,9 +114,9 @@ const uint8_t i80286_cpu_device::m_i80286_timing[] =
 		5, 5, 5, 5, /* port reads */
 		3, 3, 3, 3, /* port writes */
 
-		2, 3, 3,        /* move, 8-bit */
+		2, 5, 3,        /* move, 8-bit */
 		2, 3,           /* move, 8-bit immediate */
-		2, 3, 3,        /* move, 16-bit */
+		2, 5, 3,        /* move, 16-bit */
 		2, 3,           /* move, 16-bit immediate */
 		5, 5, 3, 3, /* move, AL/AX memory */
 		2, 5, 2, 3, /* move, segment registers */
@@ -164,6 +164,24 @@ const uint8_t i80286_cpu_device::m_i80286_timing[] =
 	13,             /* (80186) BOUND */
 };
 
+// Effective Address calculation takes one extra clock if offset calculation requires summing 3 elements.
+const uint8_t i80286_cpu_device::m_i80286_ea_timing[] =
+{
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	1,  1,  1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	1,  1,  1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,
+};
+
 DEFINE_DEVICE_TYPE(I80286, i80286_cpu_device, "i80286", "Intel 80286")
 
 i80286_cpu_device::i80286_cpu_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock)
@@ -175,6 +193,7 @@ i80286_cpu_device::i80286_cpu_device(const machine_config &mconfig, const char *
 	, m_out_shutdown_func(*this)
 {
 	memcpy(m_timing, m_i80286_timing, sizeof(m_i80286_timing));
+	memcpy(m_ea_timing, m_i80286_ea_timing, sizeof(m_i80286_ea_timing));
 	m_amask = 0xffffff;
 	memset(m_sregs, 0x00, sizeof(m_sregs));
 	m_sregs[CS] = 0xf000;
@@ -384,21 +403,16 @@ void i80286_cpu_device::execute_set_input(int inptnum, int state)
 {
 	if(inptnum == INPUT_LINE_NMI)
 	{
-		if(m_nmi_state == state)
-		{
-			return;
-		}
-		m_nmi_state = state;
-		if(state != CLEAR_LINE)
+		if(!m_nmi_state && state)
 		{
 			m_pending_irq |= NMI_IRQ;
 		}
+		m_nmi_state = state;
 	}
 	else if(inptnum == INPUT_LINE_A20)
 		m_amask = m_a20_callback(state);
 	else
 	{
-		m_irq_state = state;
 		if(state == CLEAR_LINE)
 		{
 			m_pending_irq &= ~INT_IRQ;
@@ -760,7 +774,7 @@ void i80286_cpu_device::code_descriptor(uint16_t selector, uint16_t offset, int 
 					throw TRAP(FAULT_GP, IDXTBL(selector));
 
 			if(!PRES(r))
-				throw TRAP(FAULT_NP, IDXTBL(selector));  // this order is important
+				throw TRAP(FAULT_NP, IDXTBL(selector)); // this order is important
 
 			if(offset > LIMIT(desc))
 				throw TRAP(FAULT_GP, 0);
@@ -774,7 +788,8 @@ void i80286_cpu_device::code_descriptor(uint16_t selector, uint16_t offset, int 
 			m_prev_ip = m_ip = offset;
 		}
 		else
-		{ // systemdescriptor
+		{
+			// systemdescriptor
 			uint16_t gatesel = GATESEL(desc);
 
 			if(!gate)
@@ -830,11 +845,11 @@ void i80286_cpu_device::code_descriptor(uint16_t selector, uint16_t offset, int 
 							PUSH(read_word(oldstk+(i*2)));
 					}
 					else
-						check_permission(SS, m_regs.w[SP]-4, 4, I8086_READ);
+						check_permission(SS, uint16_t(m_regs.w[SP]-4), 4, I8086_READ);
 
 					SET_ACC(gatedesc);
 					write_word(addr+4, gatedesc[2]);
-					m_sregs[CS]=IDXTBL(gatesel) | DPL(r);
+					m_sregs[CS]=IDXTBL(gatesel) | DPL(CONF(r) ? m_sregs[CS] : r);
 					m_limit[CS]=LIMIT(gatedesc);
 					m_base[CS]=BASE(gatedesc);
 					m_rights[CS]=RIGHTS(gatedesc);
@@ -969,7 +984,7 @@ void i80286_cpu_device::interrupt_descriptor(int number, int hwint, int error)
 				PUSH(oldsp);
 			}
 			else
-				check_permission(SS, m_regs.w[SP] - ((error != -1) ? 8 : 6), (error != -1) ? 8 : 6, I8086_READ);
+				check_permission(SS, uint16_t(m_regs.w[SP] - ((error != -1) ? 8 : 6)), (error != -1) ? 8 : 6, I8086_READ);
 
 			SET_ACC(gatedesc);
 			write_word(addr + 4, gatedesc[2]);
@@ -978,7 +993,7 @@ void i80286_cpu_device::interrupt_descriptor(int number, int hwint, int error)
 			PUSH(m_ip);
 			if((hwint == 1) && (error != -1))
 				PUSH(error);
-			m_sregs[CS] = IDXTBL(gatesel) | DPL(r);
+			m_sregs[CS] = IDXTBL(gatesel) | DPL(CONF(r) ? m_sregs[CS] : r);
 			m_limit[CS] = LIMIT(gatedesc);
 			m_base[CS] = BASE(gatedesc);
 			m_rights[CS] = RIGHTS(gatedesc);
@@ -1078,6 +1093,7 @@ void i80286_cpu_device::execute_run()
 
 				if(m_halt || m_shutdown)
 				{
+					debugger_wait_hook();
 					m_icount = 0;
 					return;
 				}
@@ -1382,7 +1398,7 @@ reg.base = BASE(desc); (void)(r); reg.limit = LIMIT(desc); }
 
 				case 0x60: // i_pusha
 				{
-					check_permission(SS, m_regs.w[SP]-16, 16, I8086_WRITE);
+					check_permission(SS, uint16_t(m_regs.w[SP]-16), 16, I8086_WRITE);
 					uint32_t tmp = m_regs.w[SP];
 					PUSH(m_regs.w[AX]);
 					PUSH(m_regs.w[CX]);
@@ -1655,23 +1671,23 @@ reg.base = BASE(desc); (void)(r); reg.limit = LIMIT(desc); }
 					uint32_t level;
 
 					nb |= fetch() << 8;
-					level = fetch();
+					level = fetch() % 32;
 					CLK(!level ? ENTER0 : (level == 1) ? ENTER1 : ENTER_BASE);
 					if(level > 1)
 						m_icount -= level * m_timing[ENTER_COUNT];
 					PUSH(m_regs.w[BP]);
-					m_regs.w[BP] = m_regs.w[SP];
-					m_regs.w[SP] -= nb;
+					uint16_t fp = m_regs.w[SP];
 					for (int i=1; i<level; i++)
 					{
-						PUSH( GetMemW(SS,m_regs.w[BP] - i*2) );
+						m_regs.w[BP] -= 2;
+						PUSH(GetMemW(SS,m_regs.w[BP]));
 					}
 					if (level)
-					{
-						PUSH(m_regs.w[BP]);
-					}
+						PUSH(fp);
+					m_regs.w[BP] = fp;
+					m_regs.w[SP] -= nb;
+					break;
 				}
-				break;
 
 				case 0xc9: // i_leave
 					m_regs.w[SP] = m_regs.w[BP];
@@ -1875,10 +1891,10 @@ reg.base = BASE(desc); (void)(r); reg.limit = LIMIT(desc); }
 
 					switch (next)
 					{
-						case 0x6c:  CLK(OVERRIDE); if (c) do { i_insb();  c--; } while (c>0 && m_icount>0);          m_regs.w[CX]=c; m_seg_prefix = false; m_seg_prefix_next = false; break;
-						case 0x6d:  CLK(OVERRIDE); if (c) do { i_insw();  c--; } while (c>0 && m_icount>0);          m_regs.w[CX]=c; m_seg_prefix = false; m_seg_prefix_next = false; break;
-						case 0x6e:  CLK(OVERRIDE); if (c) do { i_outsb(); c--; } while (c>0 && m_icount>0);          m_regs.w[CX]=c; m_seg_prefix = false; m_seg_prefix_next = false; break;
-						case 0x6f:  CLK(OVERRIDE); if (c) do { i_outsw(); c--; } while (c>0 && m_icount>0);          m_regs.w[CX]=c; m_seg_prefix = false; m_seg_prefix_next = false; break;
+						case 0x6c:  CLK(OVERRIDE); if (c) do { i_insb();  if (m_io_stall) { m_io_stall = false; break; } c--; } while (c>0 && m_icount>0);          m_regs.w[CX]=c; m_seg_prefix = false; m_seg_prefix_next = false; break;
+						case 0x6d:  CLK(OVERRIDE); if (c) do { i_insw();  if (m_io_stall) { m_io_stall = false; break; } c--; } while (c>0 && m_icount>0);          m_regs.w[CX]=c; m_seg_prefix = false; m_seg_prefix_next = false; break;
+						case 0x6e:  CLK(OVERRIDE); if (c) do { i_outsb(); if (m_io_stall) { m_io_stall = false; break; } c--; } while (c>0 && m_icount>0);          m_regs.w[CX]=c; m_seg_prefix = false; m_seg_prefix_next = false; break;
+						case 0x6f:  CLK(OVERRIDE); if (c) do { i_outsw(); if (m_io_stall) { m_io_stall = false; break; } c--; } while (c>0 && m_icount>0);          m_regs.w[CX]=c; m_seg_prefix = false; m_seg_prefix_next = false; break;
 						default:
 							// Decrement IP and pass on
 							m_ip -= 1 + (m_seg_prefix_next ? 1 : 0);

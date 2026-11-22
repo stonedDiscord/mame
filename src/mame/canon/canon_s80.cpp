@@ -169,7 +169,7 @@ public:
 	void canons80(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	u8 keyboard_r();
@@ -177,7 +177,7 @@ private:
 
 	HD44780_PIXEL_UPDATE(pixel_update);
 
-	void canons80_map(address_map &map);
+	void canons80_map(address_map &map) ATTR_COLD;
 
 	optional_ioport_array<16> m_keyboard;
 	u8 m_keyscan;
@@ -312,7 +312,7 @@ void canons80_state::canons80(machine_config &config)
 	maincpu.in_p2_cb().set_ioport("P2");
 	maincpu.in_p5_cb().set(FUNC(canons80_state::keyboard_r));
 
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device &screen(SCREEN(config, "screen").set_lcd());
 	screen.set_refresh_hz(50);
 	screen.set_screen_update("lcdc", FUNC(hd44780_device::screen_update));
 	screen.set_size(16*6, 16);

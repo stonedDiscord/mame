@@ -14,8 +14,8 @@
 
   TODO: Actual raster parameters are unknown.  We've gone with the Apple 19"
   1024x768 monitor's htotal/vtotal but this used a custom monitor.  There are
-  no register writes other than the IRQ enable/ack so tracing, the CRTC is
-  pure TTL.
+  no register writes other than the IRQ enable/ack so the CRTC is a fixed
+  state machine.
 
 ***************************************************************************/
 
@@ -23,6 +23,8 @@
 #include "emupal.h"
 #include "nubus_vikbw.h"
 #include "screen.h"
+
+#include "endianness.h"
 
 namespace {
 
@@ -39,12 +41,12 @@ protected:
 	nubus_vikbw_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock);
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	// optional information overrides
-	virtual void device_add_mconfig(machine_config &config) override;
-	virtual const tiny_rom_entry *device_rom_region() const override;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+	virtual const tiny_rom_entry *device_rom_region() const override ATTR_COLD;
 
 private:
 	u32 viking_ack_r();
@@ -65,7 +67,7 @@ ROM_END
 
 void nubus_vikbw_device::device_add_mconfig(machine_config &config)
 {
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_screen_update(FUNC(nubus_vikbw_device::screen_update));
 	screen.set_raw(72000000, 1324, 0, 1024, 803, 0, 768);
 	screen.set_palette("palette");

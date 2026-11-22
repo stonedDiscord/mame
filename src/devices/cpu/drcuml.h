@@ -15,9 +15,11 @@
 #include "drccache.h"
 #include "uml.h"
 
-#include <iostream>
+#include <iosfwd>
 #include <list>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 
@@ -33,7 +35,7 @@
 //  TYPE DEFINITIONS
 //**************************************************************************
 
-// opaque structure describing UML generation state
+class drcbe_interface;
 class drcuml_state;
 
 
@@ -84,23 +86,23 @@ struct drcbe_info
 class drcuml_block
 {
 public:
-	// construction/destruction
-	drcuml_block(drcuml_state &drcuml, u32 maxinst);
-	drcuml_block(drcuml_block const &) = delete;
-	drcuml_block &operator=(drcuml_block const &) = delete;
-	~drcuml_block();
-
 	// getters
 	bool inuse() const { return m_inuse; }
+	bool invariant() const { return m_invariant; }
 	u32 maxinst() const { return m_maxinst; }
 
 	// code generation
-	void begin();
 	void end();
-	void abort();
+	[[noreturn]] void abort();
 
 	// instruction appending
-	uml::instruction &append();
+	uml::instruction &append()
+	{
+		if (UNEXPECTED(m_nextinst >= m_maxinst))
+			overrun();
+		return m_inst[m_nextinst++]; // get a pointer to the next instruction
+	}
+
 	template <typename Format, typename... Params> void append_comment(Format &&fmt, Params &&... args);
 
 	// this class is thrown if abort() is called
@@ -110,18 +112,32 @@ public:
 		abort_compilation() { }
 	};
 
+protected:
+	// construction/destruction
+	drcuml_block(drcuml_block const &) = delete;
+	drcuml_block &operator=(drcuml_block const &) = delete;
+	drcuml_block(drcuml_state &drcuml, drcbe_interface &backend, u32 maxinst);
+	~drcuml_block();
+
+	void begin(bool invariant);
+
 private:
+	using instruction_array_ptr = std::unique_ptr<uml::instruction []>;
+
 	// internal helpers
 	void optimize();
 	void disassemble();
 	char const *get_comment_text(uml::instruction const &inst, std::string &comment);
+	[[noreturn]] void overrun();
 
 	// internal state
-	drcuml_state &                  m_drcuml;   // pointer back to the owning UML
-	u32                             m_nextinst; // next instruction to fill in the cache
-	u32                             m_maxinst;  // maximum number of instructions
-	std::vector<uml::instruction>   m_inst;     // pointer to the instruction list
-	bool                            m_inuse;    // this block is in use
+	drcuml_state &          m_drcuml;       // pointer back to the owning UML
+	drcbe_interface &       m_backend;      // the target back-end
+	u32 const               m_maxinst;      // maximum number of instructions
+	u32                     m_nextinst;     // next instruction to fill in the cache
+	instruction_array_ptr   m_inst;         // pointer to the instruction list
+	bool                    m_invariant;    // this is an invariant block
+	bool                    m_inuse;        // this block is in use
 };
 
 
@@ -129,6 +145,14 @@ private:
 class drcbe_interface
 {
 public:
+	struct hash_codeptr
+	{
+		drccodeptr ptr = nullptr;
+		uintptr_t aux = 0U;
+
+		explicit operator bool() const { return bool(ptr); }
+	};
+
 	// allow deleting through base pointer
 	virtual ~drcbe_interface();
 
@@ -136,9 +160,17 @@ public:
 	virtual void reset() = 0;
 	virtual int execute(uml::code_handle &entry) = 0;
 	virtual void generate(drcuml_block &block, uml::instruction const *instlist, u32 numinst) = 0;
-	virtual bool hash_exists(u32 mode, u32 pc) = 0;
-	virtual void get_info(drcbe_info &info) = 0;
-	virtual bool logging() const { return false; }
+	virtual bool hash_exists(u32 mode, u32 pc) const noexcept = 0;
+	virtual void hash_invalidate_range(u32 pcstart, u32 pcend) noexcept = 0;
+	virtual void get_info(drcbe_info &info) const noexcept = 0;
+	virtual bool logging() const noexcept { return false; }
+
+	// Optional direct access to the hash table, allowing a front-end to point an entry
+	// back at code it generated earlier rather than regenerating identical code.
+	// Back-ends that don't implement these report "unsupported" and the front-end
+	// simply compiles as it normally would.
+	virtual hash_codeptr hash_get_codeptr(u32 mode, u32 pc) const noexcept;
+	virtual bool hash_set_codeptr(u32 mode, u32 pc, hash_codeptr code) noexcept;
 
 protected:
 	// base constructor
@@ -150,7 +182,6 @@ protected:
 	device_t &                      m_device;      // CPU device we are associated with
 	std::vector<address_space *>    m_space;       // pointers to CPU's address space
 	drcuml_machine_state &          m_state;       // state of the machine (in near cache)
-	data_accessors *                m_accessors;   // memory accessors (in near cache)
 };
 
 
@@ -158,25 +189,43 @@ protected:
 class drcuml_state
 {
 public:
+	using hash_codeptr = drcbe_interface::hash_codeptr;
+
 	// construction/destruction
-	drcuml_state(device_t &device, drc_cache &cache, u32 flags, int modes, int addrbits, int ignorebits);
+	drcuml_state(device_t &device, std::size_t cache_bytes);
 	~drcuml_state();
 
 	// getters
 	device_t &device() const { return m_device; }
-	drc_cache &cache() const { return m_cache; }
+
+	// setup
+	void set_cache_size(std::size_t bytes) { m_cache.set_size(bytes); }
+	void initialize(u32 flags, int modes, int addrbits, int ignorebits, u32 max_sequence_length);
+
+	// allocating memory from the cache
+	template <typename T, typename... Params> auto cache_alloc(Params &&... args) { return m_cache.alloc<T>(std::forward<Params>(args)...); }
+	template <typename T, typename... Params> auto cache_alloc_near(Params &&... args) { return m_cache.alloc_near<T>(std::forward<Params>(args)...); }
+	template <typename T, typename... Params> auto cache_alloc_invariant(Params &&... args) { return m_cache.alloc_invariant<T>(std::forward<Params>(args)...); }
+	template <typename T, typename... Params> auto cache_alloc_transient(Params &&... args) { return m_cache.alloc_transient<T>(std::forward<Params>(args)...); }
+	void cache_dealloc(void *memory, std::size_t bytes) noexcept { m_cache.dealloc(memory, bytes); }
+	bool cache_contains_pointer(void const *ptr) const noexcept { return m_cache.contains_pointer(ptr); }
+	std::ptrdiff_t cache_pointer_offset(void const *ptr) const noexcept { return m_cache.pointer_offset(ptr); }
+
 
 	// reset the state
 	void reset();
 	int execute(uml::code_handle &entry) { return m_beintf->execute(entry); }
 
 	// code generation
-	drcuml_block &begin_block(u32 maxinst);
+	drcuml_block &begin_block(u32 maxinst) { return begin_block(maxinst, false); }
+	drcuml_block &begin_invariant_block(u32 maxinst) { return begin_block(maxinst, true); }
 
 	// back-end interface
-	void get_backend_info(drcbe_info &info) { m_beintf->get_info(info); }
-	bool hash_exists(u32 mode, u32 pc) { return m_beintf->hash_exists(mode, pc); }
-	void generate(drcuml_block &block, uml::instruction *instructions, u32 count) { m_beintf->generate(block, instructions, count); }
+	void get_backend_info(drcbe_info &info) const { m_beintf->get_info(info); }
+	bool hash_exists(u32 mode, u32 pc) const { return m_beintf->hash_exists(mode, pc); }
+	void hash_invalidate_range(u32 pcstart, u32 pcend) { m_beintf->hash_invalidate_range(pcstart, pcend); }
+	hash_codeptr hash_get_codeptr(u32 mode, u32 pc) const { return m_beintf->hash_get_codeptr(mode, pc); }
+	bool hash_set_codeptr(u32 mode, u32 pc, hash_codeptr code) { return m_beintf->hash_set_codeptr(mode, pc, code); }
 
 	// handle management
 	uml::code_handle *handle_alloc(char const *name);
@@ -197,37 +246,19 @@ public:
 	bool logging_native() const { return m_beintf->logging(); }
 
 private:
-	// symbol class
-	class symbol
-	{
-	public:
-		// construction/destruction
-		symbol(void *base, u32 length, char const *name)
-			: m_base(reinterpret_cast<drccodeptr>(base))
-			, m_length(length)
-			, m_name(name)
-		{ }
+	class symbol;
+	class block_impl;
 
-		// getters
-		bool includes(drccodeptr search) const { return (m_base <= search) && ((m_base + m_length) > search); }
-		drccodeptr base() const { return m_base; }
-		std::string const &name() const { return m_name; }
-
-	private:
-		// internal state
-		drccodeptr  m_base;     // base of the symbol
-		u32         m_length;   // length of the region covered
-		std::string m_name;     // name of the symbol
-	};
+	drcuml_block &begin_block(u32 maxinst, bool invariant);
 
 	// internal state
-	device_t &                              m_device;           // CPU device we are associated with
-	drc_cache &                             m_cache;            // pointer to the codegen cache
-	std::unique_ptr<drcbe_interface> const  m_beintf;           // backend interface pointer
-	std::unique_ptr<std::ostream> const     m_umllog;           // handle to the UML logfile
-	std::list<drcuml_block>                 m_blocklist;        // list of active blocks
-	std::list<uml::code_handle>             m_handlelist;       // list of active handles
-	std::list<symbol>                       m_symlist;          // list of symbols
+	device_t &                          m_device;           // CPU device we are associated with
+	drc_cache                           m_cache;            // code generation cache
+	std::unique_ptr<drcbe_interface>    m_beintf;           // backend interface pointer
+	std::unique_ptr<std::ostream>       m_umllog;           // handle to the UML logfile
+	std::list<block_impl>               m_blocklist;        // list of active blocks
+	std::list<uml::code_handle>         m_handlelist;       // list of active handles
+	std::list<symbol>                   m_symlist;          // list of symbols
 };
 
 
@@ -248,7 +279,9 @@ inline void drcuml_block::append_comment(Format &&fmt, Params &&... args)
 	std::string const temp(util::string_format(std::forward<Format>(fmt), std::forward<Params>(args)...));
 
 	// allocate space in the cache to hold the comment
-	char *const comment = reinterpret_cast<char *>(m_drcuml.cache().alloc_temporary(temp.length() + 1));
+	char *const comment = invariant()
+			? m_drcuml.cache_alloc_invariant<char []>(temp.length() + 1)
+			: m_drcuml.cache_alloc_transient<char []>(temp.length() + 1);
 	if (comment)
 	{
 		strcpy(comment, temp.c_str());

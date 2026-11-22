@@ -8,8 +8,8 @@
 
 *********************************************************************/
 
-#ifndef MAME_DEVICES_IMAGEDEV_CHD_CD_H
-#define MAME_DEVICES_IMAGEDEV_CHD_CD_H
+#ifndef MAME_IMAGEDEV_CDROMIMG_H
+#define MAME_IMAGEDEV_CDROMIMG_H
 
 #pragma once
 
@@ -78,8 +78,8 @@ protected:
 
 	// device_t implementation
 	virtual void device_config_complete() override;
-	virtual void device_start() override;
-	virtual void device_stop() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_stop() override ATTR_COLD;
 
 	// device_image_interface implementation
 	virtual const software_list_loader &get_software_list_loader() const override { return rom_software_list_loader::instance(); }
@@ -113,5 +113,38 @@ public:
 	virtual ~dvdrom_image_device() = default;
 };
 
+// ======================> device_cd_player_interface
 
-#endif // MAME_DEVICES_IMAGEDEV_CHD_CD_H
+// transport controls of a hand-operated audio CD player
+class device_cd_player_interface : public device_interface
+{
+public:
+	static constexpr u32 FRAMES_PER_SECOND = 75;
+
+	enum class transport : u8 { STOPPED, PLAYING, PAUSED };
+
+	virtual ~device_cd_player_interface();
+
+	virtual cdrom_image_device &cd_image() = 0;
+
+	virtual void play() = 0;
+	virtual void pause() = 0;
+	virtual void stop() = 0;
+	virtual void previous_track() = 0;
+	virtual void next_track() = 0;
+	virtual void select_track(int track) = 0;
+
+	virtual transport state() = 0;
+	virtual int track() = 0;
+	virtual int track_count() = 0;
+	virtual u32 track_elapsed_frames() = 0;
+	virtual u32 track_length_frames() = 0;
+
+protected:
+	device_cd_player_interface(const machine_config &mconfig, device_t &device);
+};
+
+using cd_player_interface_enumerator = device_interface_enumerator<device_cd_player_interface>;
+
+
+#endif // MAME_IMAGEDEV_CDROMIMG_H

@@ -88,7 +88,11 @@ public:
 		, m_dma_dip(*this, "dma_s2")
 	{}
 
-	void gimix(machine_config &config);
+	void gimix(machine_config &config) ATTR_COLD;
+
+protected:
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void machine_start() override ATTR_COLD;
 
 private:
 	void system_w(offs_t offset, uint8_t data);
@@ -105,8 +109,8 @@ private:
 
 	static void floppy_formats(format_registration &fr);
 
-	void gimix_banked_mem(address_map &map);
-	void gimix_mem(address_map &map);
+	void gimix_banked_mem(address_map &map) ATTR_COLD;
+	void gimix_mem(address_map &map) ATTR_COLD;
 
 	// disassembly override
 	offs_t os9_dasm_override(std::ostream &stream, offs_t pc, const util::disasm_interface::data_buffer &opcodes, const util::disasm_interface::data_buffer &params);
@@ -126,10 +130,6 @@ private:
 
 	uint8_t m_pia1_pa;
 	uint8_t m_pia1_pb;
-
-	virtual void machine_reset() override;
-	virtual void machine_start() override;
-	virtual void driver_start() override;
 
 	void refresh_memory();
 
@@ -465,10 +465,6 @@ void gimix_state::machine_start()
 	}
 	m_floppy[0]->get_device()->set_rpm(300);
 	m_floppy[1]->get_device()->set_rpm(300);
-}
-
-void gimix_state::driver_start()
-{
 }
 
 void gimix_state::floppy_formats(format_registration &fr)

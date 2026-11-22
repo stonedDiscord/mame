@@ -8,10 +8,11 @@
 #include "sound/dac.h"
 
 
-class ad1848_device : public device_t
+class ad1848_device : public device_t,
+                      public device_memory_interface
 {
 public:
-	ad1848_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	ad1848_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 	auto irq() { return m_irq_cb.bind(); }
 	auto drq() { return m_drq_cb.bind(); }
@@ -22,12 +23,15 @@ public:
 	void dack_w(uint8_t data);
 
 protected:
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
+
+	virtual space_config_vector memory_space_config() const override;
 
 	TIMER_CALLBACK_MEMBER(update_tick);
 
+	void io_map(address_map &map);
 private:
 	union {
 		struct {
@@ -48,19 +52,24 @@ private:
 			uint8_t ubase;
 			uint8_t lbase;
 		};
-		uint8_t idx[15];
+		uint8_t idx[16];
 	} m_regs;
 	uint8_t m_addr;
 	uint8_t m_stat;
 	uint16_t m_count;
 	uint32_t m_samples;
 	uint8_t m_sam_cnt;
+	uint16_t m_calibration_cycles;
 	bool m_play, m_mce, m_trd, m_irq;
+	address_space_config m_space_io_config;
 	devcb_write_line m_irq_cb;
 	devcb_write_line m_drq_cb;
 	required_device<dac_word_interface> m_ldac;
 	required_device<dac_word_interface> m_rdac;
 	emu_timer *m_timer;
+
+	uint8_t ixa_r(offs_t offset);
+	void ixa_w(offs_t offset, uint8_t data);
 };
 
 DECLARE_DEVICE_TYPE(AD1848, ad1848_device)

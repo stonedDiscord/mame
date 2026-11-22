@@ -25,7 +25,7 @@ Notes:
 #include "speaker.h"
 #include "nl_popeye.h"
 
-void tnx1_state::driver_start()
+void tnx1_state::machine_start()
 {
 	decrypt_rom();
 
@@ -40,9 +40,9 @@ void tnx1_state::driver_start()
 	m_nmi_enabled = false;
 }
 
-void tpp2_state::driver_start()
+void tpp2_state::machine_start()
 {
-	tnx1_state::driver_start();
+	tpp1_state::machine_start();
 
 	save_item(NAME(m_watchdog_enabled));
 	save_item(NAME(m_watchdog_counter));
@@ -238,7 +238,7 @@ public:
 	}
 
 	virtual ~brazehs() override = default;
-	virtual void config(machine_config &config) override
+	virtual void config(machine_config &config) override ATTR_COLD
 	{
 		T::config(config);
 		EEPROM_93C46_8BIT(config, "eeprom");
@@ -247,9 +247,9 @@ public:
 protected:
 	optional_device<eeprom_serial_93cxx_device> m_eeprom;
 
-	virtual void driver_start() override
+	virtual void machine_start() override ATTR_COLD
 	{
-		T::driver_start();
+		T::machine_start();
 
 		uint8_t *rom = this->memregion("brazehs")->base();
 		int len = this->memregion("brazehs")->bytes();
@@ -273,7 +273,7 @@ protected:
 		m_eeprom->clk_write(data & 0x02 ? ASSERT_LINE : CLEAR_LINE);
 	}
 
-	virtual void maincpu_program_map(address_map &map) override
+	virtual void maincpu_program_map(address_map &map) override ATTR_COLD
 	{
 		T::maincpu_program_map(map);
 		map(0x0000, 0x7fff).rom().region("brazehs", 0);
@@ -343,7 +343,7 @@ static INPUT_PORTS_START( skyskipr )
 	PORT_DIPSETTING(    0x08, "A 1/6 B 1/1" )
 	PORT_DIPSETTING(    0x00, DEF_STR( Free_Play ) )
 	PORT_BIT( 0x70, IP_ACTIVE_LOW, IPT_UNUSED)
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(tnx1_state, dsw1_read)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(FUNC(tnx1_state::dsw1_read))
 
 	PORT_START("DSW1")  /* DSW1 */
 	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )        PORT_DIPLOCATION("SW2:1,2")
@@ -369,7 +369,7 @@ static INPUT_PORTS_START( skyskipr )
 	PORT_DIPSETTING(    0x80, DEF_STR( Cocktail ) )
 
 	PORT_START("MCONF")
-	PORT_CONFNAME( 0x03, 0x00, "Interlace mode" ) PORT_CHANGED_MEMBER(DEVICE_SELF, tnx1_state, change_il, 0)
+	PORT_CONFNAME( 0x03, 0x00, "Interlace mode" ) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(tnx1_state::change_il), 0)
 	PORT_CONFSETTING(    0x00, "False Progressive" )
 	PORT_CONFSETTING(    0x01, "Interlaced (scanline skip)" )
 	PORT_CONFSETTING(    0x02, "Interlaced (bitmap)" )
@@ -407,7 +407,7 @@ static INPUT_PORTS_START( popeye )
 	PORT_BIT( 0x02, IP_ACTIVE_HIGH, IPT_UNKNOWN ) /* probably unused */
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_START1 )
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_START2 )
-	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(tpp1_state, pop_field_r) // inverted init e/o signal (even odd)
+	PORT_BIT( 0x10, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(FUNC(tpp1_state::pop_field_r)) // inverted init e/o signal (even odd)
 	PORT_BIT( 0x20, IP_ACTIVE_HIGH, IPT_COIN2 )
 	PORT_BIT( 0x40, IP_ACTIVE_HIGH, IPT_SERVICE1 )
 	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_COIN1 )
@@ -429,7 +429,7 @@ static INPUT_PORTS_START( popeye )
 	PORT_CONFSETTING(    0x20, "Nintendo Co.,Ltd" )
 	PORT_CONFSETTING(    0x60, "Nintendo of America" )
 //  PORT_CONFSETTING(    0x00, "Nintendo of America" )
-	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(tnx1_state, dsw1_read)
+	PORT_BIT( 0x80, IP_ACTIVE_HIGH, IPT_CUSTOM ) PORT_READ_LINE_MEMBER(FUNC(tnx1_state::dsw1_read))
 
 	PORT_START("DSW1")  /* DSW1 */
 	PORT_DIPNAME( 0x03, 0x01, DEF_STR( Lives ) )       PORT_DIPLOCATION("SW2:1,2")
@@ -455,7 +455,7 @@ static INPUT_PORTS_START( popeye )
 	PORT_DIPSETTING(    0x80, DEF_STR( Cocktail ) )
 
 	PORT_START("MCONF")
-	PORT_CONFNAME( 0x03, 0x00, "Interlace mode" ) PORT_CHANGED_MEMBER(DEVICE_SELF, tnx1_state, change_il, 0)
+	PORT_CONFNAME( 0x03, 0x00, "Interlace mode" ) PORT_CHANGED_MEMBER(DEVICE_SELF, FUNC(tnx1_state::change_il), 0)
 	PORT_CONFSETTING(    0x00, "False Progressive" )
 	PORT_CONFSETTING(    0x01, "Interlaced (scanline skip)" )
 	PORT_CONFSETTING(    0x02, "Interlaced (bitmap)" )
@@ -545,7 +545,7 @@ void tnx1_state::config(machine_config &config)
 
 	/* video hardware */
 	// FIXME: 59.94 screen refresh is the NTSC standard
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(59.94);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(32*16, 32*16);

@@ -70,7 +70,7 @@
 #include "pcshare.h"
 
 #include "cpu/i386/i386.h"
-#include "machine/lpci.h"
+#include "machine/cx5510.h"
 #include "machine/pc_lpt.h"
 #include "machine/pckeybrd.h"
 #include "machine/idectrl.h"
@@ -110,9 +110,9 @@ public:
 	void mediagx(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 
 private:
 	struct speedup_entry
@@ -145,26 +145,9 @@ private:
 	void report_speedups();
 	void install_speedups(const speedup_entry *entries, int count);
 	void init_mediagx();
-	void mediagx_io(address_map &map);
-	void mediagx_map(address_map &map);
-	void ramdac_map(address_map &map);
-
-	uint32_t cx5510_pci_r(int function, int reg, uint32_t mem_mask)
-	{
-		//osd_printf_debug("CX5510: PCI read %d, %02X, %08X\n", function, reg, mem_mask);
-		switch (reg)
-		{
-			case 0:     return 0x00001078;
-		}
-
-		return m_cx5510_regs[reg/4];
-	}
-
-	void cx5510_pci_w(int function, int reg, uint32_t data, uint32_t mem_mask)
-	{
-		//osd_printf_debug("CX5510: PCI write %d, %02X, %08X, %08X\n", function, reg, data, mem_mask);
-		COMBINE_DATA(&m_cx5510_regs[reg/4]);
-	}
+	void mediagx_io(address_map &map) ATTR_COLD;
+	void mediagx_map(address_map &map) ATTR_COLD;
+	void ramdac_map(address_map &map) ATTR_COLD;
 
 	required_device<ide_controller_32_device> m_ide;
 	required_device<ramdac_device> m_ramdac;
@@ -200,8 +183,6 @@ private:
 	//int m_control_num = 0;
 	//int m_control_num2 = 0;
 	//int m_control_read = 0;
-
-	uint32_t m_cx5510_regs[256/4]{};
 
 	std::unique_ptr<int16_t[]> m_dacl;
 	std::unique_ptr<int16_t[]> m_dacr;
@@ -319,7 +300,7 @@ void mediagx_state::draw_framebuffer(bitmap_rgb32 &bitmap, const rectangle &clip
 		m_frame_height = height;
 
 		visarea.set(0, width - 1, 0, height - 1);
-		m_screen->configure(width, height * 262 / 240, visarea, m_screen->frame_period().attoseconds());
+		m_screen->configure(width, height * 262 / 240, visarea, m_screen->frame_period());
 	}
 
 	if (m_disp_ctrl_reg[DC_OUTPUT_CFG] & 0x1)        // 8-bit mode
@@ -768,7 +749,6 @@ void mediagx_state::mediagx_io(address_map &map)
 	map(0x03bc, 0x03bf).rw(m_lpt0, FUNC(pc_lpt_device::read), FUNC(pc_lpt_device::write)).umask16(0x00ff);
 	map(0x03f0, 0x03f7).rw(m_ide, FUNC(ide_controller_32_device::cs1_r), FUNC(ide_controller_32_device::cs1_w));
 	map(0x0400, 0x04ff).rw(FUNC(mediagx_state::ad1847_r), FUNC(mediagx_state::ad1847_w));
-	map(0x0cf8, 0x0cff).rw("pcibus", FUNC(pci_bus_legacy_device::read), FUNC(pci_bus_legacy_device::write));
 }
 
 /*****************************************************************************/
@@ -859,6 +839,7 @@ void mediagx_state::machine_start()
 
 void mediagx_state::machine_reset()
 {
+	// HACK: pretend shadow RAM doesn't exist in a x86 BIOS ...
 	uint8_t *rom = memregion("bios")->base();
 	memcpy(m_bios_ram, rom, 0x40000);
 	m_maincpu->reset();
@@ -889,19 +870,19 @@ void mediagx_state::mediagx(machine_config &config)
 
 	pcat_common(config);
 
-	pci_bus_legacy_device &pcibus(PCI_BUS_LEGACY(config, "pcibus", 0, 0));
-	pcibus.set_device(18, FUNC(mediagx_state::cx5510_pci_r), FUNC(mediagx_state::cx5510_pci_w));
+	PCI_ROOT(config, "pci");
+	CX5510(config, "pci:12.0", m_maincpu);
 
 	ide_controller_32_device &ide(IDE_CONTROLLER_32(config, "ide").options(ata_devices, "hdd", nullptr, true));
 	ide.irq_handler().set(m_pic8259_2, FUNC(pic8259_device::ir6_w));
 
 	TIMER(config, "sound_timer").configure_generic(FUNC(mediagx_state::sound_timer_callback));
 
-	RAMDAC(config, m_ramdac, 0, m_palette);
+	RAMDAC(config, m_ramdac, m_palette);
 	m_ramdac->set_addrmap(0, &mediagx_state::ramdac_map);
 
 	/* video hardware */
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_size(640, 480);
 	m_screen->set_visarea(0, 639, 0, 239);
@@ -912,12 +893,11 @@ void mediagx_state::mediagx(machine_config &config)
 	PALETTE(config, m_palette).set_entries(256);
 
 	/* sound hardware */
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 
-	DMADAC(config, m_dmadac[0]).add_route(ALL_OUTPUTS, "lspeaker", 1.0);
+	DMADAC(config, m_dmadac[0]).add_route(ALL_OUTPUTS, "speaker", 1.0, 0);
 
-	DMADAC(config, m_dmadac[1]).add_route(ALL_OUTPUTS, "rspeaker", 1.0);
+	DMADAC(config, m_dmadac[1]).add_route(ALL_OUTPUTS, "speaker", 1.0, 1);
 }
 
 

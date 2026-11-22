@@ -66,16 +66,15 @@ Notes:
 #include "emu.h"
 
 #include "cpu/m68000/m68000.h"
-#include "cpu/mcs51/mcs51.h"
+#include "cpu/mcs51/i8051.h"
 #include "machine/gen_latch.h"
 #include "machine/timer.h"
 #include "sound/okim6295.h"
 #include "video/ramdac.h"
+#include "video/zr36050.h"
 
 #include "screen.h"
 #include "speaker.h"
-
-#include "jpeglib.h"
 
 
 namespace {
@@ -95,19 +94,23 @@ public:
 		m_audiocpu(*this, "audiocpu"),
 		m_screen(*this, "screen"),
 		m_soundlatch(*this, "soundlatch"),
-		m_palette(*this, "palette")
+		m_palette(*this, "palette"),
+		m_jpeg(*this, "jpeg"),
+		m_jpeg_rom(*this, "user2"),
+		m_jpeg_addr(0)
 	{ }
 
 	void sliver(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void video_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
+	virtual void video_start() override ATTR_COLD;
 	virtual void device_post_load() override;
 
 private:
-	uint16_t m_io_offset = 0;
-	uint16_t m_io_reg[IO_SIZE]{};
+	uint8_t m_io_offset = 0;
+	uint8_t m_io_reg[IO_SIZE]{};
 	uint16_t m_fifo[FIFO_SIZE]{};
 	uint16_t m_fptr = 0;
 
@@ -122,6 +125,9 @@ private:
 	required_device<screen_device> m_screen;
 	required_device<generic_latch_8_device> m_soundlatch;
 	required_device<palette_device> m_palette;
+	required_device<zr36050_device> m_jpeg;
+	required_region_ptr<u8> m_jpeg_rom;
+	u32 m_jpeg_addr;
 	bitmap_rgb32 m_bitmap_fg;
 	bitmap_rgb32 m_bitmap_bg;
 
@@ -132,24 +138,25 @@ private:
 	void fifo_flush_w(uint16_t data);
 	void jpeg1_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 	void jpeg2_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
-	void io_offset_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
-	void io_data_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
+	void io_offset_w(offs_t offset, uint8_t data);
+	void io_data_w(offs_t offset, uint8_t data);
 	void sound_w(uint16_t data);
 	void oki_setbank(uint8_t data);
 
 	TIMER_DEVICE_CALLBACK_MEMBER(obj_irq_cb);
 
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
-	void plot_pixel_rgb(int x, int y, uint32_t r, uint32_t g, uint32_t b);
+	void plot_pixel_rgb(int x, int y, rgb_t color);
 	void plot_pixel_pal(int x, int y, u8 addr);
 	void blit_gfx();
 	void render_jpeg();
+	u8 jpeg_code_r();
 
-	void oki_map(address_map &map);
-	void ramdac_map(address_map &map);
-	void sliver_map(address_map &map);
-	void soundmem_io(address_map &map);
-	void soundmem_prg(address_map &map);
+	void oki_map(address_map &map) ATTR_COLD;
+	void ramdac_map(address_map &map) ATTR_COLD;
+	void sliver_map(address_map &map) ATTR_COLD;
+	void soundmem_data(address_map &map) ATTR_COLD;
+	void soundmem_prg(address_map &map) ATTR_COLD;
 };
 
 void sliver_state::machine_start()
@@ -164,14 +171,18 @@ void sliver_state::machine_start()
 	save_item(NAME(m_tmp_counter));
 }
 
-void sliver_state::plot_pixel_rgb(int x, int y, uint32_t r, uint32_t g, uint32_t b)
+void sliver_state::machine_reset()
 {
-//  printf("plot %d %d %d\n", r,g,b);
+	// the FPGA has the ZR36050 master the code bus
+	m_jpeg->write(0x002, 0x40);
+}
 
+void sliver_state::plot_pixel_rgb(int x, int y, rgb_t color)
+{
 	if (y < 0 || x < 0 || x > 383 || y > 255)
 		return;
 
-	m_bitmap_bg.pix(y, x) = r | (g<<8) | (b<<16);
+	m_bitmap_bg.pix(y, x) = color & 0x00ffffff;
 }
 
 void sliver_state::plot_pixel_pal(int x, int y, u8 addr)
@@ -255,9 +266,13 @@ void sliver_state::jpeg1_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 	COMBINE_DATA(&m_jpeg1);
 }
 
+u8 sliver_state::jpeg_code_r()
+{
+	return (m_jpeg_addr < m_jpeg_rom.bytes()) ? m_jpeg_rom[m_jpeg_addr++] : 0xff;
+}
+
 void sliver_state::render_jpeg()
 {
-	int x;
 	int addr = (int)m_jpeg2 + (((int)m_jpeg1) << 16);
 
 	m_bitmap_bg.fill(0);
@@ -266,48 +281,18 @@ void sliver_state::render_jpeg()
 		return;
 	}
 
-	//printf("access address %04x\n", addr);
+	m_jpeg_addr = addr;
+	m_jpeg->write(0x000, 0x01); // GO
 
-	/* Access libJPEG */
+	for (int y = 0; y < m_jpeg->image_height(); y++)
 	{
-		struct jpeg_decompress_struct cinfo;
-		struct jpeg_error_mgr jerr;
-		JSAMPARRAY buffer;
-
-		cinfo.err = jpeg_std_error(&jerr);
-		jpeg_create_decompress(&cinfo);
-
-		jpeg_mem_src(&cinfo, memregion("user2")->base()+addr, memregion("user2")->bytes()-addr);
-
-		jpeg_read_header(&cinfo, true);
-		jpeg_start_decompress(&cinfo);
-
-		int row_stride = cinfo.output_width * cinfo.output_components;
-
-		buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
-
-		while (cinfo.output_scanline < cinfo.output_height)
+		const u8 *const src = m_jpeg->image_row(y);
+		for (int x = 0; x < m_jpeg->image_width(); x++)
 		{
-			jpeg_read_scanlines(&cinfo, buffer, 1);
-			int y = cinfo.output_scanline;
-
-			for (x = 0; x < row_stride/3; x++)
-			{
-				uint8_t b = buffer[0][(x*3)];
-				uint8_t g = buffer[0][(x*3)+1];
-				uint8_t r = buffer[0][(x*3)+2];
-				plot_pixel_rgb(x - x_offset + m_jpeg_x, y - y_offset - m_jpeg_y, r, g, b);
-
-			}
-
+			const rgb_t color = zr36050_device::ycbcr_to_rgb(src[x * 3], src[x * 3 + 1], src[x * 3 + 2]);
+			plot_pixel_rgb(x - x_offset + m_jpeg_x, y + 1 - y_offset - m_jpeg_y, color);
 		}
-
-		jpeg_finish_decompress(&cinfo);
-		jpeg_destroy_decompress(&cinfo);
-
-
 	}
-
 }
 
 void sliver_state::jpeg2_w(offs_t offset, uint16_t data, uint16_t mem_mask)
@@ -318,31 +303,26 @@ void sliver_state::jpeg2_w(offs_t offset, uint16_t data, uint16_t mem_mask)
 
 }
 
-void sliver_state::io_offset_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+void sliver_state::io_offset_w(offs_t offset, uint8_t data)
 {
-	COMBINE_DATA(&m_io_offset);
+	m_io_offset = data;
 }
 
-void sliver_state::io_data_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+void sliver_state::io_data_w(offs_t offset, uint8_t data)
 {
-	if (m_io_offset < IO_SIZE)
-	{
-		int tmpx, tmpy;
-		COMBINE_DATA(&m_io_reg[m_io_offset]);
+	int tmpx, tmpy;
+	m_io_reg[m_io_offset] = data;
 
-		tmpy = m_io_reg[0x1a] + (m_io_reg[0x1b] << 8) - m_io_reg[0x20]; //0x20  ???
-		tmpx = m_io_reg[0x1e] + (m_io_reg[0x1f] << 8);
+	// TODO: this doesn't match ZR36050 control registers
+	// is it really accessing FPGA instead, simplifying Zoran access?
+	tmpy = m_io_reg[0x1a] + (m_io_reg[0x1b] << 8) - m_io_reg[0x20]; //0x20  ???
+	tmpx = m_io_reg[0x1e] + (m_io_reg[0x1f] << 8);
 
-		if (tmpy != m_jpeg_y || tmpx != m_jpeg_x)
-		{
-			m_jpeg_x = tmpx;
-			m_jpeg_y = tmpy;
-			render_jpeg();
-		}
-	}
-	else
+	if (tmpy != m_jpeg_y || tmpx != m_jpeg_x)
 	{
-		logerror("I/O access out of range: %x\n", m_io_offset);
+		m_jpeg_x = tmpx;
+		m_jpeg_y = tmpy;
+		render_jpeg();
 	}
 }
 
@@ -360,10 +340,11 @@ void sliver_state::sliver_map(address_map &map)
 	map(0x100003, 0x100003).w("ramdac", FUNC(ramdac_device::pal_w));
 	map(0x100005, 0x100005).w("ramdac", FUNC(ramdac_device::mask_w));
 
-	map(0x300002, 0x300003).noprw(); // bit 0 tested, writes 0xe0 and 0xc0 - both r and w at the end of interrupt code
+//  map(0x200000, 0x20001f) // memory controller?
 
-	map(0x300004, 0x300005).w(FUNC(sliver_state::io_offset_w)); //unknown i/o device
-	map(0x300006, 0x300007).w(FUNC(sliver_state::io_data_w));
+//  map(0x300003, 0x300003) Zoran access lines? Read in irq 2 service
+	map(0x300005, 0x300005).w(FUNC(sliver_state::io_offset_w)); //unknown i/o device
+	map(0x300007, 0x300007).w(FUNC(sliver_state::io_data_w));
 
 	map(0x400000, 0x400001).portr("P1_P2");
 	map(0x400002, 0x400003).portr("SYSTEM");
@@ -374,7 +355,7 @@ void sliver_state::sliver_map(address_map &map)
 	map(0x40000c, 0x40000d).w(FUNC(sliver_state::jpeg1_w));
 	map(0x40000e, 0x40000f).w(FUNC(sliver_state::jpeg2_w));
 
-	map(0x400010, 0x400015).nopw(); //unknown
+	map(0x400010, 0x400015).nopw(); //unknown, $400012 write at end of irq 3 service
 	map(0x400016, 0x400017).w(FUNC(sliver_state::sound_w));
 	map(0x400018, 0x400019).nopw(); //unknown
 
@@ -394,7 +375,7 @@ void sliver_state::soundmem_prg(address_map &map)
 	map(0x0000, 0xffff).rom();
 }
 
-void sliver_state::soundmem_io(address_map &map)
+void sliver_state::soundmem_data(address_map &map)
 {
 	map(0x0100, 0x0100).rw("oki", FUNC(okim6295_device::read), FUNC(okim6295_device::write));
 	map(0x0101, 0x0101).r(m_soundlatch, FUNC(generic_latch_8_device::read));
@@ -458,7 +439,7 @@ static INPUT_PORTS_START( sliver )
 	PORT_BIT( 0x0002, IP_ACTIVE_LOW, IPT_START1 )
 	PORT_BIT( 0x0008, IP_ACTIVE_LOW, IPT_COIN2 )
 	PORT_BIT( 0x0010, IP_ACTIVE_LOW, IPT_START2 )
-	PORT_BIT( 0x0040, IP_ACTIVE_HIGH, IPT_UNKNOWN ) //jpeg ready flag
+	PORT_BIT( 0x0040, IP_ACTIVE_HIGH, IPT_UNKNOWN ) // jpeg ready flag, ZR36050 /STOP?
 	PORT_BIT( 0xffa4, IP_ACTIVE_LOW, IPT_UNKNOWN )
 
 	PORT_START("DSW")
@@ -527,10 +508,10 @@ void sliver_state::sliver(machine_config &config)
 
 	I8051(config, m_audiocpu, 8000000);
 	m_audiocpu->set_addrmap(AS_PROGRAM, &sliver_state::soundmem_prg);
-	m_audiocpu->set_addrmap(AS_IO, &sliver_state::soundmem_io);
+	m_audiocpu->set_addrmap(AS_DATA, &sliver_state::soundmem_data);
 	m_audiocpu->port_out_cb<1>().set(FUNC(sliver_state::oki_setbank));
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(2500));
 	m_screen->set_size(64*8, 32*8);
@@ -538,18 +519,21 @@ void sliver_state::sliver(machine_config &config)
 	m_screen->set_screen_update(FUNC(sliver_state::screen_update));
 
 	PALETTE(config, "palette").set_entries(0x100);
-	ramdac_device &ramdac(RAMDAC(config, "ramdac", 0, "palette"));
+	// AT76C176
+	ramdac_device &ramdac(RAMDAC(config, "ramdac", "palette"));
 	ramdac.set_addrmap(0, &sliver_state::ramdac_map);
 
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	ZR36050(config, m_jpeg);
+	m_jpeg->code_read().set(FUNC(sliver_state::jpeg_code_r));
+
+	SPEAKER(config, "speaker", 2).front();
 
 	GENERIC_LATCH_8(config, m_soundlatch);
 
 	okim6295_device &oki(OKIM6295(config, "oki", 1000000, okim6295_device::PIN7_HIGH));
 	oki.set_addrmap(0, &sliver_state::oki_map);
-	oki.add_route(ALL_OUTPUTS, "lspeaker", 0.6);
-	oki.add_route(ALL_OUTPUTS, "rspeaker", 0.6);
+	oki.add_route(ALL_OUTPUTS, "speaker", 0.6, 0);
+	oki.add_route(ALL_OUTPUTS, "speaker", 0.6, 1);
 }
 
 ROM_START( sliver )

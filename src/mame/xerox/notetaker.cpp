@@ -144,17 +144,18 @@ public:
 	{
 	}
 
-	void notetakr(machine_config &config);
+	void notetakr(machine_config &config) ATTR_COLD;
+
+	void init_notetakr() ATTR_COLD;
 
 private:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
-	virtual void driver_start() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
-	void iop_io(address_map &map);
-	void iop_mem(address_map &map);
-	void ep_io(address_map &map);
-	void ep_mem(address_map &map);
+	void iop_io(address_map &map) ATTR_COLD;
+	void iop_mem(address_map &map) ATTR_COLD;
+	void ep_io(address_map &map) ATTR_COLD;
+	void ep_mem(address_map &map) ATTR_COLD;
 
 	// devices
 	required_device<cpu_device> m_iop_cpu;
@@ -833,7 +834,7 @@ void notetaker_state::notetakr(machine_config &config)
 	m_iop_cpu->set_addrmap(AS_IO, &notetaker_state::iop_io);
 	m_iop_cpu->set_irq_acknowledge_callback("iop_pic8259", FUNC(pic8259_device::inta_cb));
 
-	PIC8259(config, m_iop_pic, 0); // iP8259A-2 @ E6
+	PIC8259(config, m_iop_pic); // iP8259A-2 @ E6
 	m_iop_pic->out_int_callback().set_inputline(m_iop_cpu, 0);
 
 	/* Emulator CPU: 8086@5MHz */
@@ -843,11 +844,11 @@ void notetaker_state::notetakr(machine_config &config)
 	m_ep_cpu->set_addrmap(AS_IO, &notetaker_state::ep_io);
 	m_ep_cpu->set_irq_acknowledge_callback("ep_pic8259", FUNC(pic8259_device::inta_cb));
 
-	PIC8259(config, m_ep_pic, 0); // iP8259A-2 @ E6
+	PIC8259(config, m_ep_pic); // iP8259A-2 @ E6
 	m_ep_pic->out_int_callback().set_inputline(m_ep_cpu, 0);
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60.975);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(250));
 	screen.set_screen_update(FUNC(notetaker_state::screen_update));
@@ -894,15 +895,14 @@ void notetaker_state::notetakr(machine_config &config)
 	FLOPPY_CONNECTOR(config, "wd1791:0", notetaker_floppies, "525dd", floppy_image_device::default_mfm_floppy_formats);
 
 	/* sound hardware */
-	SPEAKER(config, "lspeaker").front_left();
-	SPEAKER(config, "rspeaker").front_right();
+	SPEAKER(config, "speaker", 2).front();
 	// TODO: hook DAC up to two HA2425 (sample and hold) chips and hook those up to the speakers
-	DAC1200(config, m_dac, 0).add_route(ALL_OUTPUTS, "lspeaker", 0.5).add_route(ALL_OUTPUTS, "rspeaker", 0.5); // unknown DAC
+	DAC1200(config, m_dac, 0).add_route(ALL_OUTPUTS, "speaker", 0.5, 0).add_route(ALL_OUTPUTS, "speaker", 0.5, 1); // unknown DAC
 }
 
-void notetaker_state::driver_start()
+void notetaker_state::init_notetakr()
 {
-	// descramble the rom; the whole thing is a gigantic scrambled mess either to ease
+	// descramble the ROM; the whole thing is a gigantic scrambled mess either to ease
 	// interfacing with older xerox technologies which used A0 and D0 as the MSB bits
 	// or maybe because someone screwed up somewhere along the line. we may never know.
 	// see http://bitsavers.informatik.uni-stuttgart.de/pdf/xerox/notetaker/schematics/19790423_Notetaker_IO_Processor.pdf pages 12 and onward
@@ -1001,4 +1001,4 @@ ROM_END
 /* Driver */
 
 //    YEAR  NAME      PARENT  COMPAT  MACHINE   INPUT     CLASS            INIT           COMPANY  FULLNAME     FLAGS
-COMP( 1978, notetakr, 0,      0,      notetakr, notetakr, notetaker_state, empty_init, "Xerox", "NoteTaker", MACHINE_IS_SKELETON)
+COMP( 1978, notetakr, 0,      0,      notetakr, notetakr, notetaker_state, init_notetakr, "Xerox", "NoteTaker", MACHINE_NO_SOUND | MACHINE_NOT_WORKING)

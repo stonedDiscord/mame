@@ -54,7 +54,7 @@ protected:
 	// device-level overrides
 	upd1990a_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, uint32_t variant);
 
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// device_rtc_interface overrides
 	virtual void rtc_clock_updated(int year, int month, int day, int day_of_week, int hour, int minute, int second) override;
@@ -108,8 +108,10 @@ private:
 	int m_c_unlatched;          // command waiting for STB
 
 	bool m_testmode;            // testmode active
+	bool m_counter_held;        // Time Set holds the time counter until Register Hold, Shift or Time Read
 
 	int const m_variant;
+	uint32_t const m_divider_steps; // steps per second of the last clock divider stage that Time Set doesn't reset
 
 	// timers
 	emu_timer *m_timer_clock;
@@ -119,6 +121,7 @@ private:
 
 	bool is_serial_mode();
 	int get_data_out();
+	void release_counter();
 };
 
 

@@ -184,13 +184,13 @@ public:
 		voodoo_2_device(mconfig, VOODOO_2, tag, owner, clock, voodoo::voodoo_model::VOODOO_2) { }
 
 	// address map and read/write helpers
-	virtual void core_map(address_map &map) override;
+	virtual void core_map(address_map &map) override ATTR_COLD;
 	virtual u32 read(offs_t offset, u32 mem_mask = ~0) override;
 	virtual void write(offs_t offset, u32 data, u32 mem_mask = ~0) override;
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 
 	// system management
 	virtual void soft_reset() override;
@@ -218,6 +218,7 @@ protected:
 	u32 reg_cmdfifodepth_w(u32 chipmask, u32 regnum, u32 data);
 	u32 reg_cmdfifoholes_w(u32 chipmask, u32 regnum, u32 data);
 	u32 reg_fbiinit5_7_w(u32 chipmask, u32 regnum, u32 data);
+	u32 reg_blt_fill_w(u32 chipmask, u32 regnum, u32 data);
 	u32 reg_draw_tri_w(u32 chipmask, u32 regnum, u32 data);
 	u32 reg_begin_tri_w(u32 chipmask, u32 regnum, u32 data);
 

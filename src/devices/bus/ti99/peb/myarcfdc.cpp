@@ -24,6 +24,7 @@
 #include "emu.h"
 #include "myarcfdc.h"
 #include "formats/ti99_dsk.h"
+#include "formats/hxchfe_dsk.h"
 
 // ----------------------------------
 // Flags for debugging
@@ -380,6 +381,7 @@ void myarc_fdc_device::floppy_formats(format_registration &fr)
 	fr.add_mfm_containers();
 	fr.add(FLOPPY_TI99_SDF_FORMAT);
 	fr.add(FLOPPY_TI99_TDF_FORMAT);
+	fr.add(FLOPPY_HFE_FORMAT);
 }
 
 static void myarc_ddcc_floppies(device_slot_interface &device)
@@ -459,10 +461,10 @@ void myarc_fdc_device::device_add_mconfig(machine_config& config)
 	DDCC1_PAL(config, PAL_TAG, 0);
 
 	// Floppy drives
-	FLOPPY_CONNECTOR(config, m_floppy[0], myarc_ddcc_floppies, "525dd", myarc_fdc_device::floppy_formats).enable_sound(true);
-	FLOPPY_CONNECTOR(config, m_floppy[1], myarc_ddcc_floppies, "525dd", myarc_fdc_device::floppy_formats).enable_sound(true);
-	FLOPPY_CONNECTOR(config, m_floppy[2], myarc_ddcc_floppies, nullptr, myarc_fdc_device::floppy_formats).enable_sound(true);
-	FLOPPY_CONNECTOR(config, m_floppy[3], myarc_ddcc_floppies, nullptr, myarc_fdc_device::floppy_formats).enable_sound(true);
+	FLOPPY_CONNECTOR(config, m_floppy[0], myarc_ddcc_floppies, "525dd", myarc_fdc_device::floppy_formats).enable_sound("ti99_peb_dsk1");
+	FLOPPY_CONNECTOR(config, m_floppy[1], myarc_ddcc_floppies, "525dd", myarc_fdc_device::floppy_formats).enable_sound("ti99_peb_dsk2");
+	FLOPPY_CONNECTOR(config, m_floppy[2], myarc_ddcc_floppies, nullptr, myarc_fdc_device::floppy_formats).enable_sound("ti99_peb_dsk3");
+	FLOPPY_CONNECTOR(config, m_floppy[3], myarc_ddcc_floppies, nullptr, myarc_fdc_device::floppy_formats).enable_sound("ti99_peb_dsk4");
 }
 
 ioport_constructor myarc_fdc_device::device_input_ports() const

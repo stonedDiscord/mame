@@ -14,7 +14,7 @@ class s3vision864_vga_device : public svga_device
 {
 public:
 	// construction/destruction
-	s3vision864_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	s3vision864_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 	virtual uint8_t mem_r(offs_t offset) override;
 	virtual void mem_w(offs_t offset, uint8_t data) override;
@@ -27,12 +27,12 @@ protected:
 	s3vision864_vga_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
-	virtual void crtc_map(address_map &map) override;
-	virtual void sequencer_map(address_map &map) override;
+	virtual void crtc_map(address_map &map) override ATTR_COLD;
+	virtual void sequencer_map(address_map &map) override ATTR_COLD;
 	virtual uint32_t latch_start_addr() override;
 
 	virtual u16 line_compare_mask() override;
@@ -50,6 +50,7 @@ protected:
 		uint8_t cr3a;
 		uint8_t cr42;
 		uint8_t cr43;
+		uint8_t cr50;
 		uint8_t cr51;
 		uint8_t cr53;
 		uint8_t id_high;
@@ -87,7 +88,7 @@ protected:
 	} s3;
 	virtual uint16_t offset() override;
 
-	virtual void s3_define_video_mode(void);
+	virtual void recompute_params() override;
 	virtual bool get_interlace_mode() override { return BIT(s3.cr42, 5); }
 
 private:
@@ -98,31 +99,31 @@ private:
 class s3vision964_vga_device : public s3vision864_vga_device
 {
 public:
-	s3vision964_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	s3vision964_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 protected:
 	s3vision964_vga_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 };
 
 class s3vision968_vga_device : public s3vision964_vga_device
 {
 public:
-	s3vision968_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	s3vision968_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 protected:
 	s3vision968_vga_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 };
 
 class s3trio64_vga_device : public s3vision968_vga_device
 {
 public:
-	s3trio64_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	s3trio64_vga_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 protected:
 	s3trio64_vga_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
-	virtual void device_start() override;
+	virtual void device_start() override ATTR_COLD;
 };
 
 // device type definition

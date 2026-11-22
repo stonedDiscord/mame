@@ -106,17 +106,17 @@ private:
 	void porta_w(uint8_t data);
 	void gfxbank_w(uint8_t data);
 
-	void main_map(address_map &map);
-	void main_io(address_map &map);
+	void main_map(address_map &map) ATTR_COLD;
+	void main_io(address_map &map) ATTR_COLD;
 
 	void soundbank_w(uint8_t data);
 
-	void audio_map(address_map &map);
-	void audio_io(address_map &map);
+	void audio_map(address_map &map) ATTR_COLD;
+	void audio_io(address_map &map) ATTR_COLD;
 
 	// driver_device overrides
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 	uint32_t m_gfx_bank = 0;
 	uint8_t m_key_select = 0;
@@ -448,7 +448,7 @@ void nichild_state::nichild(machine_config &config)
 	m_v9938->set_vram_size(0x40000);
 	m_v9938->int_cb().set(m_maincpu, FUNC(tmpz84c011_device::trg3)).invert();
 
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	SCREEN(config, "screen");
 
 	// TODO: mixing with LD player
 	SPEAKER(config, "speaker").front_center();

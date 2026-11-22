@@ -24,6 +24,7 @@ public:
 			m_rom(*this, Z80_TAG),
 			m_map_ram(*this, "map_ram", 0x200, ENDIANNESS_LITTLE),
 			m_16c(*this, "16C"),
+			m_12c(*this, "12C"),
 			m_nmi(1),
 			m_pint(1),
 			m_int_pend(0),
@@ -40,8 +41,7 @@ public:
 	void mpz80(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -50,6 +50,7 @@ private:
 	required_memory_region m_rom;
 	memory_share_creator<uint8_t> m_map_ram;
 	required_ioport m_16c;
+	required_ioport m_12c;
 
 	inline offs_t get_address(offs_t offset);
 	inline offs_t get_io_address(offs_t offset);
@@ -96,8 +97,8 @@ private:
 	int m_trap_stop;
 	int m_trap_aux;
 	void init_mpz80();
-	void mpz80_io(address_map &map);
-	void mpz80_mem(address_map &map);
+	void mpz80_io(address_map &map) ATTR_COLD;
+	void mpz80_mem(address_map &map) ATTR_COLD;
 };
 
 #endif // MAME_MORROW_MPZ80_H

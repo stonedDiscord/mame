@@ -57,7 +57,7 @@ public:
 	void elwro800(machine_config &config);
 
 protected:
-	virtual void machine_reset() override;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	/* NR signal */
@@ -71,9 +71,9 @@ private:
 	void i8255_port_c_w(uint8_t data);
 	void write_centronics_ack(int state);
 
-	void elwro800_io(address_map &map);
-	void elwro800_m1(address_map &map);
-	void elwro800_mem(address_map &map);
+	void elwro800_io(address_map &map) ATTR_COLD;
+	void elwro800_m1(address_map &map) ATTR_COLD;
+	void elwro800_mem(address_map &map) ATTR_COLD;
 
 	required_device<i8251_device> m_i8251;
 	required_device<i8255_device> m_i8255;
@@ -558,7 +558,7 @@ void elwro800_state::elwro800(machine_config &config)
 	m_maincpu->set_addrmap(AS_OPCODES, &elwro800_state::elwro800_m1);
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	rectangle visarea = { get_screen_area().left() - SPEC_LEFT_BORDER, get_screen_area().right() + SPEC_RIGHT_BORDER,
 		get_screen_area().top() - SPEC_TOP_BORDER, get_screen_area().bottom() + SPEC_BOTTOM_BORDER };
 	screen.set_raw(14_MHz_XTAL / 2, SPEC_CYCLES_PER_LINE * 2, SPEC_UNSEEN_LINES + SPEC_SCREEN_HEIGHT, visarea);
@@ -566,6 +566,8 @@ void elwro800_state::elwro800(machine_config &config)
 	screen.set_screen_update(FUNC(elwro800_state::screen_update_spectrum));
 	screen.set_palette("palette");
 	screen.screen_vblank().set_inputline(m_maincpu, 0, HOLD_LINE);
+
+	SPECTRUM_ULA_UNCONTENDED(config, m_ula); // dummy for required
 
 	PALETTE(config, "palette", FUNC(elwro800_state::spectrum_palette), 16);
 	GFXDECODE(config, "gfxdecode", "palette", gfx_elwro800);

@@ -15,6 +15,7 @@
 #define K55_COLSEL_1        3   // layer C, D color depth
 #define K55_COLSEL_2        4   // object, S1 color depth
 #define K55_COLSEL_3        5   // S2, S3 color depth
+#define K55_COLCHG_ON       6   // layer A, B COLPRI and COLBRI enables
 
 #define K55_PRIINP_0        7   // layer A pri 0
 #define K55_PRIINP_1        8   // layer A pri 1
@@ -76,7 +77,7 @@
 class k055555_device : public device_t
 {
 public:
-	k055555_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	k055555_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 	~k055555_device() { }
 
 	void K055555_write_reg(uint8_t regnum, uint8_t regdat);
@@ -89,8 +90,8 @@ public:
 
 protected:
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 private:
 	uint8_t   m_regs[128];

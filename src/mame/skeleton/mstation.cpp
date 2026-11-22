@@ -56,8 +56,8 @@ public:
 	void mstation(machine_config &config);
 
 protected:
-	virtual void machine_start() override;
-	virtual void machine_reset() override;
+	virtual void machine_start() override ATTR_COLD;
+	virtual void machine_reset() override ATTR_COLD;
 
 private:
 	required_device<cpu_device> m_maincpu;
@@ -104,9 +104,9 @@ private:
 	void mstation_palette(palette_device &palette) const;
 	TIMER_DEVICE_CALLBACK_MEMBER(mstation_1hz_timer);
 	TIMER_DEVICE_CALLBACK_MEMBER(mstation_kb_timer);
-	void mstation_banked_map(address_map &map);
-	void mstation_io(address_map &map);
-	void mstation_mem(address_map &map);
+	void mstation_banked_map(address_map &map) ATTR_COLD;
+	void mstation_io(address_map &map) ATTR_COLD;
+	void mstation_mem(address_map &map) ATTR_COLD;
 };
 
 
@@ -456,7 +456,7 @@ void mstation_state::mstation(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &mstation_state::mstation_io);
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device &screen(SCREEN(config, "screen").set_lcd());
 	screen.set_refresh_hz(50);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(2500)); /* not accurate */
 	screen.set_screen_update(FUNC(mstation_state::screen_update));

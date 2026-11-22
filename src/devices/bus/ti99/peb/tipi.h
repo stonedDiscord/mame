@@ -38,8 +38,8 @@ public:
 	void cruwrite(offs_t offset, uint8_t data) override;
 
 private:
-	void device_start() override;
-	void device_reset() override;
+	void device_start() override ATTR_COLD;
+	void device_reset() override ATTR_COLD;
 	void device_stop() override;
 	ioport_constructor device_input_ports() const override;
 	const tiny_rom_entry *device_rom_region() const override;
@@ -74,6 +74,8 @@ private:
 
 	// Websocket support
 	std::unique_ptr<webpp::ws_client> m_wsclient;
+	std::unique_ptr<asio::thread> m_listener;
+
 	std::shared_ptr<webpp::ws_client::SendStream> m_send_stream;
 	std::unique_ptr<u8[]> m_rpimessage;
 	int m_msgindex;
@@ -82,6 +84,7 @@ private:
 	int m_attempts;
 	bool m_connected;
 	bool m_rpiconn;
+	bool m_client_started;
 	int m_pausetime;
 
 	// Incoming queue
@@ -104,7 +107,7 @@ private:
 class tipi_attached_device : public device_t, public device_image_interface
 {
 public:
-	tipi_attached_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	tipi_attached_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 
 	bool is_readable()  const noexcept override           { return true; }
 	bool is_writeable() const noexcept override           { return true; }

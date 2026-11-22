@@ -35,8 +35,8 @@ protected:
 	dp8390_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, TYPE varian, u32 bandwidth);
 
 	// device-level overrides
-	virtual void device_start() override;
-	virtual void device_reset() override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
 
 	TYPE const m_variant;
 
@@ -49,6 +49,8 @@ private:
 	void set_cr(uint8_t newcr);
 	void check_dma_complete();
 	void do_tx();
+	void do_loopback();
+	bool address_match(uint8_t const *buf) const;
 	void check_irq() { m_irq_cb((m_regs.imr & m_regs.isr & 0x7f)?ASSERT_LINE:CLEAR_LINE); }
 	void recv_overflow();
 	void stop();
@@ -56,6 +58,8 @@ private:
 
 	int m_reset;
 	int m_rdma_active;
+	uint8_t m_loopback_fifo[8];
+	uint8_t m_loopback_fifo_index;
 
 	struct {
 		uint8_t cr;
@@ -112,7 +116,7 @@ public:
 class dp8390d_device : public dp8390_device
 {
 public:
-	dp8390d_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock);
+	dp8390d_device(const machine_config &mconfig, const char *tag, device_t *owner, uint32_t clock = 0);
 };
 
 // device type definition

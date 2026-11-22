@@ -54,7 +54,7 @@ public:
 	auto dtr1_handler() { return m_dtr_handler[0].bind(); }
 	auto dtr2_handler() { return m_dtr_handler[1].bind(); }
 
-	void map(address_map &map);
+	void map(address_map &map) ATTR_COLD;
 
 	u8 read(offs_t offset);
 
@@ -78,9 +78,9 @@ public:
 	void set_xtal(const XTAL &clock) { set_xtal(clock.value()); }
 
 protected:
-	virtual void device_start() override;
-	virtual void device_reset() override;
-	virtual void device_add_mconfig(machine_config &config) override;
+	virtual void device_start() override ATTR_COLD;
+	virtual void device_reset() override ATTR_COLD;
+	virtual void device_add_mconfig(machine_config &config) override ATTR_COLD;
 
 private:
 	enum
@@ -205,6 +205,8 @@ private:
 	u8 m_isr[2];
 
 	u8 m_irq[2];
+	bool m_irq_latch[2];
+	u8 m_irq_sources[2];
 
 	bool m_overrun[2];
 	bool m_parity_err[2];
