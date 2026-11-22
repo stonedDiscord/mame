@@ -93,11 +93,11 @@ public:
 	}
 
 	void segattl(machine_config &config) ATTR_COLD;
-    void sbase(machine_config &config) ATTR_COLD;
+	void sbase(machine_config &config) ATTR_COLD;
 
 private:
 	// devices
-	required_device<netlist_mame_device> m_maincpu;
+	required_device<netlist_mame_cpu_device> m_maincpu;
 	required_device<fixedfreq_device> m_video;
 };
 
@@ -119,7 +119,7 @@ static NETLIST_START(segattl)
 void segattl_state::segattl(machine_config &config)
 {
 	// basic machine hardware
-	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_secretbase);
+	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_segattl);
 
 	// video hardware
 	SCREEN(config, "screen");
@@ -133,16 +133,15 @@ void segattl_state::segattl(machine_config &config)
 
 void segattl_state::sbase(machine_config &config)
 {
-	// basic machine hardware
-	NETLIST_CPU(config, m_maincpu, netlist::config::DEFAULT_CLOCK()).set_source(netlist_secretbase);
-	// video hardware
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
-	FIXFREQ(config, m_video).set_screen("screen");
-	m_video->set_monitor_clock(MASTER_CLOCK);
-	m_video->set_horz_params(H_TOTAL-67,H_TOTAL-40,H_TOTAL-8,H_TOTAL);
-	m_video->set_vert_params(V_TOTAL-22,V_TOTAL-19,V_TOTAL-12,V_TOTAL);
-	m_video->set_fieldcount(1);
-	m_video->set_threshold(0.30);
+	segattl(config);
+	m_maincpu->set_source(netlist_secretbase);
+	// Sample before the coupling capacitor to retain the DC reference for sync.
+	NETLIST_ANALOG_OUTPUT(config, "maincpu:video").set_params("VIDEO_MIX", "fixfreq", FUNC(fixedfreq_device::update_composite_monochrome));
+	m_video->set_monitor_clock(14'305'000);
+	m_video->set_horz_params(720, 812, 876, 909);
+	m_video->set_vert_params(240, 247, 251, 261);
+	m_video->set_threshold(1.46);
+	m_video->set_gain(3.0);
 }
 
 /***************************************************************************
@@ -174,9 +173,47 @@ ROM_START( fonz )
 ROM_END
 
 ROM_START( sbase )
-	ROM_REGION( 0x200, "proms", 0 )
-	ROM_LOAD( "1", 0x000, 0x100, NO_DUMP )
-	ROM_LOAD( "2", 0x100, 0x100, NO_DUMP )
+	ROM_REGION( 0x0800, "maincpu:u51", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-108.51", 0x0000, 0x0800, NO_DUMP )
+
+	ROM_REGION( 0x0800, "maincpu:u57", ROMREGION_ERASE00 )
+	ROM_LOAD( "ic57.57", 0x0000, 0x0800, NO_DUMP )
+
+	ROM_REGION( 0x0100, "maincpu:u60", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-18.60", 0x0000, 0x0100, NO_DUMP )
+
+	ROM_REGION( 0x0100, "maincpu:u61", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-19.61", 0x0000, 0x0100, NO_DUMP )
+
+	ROM_REGION( 0x0020, "maincpu:u82", ROMREGION_ERASE00 )
+	ROM_LOAD( "u82", 0x0000, 0x0020, NO_DUMP )
+
+	ROM_REGION( 0x0020, "maincpu:u131", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-31.131", 0x0000, 0x0020, NO_DUMP )
+
+	ROM_REGION( 0x0020, "maincpu:u159", ROMREGION_ERASE00 )
+	ROM_LOAD( "u159", 0x0000, 0x0020, NO_DUMP )
+
+	ROM_REGION( 0x0020, "maincpu:u163", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-26.163", 0x0000, 0x0020, NO_DUMP )
+
+	ROM_REGION( 0x0800, "maincpu:u187", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-107.187", 0x0000, 0x0800, NO_DUMP )
+
+	ROM_REGION( 0x0020, "maincpu:u193", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-27.193", 0x0000, 0x0020, NO_DUMP )
+
+	ROM_REGION( 0x0020, "maincpu:u194", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-30.194", 0x0000, 0x0020, NO_DUMP )
+
+	ROM_REGION( 0x0800, "maincpu:u207", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-108.207", 0x0000, 0x0800, NO_DUMP )
+
+	ROM_REGION( 0x0100, "maincpu:u214", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-16.214", 0x0000, 0x0100, NO_DUMP )
+
+	ROM_REGION( 0x0100, "maincpu:u217", ROMREGION_ERASE00 )
+	ROM_LOAD( "pr-17.217", 0x0000, 0x0100, NO_DUMP )
 ROM_END
 
 } // anonymous namespace
