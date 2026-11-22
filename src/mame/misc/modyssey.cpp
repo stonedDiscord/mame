@@ -155,7 +155,7 @@ void modyssey_state::modyssey(machine_config &config)
 	NETLIST_ANALOG_OUTPUT(config, "maincpu:vid0", 0).set_params("videomix", "fixfreq", FUNC(fixedfreq_device::update_composite_monochrome));
 
 	/* video hardware */
-	SCREEN(config, "screen", SCREEN_TYPE_RASTER);
+	SCREEN(config, "screen");
 	FIXFREQ(config, m_video)
 		.set_mode_ntsc704()
 		.set_gain(2.37)
