@@ -46,13 +46,14 @@
 #define POWERPC_MIN_PAGE_SHIFT      12
 #define POWERPC_MIN_PAGE_SIZE       (1 << POWERPC_MIN_PAGE_SHIFT)
 #define POWERPC_MIN_PAGE_MASK       (POWERPC_MIN_PAGE_SIZE - 1)
-#define POWERPC_TLB_ENTRIES         128
+// The vTLB is a cache and misses are not free.  128 entries cover only 512K of
+// address space, which is OK for ROM-based arcade games but shows itself quickly
+// otherwise.  4096 entries was measured to reduce Mac OS 8.1 on the pwrmacg3
+// driver from ~160K mismatches/second to none, and is zero-cost otherwise.
+// Note that the vTLB is *NOT* the architectural TLB; it is a cache used by the DRC.
+// PPC603_FIXED_TLB_ENTRIES is the architectural TLB size.
+#define POWERPC_TLB_ENTRIES         4096
 #define PPC603_FIXED_TLB_ENTRIES    128
-
-
-// cycle parameters
-#define POWERPC_COUNT_READ_TBL      100
-#define POWERPC_COUNT_READ_DEC      100
 
 
 // internal capabilities flags
@@ -205,7 +206,12 @@ enum
 	SPR603_HID0         = 0x3f0,    // R/W 603 Hardware Implementation Register 0
 	SPR603_HID1         = 0x3f1,    // R/W 603 Hardware Implementation Register 1
 	SPR603_IABR         = 0x3f2,    // R/W 603 Instruction Address Breakpoint Register
-	SPR603_HID2         = 0x3f3     // R/W 603
+	SPR603_HID2         = 0x3f3,    // R/W 603
+
+	// PowerPC 740/750/755/7400/7410 thermal assist unit
+	SPR7XX_THRM1        = 0x3fc,    // R/W 7xx Thermal Management Register 1
+	SPR7XX_THRM2        = 0x3fd,    // R/W 7xx Thermal Management Register 2
+	SPR7XX_THRM3        = 0x3fe     // R/W 7xx Thermal Management Register 3
 };
 
 // PowerPC 4XX DCR register indexes
@@ -368,6 +374,12 @@ enum
 #define DSISR_NO_SEGMENT    0x00200000      /* DSI: no segment match found (64-bit only) */
 #define DSISR_INVALID_ECWX  0x00100000      /* DSI: ECIWX or ECOWX used with EAR[E] = 0 */
 #define DSISR_INSTRUCTION   0x000fffff      /* align: instruction decoding bits FIXME: mask/shift depends on addressing mode */
+#define DSISR_NOEXEC        0x10000000      /* ISI only: fetch from a no-execute segment (SRR1[3]) */
+
+// extra VTLB entry bits used by the 603 software-loaded TLBs (bits 8-11 of an entry are free)
+#define VTLB_603_CHANGED    0x00000100      /* The PTE's C bit was set when the entry was loaded */
+#define VTLB_603_ITLB       0x00000200      /* The entry was loaded into the instruction TLB by tlbli */
+#define VTLB_603_DTLB       0x00000400      /* The entry was loaded into the data TLB by tlbld */
 
 
 // PowerPC 4XX IRQ bits

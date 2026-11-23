@@ -9,6 +9,8 @@
 #include "emu.h"
 #include "namcos22.h"
 
+#include "video.h"
+
 
 // poly constructor
 
@@ -29,19 +31,19 @@ void namcos22_renderer::init()
 // poly scanline callbacks
 
 // differences between super and non-super
-// normal: per-poly fog, shading after fog, global fader (handled elsewhere), no alpha
-// super:  shading before fog, per-z fog, 2 faders, alpha, sprites in a separate callback
+// normal: shading after fog, global fader (handled elsewhere), no alpha
+// super:  shading before fog, 2 faders, alpha, sprites in a separate callback
 
 void namcos22_renderer::renderscanline_poly(int32_t scanline, const extent_t &extent, const namcos22_object_data &extra, int threadid)
 {
-	float z = extent.param[0].start;
-	float u = extent.param[1].start;
-	float v = extent.param[2].start;
-	float i = extent.param[3].start;
-	float dz = extent.param[0].dpdx;
-	float du = extent.param[1].dpdx;
-	float dv = extent.param[2].dpdx;
-	float di = extent.param[3].dpdx;
+	double z = extent.param[0].start;
+	double u = extent.param[1].start;
+	double v = extent.param[2].start;
+	double i = extent.param[3].start;
+	double dz = extent.param[0].dpdx;
+	double du = extent.param[1].dpdx;
+	double dv = extent.param[2].dpdx;
+	double di = extent.param[3].dpdx;
 	const int bn = extra.bn * 0x1000;
 	const pen_t *pens = extra.pens;
 	const int fogfactor = 0xff - extra.fogfactor;
@@ -76,7 +78,7 @@ void namcos22_renderer::renderscanline_poly(int32_t scanline, const extent_t &ex
 
 	for (int x = extent.startx; x < extent.stopx; x++)
 	{
-		const float ooz = 1.0f / z;
+		const float ooz = 1.0f / (float)z;
 
 		// texture mapping
 		if (texture_enabled)
@@ -114,17 +116,17 @@ void namcos22_renderer::renderscanline_poly(int32_t scanline, const extent_t &ex
 
 void namcos22_renderer::renderscanline_poly_ss22(int32_t scanline, const extent_t &extent, const namcos22_object_data &extra, int threadid)
 {
-	float z = extent.param[0].start;
-	float u = extent.param[1].start;
-	float v = extent.param[2].start;
-	float i = extent.param[3].start;
-	float dz = extent.param[0].dpdx;
-	float du = extent.param[1].dpdx;
-	float dv = extent.param[2].dpdx;
-	float di = extent.param[3].dpdx;
+	double z = extent.param[0].start;
+	double u = extent.param[1].start;
+	double v = extent.param[2].start;
+	double i = extent.param[3].start;
+	double dz = extent.param[0].dpdx;
+	double du = extent.param[1].dpdx;
+	double dv = extent.param[2].dpdx;
+	double di = extent.param[3].dpdx;
 	const int bn = extra.bn * 0x1000;
 	const pen_t *pens = extra.pens;
-	int fogfactor = 0xff - extra.fogfactor;
+	const int fogfactor = 0xff - extra.fogfactor;
 	const bool shade_enabled = extra.shade_enabled;
 	const bool texture_enabled = extra.texture_enabled;
 	rgbaint_t fogcolor = extra.fogcolor;
@@ -134,9 +136,6 @@ void namcos22_renderer::renderscanline_poly_ss22(int32_t scanline, const extent_
 	int pen = 0;
 	rgbaint_t rgb;
 
-	const u8 *czram = extra.czram;
-	const int cz_sdelta = extra.cz_sdelta;
-	const bool zfog_enabled = extra.zfog_enabled;
 	const int fadefactor = 0xff - extra.fadefactor;
 	const int alphafactor = 0xff - extra.alpha;
 	const bool alpha_enabled = extra.alpha_enabled;
@@ -167,7 +166,7 @@ void namcos22_renderer::renderscanline_poly_ss22(int32_t scanline, const extent_
 
 	for (int x = extent.startx; x < extent.stopx; x++)
 	{
-		const float ooz = 1.0f / z;
+		const float ooz = 1.0f / (float)z;
 
 		// texture mapping
 		if (texture_enabled)
@@ -186,20 +185,8 @@ void namcos22_renderer::renderscanline_poly_ss22(int32_t scanline, const extent_
 			rgb.scale_imm_and_clamp(shade << 2);
 		}
 
-		// per-z fog
-		if (zfog_enabled)
-		{
-			// discard low byte and clamp to 0-1fff
-			int cz = int(ooz) >> 8;
-			if (cz > 0x1fff) cz = 0x1fff;
-			fogfactor = czram[cz] + cz_sdelta;
-			if (fogfactor > 0)
-			{
-				if (fogfactor > 0xff) fogfactor = 0xff;
-				rgb.blend(fogcolor, 0xff - fogfactor);
-			}
-		}
-		else if (fogfactor != 0xff) // direct
+		// poly fog
+		if (fogfactor != 0xff)
 		{
 			rgb.blend(fogcolor, fogfactor);
 		}
@@ -278,7 +265,27 @@ void namcos22_renderer::renderscanline_sprite(int32_t scanline, const extent_t &
 	}
 }
 
+inline void namcos22_renderer::dispatch_scanline_poly(scanline_func callback, int clipverts, vertex_t const *clipv)
+{
+	switch (clipverts)
+	{
+		case 3:
+			render_triangle<4>(m_cliprect, render_delegate(callback, this), clipv[0], clipv[1], clipv[2]);
+			break;
 
+		case 4:
+			render_polygon<4,4>(m_cliprect, render_delegate(callback, this), clipv);
+			break;
+
+		case 5:
+			render_polygon<5,4>(m_cliprect, render_delegate(callback, this), clipv);
+			break;
+
+		case 6:
+			render_polygon<6,4>(m_cliprect, render_delegate(callback, this), clipv);
+			break;
+	}
+}
 
 /*********************************************************************************************/
 
@@ -352,7 +359,6 @@ void namcos22_renderer::poly3d_drawquad(screen_device &screen, bitmap_rgb32 &bit
 
 	extra.destbase = &bitmap;
 	extra.pfade_enabled = false;
-	extra.zfog_enabled = false;
 	extra.alpha_enabled = false;
 	extra.shade_enabled = true;
 	extra.texture_enabled = true;
@@ -399,17 +405,8 @@ void namcos22_renderer::poly3d_drawquad(screen_device &screen, bitmap_rgb32 &bit
 
 				extra.fogcolor.set(0, m_state.m_fog_r, m_state.m_fog_g, m_state.m_fog_b);
 
-				if (direct)
-				{
-					const int fogfactor = m_state.m_recalc_czram[bank][cz_value] + delta;
-					extra.fogfactor = std::clamp(fogfactor, 0, 0xff);
-				}
-				else
-				{
-					extra.zfog_enabled = true;
-					extra.cz_sdelta = delta;
-					extra.czram = m_state.m_recalc_czram[bank].get();
-				}
+				const int fogfactor = m_state.m_recalc_czram[bank][cz_value] + delta;
+				extra.fogfactor = std::clamp(fogfactor, 0, 0xff);
 			}
 		}
 	}
@@ -446,14 +443,13 @@ void namcos22_renderer::poly3d_drawquad(screen_device &screen, bitmap_rgb32 &bit
 	// disable poly fog
 	if (BIT(cz_adjust, 23))
 	{
-		extra.zfog_enabled = false;
 		extra.fogfactor = 0;
 	}
 
 	if (m_state.m_is_ss22)
-		render_triangle_fan<4>(m_cliprect, render_delegate(&namcos22_renderer::renderscanline_poly_ss22, this), clipverts, clipv);
+		dispatch_scanline_poly(&namcos22_renderer::renderscanline_poly_ss22, clipverts, clipv);
 	else
-		render_triangle_fan<4>(m_cliprect, render_delegate(&namcos22_renderer::renderscanline_poly, this), clipverts, clipv);
+		dispatch_scanline_poly(&namcos22_renderer::renderscanline_poly, clipverts, clipv);
 }
 
 
@@ -552,7 +548,7 @@ void namcos22_renderer::render_sprite(screen_device &screen, bitmap_rgb32 &bitma
 			if (node->data.sprite.linktype == 0xff)
 				code += offset;
 			else
-				code += nthword(&m_state.m_spriteram[0x800/4], offset + node->data.sprite.linktype*4);
+				code += m_state.m_spriteram[0x800/2 + offset + node->data.sprite.linktype*4];
 
 			poly3d_drawsprite(
 				screen,
@@ -797,7 +793,7 @@ void namcos22_state::register_normals(int addr, float m[4][4])
 		if (dotproduct < 0.0f)
 			dotproduct = 0.0f;
 
-		m_LitSurfaceInfo[m_LitSurfaceCount++] = m_camera_ambient + m_camera_power * dotproduct;
+		m_LitSurfaceInfo[m_LitSurfaceCount++] = m_camera_ambient + m_LitSurfaceIntensity * dotproduct;
 	}
 }
 
@@ -1048,36 +1044,54 @@ void namcos22_state::blit_single_quad(u32 color, u32 addr, float m[4][4], int po
 	zmax = std::clamp(zmax, 0.0f, (float)0x1fffff);
 	int cz_value = zmax + 0.5f; // not from zsort
 
-	// u, v, bri
+	// u, v
 	for (int i = 0; i < 4; i++)
 	{
-		int bri;
-
 		v[i].u = point_read(0 + i * 2 + addr);
 		v[i].v = point_read(1 + i * 2 + addr);
+	}
 
-		if (m_LitSurfaceCount > 0)
+	// bri
+	if (m_LitSurfaceCount > 0)
+	{
+		// lighting
+		if (m_LitSurfaceGouraud)
 		{
-			// lighting (prelim)
-			int index = m_LitSurfaceIndex++;
-			if (m_LitSurfaceCount > 4)
-				index >>= 2;
-			index %= m_LitSurfaceCount;
+			// Gouraud shading
+			int index = m_LitSurfaceTriangles ? (m_LitSurfaceIndex >> 1) : m_LitSurfaceIndex;
+			const int normal_index[4] = { 0, m_LitSurfaceWidth, m_LitSurfaceWidth + 1, 1 };
+			index = index / (m_LitSurfaceWidth - 1) + index;
 
-			bri = m_LitSurfaceInfo[index];
-		}
-		else if (packetformat & 0x40)
-		{
-			// gourad shading
-			bri = point_read(i + addr) >> 16 & 0xff;
+			for (int i = 0; i < 4; i++)
+				v[i].bri = m_LitSurfaceInfo[index + normal_index[i]];
+
+			// if using triangles, need to remap the normals a little
+			if (m_LitSurfaceTriangles)
+			{
+				if (m_LitSurfaceIndex & 1)
+					v[0].bri = v[1].bri;
+				else
+					v[2].bri = v[3].bri;
+			}
 		}
 		else
 		{
 			// flat shading
-			bri = color >> 16 & 0xff;
+			for (int i = 0; i < 4; i++)
+				v[i].bri = m_LitSurfaceInfo[m_LitSurfaceIndex];
 		}
-
-		v[i].bri = bri;
+	}
+	else if (packetformat & 0x40)
+	{
+		// Gouraud shading
+		for (int i = 0; i < 4; i++)
+			v[i].bri = point_read(i + addr) >> 16 & 0xff;
+	}
+	else
+	{
+		// flat shading
+		for (int i = 0; i < 4; i++)
+			v[i].bri = color >> 16 & 0xff;
 	}
 
 	// allocate quad
@@ -1146,6 +1160,7 @@ void namcos22_state::blit_quads(int addr, int len, float m[4][4])
 				color = point_read(addr + 2);
 				bias = 0;
 				blit_single_quad(color, addr + 3, m, bias, flags, packetformat);
+				m_LitSurfaceIndex++;
 				break;
 
 			case 0x18:
@@ -1159,16 +1174,22 @@ void namcos22_state::blit_quads(int addr, int len, float m[4][4])
 				color = point_read(addr + 2);
 				bias  = point_read(addr + 3);
 				blit_single_quad(color, addr + 4, m, bias, flags, packetformat);
+				m_LitSurfaceIndex++;
 				break;
 
 			case 0x10: /* vertex lighting */
-				/*
-				333401 (opcode)
-				000000  [count] [type]
-				000000  000000  007fff // normal vector
-				000000  000000  007fff // normal vector
-				000000  000000  007fff // normal vector
-				000000  000000  007fff // normal vector
+				/**
+				* word 0: opcode (333401)
+				* word 1: lighting mode, mesh width
+				*         ---x.----.----.----.----.----  use triangles (quads with two duplicated vertices)
+				*         ----.xxxx.----.----.----.----  mesh width
+				*         ----.----.----.----.----.--xx  shading mode (0 = flat, 1 = Gouraud, 2 = Gouraud with shared normals)
+				* word 2: number of normals
+				*         ----.--xx.----.----.----.----  normals in last batch minus 1
+				*         ----.----.xx--.----.----.----  56 extra normals for 1, 84 extra normals for 3
+				*         ----.----.----.----.----.xxxx  number of additional batches
+				* word 3: intensity of diffuse light
+				* words 4-15: four normal vectors
 
 				used in:
 				- acedrive/victlap sparks
@@ -1183,9 +1204,13 @@ void namcos22_state::blit_quads(int addr, int len, float m[4][4])
 				- ridgerac rotating sign before 2nd tunnel
 				- timecris Sherudo's knives
 				*/
-				m_SurfaceNormalFormat = point_read(addr + 3);
 				m_LitSurfaceCount = 0;
 				m_LitSurfaceIndex = 0;
+				m_LitSurfaceGouraud = (point_read(addr + 1) & 3) > 0;
+				m_LitSurfaceWidth = ((point_read(addr + 1) >> 16) & 0xf) + 1;
+				m_LitSurfaceTriangles = ((point_read(addr + 1) >> 20) & 1) > 0;
+				m_LitSurfaceIntensity = ((point_read(addr + 3) & 0xffff) * m_camera_power) >> 15;
+
 				register_normals(addr + 4, m);
 				break;
 
@@ -1216,13 +1241,8 @@ void namcos22_state::blit_quads(int addr, int len, float m[4][4])
 
 void namcos22_state::blit_polyobject(int code, float m[4][4])
 {
-	// list start address, code 5 is special case for pointram
-	int list_addr;
-	const bool pointram = (code == 0x5);
-	if (pointram)
-		list_addr = (m_is_ss22) ? 0xf80000 : 0xf00000;
-	else
-		list_addr = point_read(code);
+	// list start address
+	int list_addr = point_read(code);
 
 	m_LitSurfaceCount = 0;
 	m_LitSurfaceIndex = 0;
@@ -1236,11 +1256,6 @@ void namcos22_state::blit_polyobject(int code, float m[4][4])
 			if (object_addr == -1)
 			{
 				// 0xffffff is end-of-list marker
-				break;
-			}
-			else if (!pointram)
-			{
-				logerror("blit_polyobject unexpected end: addr=0x%06x\n", list_addr-1);
 				break;
 			}
 			object_addr &= 0x00ffffff;
@@ -1538,7 +1553,6 @@ void namcos22_state::draw_polygons()
 	if (m_pdp_render_done && m_slave_simulation_active)
 	{
 		simulate_slavedsp();
-		m_poly->wait("draw_polygons");
 	}
 }
 
@@ -1568,91 +1582,153 @@ void namcos22_state::screen_vblank(int state)
 	}
 }
 
+void namcos22s_state::screen_vblank(int state)
+{
+	namcos22_state::screen_vblank(state);
+
+	if (state)
+		vics_copy_sprite_data();
+}
+
 
 
 /*********************************************************************************************/
 
-void namcos22_state::draw_sprite_group(const u32 *src, const u32 *attr, int num_sprites, int deltax, int deltay, bool y_lowres)
+void namcos22s_state::draw_sprites()
 {
+	/*
+	    0x980000:   00060000 00010000 02ff0000 000007ff
+	                   ^                                 misc control
+	                    ^^^^                             base
+	                         ^^^^                        base + num sprites
+	                             ^^^^     ^^^^           deltax
+	                                           ^^^^      deltay
+
+	    0x980010:   00200020 028004ff 032a0509 00000000
+	                ^^^^^^^^                             character size?
+	                         ^^^^^^^^                    window-x related?
+	                                  ^^^^^^^^           window-y related?
+
+	    0x980200-0x98023f:   window clipping registers
+	    0x980400-0x9805ff:   hzoom table
+	    0x980600-0x9807ff:   vzoom table
+	    0x980800-0x980fff:   link table
+
+	    eight words per sprite, start address at 0x984000
+	    additional sorting/color data for sprite at 0x9a0000
+	*/
+
+	/* misc control bits function:
+	    bit 0:      sprites on
+	    bit 1:      ??? (always set, except in alpinr2b. it's not x-resolution)
+	    bit 2:      y-resolution? (always set, except in cybrcycc)
+	*/
+	bool sprites_on = BIT(~m_spriteram[0], 0);
+	bool y_lowres = BIT(~m_spriteram[0], 2);
+
+	const int deltax = m_spriteram[3] + m_spriteram[5] + 0x2d;
+	const int deltay = m_spriteram[6] + (0x2a >> (y_lowres ? 1 : 0));
+
+	const int base = m_spriteram[1]; // alpines/alpinr2b
+	int num_sprites = (m_spriteram[2] - base) + 1;
+
+	if (!sprites_on || num_sprites <= 0 || num_sprites >= 0x400)
+		return;
+
+	u16 *src = &m_spriteram[0x4000/2 + base*8];
+	u16 *attr = &m_attributeram[base*4];
+
 	for (int i = 0; i < num_sprites; i++)
 	{
 		/*
 		src[0]
-		    xxxx.xxxx.xxxx.xxxx | ----.----.----.----  x pos
-		    ----.----.----.---- | xxxx.xxxx.xxxx.xxxx  y pos
+			xxxx.xxxx.xxxx.xxxx  x pos
 
 		src[1]
-		    xxxx.xxxx.xxxx.xxxx | ----.----.----.----  x size
-		    ----.----.----.---- | xxxx.xxxx.xxxx.xxxx  y size
+			xxxx.xxxx.xxxx.xxxx  y pos
 
 		src[2]
-		    xxxx.x---.----.---- | ----.----.----.----  unused
-		    ----.-xxx.----.---- | ----.----.----.----  clip target
-		    ----.----.xxxx.xxxx | ----.----.----.----  linktype
-		    ----.----.----.---- | xxxx.xx--.----.----  no function(?) - 0x400 set in airco22b(invisible sprite)
-		    ----.----.----.---- | ----.--x-.----.----  right justify
-		    ----.----.----.---- | ----.---x.----.----  bottom justify
-		    ----.----.----.---- | ----.----.x---.----  flipx
-		    ----.----.----.---- | ----.----.-xxx.----  cols
-		    ----.----.----.---- | ----.----.----.x---  flipy
-		    ----.----.----.---- | ----.----.----.-xxx  rows
+			xxxx.xxxx.xxxx.xxxx  x size
 
 		src[3]
-		    xxxx.xxxx.xxxx.xxxx | ----.----.----.----  tile number
-		    ----.----.----.---- | xxxx.xxxx.----.----  alpha
-		    ----.----.----.---- | ----.----.xxxx.xxxx  no function(?) - set in timecris when increasing alpha, it's probably not 16bit
+			xxxx.xxxx.xxxx.xxxx  y size
+
+		src[4]
+			xxxx.x---.----.----  unused
+			----.-xxx.----.----  clip target
+			----.----.xxxx.xxxx  linktype
+
+		src[5]
+			xxxx.xx--.----.----  no function(?) - 0x400 set in airco22b(invisible sprite)
+			----.--x-.----.----  right justify
+			----.---x.----.----  bottom justify
+			----.----.x---.----  flipx
+			----.----.-xxx.----  cols
+			----.----.----.x---  flipy
+			----.----.----.-xxx  rows
+
+		src[6]
+			xxxx.xxxx.xxxx.xxxx  tile number
+
+		src[7]
+			xxxx.xxxx.----.----  alpha
+			----.----.xxxx.xxxx  no function(?) - set in timecris when increasing alpha, it's probably not 16bit
 
 		attr[0]
-		    xxxx.xxxx.----.---- | ----.----.----.----  unused
-		    ----.----.xxxx.xxxx | xxxx.xxxx.xxxx.xxxx  z pos
+			xxxx.xxxx.----.----  unused
+			----.----.xxxx.xxxx  z pos (high)
 
 		attr[1]
-		    xxxx.xxxx.----.---- | ----.----.----.----  unused
-		    ----.----.x---.---- | ----.----.----.----  cz enable
-		    ----.----.-xxx.xxxx | ----.----.----.----  color
-		    ----.----.----.---- | xxxx.xxxx.----.----  unknown flags? - set in airco22b(0x7/0x1, invisible sprite), propcycl score hinge(0xff), cybrcycc at boot(0x2b)
-		    ----.----.----.---- | ----.----.xxxx.xxxx  cz factor (fog aka depth cueing)
-		*/
-		int xpos = (src[0] >> 16) - deltax;
-		int ypos = (src[0] & 0xffff) - deltay;
-		int sizex = src[1] >> 16;
-		int sizey = src[1] & 0xffff;
-		const int flipy = BIT(src[2], 3);
-		int rows = src[2] & 0x7;
-		const int linktype = src[2] >> 16 & 0xff;
-		const int flipx = BIT(src[2], 7);
-		int cols = src[2] >> 4 & 0x7;
-		const u32 code = src[3];
-		const int tile = code >> 16;
-		const int alpha = code >> 8 & 0xff;
+			xxxx.xxxx.xxxx.xxxx  z pos (low)
 
-		const u32 zcoord = attr[0] & 0x00ffffff;
-		const int color = attr[1] >> 16 & 0xff;
-		const int cz = attr[1] & 0xff;
+		attr[2]
+			xxxx.xxxx.----.----  unused
+			----.----.x---.----  cz enable
+			----.----.-xxx.xxxx  color
+
+		attr[3]
+			xxxx.xxxx.----.----  unknown flags? - set in airco22b(0x7/0x1, invisible sprite), propcycl score hinge(0xff), cybrcycc at boot(0x2b)
+			----.----.xxxx.xxxx  cz factor (fog aka depth cueing)
+		*/
+		int xpos = src[0] - deltax;
+		int ypos = (src[1]) - deltay;
+		int sizex = src[2];
+		int sizey = src[3];
+		const int flipy = BIT(src[5], 3);
+		int rows = src[5] & 0x7;
+		const int linktype = src[4] & 0xff;
+		const int flipx = BIT(src[5], 7);
+		int cols = src[5] >> 4 & 0x7;
+		const int tile = src[6];
+		const int alpha = src[7] >> 8 & 0xff;
+
+		const u32 zcoord = (attr[0] & 0xff) << 16 | attr[1];
+		const int color = attr[2] & 0xff;
+		const int cz = attr[3] & 0xff;
 
 		// one of these is to override global fade setting?
 		// eg. propcycl time over, where global fade affects score hinge, but not "TIME UP"
-		const bool fade_enabled = BIT(attr[1], 15);
+		const bool fade_enabled = BIT(attr[3], 15);
 
 		// priority over textlayer, trusted by testmode and timecris
 		const int prioverchar = (cz == 0xfe) ? 1 : 0;
 
 		// set window clipping
-		const int clip = src[2] >> 23 & 0xe;
-		const int cx_min = -deltax + (s16)(m_spriteram[0x80|clip] >> 16);
-		const int cx_max = -deltax + (s16)(m_spriteram[0x80|clip] & 0xffff);
-		const int cy_min = -deltay + (s16)(m_spriteram[0x81|clip] >> 16);
-		const int cy_max = -deltay + (s16)(m_spriteram[0x81|clip] & 0xffff);
+		const int clip = src[4] >> 6 & 0x1c;
+		const int cx_min = -deltax + (s16)(m_spriteram[0x100 | clip]);
+		const int cx_max = -deltax + (s16)(m_spriteram[0x101 | clip]);
+		const int cy_min = -deltay + (s16)(m_spriteram[0x102 | clip]);
+		const int cy_max = -deltay + (s16)(m_spriteram[0x103 | clip]);
 
 		if (rows == 0) rows = 8;
 		if (cols == 0) cols = 8;
 
 		// right justify
-		if (BIT(src[2], 9))
+		if (BIT(src[5], 9))
 			xpos -= sizex * cols - 1;
 
 		// bottom justify
-		if (BIT(src[2], 8))
+		if (BIT(src[5], 8))
 			ypos -= sizey * rows - 1;
 
 		if (flipy)
@@ -1698,163 +1774,107 @@ void namcos22_state::draw_sprite_group(const u32 *src, const u32 *attr, int num_
 			node->data.sprite.fade_enabled = fade_enabled;
 		}
 
-		src += 4;
-		attr += 2;
+		src += 8;
+		attr += 4;
 	}
 }
 
-void namcos22_state::draw_sprites()
+u16 namcos22s_state::namcos22s_vics_data_r(offs_t offset)
 {
-	const u32 *src;
-	const u32 *attr;
+	return m_vics_data[offset];
+}
 
-#if 0 // show reg contents
-	int i;
-	char msg1[0x1000]={0}, msg2[0x1000]={0};
-	// 980000-98023f (spriteram header)
-	for (i=0x00;i<0x02;i++) {
-		sprintf(msg2,"98%04X %08X %08X %08X %08X\n",i*16,m_spriteram[i*4+0],m_spriteram[i*4+1],m_spriteram[i*4+2],m_spriteram[i*4+3]);
-		strcat(msg1,msg2);
-	}
-	for (i=0x20;i<0x24;i++) {
-		sprintf(msg2,"98%04X %08X %08X %08X %08X\n",i*16,m_spriteram[i*4+0],m_spriteram[i*4+1],m_spriteram[i*4+2],m_spriteram[i*4+3]);
-		strcat(msg1,msg2);
-	}
-	strcat(msg1,"\n");
-	// 940000-94007c (vics control)
-	for (i=0x00;i<0x08;i++) {
-		sprintf(msg2,"94%04X %08X %08X %08X %08X\n",i*16,m_vics_control[i*4+0],m_vics_control[i*4+1],m_vics_control[i*4+2],m_vics_control[i*4+3]);
-		strcat(msg1,msg2);
-	}
-	if (machine().input().code_pressed(KEYCODE_S))
-		popmessage("%s",msg1);
-	else popmessage("[S] shows sprite/vics regs");
-#endif
-	/*
-	    0x980000:   00060000 00010000 02ff0000 000007ff
-	                   ^                                 misc control
-	                    ^^^^                             base
-	                         ^^^^                        base + num sprites
-	                             ^^^^     ^^^^           deltax
-	                                           ^^^^      deltay
-
-	    0x980010:   00200020 028004ff 032a0509 00000000
-	                ^^^^^^^^                             character size?
-	                         ^^^^^^^^                    window-x related?
-	                                  ^^^^^^^^           window-y related?
-
-	    0x980200-0x98023f:   window clipping registers
-	    0x980400-0x9805ff:   hzoom table
-	    0x980600-0x9807ff:   vzoom table
-	    0x980800-0x980fff:   link table
-
-	    eight words per sprite, start address at 0x984000
-	    additional sorting/color data for sprite at 0x9a0000
-	*/
-
-	/* misc control bits function:
-	    bit 0:      sprites on
-	    bit 1:      ??? (always set, except in alpinr2b. it's not x-resolution)
-	    bit 2:      y-resolution? (always set, except in cybrcycc)
-	*/
-	bool sprites_on = BIT(~m_spriteram[0], 16);
-	bool y_lowres = BIT(~m_spriteram[0], 18);
-
-	const int deltax = (m_spriteram[1] & 0xffff) + (m_spriteram[2] & 0xffff) + 0x2d;
-	const int deltay = (m_spriteram[3] >> 16) + (0x2a >> (y_lowres ? 1 : 0));
-
-	const int base = m_spriteram[0] & 0xffff; // alpines/alpinr2b
-	int num_sprites = ((m_spriteram[1] >> 16) - base) + 1;
-
-	// airco22b doesn't use spriteset #1
-	if (m_gametype == NAMCOS22_AIR_COMBAT22)
-		num_sprites = 0;
-
-	if (sprites_on && num_sprites > 0 && num_sprites < 0x400)
-	{
-		src = &m_spriteram[0x04000/4 + base*4];
-		attr = &m_spriteram[0x20000/4 + base*2];
-		draw_sprite_group(src, attr, num_sprites, deltax, deltay, y_lowres);
-	}
-
-	/* VICS RAM provides two additional banks (also many unknown regs here) */
-	/*
-	0x940000 -x------       sprite chip busy?
-	0x940018 xxxx----       clr.w   $940018.l
-
-	0x940030 xxxxxxxx       0x0600000 - misc control
-	0x940034 xxxxxxxx       0x3070b0f
-
-	0x940040 xxxxxxxx       sprite attribute size             high bit means busy?
-	0x940048 xxxxxxxx       sprite attribute list baseaddr    high bit means busy?
-	0x940050 xxxxxxxx       sprite color size                 high bit means busy?
-	0x940058 xxxxxxxx       sprite color list baseaddr        high bit means busy?
-
-	0x940060..0x94007c      set#2
-	*/
-
-	sprites_on = BIT(~m_vics_control[0x30/4], 24);
-	y_lowres = BIT(~m_vics_control[0x30/4], 26);
-
-	// where do the games store the number of sprites to be processed by vics???
-	// the current default implementation (using spritelist size) is clearly wrong and causes problems in dirtdash and airco22b
-	num_sprites = m_vics_control[0x40/4] >> 4 & 0x1ff; // no +1
-
-	// dirtdash sprite list starts at xxx4, number of sprites is stored in xxx0, it doesn't use set#2
-	if (m_gametype == NAMCOS22_DIRT_DASH)
-		num_sprites = (m_vics_data[(m_vics_control[0x48/4] & 0x4000)/4] & 0xff) + 1;
-
-	if (sprites_on && num_sprites > 0)
-	{
-		src = &m_vics_data[(m_vics_control[0x48/4] & 0xffff)/4];
-		attr = &m_vics_data[(m_vics_control[0x58/4] & 0xffff)/4];
-		draw_sprite_group(src, attr, num_sprites, deltax, deltay, y_lowres);
-	}
-
-	num_sprites = m_vics_control[0x60/4] >> 4 & 0x1ff; // no +1
-
-	// airco22b number of sprites for set#2 is stored in set#1 - it does not use set 1, or main set for sprites
-	if (m_gametype == NAMCOS22_AIR_COMBAT22)
-	{
-		sprites_on = BIT(~m_vics_data[(m_vics_control[0x48/4] & 0xffff)/4], 16);
-		num_sprites = (m_vics_data[(m_vics_control[0x48/4] & 0xffff)/4+1] >> 16) + 1;
-	}
-
-	if (sprites_on && num_sprites > 0)
-	{
-		src = &m_vics_data[(m_vics_control[0x68/4] & 0xffff)/4];
-		attr = &m_vics_data[(m_vics_control[0x78/4] & 0xffff)/4];
-		draw_sprite_group(src, attr, num_sprites, deltax, deltay, y_lowres);
-	}
+void namcos22s_state::namcos22s_vics_data_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_vics_data[offset]);
 }
 
 u32 namcos22s_state::namcos22s_vics_control_r(offs_t offset)
 {
-	u32 ret = m_vics_control[offset];
-
-	switch (offset*4)
-	{
-		// reg 0, status register?
-		// high byte is read in timecris and lower half is expected to be 0
-		case 0x00:
-			ret = 0;
-			break;
-
-		// sprite attr/color size regs: high bit is busy/ready?
-		// dirtdash reads these and waits for it to become 0
-		case 0x40: case 0x50: case 0x60: case 0x70:
-			ret &= 0x7fffffff;
-			break;
-
-		default:
-			break;
-	}
-	return ret;
+	if (offset == 0) // reg 0, status register? high byte is read in timecris and lower half is expected to be 0
+		return 0;
+	else
+		return m_vics_control[offset];
 }
 
 void namcos22s_state::namcos22s_vics_control_w(offs_t offset, u32 data, u32 mem_mask)
 {
 	COMBINE_DATA(&m_vics_control[offset]);
+}
+
+u16 namcos22s_state::namcos22s_spriteram_r(offs_t offset)
+{
+	return m_spriteram[offset];
+}
+
+void namcos22s_state::namcos22s_spriteram_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_spriteram[offset]);
+}
+
+u16 namcos22s_state::namcos22s_attributeram_r(offs_t offset)
+{
+	return m_attributeram[offset];
+}
+
+void namcos22s_state::namcos22s_attributeram_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_attributeram[offset]);
+}
+
+void namcos22s_state::vics_copy_sprite_data()
+{
+	/* VICS provides a 64kB buffer for the main CPU to write sprite data during active display
+	   During vblank it copies data to the sprite chip (C374); up to four blocks may be copied
+
+	0x940000 -x------       VICS/sprite chip busy? (timecris)
+	0x940018 xxxx----       cleared to 0 (timecris)
+	0x940030 xxxxxxxx       set to 0x06000000
+	0x940034 xxxxxxxx       set to 0x03070b0f
+	0x940038 xxxxxxxx       cleared to 0
+
+	0x940040-0x94007f       four sets of registers, four 32-bit words each
+	x------- -------- -------- --------  cleared when transfer complete? (dirtdash reads high bit and waits until clear)
+	-x------ -------- -------- --------  0 to copy to sprite RAM, 1 to copy to attribute RAM
+	----xxxx -------- -------- --------  size of transfer in bytes
+	-------- xxxxxxxx -------- --------  unknown; set to 0x04000000 when initialized/inactive, 0x00010000 when active
+	-------- -------- ----xxxx --------  VICS RAM source address
+	-------- -------- -------- ----xxxx  sprite/attribute RAM destination address
+	*/
+
+	for (int offset = 0x40; offset < 0x80; offset += 0x10)
+	{
+		if ((m_vics_control[offset / 4] & 0xf0000000) == 0)
+			continue;
+
+		int size = (m_vics_control[(offset + 0x0) / 4] & 0xffff) / 2;
+		const int src = (m_vics_control[(offset + 0x8) / 4] & 0xffff) / 2;
+		const int dst = (m_vics_control[(offset + 0xc) / 4] & 0xffff) / 2;
+
+		// make sure we don't read past the end of m_vics_data[]
+		size = std::min(size, (int)m_vics_data.length() - src);
+
+		if (m_vics_control[offset / 4] & 0x1000000)
+		{
+			// make sure we don't write past the end of m_attributeram[]
+			if (UNEXPECTED(dst >= (int)m_attributeram.length()))
+				continue;
+			size = std::min(size, (int)m_attributeram.length() - dst);
+
+			std::copy_n(&m_vics_data[src], size, &m_attributeram[dst]);
+		}
+		else
+		{
+			// make sure we don't write past the end of m_spriteram[]
+			if (UNEXPECTED(dst >= (int)m_spriteram.length()))
+				continue;
+			size = std::min(size, (int)m_spriteram.length() - dst);
+
+			std::copy_n(&m_vics_data[src], size, &m_spriteram[dst]);
+		}
+
+		m_vics_control[offset / 4] &= ~0xf0000000;
+	}
 }
 
 
@@ -2386,28 +2406,6 @@ void namcos22s_state::recalc_czram()
 
 void namcos22_state::update_mixer()
 {
-	m_poly->wait("update_mixer");
-#if 0 // show reg contents
-	char msg1[0x1000] = {0}, msg2[0x1000] = {0};
-	int st = 0x000 / 16;
-	for (int i = st; i < (st+3); i++)
-	{
-		sprintf(msg2,"%04X %08X %08X %08X %08X\n", i*16, m_mixer[i*4+0], m_mixer[i*4+1], m_mixer[i*4+2], m_mixer[i*4+3]);
-		strcat(msg1,msg2);
-	}
-	if (1) // + other non-super regs
-	if (!m_is_ss22)
-	{
-		strcat(msg1,"\n");
-		for (int i = 8; i <= 0x20; i += 8)
-		{
-			sprintf(msg2,"%04X %08X %08X %08X %08X\n", i*16, m_mixer[i*4+0], m_mixer[i*4+1], m_mixer[i*4+2], m_mixer[i*4+3]);
-			strcat(msg1,msg2);
-		}
-	}
-	popmessage("%s",msg1);
-#endif
-
 	if (m_is_ss22)
 	{
 		/*
@@ -2600,16 +2598,9 @@ void namcos22_state::init_tables()
 		save_item(NAME(m_fog_b_per_cztype));
 	}
 
-	// init pointrom
-	m_pointrom_size = memregion("pointrom")->bytes()/3;
-	m_pointrom = std::make_unique<s32[]>(m_pointrom_size);
-	u8* pointrom_low = memregion("pointrom")->base();
-	u8* pointrom_mid = pointrom_low + m_pointrom_size;
-	u8* pointrom_high = pointrom_mid + m_pointrom_size;
-	for (int i = 0; i < m_pointrom_size; i++)
-	{
-		m_pointrom[i] = signed24(pointrom_high[i] << 16 | pointrom_mid[i] << 8 | pointrom_low[i]);
-	}
+	// sign-extend point rom
+	for (int i = 0; i < m_pointrom.length(); i++)
+		m_pointrom[i] = signed24(m_pointrom[i]);
 
 	m_pointram = make_unique_clear<u32[]>(0x20000);
 	save_pointer(NAME(m_pointram), 0x20000);

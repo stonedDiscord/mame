@@ -11,6 +11,8 @@ TODO:
 - Make AGP to install properly (bridge fault?);
 - 3d rendering;
 - MPEG acceleration for DVD;
+- Win2k driver for this is "SiS 5598/SiS 6326", which implies the integrated chipset uses this
+  exact variant;
 
 **************************************************************************************************/
 
@@ -67,7 +69,7 @@ const tiny_rom_entry *sis6326_pci_device::device_rom_region() const
 
 void sis6326_pci_device::device_add_mconfig(machine_config &config)
 {
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(XTAL(25'174'800), 900, 0, 640, 526, 0, 480);
 	screen.set_screen_update(m_vga, FUNC(sis6326_vga_device::screen_update));
 
@@ -675,6 +677,9 @@ ROM_START( sis6326agp )
 	// AGP variant of the sis6326pci one
 	ROM_SYSTEM_BIOS( 2, "sis", "SiS6326 4MB 1.25" )
 	ROMX_LOAD( "sis6326agp.bin", 0x000000, 0x010000, CRC(a671255c) SHA1(332ab9499142e8f7a235afe046e8e8d21a28580d), ROM_BIOS(2) )
+	// "6326-bios-1-31e-for-c3-c5-h0-and-d2.zip"
+	ROM_SYSTEM_BIOS( 3, "sisn", "SiS6326 4MB 1.31e")
+	ROMX_LOAD( "6326131e.rom", 0x000000, 0x008000, CRC(f48d8591) SHA1(4c9bfdb338a61499d18074d6faf5c9d059b42334), ROM_BIOS(3) )
 ROM_END
 
 const tiny_rom_entry *sis6326_agp_device::device_rom_region() const

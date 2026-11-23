@@ -22,6 +22,8 @@
 #include "emu.h"
 #include "z8536.h"
 
+#include <algorithm>
+
 //#define VERBOSE 1
 #include "logmacro.h"
 
@@ -122,12 +124,11 @@ u8 cio_base_device::get_current_vector()
 	u8 data = 0xff;
 
 	bool mie = m_register[MASTER_INTERRUPT_CONTROL] & MICR_MIE;
-	bool nv = m_register[MASTER_INTERRUPT_CONTROL] & MICR_NV;
 	bool ct_vis = m_register[MASTER_INTERRUPT_CONTROL] & MICR_CT_VIS;
 	bool pa_vis = m_register[MASTER_INTERRUPT_CONTROL] & MICR_PA_VIS;
 	bool pb_vis = m_register[MASTER_INTERRUPT_CONTROL] & MICR_PB_VIS;
 
-	if (!mie || nv)
+	if (!mie)
 	{
 		// no vector
 	}
@@ -248,10 +249,14 @@ void cio_base_device::check_interrupt()
 		state = ASSERT_LINE;
 	}
 
-	if (m_irq != state)
+	// The under-service level gates everything further down the daisy chain, so a
+	// change there has to be published even when our own request line does not move.
+	if (m_irq != state || m_ius_level != ius_level)
 	{
-		LOG("%s CIO Interrupt: %u\n", machine().describe_context(), state);
+		if (m_irq != state)
+			LOG("%s CIO Interrupt: %u\n", machine().describe_context(), state);
 		m_irq = state;
+		m_ius_level = ius_level;
 		m_write_irq(state);
 	}
 }
@@ -263,6 +268,8 @@ void cio_base_device::check_interrupt()
 
 u8 cio_base_device::read_register(offs_t offset)
 {
+	sync_counters();
+
 	u8 data;
 
 	bool mie = m_register[MASTER_INTERRUPT_CONTROL] & MICR_MIE;
@@ -380,6 +387,8 @@ void cio_base_device::write_register(offs_t offset, u8 data)
 {
 	LOG("%s CIO Write Register %02x: %02x\n", machine().time().as_string(), offset, data);
 
+	sync_counters();
+
 	switch (offset)
 	{
 	case MASTER_INTERRUPT_CONTROL:
@@ -417,8 +426,12 @@ void cio_base_device::write_register(offs_t offset, u8 data)
 
 		for (int counter = 0; counter < 3; counter++)
 		{
-			// clear RCC bit if counter disabled
-			if (!counter_enabled(counter)) m_register[COUNTER_TIMER_1_COMMAND_AND_STATUS + counter] &= ~CTCS_RCC;
+			if (!counter_enabled(counter))
+			{
+				// clear RCC bit and pending load if counter disabled
+				m_register[COUNTER_TIMER_1_COMMAND_AND_STATUS + counter] &= ~CTCS_RCC;
+				m_load_pending[counter] = false;
+			}
 		}
 
 		if (!(m_register[MASTER_CONFIGURATION_CONTROL] & MCCR_CT1E))
@@ -439,6 +452,7 @@ void cio_base_device::write_register(offs_t offset, u8 data)
 			m_register[COUNTER_TIMER_3_COMMAND_AND_STATUS] &= ~CTCS_CIP;
 		}
 
+		update_counter_timer();
 		break;
 
 	case PORT_A_INTERRUPT_VECTOR:
@@ -545,17 +559,22 @@ void cio_base_device::write_register(offs_t offset, u8 data)
 		}
 
 		check_interrupt();
+		update_counter_timer();
 		}
 		break;
 
 	case PORT_A_DATA:
 		m_output[PORT_A] = data;
 		m_write_pa(data ^ m_register[PORT_A_DATA_PATH_POLARITY]);
+		match_pattern(PORT_A);
+		check_interrupt();
 		break;
 
 	case PORT_B_DATA:
 		m_output[PORT_B] = data;
-		m_write_pb(data ^ m_register[PORT_B_DATA_PATH_POLARITY]);
+		output_port_b();
+		match_pattern(PORT_B);
+		check_interrupt();
 		break;
 
 	case PORT_C_DATA:
@@ -564,7 +583,7 @@ void cio_base_device::write_register(offs_t offset, u8 data)
 
 		m_output[PORT_C] = (m_output[PORT_C] & mask) | ((data & 0x0f) & (mask ^ 0xff));
 
-		m_write_pc(m_output[PORT_C] ^ m_register[PORT_C_DATA_PATH_POLARITY]);
+		output_port_c();
 		}
 		break;
 
@@ -601,7 +620,21 @@ void cio_base_device::write_register(offs_t offset, u8 data)
 			LOG("%s CIO Counter/Timer %u Output Duty Cycle: %s\n", machine().describe_context(), counter + 1, CTMS_DCS[dcs]);
 		}
 
-		m_register[offset] = data;
+		if ((m_register[offset] ^ data) & CTMS_EOE)
+		{
+			m_register[offset] = data;
+
+			if (offset == COUNTER_TIMER_3_MODE_SPECIFICATION)
+				output_port_c();
+			else
+				output_port_b();
+		}
+		else
+		{
+			m_register[offset] = data;
+		}
+
+		update_counter_timer();
 		break;
 
 	case PORT_A_MODE_SPECIFICATION:
@@ -767,12 +800,131 @@ bool cio_base_device::counter_gated(int id)
 
 
 //-------------------------------------------------
+//   counter_running - is counter counting the
+//   internal clock?
+//-------------------------------------------------
+
+bool cio_base_device::counter_running(int id)
+{
+	if (!counter_enabled(id) || counter_external_count(id) || !counter_gated(id))
+		return false;
+
+	if ((id == TIMER_2) && ((m_register[MASTER_CONFIGURATION_CONTROL] & MCCR_LC_MASK) == LC_CT1_COUNTS_CT2))
+		return false;
+
+	return m_load_pending[id] || (m_register[COUNTER_TIMER_1_COMMAND_AND_STATUS + id] & CTCS_CIP) || counter_pulse(id);
+}
+
+
+//-------------------------------------------------
+//   counter_pulse - is a pulse mode terminal
+//   count output pulse in progress?
+//-------------------------------------------------
+
+bool cio_base_device::counter_pulse(int id)
+{
+	return m_counter_output[id] && ((m_register[COUNTER_TIMER_1_MODE_SPECIFICATION + id] & CTMS_DCS_MASK) == DCS_PULSE);
+}
+
+
+//-------------------------------------------------
+//   counter_ticks - clock edges until the next
+//   load or terminal count
+//-------------------------------------------------
+
+u32 cio_base_device::counter_ticks(int id)
+{
+	if (m_load_pending[id] || counter_pulse(id))
+		return 1;
+
+	return m_counter[id] ? m_counter[id] : 0x10000;
+}
+
+
+//-------------------------------------------------
+//   sync_counters - bring the counters up to the
+//   current time
+//-------------------------------------------------
+
+void cio_base_device::sync_counters()
+{
+	u64 const now = attotime_to_clocks(machine().time()) >> 1;
+
+	while (m_tick < now)
+	{
+		u64 step = now - m_tick;
+
+		for (int id = TIMER_1; id <= TIMER_3; id++)
+		{
+			if (counter_running(id))
+				step = std::min<u64>(step, counter_ticks(id));
+		}
+
+		for (int id = TIMER_1; id <= TIMER_3; id++)
+		{
+			if (counter_running(id))
+				m_counter[id] -= u16(step - 1);
+		}
+
+		m_tick += step;
+		advance_counters();
+	}
+}
+
+
+//-------------------------------------------------
+//   update_counter_timer - schedule the timer for
+//   the next terminal count
+//-------------------------------------------------
+
+void cio_base_device::update_counter_timer()
+{
+	u64 next = 0;
+
+	for (int id = TIMER_1; id <= TIMER_3; id++)
+	{
+		if (counter_running(id))
+		{
+			u64 const ticks = counter_ticks(id);
+			next = next ? std::min(next, ticks) : ticks;
+		}
+	}
+
+	if (next)
+		m_timer->adjust(clocks_to_attotime((m_tick + next) << 1) - machine().time());
+	else
+		m_timer->adjust(attotime::never);
+}
+
+
+//-------------------------------------------------
 //   count - count down
 //-------------------------------------------------
 
 void cio_base_device::count(int id)
 {
 	if (!counter_gated(id)) return;
+
+	if (counter_pulse(id))
+		counter_output_w(id, false);
+
+	if (m_load_pending[id])
+	{
+		LOG("%s CIO Counter/Timer %u Load\n", machine().time().as_string(), id + 1);
+
+		// load counter with time constant
+		m_counter[id] = (m_register[COUNTER_TIMER_1_TIME_CONSTANT_MS_BYTE + (id << 1)] << 8) | m_register[COUNTER_TIMER_1_TIME_CONSTANT_LS_BYTE + (id << 1)];
+		m_load_pending[id] = false;
+		m_counter_second_half[id] = false;
+
+		// set count in progress bit
+		m_register[COUNTER_TIMER_1_COMMAND_AND_STATUS + id] |= CTCS_CIP;
+
+		int const dcs = m_register[COUNTER_TIMER_1_MODE_SPECIFICATION + id] & CTMS_DCS_MASK;
+		counter_output_w(id, (dcs == DCS_ONE_SHOT) || (dcs == DCS_SQUARE_WAVE));
+		return;
+	}
+
 	if (!(m_register[COUNTER_TIMER_1_COMMAND_AND_STATUS + id] & CTCS_CIP)) return;
 
 	// count down
@@ -782,6 +934,19 @@ void cio_base_device::count(int id)
 
 	if (m_counter[id] == 0)
 	{
+		int const dcs = m_register[COUNTER_TIMER_1_MODE_SPECIFICATION + id] & CTMS_DCS_MASK;
+		u16 const time_constant = (m_register[COUNTER_TIMER_1_TIME_CONSTANT_MS_BYTE + (id << 1)] << 8) | m_register[COUNTER_TIMER_1_TIME_CONSTANT_LS_BYTE + (id << 1)];
+
+		if ((dcs == DCS_SQUARE_WAVE) && !m_counter_second_half[id])
+		{
+			m_counter_second_half[id] = true;
+			m_counter[id] = time_constant;
+			counter_output_w(id, false);
+			return;
+		}
+
+		m_counter_second_half[id] = false;
+
 		if (m_register[COUNTER_TIMER_1_COMMAND_AND_STATUS + id] & CTCS_IP)
 		{
 			if (!m_counter_error[id])
@@ -800,10 +965,29 @@ void cio_base_device::count(int id)
 			m_register[COUNTER_TIMER_1_COMMAND_AND_STATUS + id] |= CTCS_IP;
 		}
 
-		if (m_register[COUNTER_TIMER_1_MODE_SPECIFICATION + id] & CTMS_CSC)
+		bool const continuous = m_register[COUNTER_TIMER_1_MODE_SPECIFICATION + id] & CTMS_CSC;
+
+		switch (dcs)
+		{
+		case DCS_PULSE:
+			counter_output_w(id, true);
+			break;
+
+		case DCS_ONE_SHOT:
+			counter_output_w(id, false);
+			if (continuous)
+				counter_output_w(id, true);
+			break;
+
+		case DCS_SQUARE_WAVE:
+			counter_output_w(id, continuous);
+			break;
+		}
+
+		if (continuous)
 		{
 			// reload counter with time constant
-			m_counter[id] = (m_register[COUNTER_TIMER_1_TIME_CONSTANT_MS_BYTE + (id << 1)] << 8) | m_register[COUNTER_TIMER_1_TIME_CONSTANT_LS_BYTE + (id << 1)];
+			m_counter[id] = time_constant;
 		}
 		else
 		{
@@ -814,7 +998,75 @@ void cio_base_device::count(int id)
 		}
 
 		check_interrupt();
+
+		if (id == TIMER_1)
+		{
+			switch (m_register[MASTER_CONFIGURATION_CONTROL] & MCCR_LC_MASK)
+			{
+			case LC_CT1_TRIGGERS_CT2:
+				trigger(TIMER_2);
+				break;
+
+			case LC_CT1_COUNTS_CT2:
+				count(TIMER_2);
+				break;
+			}
+		}
 	}
+}
+
+
+//-------------------------------------------------
+//  counter_output_w -
+//-------------------------------------------------
+
+void cio_base_device::counter_output_w(int id, bool state)
+{
+	if (m_counter_output[id] == state)
+		return;
+
+	m_counter_output[id] = state;
+
+	if (!counter_external_output(id))
+		return;
+
+	if (id == TIMER_3)
+		output_port_c();
+	else
+		output_port_b();
+}
+
+
+//-------------------------------------------------
+//  output_port_b -
+//-------------------------------------------------
+
+void cio_base_device::output_port_b()
+{
+	u8 data = m_output[PORT_B] ^ m_register[PORT_B_DATA_PATH_POLARITY];
+
+	if (counter_external_output(TIMER_1))
+		data = (data & ~0x10) | (m_counter_output[TIMER_1] << 4);
+
+	if (counter_external_output(TIMER_2))
+		data = (data & ~0x01) | m_counter_output[TIMER_2];
+
+	m_write_pb(data);
+}
+
+
+//-------------------------------------------------
+//  output_port_c -
+//-------------------------------------------------
+
+void cio_base_device::output_port_c()
+{
+	u8 data = m_output[PORT_C] ^ m_register[PORT_C_DATA_PATH_POLARITY];
+
+	if (counter_external_output(TIMER_3))
+		data = (data & ~0x01) | m_counter_output[TIMER_3];
+
+	m_write_pc(data);
 }
 
 
@@ -832,11 +1084,8 @@ void cio_base_device::trigger(int id)
 
 	LOG("%s CIO Counter/Timer %u Trigger\n", machine().describe_context(), id + 1);
 
-	// load counter with time constant
-	m_counter[id] = (m_register[COUNTER_TIMER_1_TIME_CONSTANT_MS_BYTE + (id << 1)] << 8) | m_register[COUNTER_TIMER_1_TIME_CONSTANT_LS_BYTE + (id << 1)];
-
-	// set count in progress bit
-	m_register[COUNTER_TIMER_1_COMMAND_AND_STATUS + id] |= CTCS_CIP;
+	// the time constant is loaded on the next counter clock edge
+	m_load_pending[id] = true;
 }
 
 
@@ -954,7 +1203,7 @@ cio_base_device::cio_base_device(const machine_config &mconfig, device_type type
 	m_write_pb(*this),
 	m_read_pc(*this, 0),
 	m_write_pc(*this),
-	m_irq(CLEAR_LINE)
+	m_irq(CLEAR_LINE), m_ius_level(-1)
 {
 }
 
@@ -993,20 +1242,28 @@ void cio_base_device::device_start()
 		m_buffer[i] = 0;
 		m_match[i] = 0;
 		m_counter_error[i] = false;
+		m_load_pending[i] = false;
+		m_counter_output[i] = false;
+		m_counter_second_half[i] = false;
 	}
 
 	// allocate timer
-	m_timer = timer_alloc(FUNC(cio_base_device::advance_counters), this);
-	m_timer->adjust(attotime::from_hz(clock() / 2), 0, attotime::from_hz(clock() / 2));
+	m_timer = timer_alloc(FUNC(cio_base_device::counter_timer), this);
+	m_tick = attotime_to_clocks(machine().time()) >> 1;
 
 	save_item(NAME(m_irq));
+	save_item(NAME(m_ius_level));
 	save_item(NAME(m_register));
 	save_item(NAME(m_input));
 	save_item(NAME(m_output));
 	save_item(NAME(m_buffer));
 	save_item(NAME(m_match));
+	save_item(NAME(m_tick));
 	save_item(NAME(m_counter));
 	save_item(NAME(m_counter_error));
+	save_item(NAME(m_load_pending));
+	save_item(NAME(m_counter_output));
+	save_item(NAME(m_counter_second_half));
 }
 
 void z8536_device::device_start()
@@ -1024,6 +1281,8 @@ void z8536_device::device_start()
 
 void cio_base_device::device_reset()
 {
+	sync_counters();
+
 	for (auto & elem : m_register)
 	{
 		elem = 0;
@@ -1036,6 +1295,9 @@ void cio_base_device::device_reset()
 	for (int i = 0; i < 3; i++)
 	{
 		m_counter_error[i] = false;
+		m_load_pending[i] = false;
+		m_counter_output[i] = false;
+		m_counter_second_half[i] = false;
 	}
 
 	m_register[MASTER_INTERRUPT_CONTROL] = MICR_RESET;
@@ -1047,6 +1309,7 @@ void cio_base_device::device_reset()
 	m_register[PORT_C_DATA_DIRECTION] = 0x0f;
 
 	check_interrupt();
+	update_counter_timer();
 }
 
 void z8536_device::device_reset()
@@ -1062,14 +1325,19 @@ void z8536_device::device_reset()
 //  advance_counters -
 //-------------------------------------------------
 
-TIMER_CALLBACK_MEMBER(cio_base_device::advance_counters)
+void cio_base_device::advance_counters()
 {
+	bool const ct2_load_pending = m_load_pending[TIMER_2];
+
 	if (counter_enabled(TIMER_1) && !counter_external_count(TIMER_1))
 	{
 		count(TIMER_1);
 	}
 
-	if (counter_enabled(TIMER_2) && !counter_external_count(TIMER_2))
+	// a trigger from counter/timer 1 on this edge loads counter/timer 2 on the next one
+	bool const ct2_triggered = !ct2_load_pending && m_load_pending[TIMER_2];
+
+	if (counter_enabled(TIMER_2) && !counter_external_count(TIMER_2) && (m_register[MASTER_CONFIGURATION_CONTROL] & MCCR_LC_MASK) != LC_CT1_COUNTS_CT2 && !ct2_triggered)
 	{
 		count(TIMER_2);
 	}
@@ -1078,6 +1346,17 @@ TIMER_CALLBACK_MEMBER(cio_base_device::advance_counters)
 	{
 		count(TIMER_3);
 	}
+}
+
+
+//-------------------------------------------------
+//  counter_timer -
+//-------------------------------------------------
+
+TIMER_CALLBACK_MEMBER(cio_base_device::counter_timer)
+{
+	sync_counters();
+	update_counter_timer();
 }
 
 

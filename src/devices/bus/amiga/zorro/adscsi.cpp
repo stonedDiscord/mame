@@ -13,12 +13,10 @@
       hardware differences)
     - Holding the left mouse button disables autoboot
     - Holding the right mouse button inverts the cache jumper setting
+    - Verions 2.2 and older have issues with Kickstart 3.1 (hang on reset).
+      You can enable the commented ROMX_FILL to make 2.2 work better.
 
     TODO:
-    - The dumped firmware versions have issues with Kickstart 3.1: Memory
-      gets overwritten it relies on for a warm boot, so it hangs on reset.
-      You can use KICkSTART31_PATCH to change the allocation and make it
-      work.
     - GAME jumper (disables card)
     - 6 MB BASE 20/40 jumper
 
@@ -38,8 +36,6 @@
 #define VERBOSE (LOG_GENERAL)
 
 #include "logmacro.h"
-
-//#define KICkSTART31_PATCH 1
 
 
 namespace bus::amiga::zorro {
@@ -84,7 +80,6 @@ private:
 	uint8_t m_board_address = 0;
 	bool m_board_configured = false;
 
-	uint8_t m_ncr_irq = 0;
 	uint8_t m_ncr_drq = 0;
 
 	uint8_t m_holding_remaining = 0;
@@ -207,7 +202,7 @@ ioport_constructor adscsi2080_device::device_input_ports() const
 void adscsi2000_device::unmap(offs_t base, unsigned size)
 {
 	LOG("Unmapping from %06x to %06x\n", base, base + size - 1);
-	m_zorro->space().unmap_readwrite(base, base + size - 1);
+	zorro_space().unmap_readwrite(base, base + size - 1);
 }
 
 void adscsi2000_device::busrst_w(int state)
@@ -230,10 +225,9 @@ void adscsi2000_device::busrst_w(int state)
 	m_drq_completed = false;
 
 	m_ncr->reset();
-	m_ncr_irq = 0;
 	m_ncr_drq = 0;
 
-	m_zorro->xrdy_w(1);
+	xrdy_w(1);
 }
 
 void adscsi2080_device::busrst_w(int state)
@@ -275,7 +269,7 @@ void adscsi2000_device::cfgin_w(int state)
 	if (state == 0)
 	{
 		// install autoconfig handler
-		m_zorro->space().install_readwrite_handler(0xe80000, 0xe8007f,
+		zorro_space().install_readwrite_handler(0xe80000, 0xe8007f,
 			read8sm_delegate(*this, FUNC(adscsi2000_device::rom_r)),
 			write8sm_delegate(*this, FUNC(adscsi2000_device::autoconfig_w)), 0xff00);
 	}
@@ -331,7 +325,7 @@ void adscsi2080_device::cfgin_w(int state)
 	autoconfig_can_shutup(false); // ?
 
 	// install autoconfig handler
-	m_zorro->space().install_readwrite_handler(0xe80000, 0xe8007f,
+	zorro_space().install_readwrite_handler(0xe80000, 0xe8007f,
 		read16_delegate(*this, FUNC(amiga_autoconfig::autoconfig_read)),
 		write16_delegate(*this, FUNC(amiga_autoconfig::autoconfig_write)), 0xffff);
 }
@@ -341,7 +335,7 @@ void adscsi2080_device::autoconfig_base_address(offs_t address)
 	LOG("Autoconfig address received: 0x%06x\n", address);
 
 	// stop responding to default autoconfig
-	m_zorro->space().unmap_readwrite(0xe80000, 0xe8007f);
+	zorro_space().unmap_readwrite(0xe80000, 0xe8007f);
 
 	if (address == 0)
 	{
@@ -356,7 +350,7 @@ void adscsi2080_device::autoconfig_base_address(offs_t address)
 	if (m_ram_size == 6 && !m_configure_6mb)
 	{
 		// the 6 MB option is special, we need to configure twice (4 MB + 2 MB)
-		m_zorro->space().install_ram(address, address + 0x400000 - 1, m_ram.get());
+		zorro_space().install_ram(address, address + 0x400000 - 1, m_ram.get());
 		m_ram_address[0] = address >> 16;
 
 		// restart memory config
@@ -367,12 +361,12 @@ void adscsi2080_device::autoconfig_base_address(offs_t address)
 	{
 		if (m_configure_6mb)
 		{
-			m_zorro->space().install_ram(address, address + 0x200000 - 1, m_ram.get() + (0x400000 / sizeof(uint16_t)));
+			zorro_space().install_ram(address, address + 0x200000 - 1, m_ram.get() + (0x400000 / sizeof(uint16_t)));
 			m_ram_address[1] = address >> 16;
 		}
 		else
 		{
-			m_zorro->space().install_ram(address, address + (m_ram_size << 20) - 1, m_ram.get());
+			zorro_space().install_ram(address, address + (m_ram_size << 20) - 1, m_ram.get());
 			m_ram_address[0] = address >> 16;
 		}
 
@@ -402,27 +396,27 @@ void adscsi2000_device::autoconfig_w(offs_t offset, uint8_t data)
 
 				// map rom (if not disabled)
 				if ((m_jumpers->read() & 0x20) == 0)
-					m_zorro->space().install_read_handler(addr + 0x0000, addr + 0xffff,
+					zorro_space().install_read_handler(addr + 0x0000, addr + 0xffff,
 						read8sm_delegate(*this, FUNC(adscsi2000_device::rom_r)), 0xff00);
 
-				m_zorro->space().install_readwrite_handler(addr + 0x00, addr + 0x3f,
+				zorro_space().install_readwrite_handler(addr + 0x00, addr + 0x3f,
 					read8sm_delegate(*this, FUNC(adscsi2000_device::ncr_reg_r)),
 					write8sm_delegate(*this, FUNC(adscsi2000_device::ncr_reg_w)), 0xff00);
 
-				m_zorro->space().install_write_handler(addr + 0x20, addr + 0x21,
+				zorro_space().install_write_handler(addr + 0x20, addr + 0x21,
 					write16s_delegate(*this, FUNC(adscsi2000_device::ncr_dma_w)), 0xffff);
 
-				m_zorro->space().install_read_handler(addr + 0x38, addr + 0x39,
+				zorro_space().install_read_handler(addr + 0x38, addr + 0x39,
 					read16s_delegate(*this, FUNC(adscsi2000_device::ncr_dma_r)), 0xffff);
 
-				m_zorro->space().install_read_handler(addr + 0x40, addr + 0x41,
+				zorro_space().install_read_handler(addr + 0x40, addr + 0x41,
 					read8smo_delegate(*this, FUNC(adscsi2000_device::scsi_status_r)), 0xff00);
 
 				m_board_configured = true;
 
 				// stop responding to default autoconfig and lower cfgout
-				m_zorro->space().unmap_readwrite(0xe80000, 0xe8007f);
-				m_zorro->cfgout_w(0);
+				zorro_space().unmap_readwrite(0xe80000, 0xe8007f);
+				cfgout_w(0);
 			}
 			break;
 
@@ -518,7 +512,7 @@ uint16_t adscsi2000_device::ncr_dma_r(offs_t offset, uint16_t mem_mask)
 	else
 	{
 		// we need to wait for more data, suspend cpu until we get it
-		m_zorro->xrdy_w(0);
+		xrdy_w(0);
 		return 0xffff;
 	}
 }
@@ -558,12 +552,12 @@ void adscsi2000_device::ncr_dma_w(offs_t offset, uint16_t data, uint16_t mem_mas
 
 	// if needed suspend cpu until we can write the remaining data
 	if (m_holding_remaining > 0)
-		m_zorro->xrdy_w(0);
+		xrdy_w(0);
 }
 
 uint8_t adscsi2000_device::scsi_status_r()
 {
-	// 7-------  ncr irq
+	// 7-------  pseudo-dma ready (latch empty)
 	// -6------  ncr drq
 	// --5-----  spin-up delay (0 = 20s delay, 1 = 8s delay)
 	// ---4----  caching jumper
@@ -576,7 +570,7 @@ uint8_t adscsi2000_device::scsi_status_r()
 	data |= ((m_jumpers->read() & 0x10) ? 1 : 0) << 4;
 	data |= ((m_jumpers->read() & 0x40) ? 1 : 0) << 5;
 	data |= (m_ncr_drq ? 1 : 0) << 6;
-	data |= (m_ncr_irq ? 0 : 1) << 7;
+	data |= ((m_holding_remaining == 0) ? 1 : 0) << 7;
 
 	return data;
 }
@@ -586,10 +580,9 @@ void adscsi2000_device::ncr_irq_w(int state)
 	if (state)
 	{
 		m_dma_in_progress = false;
-		m_zorro->xrdy_w(1); // safe-guard, unusual dma could leave the cpu suspended
+		m_holding_remaining = 0;
+		xrdy_w(1); // safe-guard, unusual dma could leave the cpu suspended
 	}
-
-	m_ncr_irq = state;
 }
 
 void adscsi2000_device::ncr_drq_w(int state)
@@ -624,7 +617,7 @@ void adscsi2000_device::ncr_drq_w(int state)
 		{
 			// word fully handled, resume cpu
 			m_drq_completed = true;
-			m_zorro->xrdy_w(1);
+			xrdy_w(1);
 		}
 	}
 }
@@ -639,7 +632,6 @@ void adscsi2000_device::device_start()
 	// register for save states
 	save_item(NAME(m_board_address));
 	save_item(NAME(m_board_configured));
-	save_item(NAME(m_ncr_irq));
 	save_item(NAME(m_ncr_drq));
 	save_item(NAME(m_holding_remaining));
 	save_item(NAME(m_holding));
@@ -692,18 +684,20 @@ void adscsi2000_device::device_add_mconfig(machine_config &config)
 
 ROM_START( adscsi )
 	ROM_REGION(0x8000, "rom", 0)
-	ROM_DEFAULT_BIOS("22")
-	ROM_SYSTEM_BIOS(0, "16",  "AdSCSI 1.6")
-	ROMX_LOAD("adscsi_16.bin",  0x0000, 0x8000, CRC(7dba3e1f) SHA1(1e05f284d59a1e5d4e4de44e6f075175625cd6c0), ROM_BIOS(0))
-	ROM_SYSTEM_BIOS(1, "201", "AdSCSI 2.01")
-	ROMX_LOAD("adscsi_201.bin", 0x0000, 0x8000, CRC(0860a46d) SHA1(f6bd052006d504494efd48dae6a58d7b774c9eef), ROM_BIOS(1))
-	ROM_SYSTEM_BIOS(2, "21",  "AdSCSI 2.1") // is this "AdSCSI 2.10" from photos?
-	ROMX_LOAD("adscsi_21.bin",  0x0000, 0x8000, CRC(3184ec04) SHA1(f8ab84b04853404f840085ce5fe992e35dc443da), ROM_BIOS(2))
-	ROM_SYSTEM_BIOS(3, "22",  "AdSCSI 2.2")
-	ROMX_LOAD("adscsi_22.bin",  0x0000, 0x8000, CRC(6881cd2f) SHA1(482fab24df39446ba8662c7e67f11854895a46d9), ROM_BIOS(3))
-#ifdef KICkSTART31_PATCH
-	ROMX_FILL(0x7065, 1, 0x05, ROM_BIOS(3)) // use MEMF_REVERSE for allocating memory
-#endif
+	ROM_DEFAULT_BIOS("35r1")
+	ROM_SYSTEM_BIOS(0, "16",   "AdSCSI 1.6") // icddisk.device V1.0
+	ROMX_LOAD("adscsi_16.u28",   0x0000, 0x8000, CRC(7dba3e1f) SHA1(1e05f284d59a1e5d4e4de44e6f075175625cd6c0), ROM_BIOS(0))
+	ROM_SYSTEM_BIOS(1, "201",  "AdSCSI 2.01") // icddisk.device V32.1
+	ROMX_LOAD("adscsi_201.u28",  0x0000, 0x8000, CRC(0860a46d) SHA1(f6bd052006d504494efd48dae6a58d7b774c9eef), ROM_BIOS(1))
+	ROM_SYSTEM_BIOS(2, "21",   "AdSCSI 2.1") // icddisk.device V33.0 (is this "AdSCSI 2.10" from photos?)
+	ROMX_LOAD("adscsi_21.u28",   0x0000, 0x8000, CRC(3184ec04) SHA1(f8ab84b04853404f840085ce5fe992e35dc443da), ROM_BIOS(2))
+	ROM_SYSTEM_BIOS(3, "22",   "AdSCSI 2.2") // icddisk.device V34.0
+	ROMX_LOAD("adscsi_22.u28",   0x0000, 0x8000, CRC(6881cd2f) SHA1(482fab24df39446ba8662c7e67f11854895a46d9), ROM_BIOS(3))
+	// ROMX_FILL(0x7065, 1, 0x05, ROM_BIOS(3)) // use MEMF_REVERSE for allocating memory
+	ROM_SYSTEM_BIOS(4, "35r1", "AdSCSI 3.5r1") // icddisk.device V53.1
+	ROMX_LOAD("adscsi_35r1.u28", 0x0000, 0x8000, CRC(378a7d85) SHA1(6a78364ebf14e735a150ba6890a617a2b72f3f42), ROM_BIOS(4))
+	ROM_SYSTEM_BIOS(5, "421", "AdSCSI 4.21") // 1993
+	ROMX_LOAD("adscsi_421.u28",  0x0000, 0x8000, NO_DUMP, ROM_BIOS(5))
 ROM_END
 
 const tiny_rom_entry *adscsi2000_device::device_rom_region() const

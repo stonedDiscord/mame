@@ -10,6 +10,8 @@
 #include "v25.h"
 #include "v25priv.ipp"
 
+#include <algorithm>
+
 void v25_common_device::ida_sfr_map(address_map &map)
 {
 	map(0x000, 0x0ff).ram().share("internal_ram");
@@ -29,6 +31,8 @@ void v25_common_device::ida_sfr_map(address_map &map)
 	map(0x14c, 0x14c).rw(FUNC(v25_common_device::exic0_r), FUNC(v25_common_device::exic0_w));
 	map(0x14d, 0x14d).rw(FUNC(v25_common_device::exic1_r), FUNC(v25_common_device::exic1_w));
 	map(0x14e, 0x14e).rw(FUNC(v25_common_device::exic2_r), FUNC(v25_common_device::exic2_w));
+	map(0x160, 0x160).r(FUNC(v25_common_device::rxb0_r));
+	map(0x162, 0x162).w(FUNC(v25_common_device::txb0_w));
 	map(0x165, 0x165).rw(FUNC(v25_common_device::srms0_r), FUNC(v25_common_device::srms0_w));
 	map(0x166, 0x166).rw(FUNC(v25_common_device::stms0_r), FUNC(v25_common_device::stms0_w));
 	map(0x168, 0x168).rw(FUNC(v25_common_device::scm0_r), FUNC(v25_common_device::scm0_w));
@@ -38,6 +42,8 @@ void v25_common_device::ida_sfr_map(address_map &map)
 	map(0x16c, 0x16c).rw(FUNC(v25_common_device::seic0_r), FUNC(v25_common_device::seic0_w));
 	map(0x16d, 0x16d).rw(FUNC(v25_common_device::sric0_r), FUNC(v25_common_device::sric0_w));
 	map(0x16e, 0x16e).rw(FUNC(v25_common_device::stic0_r), FUNC(v25_common_device::stic0_w));
+	map(0x170, 0x170).r(FUNC(v25_common_device::rxb1_r));
+	map(0x172, 0x172).w(FUNC(v25_common_device::txb1_w));
 	map(0x175, 0x175).rw(FUNC(v25_common_device::srms1_r), FUNC(v25_common_device::srms1_w));
 	map(0x176, 0x176).rw(FUNC(v25_common_device::stms1_r), FUNC(v25_common_device::stms1_w));
 	map(0x178, 0x178).rw(FUNC(v25_common_device::scm1_r), FUNC(v25_common_device::scm1_w));
@@ -51,8 +57,8 @@ void v25_common_device::ida_sfr_map(address_map &map)
 	map(0x182, 0x183).rw(FUNC(v25_common_device::md0_r), FUNC(v25_common_device::md0_w));
 	map(0x188, 0x189).rw(FUNC(v25_common_device::tm1_r), FUNC(v25_common_device::tm1_w));
 	map(0x18a, 0x18b).rw(FUNC(v25_common_device::md1_r), FUNC(v25_common_device::md1_w));
-	map(0x190, 0x190).w(FUNC(v25_common_device::tmc0_w));
-	map(0x191, 0x191).w(FUNC(v25_common_device::tmc1_w));
+	map(0x190, 0x190).rw(FUNC(v25_common_device::tmc0_r), FUNC(v25_common_device::tmc0_w));
+	map(0x191, 0x191).rw(FUNC(v25_common_device::tmc1_r), FUNC(v25_common_device::tmc1_w));
 	map(0x194, 0x196).rw(FUNC(v25_common_device::tmms_r), FUNC(v25_common_device::tmms_w));
 	map(0x19c, 0x19c).rw(FUNC(v25_common_device::tmic0_r), FUNC(v25_common_device::tmic0_w));
 	map(0x19d, 0x19d).rw(FUNC(v25_common_device::tmic1_r), FUNC(v25_common_device::tmic1_w));
@@ -267,8 +273,17 @@ uint8_t v25_common_device::scm0_r()
 
 void v25_common_device::scm0_w(uint8_t d)
 {
-	logerror("%06x: SCM0 set to %02x\n", PC(), d);
-	m_scm[0] = d;
+	scm_w(0, d);
+}
+
+uint8_t v25_common_device::rxb0_r()
+{
+	return rxb_r(0);
+}
+
+void v25_common_device::txb0_w(uint8_t d)
+{
+	txb_w(0, d);
 }
 
 uint8_t v25_common_device::scc0_r()
@@ -295,9 +310,7 @@ void v25_common_device::brg0_w(uint8_t d)
 
 uint8_t v25_common_device::sce0_r()
 {
-	if (!machine().side_effects_disabled())
-		logerror("%06x: Warning: read back SCE0\n",PC());
-	return m_sce[0];
+	return m_sce[0] | (m_rxd_state[0] ? 0x80 : 0x00);
 }
 
 uint8_t v25_common_device::seic0_r()
@@ -314,24 +327,22 @@ void v25_common_device::seic0_w(uint8_t d)
 
 uint8_t v25_common_device::sric0_r()
 {
-	return read_irqcontrol(INTSR0, m_priority_ints0);
+	return read_irqcontrol(INTSR0, 7);
 }
 
 void v25_common_device::sric0_w(uint8_t d)
 {
 	write_irqcontrol(INTSR0, d);
-	m_priority_ints0 = d & 0x7;
 }
 
 uint8_t v25_common_device::stic0_r()
 {
-	return read_irqcontrol(INTST0, m_priority_ints0);
+	return read_irqcontrol(INTST0, 7);
 }
 
 void v25_common_device::stic0_w(uint8_t d)
 {
 	write_irqcontrol(INTST0, d);
-	m_priority_ints0 = d & 0x7;
 }
 
 uint8_t v25_common_device::srms1_r()
@@ -363,8 +374,17 @@ uint8_t v25_common_device::scm1_r()
 
 void v25_common_device::scm1_w(uint8_t d)
 {
-	logerror("%06x: SCM1 set to %02x\n", PC(), d);
-	m_scm[1] = d;
+	scm_w(1, d);
+}
+
+uint8_t v25_common_device::rxb1_r()
+{
+	return rxb_r(1);
+}
+
+void v25_common_device::txb1_w(uint8_t d)
+{
+	txb_w(1, d);
 }
 
 uint8_t v25_common_device::scc1_r()
@@ -391,9 +411,7 @@ void v25_common_device::brg1_w(uint8_t d)
 
 uint8_t v25_common_device::sce1_r()
 {
-	if (!machine().side_effects_disabled())
-		logerror("%06x: Warning: read back SCE1\n",PC());
-	return m_sce[1];
+	return m_sce[1] | (m_rxd_state[1] ? 0x80 : 0x00);
 }
 
 uint8_t v25_common_device::seic1_r()
@@ -410,24 +428,22 @@ void v25_common_device::seic1_w(uint8_t d)
 
 uint8_t v25_common_device::sric1_r()
 {
-	return read_irqcontrol(INTSR1, m_priority_ints1);
+	return read_irqcontrol(INTSR1, 7);
 }
 
 void v25_common_device::sric1_w(uint8_t d)
 {
 	write_irqcontrol(INTSR1, d);
-	m_priority_ints1 = d & 0x7;
 }
 
 uint8_t v25_common_device::stic1_r()
 {
-	return read_irqcontrol(INTST1, m_priority_ints1);
+	return read_irqcontrol(INTST1, 7);
 }
 
 void v25_common_device::stic1_w(uint8_t d)
 {
 	write_irqcontrol(INTST1, d);
-	m_priority_ints1 = d & 0x7;
 }
 
 uint16_t v25_common_device::tm0_r()
@@ -456,32 +472,40 @@ void v25_common_device::md0_w(uint16_t d)
 
 uint16_t v25_common_device::tm1_r()
 {
-	if (!machine().side_effects_disabled())
-		logerror("%06x: Warning: read back TM1\n",PC());
+	if (BIT(m_TMC1, 7))
+	{
+		// MD1 + 1 ticks per interval. Derive the live count without changing
+		// timer state, so debugger reads observe the same value as the CPU.
+		const uint64_t ticks = attotime_to_clocks(m_timers[2]->elapsed()) / (m_PCK * (BIT(m_TMC1, 6) ? 128 : 6));
+		return m_TM1 - std::min<uint64_t>(m_TM1, ticks);
+	}
 	return m_TM1;
 }
 
 void v25_common_device::tm1_w(uint16_t d)
 {
 	m_TM1 = d;
+	if (BIT(m_TMC1, 7))
+	{
+		const uint32_t clocks = m_PCK * (uint32_t(d) + 1) * (BIT(m_TMC1, 6) ? 128 : 6);
+		m_timers[2]->adjust(clocks_to_attotime(clocks), INTTU2);
+	}
 }
 
 uint16_t v25_common_device::md1_r()
 {
-	if (!machine().side_effects_disabled())
-		logerror("%06x: Warning: read back MD1\n",PC());
 	return m_MD1;
 }
 
 void v25_common_device::md1_w(uint16_t d)
 {
-	if (m_MD1 == 0 && d != 0)
-	{
-		m_MD1 = d;
-		tmc1_w(m_TMC1); // HACK: start timer if necessary
-	}
-	else
-		m_MD1 = d;
+	// A new modulo takes effect at the next reload, not immediately.
+	m_MD1 = d;
+}
+
+uint8_t v25_common_device::tmc0_r()
+{
+	return m_TMC0;
 }
 
 void v25_common_device::tmc0_w(uint8_t d)
@@ -509,10 +533,10 @@ void v25_common_device::tmc0_w(uint8_t d)
 	}
 	else    // interval mode
 	{
-		if (BIT(d, 7) && m_MD0 != 0)
+		if (BIT(d, 7))
 		{
-			unsigned tmp = m_PCK * m_MD0 * (BIT(d, 6) ? 128 : 6);
-			attotime time = clocks_to_attotime(tmp);
+			const uint32_t clocks = m_PCK * (uint32_t(m_MD0) + 1) * (BIT(d, 6) ? 128 : 6);
+			const attotime time = clocks_to_attotime(clocks);
 			m_timers[0]->adjust(time, INTTU0, time);
 			m_timers[1]->adjust(attotime::never);
 			m_TM0 = m_MD0;
@@ -525,16 +549,19 @@ void v25_common_device::tmc0_w(uint8_t d)
 	}
 }
 
+uint8_t v25_common_device::tmc1_r()
+{
+	return m_TMC1;
+}
+
 void v25_common_device::tmc1_w(uint8_t d)
 {
-	m_TMC1 = d & 0xC0;
-	if (BIT(d, 7) && m_MD1 != 0)
-	{
-		unsigned tmp = m_PCK * m_MD1 * (BIT(d, 6) ? 128 : 6);
-		attotime time = clocks_to_attotime(tmp);
-		m_timers[2]->adjust(time, INTTU1 | INTTU2, time);
-		m_TM1 = m_MD1;
-	}
+	// Stopping retains the current count; writing TS1=1 reloads MD1 even
+	// if the timer was already running (V25/V35 hardware manual, chapter 9).
+	m_TM1 = tm1_r();
+	m_TMC1 = d & 0xc0;
+	if (BIT(d, 7))
+		tm1_w(m_MD1);
 	else
 		m_timers[2]->adjust(attotime::never);
 }
@@ -609,13 +636,13 @@ void v25_common_device::dmam0_w(uint8_t d)
 			BIT(d, 5) ? "I/O" : "memory",
 			BIT(d, 6) ? "I/O" : "memory",
 			BIT(d, 4) ? "words" : "bytes");
-	if (BIT(d, 2))
+	if (BIT(d, 3))
 	{
 		uint16_t sar = m_internal_ram[0];
 		uint16_t dar = m_internal_ram[1];
 		uint16_t sarh_darh = m_internal_ram[2];
 		uint16_t tc = m_internal_ram[3];
-		logerror("        DMA enabled%s (%04x:%04x -> %04x:%04x, %u %s)\n", BIT(d, 3) ? " and triggered" : "",
+		logerror("        DMA enabled%s (%04x:%04x -> %04x:%04x, %u %s)\n", BIT(d, 2) ? " and triggered" : "",
 			sarh_darh & 0xff00, sar,
 			(sarh_darh & 0x00ff) << 8, dar,
 			tc, BIT(d, 4) ? "words" : "bytes");
@@ -653,13 +680,13 @@ void v25_common_device::dmam1_w(uint8_t d)
 			BIT(d, 5) ? "I/O" : "memory",
 			BIT(d, 6) ? "I/O" : "memory",
 			BIT(d, 4) ? "words" : "bytes");
-	if (BIT(d, 2))
+	if (BIT(d, 3))
 	{
 		uint16_t sar = m_internal_ram[4];
 		uint16_t dar = m_internal_ram[5];
 		uint16_t sarh_darh = m_internal_ram[6];
 		uint16_t tc = m_internal_ram[7];
-		logerror("        DMA enabled%s (%04x:%04x -> %04x:%04x, %u %s)\n", BIT(d, 3) ? " and triggered" : "",
+		logerror("        DMA enabled%s (%04x:%04x -> %04x:%04x, %u %s)\n", BIT(d, 2) ? " and triggered" : "",
 			sarh_darh & 0xff00, sar,
 			(sarh_darh & 0x00ff) << 8, dar,
 			tc, BIT(d, 4) ? "words" : "bytes");

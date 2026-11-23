@@ -561,6 +561,7 @@ void sdl_window_info::finger_moved(SDL_FingerID finger, unsigned device, int x, 
 {
 	auto info(std::lower_bound(m_active_pointers.begin(), m_active_pointers.end(), finger, &sdl_pointer_info::compare));
 	if ((m_active_pointers.end() == info) || (info->finger != finger))
+		return;
 
 	assert(1 == info->buttons);
 
@@ -760,8 +761,8 @@ void sdl_window_info::update()
 			// Check whether window has vector screens
 
 			{
-				const screen_device *screen = screen_device_enumerator(machine().root_device()).byindex(index());
-				if ((screen != nullptr) && (screen->screen_type() == SCREEN_TYPE_VECTOR))
+				const device_video_output_interface *screen = video_output_interface_enumerator(machine().root_device()).byindex(index());
+				if ((screen != nullptr) && (screen->is_vector()))
 					renderer().set_flags(osd_renderer::FLAG_HAS_VECTOR_SCREEN);
 				else
 					renderer().clear_flags(osd_renderer::FLAG_HAS_VECTOR_SCREEN);

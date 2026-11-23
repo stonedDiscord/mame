@@ -453,7 +453,7 @@ static INPUT_PORTS_START( mjzb )
 	PORT_BIT( 0x1000, IP_ACTIVE_LOW, IPT_JOYSTICK_RIGHT ) PORT_CONDITION("DSW2", 0x40, EQUALS, 0x00)  // 右
 	PORT_BIT( 0x2000, IP_ACTIVE_LOW, IPT_COIN1 )                                                      // 投币
 	PORT_BIT( 0x4000, IP_ACTIVE_LOW, IPT_GAMBLE_KEYIN )                                               // 开分
-	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                // 査帐
+	PORT_BIT( 0x8000, IP_ACTIVE_LOW, IPT_GAMBLE_BOOK )                                                // 查帐
 
 	PORT_START("IN1")
 	PORT_BIT( 0x0001, IP_ACTIVE_LOW, IPT_BUTTON1 )        PORT_CONDITION("DSW2", 0x40, EQUALS, 0x00)  // A键
@@ -633,7 +633,7 @@ void igs_fear_state::igs_fear(machine_config &config)
 
 	NVRAM(config, "sram", nvram_device::DEFAULT_ALL_0);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(60);
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	m_screen->set_size(640, 480);
