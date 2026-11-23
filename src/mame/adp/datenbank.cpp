@@ -570,8 +570,8 @@ ROM_START(asiasun)
 	ROM_LOAD("asiasun.bin", 0x00000, 0x100000, CRC(449c5104) SHA1(991a71dbb54547bab6f86263d81f597fabda4964))
 
 	ROM_REGION16_BE( 0x100000, "gfx1", 0 )
-	ROM_LOAD("asian_sun_deutsch_video_f1_speicher_1_m27c4001.bin", 0x00000, 0x80000, CRC(048bb5f4) SHA1(f0d12c9bc3cc4dd26e16e8271ea96b609e5801e2))
-    ROM_LOAD("asian_sun_deutsch_video_f1_speicher_2_m27c4001.bin", 0x00001, 0x80000, CRC(f0bb1263) SHA1(2bc58bda6375b4291cfb04919f6b6bc21109096d))
+	ROM_LOAD16_BYTE("asian_sun_deutsch_video_f1_speicher_1_m27c4001.bin", 0x00000, 0x80000, CRC(048bb5f4) SHA1(f0d12c9bc3cc4dd26e16e8271ea96b609e5801e2))
+	ROM_LOAD16_BYTE("asian_sun_deutsch_video_f1_speicher_2_m27c4001.bin", 0x00001, 0x80000, CRC(f0bb1263) SHA1(2bc58bda6375b4291cfb04919f6b6bc21109096d))
 ROM_END
 
 ROM_START( brisant )
