@@ -215,7 +215,7 @@ public:
 		m_maincpu(*this, "maincpu"),
 		m_duart(*this, "duart"),
 		m_nvram(*this, "nvram"),
-        m_rtc(*this, "rtc"),
+		m_rtc(*this, "rtc"),
 		m_dac(*this, "dac"),
 		m_digits(*this, "digit%u", 0U),
 		m_lamps(*this, "lamp%u%u", 0U, 0U),
@@ -234,12 +234,16 @@ private:
 	required_device<cpu_device> m_maincpu;
 	required_device<mc68681_device> m_duart;
 	required_device<nvram_device> m_nvram;
-    required_device<rtc4543_device> m_rtc;
+	required_device<rtc4543_device> m_rtc;
 	required_device<ad7224_device> m_dac;
 	output_finder<8> m_digits;
 	output_finder<16,12> m_lamps;
 	output_finder<2> m_leds;
 	required_ioport m_in0;
+
+	uint16_t m_gpt_port = 0;
+	uint16_t gpt_port_r();
+	void gpt_port_w(offs_t offset, uint16_t data, uint16_t mem_mask = ~0);
 
 	uint16_t m_out_ma1;
 	uint16_t m_out_ma2;
@@ -414,6 +418,28 @@ void datenbank_state::ay8910_portb_w(uint8_t data)
 {
 }
 
+uint16_t datenbank_state::gpt_port_r()
+{
+	// GP7 is the bidirectional RTC data pin; the high byte is the DDR.
+	if (!BIT(m_gpt_port, 15))
+		return (m_gpt_port & ~0x0080) | (m_rtc->data_r() << 7);
+
+	return m_gpt_port;
+}
+
+void datenbank_state::gpt_port_w(offs_t offset, uint16_t data, uint16_t mem_mask)
+{
+	COMBINE_DATA(&m_gpt_port);
+
+	// Until the MC68331 GPT is emulated, handle its RTC GPIO here.
+	uint8_t const pins = m_gpt_port & (m_gpt_port >> 8);
+	m_rtc->wr_w(BIT(pins, 5));
+	if (BIT(m_gpt_port, 15))
+		m_rtc->data_w(BIT(pins, 7));
+	m_rtc->ce_w(BIT(pins, 6));
+	m_rtc->clk_w(BIT(pins, 4));
+}
+
 void datenbank_state::funland_mem(address_map &map)
 {
 	map(0x000000, 0x0fffff).ram().share("nvram");
@@ -429,6 +455,7 @@ void datenbank_state::funland_mem(address_map &map)
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff);
 	// Y7 NC
 	map(0xfff000, 0xffffff).ram();
+	map(0xfff906, 0xfff907).rw(FUNC(datenbank_state::gpt_port_r), FUNC(datenbank_state::gpt_port_w));
 }
 
 void datenbank_state::mem_map(address_map &map)
@@ -446,6 +473,7 @@ void datenbank_state::mem_map(address_map &map)
 	map(0x800180, 0x80019f).rw(m_duart, FUNC(mc68681_device::read), FUNC(mc68681_device::write)).umask16(0x00ff); // Y6
 	// Y7 NC
 	map(0xfff000, 0xffffff).ram();
+	map(0xfff906, 0xfff907).rw(FUNC(datenbank_state::gpt_port_r), FUNC(datenbank_state::gpt_port_w));
 }
 
 void datenbank_state::fc7_map(address_map &map)
@@ -455,11 +483,12 @@ void datenbank_state::fc7_map(address_map &map)
 
 void datenbank_state::machine_start()
 {
-	// write 0x494e4954 INIT to 0xfffd00
+	save_item(NAME(m_gpt_port));
 }
 
 void datenbank_state::machine_reset()
 {
+	m_gpt_port = 0;
 	// The application distinguishes a cold start by the initial stack pointer.
 	// Patch the writable vector because the CPU fetches it after machine_reset.
 	m_maincpu->space(AS_PROGRAM).write_dword(0x000000, 0x000ffffe);
