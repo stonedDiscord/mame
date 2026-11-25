@@ -266,8 +266,32 @@ void t2000_state::t2000(machine_config &config)
 
 ROM_START( bmonop )
     ROM_REGION( 0x40000, "maincpu", 0 )
-    ROM_LOAD("monopoly_ic2_27c1001.bin", 0x00000, 0x20000, CRC(ec000687) SHA1(4f8aec5eeece21681b2430c209eede223e30673e))
-	ROM_LOAD("monopoly_ic4_27c1001.bin", 0x20000, 0x20000, CRC(d8c26b59) SHA1(ca78fe99bbba46ee49fcca261947a345e8badb50))
+    ROM_LOAD("monopoly.ic2", 0x00000, 0x20000, CRC(ec000687) SHA1(4f8aec5eeece21681b2430c209eede223e30673e))
+	ROM_LOAD("monopoly.ic4", 0x20000, 0x20000, CRC(d8c26b59) SHA1(ca78fe99bbba46ee49fcca261947a345e8badb50))
+ROM_END
+
+ROM_START( bwjbond )
+	ROM_REGION( 0x40000, "maincpu", 0 )
+	ROM_LOAD( "324_james_bond.ic2", 0x00000, 0x20000, CRC(7581ca43) SHA1(fe2e40572644058b9a8084bec73e3dac7d625ba5) )
+	ROM_LOAD( "324_james_bond.ic4", 0x20000, 0x20000, CRC(0621c582) SHA1(26a9f93d7122cf0cd29e419de89be735d11b84b2) )
+ROM_END
+
+ROM_START( bwlucky )
+	ROM_REGION( 0x40000, "maincpu", 0 )
+	ROM_LOAD( "265_lucky.ic2", 0x00000, 0x20000, CRC(85fe461d) SHA1(2f57fb40e704f0662c0c6b8b48b4ce93892d0842) )
+	ROM_LOAD( "265_lucky.ic4", 0x20000, 0x20000, CRC(1e455b39) SHA1(ebde669805a27f8b677c2f467a81a2b23e79e00c) )
+ROM_END
+
+ROM_START( bwroadst )
+	ROM_REGION( 0x40000, "maincpu", 0 )
+	ROM_LOAD( "235_road_star.ic2", 0x00000, 0x20000, CRC(44b762e9) SHA1(12891417845a8fd4112148f0a9cdd7fb1795e7de) )
+	ROM_LOAD( "235_road_star.ic4", 0x20000, 0x10000, CRC(32b74769) SHA1(d9831234f3fdfd1541d6fff0799a4d68514e653a) )
+ROM_END
+
+ROM_START( bwwuerfl )
+	ROM_REGION( 0x40000, "maincpu", 0 )
+	ROM_LOAD( "254_wuerfel.ic2", 0x00000, 0x20000, CRC(fa3517fa) SHA1(f1738cd64ac3ca87d91d584a098936e2256d0d7c) )
+	ROM_LOAD( "254_wuerfel.ic4", 0x20000, 0x20000, CRC(8c3c4e28) SHA1(512646ffe095ffd5c249e1a2d9d2931797052431) )
 ROM_END
 
 ROM_START( glorias )
@@ -278,8 +302,14 @@ ROM_END
 
 ROM_START( graffiti )
 	ROM_REGION( 0x40000, "maincpu", 0 )
-	ROM_LOAD( "graffiti_281_0_e6.0.bin", 0x00000, 0x20000, CRC(90333f4c) SHA1(a81de22627f86c4889cbd65ff7a45a3d38966cc8) )
-	ROM_LOAD( "graffiti_281_2_e6.0.bin", 0x20000, 0x20000, CRC(0d94cab0) SHA1(a6a27208f0bc1c529d60c0574f00305f64fb7ade) )
+	ROM_LOAD( "281-0-e6.0_graffiti.ic2", 0x00000, 0x20000, CRC(90333f4c) SHA1(a81de22627f86c4889cbd65ff7a45a3d38966cc8) )
+	ROM_LOAD( "281-2-e6.0_graffiti.ic4", 0x20000, 0x20000, CRC(0d94cab0) SHA1(a6a27208f0bc1c529d60c0574f00305f64fb7ade) )
+ROM_END
+
+ROM_START( pokerast )
+	ROM_REGION( 0x40000, "maincpu", 0 )
+	ROM_LOAD( "576_poker_as.ic2", 0x00000, 0x20000, CRC(f1d29b54) SHA1(bfa26f24db2e93834792062463bdc4c40a40bfac) )
+	ROM_LOAD( "576_poker_as.ic4", 0x20000, 0x20000, CRC(46734685) SHA1(84c6ac4763768f5998dd7c602a08689669bd120a) )
 ROM_END
 
 ROM_START( roxyc )
@@ -288,9 +318,35 @@ ROM_START( roxyc )
 	ROM_LOAD( "roxy_classic_dm_pr2.bin", 0x20000, 0x20000, CRC(f7e86f09) SHA1(8144378332b21bfe0a91c9124d37afcc9946d367) )
 ROM_END
 
+ROM_START( royaltr )
+	ROM_REGION( 0x40000, "maincpu", 0 )
+	ROM_LOAD( "255_royal_trio.ic2", 0x00000, 0x20000, CRC(8e682e6e) SHA1(de0cfe683019876c80d6c1195f268434704dd734) )
+	ROM_LOAD( "255_royal_trio.ic4", 0x20000, 0x20000, CRC(0e7eeb48) SHA1(24709803356d0e27b0a2a2892769b3a1db3a2ce2) )
+ROM_END
+
+ROM_START( sonkrne6 )
+	ROM_REGION( 0x40000, "maincpu", 0 )
+	ROM_LOAD( "325-e6.0_sonnenkrone.ic2", 0x00000, 0x20000, CRC(a92d6161) SHA1(f3589cc4592e6bebbb1ef2f4463a7cccdf4e1aae) )
+	ROM_LOAD( "325-e6.0_sonnenkrone.ic4", 0x20000, 0x20000, CRC(2336fdcc) SHA1(8df2233ade47d163a28a4f506bceffd2ed23a8de) )
+ROM_END
+
+ROM_START( ultraple3 )
+	ROM_REGION( 0x40000, "maincpu", 0 )
+	ROM_LOAD( "339-e3.0_ultra_play.ic2", 0x00000, 0x20000, CRC(2a21b331) SHA1(857a0094b809d7d86ce20d378f390981c6adc6d2) )
+	ROM_LOAD( "339-e3.0_ultra_play.ic4", 0x20000, 0x20000, CRC(db913a2d) SHA1(1456b34e890abd477797585fc5af4b4efef022e8) )
+ROM_END
+
 } // anonymous namespace
 
-GAME(1994, bmonop,   0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Monopoly",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
-GAME(1995, graffiti, 0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Graffiti",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
-GAME(1997, glorias,  0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Gloria Super", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
-GAME(1997, roxyc,    0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Roxy Classic", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
+GAME(1993, bwroadst, 0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Road Star",        MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1994, bmonop,   0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Monopoly",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
+GAME(1994, bwuerfl,  0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", u8"Ballys Würfel",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1995, graffiti, 0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Graffiti",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
+GAME(1995, pokerast, 0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Poker As",         MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1996, bwjbond,  0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "James Bond",       MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1996, sonkrne6, 0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Sonnenkrone (E6)", MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1997, bwlucky,  0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Lucky",            MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1997, glorias,  0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Gloria Super",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
+GAME(1997, roxyc,    0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Roxy Classic",     MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_REQUIRES_ARTWORK )
+GAME(1997, royaltr,  0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Royal Trio",       MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
+GAME(1997, ultrapl3, 0, t2000, t2000, t2000_state, empty_init, ROT0, "Rototron", "Ultra Play (E3)",  MACHINE_NOT_WORKING | MACHINE_NO_SOUND | MACHINE_MECHANICAL | MACHINE_REQUIRES_ARTWORK )
