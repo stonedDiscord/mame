@@ -330,7 +330,7 @@ ROM_START( sonkrne6 )
 	ROM_LOAD( "325-e6.0_sonnenkrone.ic4", 0x20000, 0x20000, CRC(2336fdcc) SHA1(8df2233ade47d163a28a4f506bceffd2ed23a8de) )
 ROM_END
 
-ROM_START( ultraple3 )
+ROM_START( ultrapl3 )
 	ROM_REGION( 0x40000, "maincpu", 0 )
 	ROM_LOAD( "339-e3.0_ultra_play.ic2", 0x00000, 0x20000, CRC(2a21b331) SHA1(857a0094b809d7d86ce20d378f390981c6adc6d2) )
 	ROM_LOAD( "339-e3.0_ultra_play.ic4", 0x20000, 0x20000, CRC(db913a2d) SHA1(1456b34e890abd477797585fc5af4b4efef022e8) )
