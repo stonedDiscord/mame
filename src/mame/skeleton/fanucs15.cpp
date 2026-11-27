@@ -306,10 +306,13 @@
 
 #include "emu.h"
 #include "cpu/m68000/m68000.h"
+#include "cpu/tms320c2x/tms320c2x.h"
 #include "cpu/m68000/m68020.h"
 #include "cpu/i86/i286.h"
 #include "video/hd63484.h"
 #include "machine/nvram.h"
+#include "machine/pit8253.h"
+#include "machine/timer.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -327,6 +330,8 @@ public:
 		, m_gfxcpu(*this, "gfxcpu")         // gfx 68000-10
 		, m_convcpu(*this, "convcpu")       // conversational 80286-8
 		, m_acrtc(*this, "acrtc")
+		, m_servo_dsp(*this, "servo_dsp%u", 0U)
+		, m_servo_program(*this, "servo_program%u", 0U)
 		, m_text_ram(*this, "text_ram")
 		, m_gfx_ram(*this, "gfx_ram")
 		, m_chargen(*this, "chargen")
@@ -341,6 +346,8 @@ private:
 	required_device<m68000_device> m_gfxcpu;
 	required_device<i80286_cpu_device> m_convcpu;
 	required_device<hd63484_device> m_acrtc;
+	required_device_array<tms320c25_device, 2> m_servo_dsp;
+	required_shared_ptr_array<u16, 2> m_servo_program;
 	required_shared_ptr<u16> m_text_ram;
 	required_shared_ptr<u16> m_gfx_ram;
 	required_region_ptr<u8> m_chargen;
@@ -349,12 +356,20 @@ private:
 	u8 m_crtc_address = 0;
 	u8 m_crtc_regs[0x40]{};
 	bool m_gfx_start_pending = false;
+	bool m_gfx_start_complete = false;
 
 	void acrtc_mem(address_map &map) ATTR_COLD;
 	void convcpu_mem(address_map &map) ATTR_COLD;
 	void gfxcpu_mem(address_map &map) ATTR_COLD;
 	void maincpu_mem(address_map &map) ATTR_COLD;
 	void pmccpu_mem(address_map &map) ATTR_COLD;
+	template <unsigned Chip> void servo_program_map(address_map &map) ATTR_COLD;
+	template <unsigned Chip> void servo_data_map(address_map &map) ATTR_COLD;
+	template <unsigned Chip> u16 servo_program_r(offs_t offset);
+	template <unsigned Chip> void servo_program_w(offs_t offset, u16 data, u16 mem_mask);
+	template <unsigned Chip> void servo_control_w(offs_t, u16 data, u16 mem_mask);
+	void servo_sync_w(u16 data);
+	TIMER_DEVICE_CALLBACK_MEMBER(servo_sample_tick);
 	void gfx_palette(palette_device &palette) const ATTR_COLD;
 	void crtc_address_w(u8 data);
 	void crtc_data_w(u8 data);
@@ -365,7 +380,12 @@ private:
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect);
 	u16 gfx_board_table_r(offs_t offset);
 	void gfx_board_table_w(offs_t offset, u16 data, u16 mem_mask);
+	u16 pmc_cnc_ram_r(offs_t offset);
+	void pmc_cnc_ram_w(offs_t offset, u16 data, u16 mem_mask);
+	u16 cnc_pmc_ram_r(offs_t offset);
+	void cnc_pmc_ram_w(offs_t offset, u16 data, u16 mem_mask);
 	void backplane_start_w(offs_t, u16 data, u16 mem_mask);
+	void cnc_irq_control_w(offs_t, u16 data, u16 mem_mask);
 	u16 gfx_start_r();
 	void gfx_start_ack_w(offs_t, u16 data, u16 mem_mask);
 	void gfx_status_w(offs_t, u16 data, u16 mem_mask);
@@ -378,16 +398,26 @@ void fanucs15_state::maincpu_mem(address_map &map)
 {
 	map(0x00000000, 0x0017ffff).rom().region("base1b", 0);
 	map(0x000e0000, 0x000fffff).ram(); // Tested by the CNC firmware during startup
+	map(0x10200000, 0x10201fff).ram(); // Servo board communication RAM
+	map(0x10204000, 0x10204001).w(FUNC(fanucs15_state::servo_control_w<0>));
+	map(0x10206000, 0x10206001).w(FUNC(fanucs15_state::servo_control_w<1>));
+	map(0x10208000, 0x1020bfff).rw(FUNC(fanucs15_state::servo_program_r<0>), FUNC(fanucs15_state::servo_program_w<0>));
+	map(0x1020c000, 0x1020ffff).rw(FUNC(fanucs15_state::servo_program_r<1>), FUNC(fanucs15_state::servo_program_w<1>));
+	map(0x103f0000, 0x103f0001).lr16(NAME([] { return u16(0x3001); })); // Four-axis digital servo board
 	map(0x30000000, 0x3001ffff).ram(); // CNC work RAM
+	map(0x4000b000, 0x4000b007).rw("pit", FUNC(pit8253_device::read), FUNC(pit8253_device::write)).umask32(0x00ff00ff);
+	map(0x4000d008, 0x4000d009).w(FUNC(fanucs15_state::servo_sync_w));
 	map(0x40040000, 0x400411ff).ram(); // Backplane board inventory and startup workspace
 	map(0x40041200, 0x400bffff).ram().share("file_ram"); // CNC file area
 	map(0x41380000, 0x4138ffff).lr8(NAME([this](offs_t offset) { return m_servo_rom[offset]; })).umask32(0x00ff00ff);
+	map(0x41ffb000, 0x41ffb1ff).rw(FUNC(fanucs15_state::cnc_pmc_ram_r), FUNC(fanucs15_state::cnc_pmc_ram_w));
 	map(0x41ffb0d0, 0x41ffb0d3).portr("KEYS");
 	map(0x41ffb0d4, 0x41ffb0d7).portr("KEYS2");
 	map(0x44c0000d, 0x44c0000d).w(FUNC(fanucs15_state::crtc_address_w));
 	map(0x44c0000f, 0x44c0000f).w(FUNC(fanucs15_state::crtc_data_w));
 	map(0x44e00000, 0x44e1ffff).rw(FUNC(fanucs15_state::text_ram_r), FUNC(fanucs15_state::text_ram_w));
 	map(0x44fe0000, 0x44feffff).rw(FUNC(fanucs15_state::gfx_ram_r), FUNC(fanucs15_state::gfx_ram_w));
+	map(0x7fff0020, 0x7fff0021).w(FUNC(fanucs15_state::cnc_irq_control_w));
 	map(0x7fff0100, 0x7fff0101).lr16(NAME([] { return u16(0xffee); })); // Slots 0 and 4 populated, active low
 	map(0x7fff0300, 0x7fff0301).lr16(NAME([] { return u16(0x0023); })); // CNC board ID, slot 0
 	map(0x7fff0340, 0x7fff0341).lr16(NAME([] { return u16(0x0022); })); // Graphics board ID, slot 4
@@ -396,10 +426,81 @@ void fanucs15_state::maincpu_mem(address_map &map)
 	map(0xfffc0000, 0xffffffff).ram(); // Local work RAM and initial stack
 }
 
+template <unsigned Chip> void fanucs15_state::servo_program_map(address_map &map)
+{
+	map(0x0000, 0x1fff).ram().share(m_servo_program[Chip]);
+}
+
+template <unsigned Chip> void fanucs15_state::servo_data_map(address_map &map)
+{
+	map(0x0300, 0x03ff).ram();
+	map(0x0400, 0x04ff).lrw16(
+		NAME([this](offs_t offset) { return m_maincpu->space(AS_PROGRAM).read_word(0x10200000 + Chip * 0x200 + (offset << 1)); }),
+		NAME([this](offs_t offset, u16 data, u16 mem_mask) { m_maincpu->space(AS_PROGRAM).write_word(0x10200000 + Chip * 0x200 + (offset << 1), data, mem_mask); }));
+	// The DSP polls these during current-sense offset calibration.
+	map(0x0405, 0x0405).lr16(NAME([] { return u16(0); })); // No measured current
+	map(0x0406, 0x0406).lr16(NAME([this] {
+		return u16(m_maincpu->space(AS_PROGRAM).read_word(0x1020000c + Chip * 0x200) | 0x00c0);
+	}));
+}
+
+template <unsigned Chip> u16 fanucs15_state::servo_program_r(offs_t offset)
+{
+	return m_servo_program[Chip][offset];
+}
+
+template <unsigned Chip> void fanucs15_state::servo_program_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_servo_program[Chip][offset]);
+}
+
+template <unsigned Chip> void fanucs15_state::servo_control_w(offs_t, u16 data, u16 mem_mask)
+{
+	if (ACCESSING_BITS_0_7)
+		m_servo_dsp[Chip]->set_input_line(INPUT_LINE_RESET, BIT(data, 0) ? CLEAR_LINE : ASSERT_LINE);
+}
+
+void fanucs15_state::servo_sync_w(u16 data)
+{
+	if (BIT(data, 0))
+		for (auto &dsp : m_servo_dsp)
+			dsp->set_input_line(TMS320C2X_INT2, HOLD_LINE);
+}
+
+TIMER_DEVICE_CALLBACK_MEMBER(fanucs15_state::servo_sample_tick)
+{
+	for (auto &dsp : m_servo_dsp)
+		dsp->set_input_line(TMS320C2X_INT1, HOLD_LINE);
+}
+
 void fanucs15_state::pmccpu_mem(address_map &map)
 {
 	map(0x000000, 0x03ffff).rom().region("base1a", 0);
+	// The captured ladder cassette has an ASCII identifier where this firmware
+	// expects an entry point at $80140. Its boot mapping still needs investigation.
+	map(0x4f8000, 0x4fffff).rw(FUNC(fanucs15_state::pmc_cnc_ram_r), FUNC(fanucs15_state::pmc_cnc_ram_w));
+	map(0x700110, 0x700111).lr16(NAME([] { return u16(1); })); // PMC backplane slot
 	map(0xfde000, 0xffffff).ram();
+}
+
+u16 fanucs15_state::pmc_cnc_ram_r(offs_t offset)
+{
+	return m_maincpu->space(AS_PROGRAM).read_word(0xffff8000 + (offset << 1));
+}
+
+void fanucs15_state::pmc_cnc_ram_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	m_maincpu->space(AS_PROGRAM).write_word(0xffff8000 + (offset << 1), data, mem_mask);
+}
+
+u16 fanucs15_state::cnc_pmc_ram_r(offs_t offset)
+{
+	return m_pmccpu->space(AS_PROGRAM).read_word(0xffb000 + (offset << 1));
+}
+
+void fanucs15_state::cnc_pmc_ram_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	m_pmccpu->space(AS_PROGRAM).write_word(0xffb000 + (offset << 1), data, mem_mask);
 }
 
 void fanucs15_state::gfxcpu_mem(address_map &map)
@@ -423,10 +524,25 @@ void fanucs15_state::gfxcpu_mem(address_map &map)
 void fanucs15_state::backplane_start_w(offs_t, u16 data, u16 mem_mask)
 {
 	// The CNC issues two active-low startup requests on the backplane.
-	if (ACCESSING_BITS_0_7 && (data == 0xffbf || data == 0xff7f))
+	if (!m_gfx_start_complete && ACCESSING_BITS_0_7 && (data == 0xffbf || data == 0xff7f))
 	{
 		m_gfx_start_pending = true;
 		machine().scheduler().perfect_quantum(attotime::from_msec(10));
+	}
+}
+
+void fanucs15_state::cnc_irq_control_w(offs_t, u16 data, u16 mem_mask)
+{
+	if (!ACCESSING_BITS_0_7)
+		return;
+
+	// The level 1 scheduler and level 2 I/O handlers acknowledge their own requests.
+	switch (data & 0xff)
+	{
+	case 0x81: m_maincpu->set_input_line(M68K_IRQ_1, ASSERT_LINE); break;
+	case 0x82: m_maincpu->set_input_line(M68K_IRQ_1, CLEAR_LINE); break;
+	case 0x84: m_maincpu->set_input_line(M68K_IRQ_2, ASSERT_LINE); break;
+	case 0x88: m_maincpu->set_input_line(M68K_IRQ_2, CLEAR_LINE); break;
 	}
 }
 
@@ -445,7 +561,10 @@ void fanucs15_state::gfx_status_w(offs_t, u16 data, u16 mem_mask)
 {
 	// Status 0xb completes the second request, before the command block wait.
 	if (ACCESSING_BITS_0_7 && (data & 0xff) == 0x0b)
+	{
 		m_gfx_start_pending = false;
+		m_gfx_start_complete = true;
+	}
 }
 
 u16 fanucs15_state::gfx_board_table_r(offs_t offset)
@@ -515,6 +634,12 @@ u32 fanucs15_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, r
 	unsigned const height = (m_crtc_regs[9] & 0x1f) + 1;
 	unsigned const columns = m_crtc_regs[1];
 	unsigned const rows = m_crtc_regs[6];
+	unsigned const cursor = ((m_crtc_regs[14] << 8) | m_crtc_regs[15]) & 0x7fff;
+	unsigned const cursor_mode = (m_crtc_regs[10] >> 5) & 3;
+	bool const cursor_visible = cursor_mode == 0 ||
+			(cursor_mode >= 2 && !BIT(screen.frame_number(), cursor_mode + 2));
+	unsigned const cursor_start = m_crtc_regs[10] & 0x1f;
+	unsigned const cursor_end = m_crtc_regs[11] & 0x1f;
 	for (int y = cliprect.top(); y <= cliprect.bottom(); ++y)
 	{
 		if (unsigned(y) / height >= rows)
@@ -522,12 +647,13 @@ u32 fanucs15_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, r
 
 		unsigned const row = start + (y / height) * 128;
 		unsigned const raster = y % height;
+		bool const cursor_scanline = cursor_visible && raster >= cursor_start && raster <= cursor_end;
 		for (int x = cliprect.left(); x <= cliprect.right() && unsigned(x) / 8 < columns; ++x)
 		{
 			unsigned const cell = (row + x / 8) & 0x7fff;
 			u16 const code = m_text_ram[cell * 2] & 0x0fff;
 			u8 const dots = m_chargen[((code & 0x0f00) << 4) | ((raster & 0x0f) << 8) | (code & 0xff)];
-			if (BIT(dots, x & 7))
+			if (BIT(dots, x & 7) || (cursor_scanline && cell == cursor))
 				bitmap.pix(y, x) = 16;
 		}
 	}
@@ -571,12 +697,16 @@ void fanucs15_state::machine_start()
 	save_item(NAME(m_crtc_address));
 	save_item(NAME(m_crtc_regs));
 	save_item(NAME(m_gfx_start_pending));
+	save_item(NAME(m_gfx_start_complete));
 }
 
 void fanucs15_state::machine_reset()
 {
+	for (auto &dsp : m_servo_dsp)
+		dsp->set_input_line(INPUT_LINE_RESET, ASSERT_LINE);
 	m_crtc_address = 0;
 	m_gfx_start_pending = false;
+	m_gfx_start_complete = false;
 	std::fill(std::begin(m_crtc_regs), std::end(m_crtc_regs), 0);
 }
 
@@ -586,6 +716,18 @@ void fanucs15_state::fanucs15(machine_config &config)
 	M68020(config, m_maincpu, XTAL(12'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &fanucs15_state::maincpu_mem);
 	NVRAM(config, "file_ram", nvram_device::DEFAULT_ALL_0);
+
+	// The CNC uses 0x0400 reloads for its periodic interrupts. The input
+	// clock and interrupt routing are provisional.
+	pit8253_device &pit(PIT8253(config, "pit"));
+	pit.set_clk<0>(12_MHz_XTAL / 12);
+	// With an eight millisecond interpolation setting, the scheduler
+	// advances four ticks per level 3 interrupt and runs the 16 ms task
+	// every fourth interrupt.
+	pit.set_clk<1>(12_MHz_XTAL / 48);
+	pit.set_clk<2>(12_MHz_XTAL / 12);
+	pit.out_handler<0>().set_inputline(m_maincpu, M68K_IRQ_5, HOLD_LINE).invert();
+	pit.out_handler<1>().set_inputline(m_maincpu, M68K_IRQ_3, HOLD_LINE).invert();
 
 	M68000(config, m_pmccpu, XTAL(12'000'000));
 	m_pmccpu->set_addrmap(AS_PROGRAM, &fanucs15_state::pmccpu_mem);
@@ -598,12 +740,23 @@ void fanucs15_state::fanucs15(machine_config &config)
 	m_convcpu->set_addrmap(AS_PROGRAM, &fanucs15_state::convcpu_mem);
 	m_convcpu->set_disable();
 
+	// The CNC uploads the TMS320C2x program from the Base 1 servo ROM.
+	// DSP clock and external data decoding are provisional.
+	TMS320C25(config, m_servo_dsp[0], 24_MHz_XTAL);
+	m_servo_dsp[0]->set_addrmap(AS_PROGRAM, &fanucs15_state::servo_program_map<0>);
+	m_servo_dsp[0]->set_addrmap(AS_DATA, &fanucs15_state::servo_data_map<0>);
+	TMS320C25(config, m_servo_dsp[1], 24_MHz_XTAL);
+	m_servo_dsp[1]->set_addrmap(AS_PROGRAM, &fanucs15_state::servo_program_map<1>);
+	m_servo_dsp[1]->set_addrmap(AS_DATA, &fanucs15_state::servo_data_map<1>);
+	TIMER(config, "servo_sample").configure_periodic(FUNC(fanucs15_state::servo_sample_tick), attotime::from_hz(1'000)); // Provisional sample clock
+
 	// The HD6445 supplies the board's raster timing. Use the dimensions
 	// programmed by the 600B firmware until the timing chip is emulated.
 	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(20_MHz_XTAL, 792, 0, 592, 457, 0, 432);
 	screen.set_screen_update(FUNC(fanucs15_state::screen_update));
 	screen.set_palette("palette");
+	screen.screen_vblank().set_inputline(m_gfxcpu, M68K_IRQ_6, HOLD_LINE);
 
 	PALETTE(config, "palette", FUNC(fanucs15_state::gfx_palette), 17);
 
