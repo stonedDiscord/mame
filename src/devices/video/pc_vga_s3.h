@@ -50,6 +50,7 @@ protected:
 		uint8_t cr3a;
 		uint8_t cr42;
 		uint8_t cr43;
+		uint8_t cr50;
 		uint8_t cr51;
 		uint8_t cr53;
 		uint8_t id_high;
@@ -87,7 +88,7 @@ protected:
 	} s3;
 	virtual uint16_t offset() override;
 
-	virtual void s3_define_video_mode(void);
+	virtual void recompute_params() override;
 	virtual bool get_interlace_mode() override { return BIT(s3.cr42, 5); }
 
 private:

@@ -81,6 +81,8 @@ public:
 	void mem_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	u16 mem_slot_r(offs_t offset, u16 mem_mask = ~0);
 	void mem_slot_w(offs_t offset, u16 data, u16 mem_mask = ~0);
+	u16 mem_15m_r(offs_t offset, u16 mem_mask = ~0);
+	void mem_15m_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	u16 io_r(offs_t offset, u16 mem_mask = ~0);
 	void io_w(offs_t offset, u16 data, u16 mem_mask = ~0);
 	void remap(int space_id, offs_t start, offs_t end);
@@ -136,6 +138,8 @@ class device_pc98_cbus_slot_interface : public device_interface
 public:
 	virtual ~device_pc98_cbus_slot_interface();
 
+	// FIXME: ought to be pure virtual
+	// akin to ISA bus version
 	virtual void remap(int space_id, offs_t start, offs_t end) {}
 	virtual u8 dack_r(int line);
 	virtual void dack_w(int line, u8 data);

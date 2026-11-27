@@ -42,6 +42,7 @@ protected:
 	c1581_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock);
 
 	// device-level overrides
+	virtual void device_config_complete() override ATTR_COLD { set_address_default(8, 0x03); }
 	virtual void device_start() override ATTR_COLD;
 	virtual void device_reset() override ATTR_COLD;
 
@@ -64,6 +65,7 @@ private:
 	};
 
 	void update_iec();
+	uint8_t cia_r(offs_t offset);
 
 	void cnt_w(int state);
 	void sp_w(int state);
@@ -83,11 +85,12 @@ private:
 	required_ioport m_address;
 	output_finder<2> m_leds;
 
-	int m_data_out;             // serial data out
-	int m_atn_ack;              // attention acknowledge
-	int m_fast_ser_dir;         // fast serial direction
-	int m_sp_out;               // fast serial data out
-	int m_cnt_out;              // fast serial clock out
+	bool m_data_out;             // serial data out
+	bool m_atn_ack;              // attention acknowledge
+	bool m_ser_dir;         	 // fast serial direction
+	bool m_sp_out;               // fast serial data out
+	bool m_cnt_out;              // fast serial clock out
+	bool m_iec_clk;              // IEC clock line state
 };
 
 

@@ -52,6 +52,7 @@
 
 #include "debugger.h"
 #include "softlist_dev.h"
+#include "sound.h"
 #include "speaker.h"
 
 #include <zlib.h>
@@ -433,6 +434,12 @@ public:
 	uint8_t file_size_r(offs_t offset);
 	DECLARE_INPUT_CHANGED_MEMBER(key_pressed);
 
+	void vgmplay(machine_config &config) ATTR_COLD;
+
+protected:
+	virtual void machine_start() override ATTR_COLD;
+
+private:
 	template<int Index> void upd7759_reset_w(uint8_t data);
 	template<int Index> void upd7759_start_w(uint8_t data);
 	template<int Index> void upd7759_data_w(uint8_t data);
@@ -443,13 +450,10 @@ public:
 	template<int Index> void okim6295_pin7_w(offs_t offset, uint8_t data, uint8_t mem_mask = ~0);
 	template<int Index> void scc_w(offs_t offset, uint8_t data);
 	template<int Index> void c140_c219_w(offs_t offset, uint8_t data);
+	void qsound_w(offs_t offset, uint8_t data);
+	void qsound_dsp_ready(int state);
+	void qsound_delayed_w(s32 param);
 
-	void vgmplay(machine_config &config) ATTR_COLD;
-
-protected:
-	virtual void machine_start() override ATTR_COLD;
-
-private:
 	void file_map(address_map &map) ATTR_COLD;
 	void soundchips_map(address_map &map) ATTR_COLD;
 	void soundchips16le_map(address_map &map) ATTR_COLD;
@@ -490,7 +494,7 @@ private:
 	required_device_array<ym2413_device, 2> m_ym2413;
 	required_device_array<ym2612_device, 2> m_ym2612;
 	required_device_array<ym2151_device, 2> m_ym2151;
-	required_device_array<segapcm_device, 2> m_segapcm;
+	required_device_array<sega_315_5218_device, 2> m_segapcm;
 	required_device<rf5c68_device> m_rf5c68;
 	required_device_array<ym2203_device, 2> m_ym2203;
 	required_device_array<ym2608_device, 2> m_ym2608;
@@ -537,6 +541,11 @@ private:
 	int m_upd7759_reset[2];
 	int m_upd7759_drq[2];
 	std::queue<uint8_t> m_upd7759_slave_data[2];
+
+	emu_timer *m_qsound_timer = nullptr;
+	bool m_qsound_dsp_ready = true;
+	uint8_t m_qsound_data[2];
+	std::queue<std::tuple<uint8_t, uint8_t, uint8_t> > m_qsound_queue;
 
 	uint32_t r32(int offset) const;
 	uint8_t r8(int offset) const;
@@ -1770,11 +1779,19 @@ void vgmplay_device::execute_run()
 			case 0xc0:
 			{
 				pulse_act_led(CT_SEGAPCM);
-				uint16_t offset = m_file->read_word(m_pc + 1);
-				if (offset & 0x8000)
-					m_io->write_byte(A_SEGAPCM_1 + (offset & 0x7fff), m_file->read_byte(m_pc + 3));
+				const uint16_t offset = m_file->read_word(m_pc + 1);
+				const uint8_t data = m_file->read_byte(m_pc + 3);
+				if ((offset & 0x7ff) <= 0xff) // only low 11 bit of offset is checked
+				{
+					if (offset & 0x8000)
+						m_io->write_byte(A_SEGAPCM_1 + (offset & 0xff), data);
+					else
+						m_io->write_byte(A_SEGAPCM_0 + (offset & 0xff), data);
+				}
 				else
-					m_io->write_byte(A_SEGAPCM_0 + (offset & 0x7fff), m_file->read_byte(m_pc + 3));
+				{
+					logerror("%s: Unknown Sega PCM %d write %04x = %02x\n", machine().describe_context(), (offset & 0x8000) >> 15, offset & 0x7fff, data);
+				}
 				m_pc += 4;
 				break;
 			}
@@ -2720,6 +2737,8 @@ vgmplay_state::vgmplay_state(const machine_config &mconfig, device_type type, co
 
 void vgmplay_state::machine_start()
 {
+	m_qsound_timer = timer_alloc(FUNC(vgmplay_state::qsound_delayed_w), this);
+
 	save_item(NAME(m_held_clock));
 }
 
@@ -3036,8 +3055,8 @@ QUICKLOAD_LOAD_MEMBER(vgmplay_state::load_file)
 	setup_device(*m_qsound, 0, CT_QSOUND, 0xb4, 0x161);
 
 	// HACK: VGMs contain 4,000,000 instead of 60,000,000
-	m_qsound->set_clock_scale(m_qsound->unscaled_clock() == 4000000 ? 15.0 : 1.0);
-	if (m_qsound->unscaled_clock() == 4000000)
+	m_qsound->set_clock_scale((m_qsound->unscaled_clock() == 4'000'000) ? 15.0 : 1.0);
+	if (m_qsound->unscaled_clock() == 4'000'000)
 		osd_printf_error("bad rip detected, correcting qsound clock\n");
 
 	setup_device(*m_scsp[0], 0, CT_SCSP, 0xb8, 0x171);
@@ -3292,6 +3311,50 @@ void vgmplay_state::c140_c219_w(offs_t offset, uint8_t data)
 		m_c140[Index]->c140_w(offset, data);
 }
 
+void vgmplay_state::qsound_w(offs_t offset, uint8_t data)
+{
+	switch (offset)
+	{
+	case 0:
+	case 1:
+		m_qsound_data[offset] = data;
+		break;
+	case 2:
+		if (m_qsound_dsp_ready)
+		{
+			m_qsound->qsound_w(0, m_qsound_data[0]);
+			m_qsound->qsound_w(1, m_qsound_data[1]);
+			m_qsound->qsound_w(2, data);
+		}
+		else
+		{
+			m_qsound_queue.push(std::make_tuple(m_qsound_data[0], m_qsound_data[1], data));
+		}
+		break;
+	}
+}
+
+void vgmplay_state::qsound_dsp_ready(int state)
+{
+	if (state && !m_qsound_dsp_ready)
+		m_qsound_timer->adjust(attotime::from_ticks(128, m_qsound->clock()));
+	else
+		m_qsound_dsp_ready = bool(state);
+}
+
+void vgmplay_state::qsound_delayed_w(s32 param)
+{
+	m_qsound_dsp_ready = true;
+	if (!m_qsound_queue.empty())
+	{
+		auto const [dh, dl, a] = m_qsound_queue.front();
+		m_qsound->qsound_w(0, dh);
+		m_qsound->qsound_w(1, dl);
+		m_qsound->qsound_w(2, a);
+		m_qsound_queue.pop();
+	}
+}
+
 INPUT_CHANGED_MEMBER(vgmplay_state::key_pressed)
 {
 	if (!newval && param != VGMPLAY_HOLD)
@@ -3371,8 +3434,8 @@ void vgmplay_state::soundchips_map(address_map &map)
 	map(vgmplay_device::A_YM2612_1, vgmplay_device::A_YM2612_1 + 3).w(m_ym2612[1], FUNC(ym2612_device::write));
 	map(vgmplay_device::A_YM2151_0, vgmplay_device::A_YM2151_0 + 1).w(m_ym2151[0], FUNC(ym2151_device::write));
 	map(vgmplay_device::A_YM2151_1, vgmplay_device::A_YM2151_1 + 1).w(m_ym2151[1], FUNC(ym2151_device::write));
-	map(vgmplay_device::A_SEGAPCM_0, vgmplay_device::A_SEGAPCM_0 + 0x7ff).w(m_segapcm[0], FUNC(segapcm_device::write));
-	map(vgmplay_device::A_SEGAPCM_1, vgmplay_device::A_SEGAPCM_1 + 0x7ff).w(m_segapcm[1], FUNC(segapcm_device::write));
+	map(vgmplay_device::A_SEGAPCM_0, vgmplay_device::A_SEGAPCM_0 + 0xff).m(m_segapcm[0], FUNC(sega_315_5218_device::map));
+	map(vgmplay_device::A_SEGAPCM_1, vgmplay_device::A_SEGAPCM_1 + 0xff).m(m_segapcm[1], FUNC(sega_315_5218_device::map));
 	map(vgmplay_device::A_RF5C68, vgmplay_device::A_RF5C68 + 0xf).w(m_rf5c68, FUNC(rf5c68_device::rf5c68_w));
 	map(vgmplay_device::A_RF5C68_RAM, vgmplay_device::A_RF5C68_RAM + 0xffff).w(m_rf5c68, FUNC(rf5c68_device::rf5c68_mem_w));
 	map(vgmplay_device::A_YM2203_0, vgmplay_device::A_YM2203_0 + 1).w(m_ym2203[0], FUNC(ym2203_device::write));
@@ -3457,7 +3520,7 @@ void vgmplay_state::soundchips_map(address_map &map)
 	map(vgmplay_device::A_K053260_1, vgmplay_device::A_K053260_1 + 0x2f).w(m_k053260[1], FUNC(k053260_device::write));
 	map(vgmplay_device::A_POKEY_0, vgmplay_device::A_POKEY_0 + 0xf).w(m_pokey[0], FUNC(pokey_device::write));
 	map(vgmplay_device::A_POKEY_1, vgmplay_device::A_POKEY_1 + 0xf).w(m_pokey[1], FUNC(pokey_device::write));
-	map(vgmplay_device::A_QSOUND, vgmplay_device::A_QSOUND + 0x2).w(m_qsound, FUNC(qsound_device::qsound_w));
+	map(vgmplay_device::A_QSOUND, vgmplay_device::A_QSOUND + 0x2).w(FUNC(vgmplay_state::qsound_w));
 	map(vgmplay_device::A_VSU_VUE_0, vgmplay_device::A_VSU_VUE_0 + 0x5ff).w(m_vsu_vue[0], FUNC(vboysnd_device::write));
 	map(vgmplay_device::A_VSU_VUE_1, vgmplay_device::A_VSU_VUE_1 + 0x5ff).w(m_vsu_vue[1], FUNC(vboysnd_device::write));
 	map(vgmplay_device::A_SAA1099_0, vgmplay_device::A_SAA1099_0 + 1).w(m_saa1099[0], FUNC(saa1099_device::write));
@@ -3698,12 +3761,12 @@ void vgmplay_state::vgmplay(machine_config &config)
 	m_ym2151[1]->add_route(0, m_viz, 1, 0);
 	m_ym2151[1]->add_route(1, m_viz, 1, 1);
 
-	SEGAPCM(config, m_segapcm[0], 0);
+	SEGA_315_5218(config, m_segapcm[0], 0);
 	m_segapcm[0]->set_addrmap(0, &vgmplay_state::segapcm_map<0>);
 	m_segapcm[0]->add_route(0, m_viz, 1, 0);
 	m_segapcm[0]->add_route(1, m_viz, 1, 1);
 
-	SEGAPCM(config, m_segapcm[1], 0);
+	SEGA_315_5218(config, m_segapcm[1], 0);
 	m_segapcm[1]->set_addrmap(0, &vgmplay_state::segapcm_map<1>);
 	m_segapcm[1]->add_route(0, m_viz, 1, 0);
 	m_segapcm[1]->add_route(1, m_viz, 1, 1);
@@ -3991,6 +4054,7 @@ void vgmplay_state::vgmplay(machine_config &config)
 	m_pokey[1]->add_route(ALL_OUTPUTS, m_viz, 0.5, 1);
 
 	QSOUND(config, m_qsound);
+	m_qsound->dsp_ready_cb().set(FUNC(vgmplay_state::qsound_dsp_ready));
 	m_qsound->set_addrmap(0, &vgmplay_state::qsound_map<0>);
 	m_qsound->add_route(0, m_viz, 1, 0);
 	m_qsound->add_route(1, m_viz, 1, 1);

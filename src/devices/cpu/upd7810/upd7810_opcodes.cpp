@@ -290,12 +290,9 @@ void upd7810_device::NEGA()
 }
 
 /* 48 3b: 0100 1000 0011 1011 */
-void upd7810_device::HALT()
+void upd7810_device::HLT()
 {
-	int cycles = (m_icount / 4) * 4;
-	m_icount -= cycles;
-	handle_timers(cycles);
-	PC -= 1;        /* continue executing HALT */
+	m_halt = 1;
 }
 
 /* 48 3d: 0100 1000 0011 1101 */
@@ -829,7 +826,7 @@ void upd7810_device::STOP()
 	int cycles = (m_icount / 4) * 4;
 	m_icount -= cycles;
 	handle_timers(cycles);
-	PC -= 1;
+	PC -= 2;
 }
 
 /* 48 c0: 0100 1000 1100 0000 */
@@ -5694,7 +5691,7 @@ void upd7810_device::ONAX_Hm()
 void upd7810_device::ADCX_B()
 {
 	uint8_t tmp = A + RM( BC ) + (PSW & CY);
-	ZHC_ADD( tmp, A, 0 );
+	ZHC_ADD( tmp, A, (PSW & CY) );
 	A = tmp;
 }
 
@@ -5702,7 +5699,7 @@ void upd7810_device::ADCX_B()
 void upd7810_device::ADCX_D()
 {
 	uint8_t tmp = A + RM( DE ) + (PSW & CY);
-	ZHC_ADD( tmp, A, 0 );
+	ZHC_ADD( tmp, A, (PSW & CY) );
 	A = tmp;
 }
 
@@ -5710,7 +5707,7 @@ void upd7810_device::ADCX_D()
 void upd7810_device::ADCX_H()
 {
 	uint8_t tmp = A + RM( HL ) + (PSW & CY);
-	ZHC_ADD( tmp, A, 0 );
+	ZHC_ADD( tmp, A, (PSW & CY) );
 	A = tmp;
 }
 
@@ -5719,7 +5716,7 @@ void upd7810_device::ADCX_Dp()
 {
 	uint8_t tmp = A + RM( DE ) + (PSW & CY);
 	DE++;
-	ZHC_ADD( tmp, A, 0 );
+	ZHC_ADD( tmp, A, (PSW & CY) );
 	A = tmp;
 }
 
@@ -5728,7 +5725,7 @@ void upd7810_device::ADCX_Hp()
 {
 	uint8_t tmp = A + RM( HL ) + (PSW & CY);
 	HL++;
-	ZHC_ADD( tmp, A, 0 );
+	ZHC_ADD( tmp, A, (PSW & CY) );
 	A = tmp;
 }
 
@@ -5737,7 +5734,7 @@ void upd7810_device::ADCX_Dm()
 {
 	uint8_t tmp = A + RM( DE ) + (PSW & CY);
 	DE--;
-	ZHC_ADD( tmp, A, 0 );
+	ZHC_ADD( tmp, A, (PSW & CY) );
 	A = tmp;
 }
 
@@ -5746,7 +5743,7 @@ void upd7810_device::ADCX_Hm()
 {
 	uint8_t tmp = A + RM( HL ) + (PSW & CY);
 	HL--;
-	ZHC_ADD( tmp, A, 0 );
+	ZHC_ADD( tmp, A, (PSW & CY) );
 	A = tmp;
 }
 

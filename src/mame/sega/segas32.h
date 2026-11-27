@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "cpu/v60/v60.h"
 #include "sound/multipcm.h"
 #include "s32comm.h"
 #include "machine/timer.h"
@@ -86,7 +87,7 @@ protected:
 	struct extents_list
 	{
 		uint8_t                   scan_extent[256]{};
-		uint16_t                  extent[32][16]{};
+		uint16_t                  extent[256][16]{};
 	};
 
 
@@ -158,6 +159,7 @@ protected:
 	void mix_all_layers(int which, int xoffs, bitmap_rgb32 &bitmap, const rectangle &cliprect, uint8_t enablemask);
 	void print_mixer_data(int which);
 	uint32_t multi32_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect, int index);
+	u8 irq_callback();
 	void update_irq_state();
 	void signal_v60_irq(int which);
 	void update_sound_irq_state();
@@ -188,6 +190,7 @@ protected:
 
 	void signal_sound_irq(int which);
 	void clear_sound_irq(int which);
+	IRQ_CALLBACK_MEMBER(soundcpu_acknowledge_irq);
 	void darkedge_fd1149_vblank();
 	void f1lap_fd1149_vblank();
 
@@ -215,7 +218,7 @@ protected:
 	optional_shared_ptr<uint8_t> m_soundram;
 	memory_share_array_creator<uint16_t, 2> m_paletteram;
 
-	required_device<cpu_device> m_maincpu;
+	required_device<v60_device> m_maincpu;
 	required_device<cpu_device> m_soundcpu;
 	optional_device<multipcm_device> m_multipcm;
 	required_device<gfxdecode_device> m_gfxdecode;
@@ -239,6 +242,7 @@ protected:
 	timer_device *m_v60_irq_timer[2]{};
 	uint8_t m_sound_irq_control[4]{};
 	uint8_t m_sound_irq_input = 0;
+	uint8_t m_sound_irq_vector = 0;
 	uint8_t m_sound_dummy_value = 0;
 	uint16_t m_sound_bank = 0;
 	sys32_output_callback m_sw1_output;

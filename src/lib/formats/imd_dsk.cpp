@@ -517,7 +517,8 @@ bool imd_format::load(util::random_read &io, uint32_t form_factor, const std::ve
 	{
 		// On 5.25, check if the drive is QD or HD but we're a 40 track
 		// image.  If so, put the image on even tracks.
-		if ((has_variant(variants, floppy_image::DSQD)) ||
+		if ((has_variant(variants, floppy_image::SSQD)) ||
+			(has_variant(variants, floppy_image::DSQD)) ||
 			(has_variant(variants, floppy_image::DSHD)))
 		{
 			if (maxtrack <= 39)
@@ -531,6 +532,7 @@ bool imd_format::load(util::random_read &io, uint32_t form_factor, const std::ve
 	}
 
 	pos = savepos;
+	bool skipped_head = false;
 	while(pos < size) {
 		mode.push_back(img[pos++]);
 		track.push_back(img[pos++]);
@@ -544,11 +546,10 @@ bool imd_format::load(util::random_read &io, uint32_t form_factor, const std::ve
 			return false;
 		}
 
+		// The drive can't see sides it doesn't have, e.g. leftover data on
+		// the back of a disk used in a single-sided drive; parse and drop it.
 		if((head.back() & 0x3f) >= heads)
-		{
-			osd_printf_error("imd_format: Head %d exceeds maximum of %d\n", head.back() & 0x3f, heads);
-			return false;
-		}
+			skipped_head = true;
 
 		if(ssize.back() == 0xff)
 		{
@@ -602,7 +603,7 @@ bool imd_format::load(util::random_read &io, uint32_t form_factor, const std::ve
 		for(int i=0; i<sector_count.back(); i++) {
 			uint8_t stype        = img[pos++];
 			sects[i].track       = tnum.back().size() ? tnum.back()[i] : track.back();
-			sects[i].head        = hnum.back().size() ? hnum.back()[i] : head.back();
+			sects[i].head        = hnum.back().size() ? hnum.back()[i] : chead;
 			sects[i].sector      = snum.back()[i];
 			sects[i].size        = ssize.back();
 			sects[i].actual_size = actual_size;
@@ -613,6 +614,7 @@ bool imd_format::load(util::random_read &io, uint32_t form_factor, const std::ve
 				sects[i].deleted = stype == 3 || stype == 4 || stype == 7 || stype == 8;
 				sects[i].bad_data_crc = stype == 5 || stype == 6 || stype == 7 || stype == 8;
 				sects[i].bad_addr_crc = false;
+				sects[i].weak = false;
 
 				if(stype == 2 || stype == 4 || stype == 6 || stype == 8) {
 					sects[i].data = new uint8_t [actual_size];
@@ -624,7 +626,7 @@ bool imd_format::load(util::random_read &io, uint32_t form_factor, const std::ve
 			}
 		}
 
-		if(sector_count.back()) {
+		if(sector_count.back() && (chead < heads)) {
 			if(fm) {
 				build_pc_track_fm(track.back()*trackmult, chead, image, cell_count, sector_count.back(), sects, gap_3);
 			} else {
@@ -636,6 +638,9 @@ bool imd_format::load(util::random_read &io, uint32_t form_factor, const std::ve
 			if(sects[i].data && (sects[i].data < &img[0] || sects[i].data >= (&img[0] + size)))
 				delete [] sects[i].data;
 	}
+
+	if(skipped_head)
+		osd_printf_warning("imd_format: Disk has data on more heads than this drive has; extra heads discarded (drive heads=%d)\n", heads);
 
 	// Tag the image with form-factor + variant.  Without this the floppy_image
 	// keeps FF_UNKNOWN/variant=0, which propagates to any subsequent save
@@ -669,18 +674,18 @@ bool imd_format::load(util::random_read &io, uint32_t form_factor, const std::ve
 	uint32_t img_variant;
 	if (img_form == floppy_image::FF_8) {
 		img_variant = any_mfm ? (ds ? floppy_image::DSDD : floppy_image::SSDD)
-		                      : (ds ? floppy_image::DSSD : floppy_image::SSSD);
+							  : (ds ? floppy_image::DSSD : floppy_image::SSSD);
 	} else if (img_form == floppy_image::FF_525 || img_form == floppy_image::FF_35) {
 		if (any_500kbps && any_mfm)
 			img_variant = floppy_image::DSHD;
 		else if (any_mfm)
 			img_variant = ds ? (maxtrack > 42 ? floppy_image::DSQD : floppy_image::DSDD)
-			                 : floppy_image::SSDD;
+							 : floppy_image::SSDD;
 		else
 			img_variant = ds ? floppy_image::DSSD : floppy_image::SSSD;
 	} else {
 		img_variant = any_mfm ? (ds ? floppy_image::DSDD : floppy_image::SSDD)
-		                      : (ds ? floppy_image::DSSD : floppy_image::SSSD);
+							  : (ds ? floppy_image::DSSD : floppy_image::SSSD);
 	}
 	image.set_form_variant(img_form, img_variant);
 
@@ -745,6 +750,8 @@ void imd_format::extract_track_rich(const std::vector<bool> &bs, bool is_mfm,
 			if (shift_reg == 0x4489) {        // MFM 0xA1 sync (missing clock)
 				uint16_t header_word;
 				uint32_t pos = i + 1;
+				if (pos == bs.size())
+					pos = 0;
 				do {
 					header_word = 0;
 					for (int j = 0; j < 16; j++)
@@ -752,25 +759,28 @@ void imd_format::extract_track_rich(const std::vector<bool> &bs, bool is_mfm,
 							header_word |= 0x8000 >> j;
 				} while (header_word == 0x4489 && pos > i);
 
+				bool found = true;
 				// 0x5554 = MFM(0xFE), 0x5555 = MFM(0xFF)
-				if (header_word == 0x5554 || header_word == 0x5555) {
+				if (header_word == 0x5554 || header_word == 0x5555)
 					idam_marks.push_back({pos, uint8_t(header_word == 0x5554 ? 0xfe : 0xff)});
-					i = pos - 1;
-				}
 				// 0x554a = MFM(0xF8) deleted DAM
-				else if (header_word == 0x554a) {
+				else if (header_word == 0x554a)
 					dam_marks.push_back({pos, 0xf8});
-					i = pos - 1;
-				}
 				// 0x5549 = MFM(0xF9), 0x5544 = MFM(0xFA), 0x5545 = MFM(0xFB)
-				else if (header_word == 0x5549) {
+				else if (header_word == 0x5549)
 					dam_marks.push_back({pos, 0xf9});
-					i = pos - 1;
-				} else if (header_word == 0x5544) {
+				else if (header_word == 0x5544)
 					dam_marks.push_back({pos, 0xfa});
-					i = pos - 1;
-				} else if (header_word == 0x5545) {
+				else if (header_word == 0x5545)
 					dam_marks.push_back({pos, 0xfb});
+				else
+					found = false;
+
+				if (found) {
+					// A mark that ends at or past the index ends the scan:
+					// the rest of the track was scanned from its start
+					if (pos <= i)
+						break;
 					i = pos - 1;
 				}
 			}

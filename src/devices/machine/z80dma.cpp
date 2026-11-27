@@ -127,9 +127,10 @@ z80dma_device::z80dma_device(const machine_config &mconfig, const char *tag, dev
 {
 }
 
-z80dma_device::z80dma_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock)
+z80dma_device::z80dma_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, bool dest_counter_lags)
 	: device_t(mconfig, type, tag, owner, clock)
 	, device_z80daisy_interface(mconfig, *this)
+	, m_dest_counter_lags(dest_counter_lags)
 	, m_out_busreq_cb(*this)
 	, m_out_int_cb(*this)
 	, m_out_ieo_cb(*this)
@@ -165,8 +166,10 @@ void z80dma_device::device_start()
 	save_item(NAME(m_addressB));
 	save_item(NAME(m_count));
 	save_item(NAME(m_byte_counter));
+	save_item(NAME(m_dest_first));
 	save_item(NAME(m_rdy));
 	save_item(NAME(m_force_ready));
+	save_item(NAME(m_reset_pointer));
 	save_item(NAME(m_wait));
 	save_item(NAME(m_waits_extra));
 	save_item(NAME(m_busrq));
@@ -184,7 +187,8 @@ void z80dma_device::device_reset()
 	m_timer->reset();
 
 	m_status = 0;
-	m_dma_seq = ~0;
+	m_dma_seq = SEQ_IDLE;
+	m_dest_first = false;
 	m_rdy = 0;
 	m_force_ready = 0;
 	m_wait = 0;
@@ -298,6 +302,8 @@ void z80dma_device::disable()
 	{
 		set_busrq(CLEAR_LINE);
 	}
+	m_dma_seq = SEQ_IDLE;
+	LOGDMA("IDLE\n");
 }
 
 void z80dma_device::update_bao()
@@ -307,6 +313,9 @@ void z80dma_device::update_bao()
 
 void z80dma_device::set_busrq(int state)
 {
+	if (m_busrq == state)
+		return;
+
 	m_busrq = state;
 	m_out_busreq_cb(m_busrq);
 	update_bao();
@@ -430,6 +439,18 @@ void z80dma_device::do_search()
 
 void z80dma_device::do_write()
 {
+	const int stepA = PORTA_FIXED ? 0 : PORTA_INC ? 1 : -1;
+	const int stepB = PORTB_FIXED ? 0 : PORTB_INC ? 1 : -1;
+
+	if (m_dest_counter_lags && !m_dest_first)
+	{
+		if (PORTA_IS_SOURCE)
+			m_addressB += stepB;
+		else
+			m_addressA += stepA;
+	}
+	m_dest_first = false;
+
 	switch (TRANSFER_MODE)
 	{
 	case TM_TRANSFER:
@@ -450,8 +471,10 @@ void z80dma_device::do_write()
 		break;
 	}
 
-	m_addressA += PORTA_FIXED ? 0 : PORTA_INC ? 1 : -1;
-	m_addressB += PORTB_FIXED ? 0 : PORTB_INC ? 1 : -1;
+	if (!m_dest_counter_lags || PORTA_IS_SOURCE)
+		m_addressA += stepA;
+	if (!m_dest_counter_lags || !PORTA_IS_SOURCE)
+		m_addressB += stepB;
 
 	m_byte_counter++;
 }
@@ -492,6 +515,24 @@ TIMER_CALLBACK_MEMBER(z80dma_device::clock_w)
 			m_dma_seq = SEQ_TRANS1_INC_DEC_SOURCE_ADDRESS;
 		}
 		break;
+
+	case SEQ_TRANS1_SAMPLE_READY:
+		// RDY is sampled at the end of the transfer cycle, one clock after the data
+		// has been written. A destination which drops RDY while it is being written
+		// and asserts it again right away (e.g. the i8275 in zorba) is therefore
+		// still seen as ready, while one which leaves RDY inactive until it has more
+		// data (e.g. the WD FDC in abc1600) ends the transfer after a single byte.
+		if (!is_ready())
+		{
+			if (OPERATING_MODE == 0b10) // Burst/Demand gives the bus back
+			{
+				set_busrq(CLEAR_LINE);
+			}
+			m_dma_seq = SEQ_WAIT_READY;
+			break;
+		}
+		m_dma_seq = SEQ_TRANS1_INC_DEC_SOURCE_ADDRESS;
+		[[fallthrough]];
 
 	case SEQ_TRANS1_INC_DEC_SOURCE_ADDRESS:
 		{
@@ -554,19 +595,8 @@ TIMER_CALLBACK_MEMBER(z80dma_device::clock_w)
 				break;
 
 			case 0b10: // Burst/Demand
-				if (is_ready())
-				{
-					m_dma_seq = SEQ_TRANS1_INC_DEC_SOURCE_ADDRESS;
-				}
-				else
-				{
-					set_busrq(CLEAR_LINE);
-					m_dma_seq = SEQ_WAIT_READY;
-				}
-				break;
-
 			case 0b01: // Continuous/Block
-				m_dma_seq = is_ready() ? SEQ_TRANS1_INC_DEC_SOURCE_ADDRESS : SEQ_WAIT_READY;
+				m_dma_seq = SEQ_TRANS1_SAMPLE_READY;
 				break;
 
 			default: // Undefined || final
@@ -600,6 +630,7 @@ TIMER_CALLBACK_MEMBER(z80dma_device::clock_w)
 
 			m_addressA = PORTA_ADDRESS;
 			m_addressB = PORTB_ADDRESS;
+			m_dest_first = true;
 			m_count = BLOCKLEN;
 			reset_byte_counter();
 			m_status |= 0x30;
@@ -607,6 +638,7 @@ TIMER_CALLBACK_MEMBER(z80dma_device::clock_w)
 		}
 		break;
 
+	case SEQ_IDLE:
 	default:
 		break;
 	}
@@ -683,6 +715,9 @@ void z80dma_device::write(u8 data)
 	if (m_num_follow == 0)
 	{
 		m_reset_pointer = 0;
+
+		if (data != COMMAND_ENABLE_DMA && m_dma_seq != SEQ_IDLE)
+			disable();
 
 		if ((data & 0x87) == 0) // WR2
 		{
@@ -791,6 +826,7 @@ void z80dma_device::write(u8 data)
 				m_force_ready = 0;
 				m_addressA = PORTA_ADDRESS;
 				m_addressB = PORTB_ADDRESS;
+				m_dest_first = true;
 				m_count = BLOCKLEN;
 				reset_byte_counter();
 				m_status |= 0x30;
@@ -894,10 +930,10 @@ void z80dma_device::write(u8 data)
 TIMER_CALLBACK_MEMBER(z80dma_device::rdy_write_callback)
 {
 	// normalize state
-	m_rdy = param;
-	m_status = (m_status & 0xfd) | (!is_ready() << 1);
+	const bool ready = m_force_ready || (param == READY_ACTIVE_HIGH);
+	m_status = (m_status & 0xfd) | (!ready << 1);
 
-	if (is_ready() && INT_ON_READY)
+	if (ready && INT_ON_READY)
 	{
 		trigger_interrupt(INT_RDY);
 	}
@@ -909,6 +945,11 @@ TIMER_CALLBACK_MEMBER(z80dma_device::rdy_write_callback)
 void z80dma_device::rdy_w(int state)
 {
 	LOGLINE("Z80DMA RDY: %d Active High: %d\n", state, READY_ACTIVE_HIGH);
+
+	// the sequencer looks at the live pin state
+	m_rdy = state;
+
+	// but the status bit and the interrupt are updated out of line
 	machine().scheduler().synchronize(timer_expired_delegate(FUNC(z80dma_device::rdy_write_callback), this), state);
 }
 
@@ -917,8 +958,14 @@ void z80dma_device::rdy_w(int state)
  ****************************************************************************/
 void z80dma_device::bai_w(int state)
 {
+	if (m_busrq_ack == state)
+		return;
+
 	m_busrq_ack = state;
 	update_bao();
+
+	if (m_busrq_ack && m_dma_seq == SEQ_IDLE)
+		set_busrq(CLEAR_LINE);
 }
 
 

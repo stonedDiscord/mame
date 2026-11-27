@@ -443,7 +443,7 @@ void namcos21_c67_state::mix_layer0_sprites(screen_device &screen, bitmap_ind16 
 	// create priority table, this is not accurate
 	u16 pri[0x10];
 	for (int i = 0; i < 0x10; i++)
-		pri[i] = (i == 0) ? 0x7fc0 : pri[i - 1] / 1.24;
+		pri[i] = (i == 0) ? 0x7fc0 : (pri[i - 1] / 1.24);
 
 	// mix layer 0 sprites with polygons
 	for (int y = cliprect.top(); y <= cliprect.bottom(); y++)
@@ -853,7 +853,7 @@ void namcos21_c67_state::namcos21(machine_config &config)
 	NVRAM(config, "nvram", nvram_device::DEFAULT_ALL_0);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_raw(38.76922_MHz_XTAL / 4 * 2, 616, 0, 496, 262 + 263, 0, 480); // x2 is for interlace
 	m_screen->set_screen_update(FUNC(namcos21_c67_state::screen_update));
 	m_screen->set_palette(m_palette);

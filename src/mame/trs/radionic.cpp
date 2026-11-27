@@ -116,6 +116,8 @@ To Do / Status:
 #include "machine/i8251.h"
 #include "machine/i8255.h"
 
+#include "formats/dmk_dsk.h"
+
 #include "softlist_dev.h"
 #include "utf8.h"
 
@@ -471,6 +473,7 @@ u8 radionic_state::ppi_pc_r(offs_t offset)
 
 void radionic_state::floppy_formats(format_registration &fr)
 {
+	fr.add(FLOPPY_DMK_FORMAT);
 	fr.add(FLOPPY_JV1_FORMAT);
 }
 
@@ -495,7 +498,7 @@ void radionic_state::radionic(machine_config &config)
 	m_maincpu->set_periodic_int(FUNC(radionic_state::rtc_via_nmi), attotime::from_hz(MASTER_XTAL / 12 / 16384));
 
 	/* video hardware */
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(MASTER_XTAL, 768, 0, 512, 312, 0, 256);
 	screen.set_screen_update(FUNC(radionic_state::screen_update));
 	screen.set_palette("palette");

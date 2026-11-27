@@ -93,9 +93,11 @@ protected:
 
 	enum
 	{
-		SEQ_WAIT_READY = 0,
+		SEQ_IDLE = 0,
+		SEQ_WAIT_READY,
 		SEQ_REQUEST_BUS,
 		SEQ_WAITING_ACK,
+		SEQ_TRANS1_SAMPLE_READY,
 		SEQ_TRANS1_INC_DEC_SOURCE_ADDRESS,
 		SEQ_TRANS1_READ_SOURCE,
 		SEQ_TRANS1_INC_DEC_DEST_ADDRESS,
@@ -106,7 +108,7 @@ protected:
 		SEQ_FINISH
 	};
 
-	z80dma_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock);
+	z80dma_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, u32 clock, bool dest_counter_lags = true);
 
 	// device_t implementation
 	virtual void device_start() override ATTR_COLD;
@@ -140,6 +142,8 @@ protected:
 	u16 m_count;
 	u16 m_byte_counter;
 	int m_dma_seq;
+	bool m_dest_counter_lags;
+	bool m_dest_first;
 
 	u8  m_num_follow;
 	u8  m_cur_follow;
@@ -173,7 +177,7 @@ private:
 
 	int  m_wait;
 	int  m_waits_extra;
-	int  m_busrq;
+	int  m_busrq = CLEAR_LINE;
 	int  m_busrq_ack;
 	bool m_is_pulse;
 	u8   m_latch;

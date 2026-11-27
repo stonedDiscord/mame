@@ -443,6 +443,7 @@ upd7810_device::upd7810_device(const machine_config &mconfig, device_type type, 
 	, m_pc_pullups(0xff)
 	, m_pd_pullups(0xff)
 	, m_pf_pullups(0xff)
+	, m_ci(0)
 {
 }
 
@@ -622,10 +623,25 @@ void upd7810_device::pf_w(uint8_t data, uint8_t mem_mask)
 	COMBINE_DATA(&m_pf_in);
 }
 
+void upd7810_device::ci_w(int state)
+{
+	if (m_ci && !state && (ETMM & 0x0c) && ((ETMM & 0x03) == 0x02 || ((ETMM & 0x03) == 0x03 && TO)))
+		etimer_count();
+
+	m_ci = state;
+}
+
 void upd7810_device::sck_w(int state)
 {
 	if ((SMH & 0x03) == 0x03 && state != SCK)
-		update_sio(1);
+	{
+		if (SML & 0x03)
+			update_sio(1);
+		else if (state)
+			upd7810_sio_input();
+		else
+			upd7810_sio_output();
+	}
 	SCK = state;
 }
 
@@ -835,11 +851,8 @@ void upd7810_device::write_smh(uint8_t data)
 void upd7810_device::upd7810_take_irq()
 {
 	uint16_t vector = 0;
+	uint16_t irr_mask = 0;
 	int irqline = 0;
-
-	/* global interrupt disable? */
-	if (0 == IFF && !(IRR & INTFNMI))
-		return;
 
 	/* check the interrupts in priority sequence */
 	if (IRR & INTFNMI)
@@ -847,21 +860,21 @@ void upd7810_device::upd7810_take_irq()
 		/* Nonmaskable interrupt */
 		irqline = INPUT_LINE_NMI;
 		vector = 0x0004;
-		IRR &= ~INTFNMI;
+		irr_mask = INTFNMI;
 	}
 	else
 	if ((IRR & INTFT0)  && 0 == (MKL & 0x02))
 	{
 		vector = 0x0008;
 		if (0 != (MKL & 0x04))
-			IRR&=~INTFT0;
+			irr_mask = INTFT0;
 	}
 	else
 	if ((IRR & INTFT1)  && 0 == (MKL & 0x04))
 	{
 		vector = 0x0008;
 		if (0 != (MKL & 0x02))
-			IRR&=~INTFT1;
+			irr_mask = INTFT1;
 	}
 	else
 	if ((IRR & INTF1)   && 0 == (MKL & 0x08))
@@ -869,7 +882,7 @@ void upd7810_device::upd7810_take_irq()
 		irqline = UPD7810_INTF1;
 		vector = 0x0010;
 		if (0 != (MKL & 0x10))
-			IRR&=~INTF1;
+			irr_mask = INTF1;
 	}
 	else
 	if ((IRR & INTF2)   && 0 == (MKL & 0x10))
@@ -877,53 +890,60 @@ void upd7810_device::upd7810_take_irq()
 		irqline = UPD7810_INTF2;
 		vector = 0x0010;
 		if (0 != (MKL & 0x08))
-			IRR&=~INTF2;
+			irr_mask = INTF2;
 	}
 	else
 	if ((IRR & INTFE0)  && 0 == (MKL & 0x20))
 	{
 		vector = 0x0018;
 		if (0 != (MKL & 0x40))
-			IRR&=~INTFE0;
+			irr_mask = INTFE0;
 	}
 	else
 	if ((IRR & INTFE1)  && 0 == (MKL & 0x40))
 	{
 		vector = 0x0018;
 		if (0 != (MKL & 0x20))
-			IRR&=~INTFE1;
+			irr_mask = INTFE1;
 	}
 	else
 	if ((IRR & INTFEIN) && 0 == (MKL & 0x80))
 	{
 		vector = 0x0020;
 		if (0 != (MKH & 0x01))
-			IRR&=~INTFEIN;
+			irr_mask = INTFEIN;
 	}
 	else
 	if ((IRR & INTFAD)  && 0 == (MKH & 0x01))
 	{
 		vector = 0x0020;
 		if (0 != (MKL & 0x80))
-			IRR&=~INTFAD;
+			irr_mask = INTFAD;
 	}
 	else
 	if ((IRR & INTFSR)  && 0 == (MKH & 0x02))
 	{
 		vector = 0x0028;
 		if (0 != (MKH & 0x04))
-			IRR&=~INTFSR;
+			irr_mask = INTFSR;
 	}
 	else
 	if ((IRR & INTFST)  && 0 == (MKH & 0x04))
 	{
 		vector = 0x0028;
 		if (0 != (MKH & 0x02))
-			IRR&=~INTFST;
+			irr_mask = INTFST;
 	}
 
 	if (vector)
 	{
+		// release halt on any non-masked interrupt even when IFF = 0
+		m_halt = 0;
+
+		/* global interrupt disable? */
+		if (0 == IFF && !(IRR & INTFNMI))
+			return;
+
 		/* acknowledge external IRQ */
 		if (irqline)
 			standard_irq_callback(irqline, PC);
@@ -934,6 +954,7 @@ void upd7810_device::upd7810_take_irq()
 		SP--;
 		WM( SP, PCL );
 		IFF = m_iff_pending = 0;
+		IRR &= ~irr_mask;
 		PSW &= ~(SK|L0|L1);
 		PC = vector;
 	}
@@ -942,11 +963,8 @@ void upd7810_device::upd7810_take_irq()
 void upd7801_device::upd7810_take_irq()
 {
 	uint16_t vector = 0;
+	uint16_t irr_mask = 0;
 	int irqline = 0;
-
-	/* global interrupt disable? */
-	if (0 == IFF)
-		return;
 
 	/* 1 - SOFTI - vector at 0x0060 */
 	/* 2 - INT0 - Masked by MK0 bit */
@@ -959,31 +977,38 @@ void upd7801_device::upd7810_take_irq()
 	if ( IRR & INTFT0 && 0 == ( MKL & 0x02 ) )
 	{
 		vector = 0x0008;
-		IRR &= ~INTFT0;
+		irr_mask = INTFT0;
 	}
 	/* 4 - INT1 - Masked by MK1 bit */
 	if ( IRR & INTF1 && 0 == ( MKL & 0x04 ) )
 	{
 		irqline = UPD7810_INTF1;
 		vector = 0x0010;
-		IRR &= ~INTF1;
+		irr_mask = INTF1;
 	}
 	/* 5 - INT2 - Masked by MK2 bit */
 	if ( IRR & INTF2 && 0 == ( MKL & 0x08 ) )
 	{
 		irqline = UPD7810_INTF2;
 		vector = 0x0020;
-		IRR &= ~INTF2;
+		irr_mask = INTF2;
 	}
 	/* 6 - INTS - Masked by MKS bit */
 	if ( IRR & INTFST && 0 == ( MKL & 0x10 ) )
 	{
 		vector = 0x0040;
-		IRR &= ~INTFST;
+		irr_mask = INTFST;
 	}
 
 	if (vector)
 	{
+		// release halt on any non-masked interrupt even when IFF = 0
+		m_halt = 0;
+
+		/* global interrupt disable? */
+		if (0 == IFF)
+			return;
+
 		/* acknowledge external IRQ */
 		if (irqline)
 			standard_irq_callback(irqline, PC);
@@ -994,6 +1019,7 @@ void upd7801_device::upd7810_take_irq()
 		SP--;
 		WM( SP, PCL );
 		IFF = m_iff_pending = 0;
+		IRR &= ~irr_mask;
 		PSW &= ~(SK|L0|L1);
 		PC = vector;
 	}
@@ -1087,11 +1113,19 @@ void upd7810_device::upd7810_sio_output()
 	/* shift out more bits? */
 	if (m_txcnt > 0)
 	{
-		TXD = m_txs & 1;
+		if (!(SML & 0x03) && (SMH & 0x20))
+		{
+			TXD = BIT(m_txs, 7);
+			m_txs <<= 1;
+		}
+		else
+		{
+			TXD = m_txs & 1;
+			m_txs >>= 1;
+		}
 		m_txd_func(TXD);
 		if (m_mcc & 0x01)
 			WP(UPD7810_PORTC, m_pc_out);
-		m_txs >>= 1;
 		m_txcnt--;
 		if (0 == m_txcnt)
 			IRR |= INTFST;      /* serial transfer completed */
@@ -1185,11 +1219,17 @@ void upd7810_device::upd7810_sio_output()
 
 void upd7810_device::upd7810_sio_input()
 {
+	if (0 == m_rxcnt && (SMH & 0x48) == 0x48 && !(SML & 0x03))
+		m_rxcnt = 8;
+
 	/* sample next bit? */
 	if (m_rxcnt > 0)
 	{
 		RXD = m_rxd_func();
-		m_rxs = (m_rxs >> 1) | ((uint16_t)RXD << 15);
+		if (!(SML & 0x03) && (SMH & 0x20))
+			m_rxs = (m_rxs << 1) | RXD;
+		else
+			m_rxs = (m_rxs >> 1) | ((uint16_t)RXD << 15);
 		m_rxcnt--;
 		if (0 == m_rxcnt)
 		{
@@ -1312,12 +1352,13 @@ void upd7810_device::upd7810_sio_input()
 					break;
 				}
 			}
+			else if (SMH & 0x20)
+			{
+				RXB = m_rxs & 0xff;
+			}
 			else
 			{
-				m_rxs >>= 16 - 8;
-				m_rxs |= ~0U << 8;
-				RXB = m_rxs;
-//              m_rxcnt = 8;
+				RXB = m_rxs >> 8;
 			}
 		}
 	}
@@ -1377,12 +1418,6 @@ void upd7810_device::upd7810_sio_input()
 			}
 
 			m_rxcnt--; // reduce by one since we already received the start bit at this point
-		}
-		else
-		/* TSK bit set ? */
-		if (SMH & 0x40)
-		{
-			m_rxcnt = 8;
 		}
 	}
 }
@@ -1461,6 +1496,48 @@ void upd7810_device::update_sio(int cycles)
 	}
 }
 
+void upd7810_device::etimer_count()
+{
+	ECNT++;
+	/* Interrupt Control Circuit */
+	if (ETM0 == ECNT)
+		IRR |= INTFE0;
+	if (ETM1 == ECNT)
+		IRR |= INTFE1;
+	/* Conditions When ECNT Causes a CO0 Output Change */
+	if (((0x00 == (ETMM & 0x30)) && (ETM0 == ECNT)) || /* set CO0 if ECNT == ETM0 */
+		/* ((0x10 == (ETMM & 0x30)) prohibited */
+		((0x20 == (ETMM & 0x30)) && (ETM0 == ECNT)) || /* set CO0 if ECNT == ETM0 or at falling CI input */
+		((0x30 == (ETMM & 0x30)) && (ETM0 == ECNT || ETM1 == ECNT))) /* latch CO0 if ECNT == ETM0 or ECNT == ETM1 */
+	{
+		upd7810_co0_output_change();
+	}
+	/* Conditions When ECNT Causes a CO1 Output Change */
+	if (((0x00 == (ETMM & 0xc0)) && (ETM1 == ECNT)) || /* set CO1 if ECNT == ETM1 */
+		/* ((0x40 == (ETMM & 0xc0)) prohibited */
+		((0x80 == (ETMM & 0xc0)) && (ETM1 == ECNT)) || /* set CO1 if ECNT == ETM1 or at falling CI input */
+		((0xc0 == (ETMM & 0xc0)) && (ETM0 == ECNT || ETM1 == ECNT))) /* latch CO1 if ECNT == ETM0 or ECNT == ETM1 */
+	{
+		upd7810_co1_output_change();
+	}
+	/* How and When ECNT is Cleared */
+	switch (ETMM & 0x0c)
+	{
+	case 0x00:              /* clear ECNT */
+		break;
+	case 0x04:              /* free running */
+		if (0 == ECNT)
+			ITF |= INTOV;   /* set overflow flag if counter wrapped */
+		break;
+	case 0x08:              /* reset at falling edge of CI or TO */
+		break;
+	case 0x0c:              /* reset if ECNT == ETM1 */
+		if (ETM1 == ECNT)
+			ECNT = 0;
+		break;
+	}
+}
+
 void upd7810_device::handle_timers(int cycles)
 {
 	/**** TIMER 0 ****/
@@ -1527,44 +1604,7 @@ void upd7810_device::handle_timers(int cycles)
 		while (OVCE >= 12/3)
 		{
 			OVCE -= 12/3;
-			ECNT++;
-			/* Interrupt Control Circuit */
-			if (ETM0 == ECNT)
-				IRR |= INTFE0;
-			if (ETM1 == ECNT)
-				IRR |= INTFE1;
-			/* Conditions When ECNT Causes a CO0 Output Change */
-			if (((0x00 == (ETMM & 0x30)) && (ETM0 == ECNT)) || /* set CO0 if ECNT == ETM0 */
-				/* ((0x10 == (ETMM & 0x30)) prohibited */
-				((0x20 == (ETMM & 0x30)) && (ETM0 == ECNT)) || /* set CO0 if ECNT == ETM0 or at falling CI input */
-				((0x30 == (ETMM & 0x30)) && (ETM0 == ECNT || ETM1 == ECNT))) /* latch CO0 if ECNT == ETM0 or ECNT == ETM1 */
-			{
-				upd7810_co0_output_change();
-			}
-			/* Conditions When ECNT Causes a CO1 Output Change */
-			if (((0x00 == (ETMM & 0xc0)) && (ETM1 == ECNT)) || /* set CO1 if ECNT == ETM1 */
-				/* ((0x40 == (ETMM & 0xc0)) prohibited */
-				((0x80 == (ETMM & 0xc0)) && (ETM1 == ECNT)) || /* set CO1 if ECNT == ETM1 or at falling CI input */
-				((0xc0 == (ETMM & 0xc0)) && (ETM0 == ECNT || ETM1 == ECNT))) /* latch CO1 if ECNT == ETM0 or ECNT == ETM1 */
-			{
-				upd7810_co1_output_change();
-			}
-			/* How and When ECNT is Cleared */
-			switch (ETMM & 0x0c)
-			{
-			case 0x00:              /* clear ECNT */
-				break;
-			case 0x04:              /* free running */
-				if (0 == ECNT)
-					ITF |= INTOV;   /* set overflow flag if counter wrapped */
-				break;
-			case 0x08:              /* reset at falling edge of CI or TO */
-				break;
-			case 0x0c:              /* reset if ECNT == ETM1 */
-				if (ETM1 == ECNT)
-					ECNT = 0;
-				break;
-			}
+			etimer_count();
 		}
 	}
 
@@ -1754,6 +1794,7 @@ void upd7810_device::base_device_start()
 	save_item(NAME(m_nmi));
 	save_item(NAME(m_int1));
 	save_item(NAME(m_int2));
+	save_item(NAME(m_halt));
 
 	save_item(NAME(m_txs));
 	save_item(NAME(m_rxs));
@@ -1983,7 +2024,6 @@ void upd7810_device::device_reset()
 	m_sck = 0;
 	m_ti = 0;
 	m_to = 0;
-	m_ci = 0;
 	m_lv0 = 0;
 	m_lv1 = 0;
 	m_co0 = 0;
@@ -1993,6 +2033,7 @@ void upd7810_device::device_reset()
 	m_nmi = 0;
 	m_int1 = 0;
 	m_int2 = 1; // physical (inverted) INT2 line state
+	m_halt = 0;
 
 	m_txs = 0;
 	m_rxs = ~0;
@@ -2036,6 +2077,16 @@ void upd7810_device::execute_run()
 {
 	do
 	{
+		if (m_halt)
+		{
+			debugger_wait_hook();
+			// continue running peripherals until a pending (internal or external) interrupt
+			m_icount--;
+			handle_timers(1);
+			upd7810_take_irq();
+			continue;
+		}
+
 		int cc;
 
 		PPC = PC;

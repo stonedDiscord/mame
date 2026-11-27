@@ -48,7 +48,6 @@ private:
 	uint32_t screen_update(screen_device &screen, bitmap_rgb32 &bitmap, const rectangle &cliprect);
 
 	void program_map(address_map &map) ATTR_COLD;
-	void data_map(address_map &map) ATTR_COLD;
 };
 
 
@@ -63,12 +62,6 @@ uint32_t venteta_state::screen_update(screen_device &screen, bitmap_rgb32 &bitma
 void venteta_state::program_map(address_map &map)
 {
 	map(0x00000, 0x1ffff).rom();
-}
-
-void venteta_state::data_map(address_map &map)
-{
-	//map(0x0020, 0x005f) Internal I/O registers
-	map(0x0060, 0x0fff).ram(); // 4000 bytes internal RAM
 }
 
 
@@ -105,11 +98,10 @@ void venteta_state::venteta(machine_config &config)
 {
 	ATMEGA1280(config, m_maincpu, 24_MHz_XTAL); // TODO: actually ATMEGA103
 	m_maincpu->set_addrmap(AS_PROGRAM, &venteta_state::program_map);
-	m_maincpu->set_addrmap(AS_DATA, &venteta_state::data_map);
 	m_maincpu->set_eeprom_tag("eeprom");
 
 	// TODO: everything
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_RASTER));
+	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_refresh_hz(60);
 	screen.set_vblank_time(ATTOSECONDS_IN_USEC(0));
 	screen.set_size(64*8, 32*8);

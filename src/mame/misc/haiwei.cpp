@@ -28,7 +28,8 @@ System's promotional flyer claims:
   and TV (video)
 
 TODO:
-- currently stops at the manufacturer logo (tight loops between two JMPs);
+- currently stops at the manufacturer logo (tight loops between two JMPs),
+  due to missing VRENDER0_SOC watchdog support;
 - transmits to SIO if above is skipped;
 
 */
@@ -58,7 +59,7 @@ public:
 
 	void hqdf(machine_config &config) ATTR_COLD;
 
-	void init_hqdf() ATTR_COLD;
+	void init_haiwei() ATTR_COLD;
 
 protected:
 	virtual void machine_start() override ATTR_COLD;
@@ -103,7 +104,7 @@ u32 haiwei_state::pioedat_r()
 
 void haiwei_state::program_map(address_map &map)
 {
-	map(0x00000000, 0x005fffff).rom();
+	map(0x00000000, 0x00bfffff).rom();
 
 	map(0x01500000, 0x01500003).portr("IN0");
 	map(0x01500008, 0x0150000b).portr("IN1");
@@ -231,24 +232,33 @@ void haiwei_state::hqdf(machine_config &config)
 
 // 环球大富翁 (Huánqiú Dàfùwēng)
 ROM_START( hqdf )
-	ROM_REGION32_LE( 0x600000, "maincpu", 0 ) // all ST27C160
+	ROM_REGION32_LE( 0xc00000, "maincpu", ROMREGION_ERASE00 ) // all ST27C160
 	ROM_LOAD( "1", 0x000000, 0x200000, CRC(4ce1c5eb) SHA1(df69037a44ce9b8944ddb38d7c226d1acf57eaca) )
 	ROM_LOAD( "2", 0x200000, 0x200000, CRC(9f5fbd56) SHA1(518937dafe754a575987913fa19c5c135930cecc) )
 	ROM_LOAD( "3", 0x400000, 0x200000, CRC(4edea690) SHA1(ba919577418e9f245113160adbdca9d63c54822e) )
 ROM_END
 
+ROM_START( unkhaiwei ) // probably a baccarat game, given the strings
+	ROM_REGION32_LE( 0xc00000, "maincpu", 0 )
+	ROM_LOAD( "1", 0x000000, 0x400000, CRC(7850ff4d) SHA1(f247965d0b79ab3cb85efef8a0ac4d788f63ff7b) )
+	ROM_LOAD( "2", 0x400000, 0x400000, CRC(d123e649) SHA1(3c6aadb61acfa7c4536dc37b1e1505bcac4db504) )
+	ROM_LOAD( "3", 0x800000, 0x400000, CRC(6b4cad4e) SHA1(6f3fca502e954d43a9fa90fda63c2346a8f39515) )
+ROM_END
 
-void haiwei_state::init_hqdf() // TODO: verify if it is complete (shouldn't get this far if it weren't complete, though)
+
+void haiwei_state::init_haiwei()
 {
 	u8 *rom = memregion("maincpu")->base();
-	std::vector<u8> buffer(0x600000);
+	u32 length = memregion("maincpu")->bytes();
 
-	memcpy(&buffer[0], rom, 0x600000);
+	std::vector<u8> buffer(length);
 
-	for (int i = 0; i < 0x600000; i++)
+	memcpy(&buffer[0], rom, length);
+
+	for (int i = 0; i < length; i++)
 		rom[i] = buffer[bitswap<24>(i, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 7, 8, 6, 5, 4, 3, 2, 1, 0)];
 
-	for (int i = 0; i < 0x600000; i++)
+	for (int i = 0; i < length; i++)
 	{
 		if (i & 0x01)
 			rom[i] = bitswap<8>(rom[i], 6, 7, 5, 4, 0, 1, 2, 3);
@@ -260,4 +270,5 @@ void haiwei_state::init_hqdf() // TODO: verify if it is complete (shouldn't get 
 } // anonymous namespace
 
 
-GAME( 2006, hqdf, 0, hqdf,  hqdf, haiwei_state, init_hqdf, ROT0, "Hai Wei Technology", "Huanqiu Dafuweng", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 2006, hqdf,      0, hqdf,  hqdf, haiwei_state, init_haiwei, ROT0, "Hai Wei Technology", "Huanqiu Dafuweng",                MACHINE_NO_SOUND | MACHINE_NOT_WORKING )
+GAME( 200?, unkhaiwei, 0, hqdf,  hqdf, haiwei_state, init_haiwei, ROT0, "Hai Wei Technology", "unknown Hai Wei Technology game", MACHINE_NO_SOUND | MACHINE_NOT_WORKING )

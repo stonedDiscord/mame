@@ -240,7 +240,7 @@ uint16_t md_base_state::m68k_version_read()
 	*/
 	LOG("%s: read version register\n", machine().describe_context());
 	// Version number contained in bits 3-0 (TMSS)
-	uint16_t const retdata = m_version_hi_nibble | m_version_lo_nibble;
+	uint16_t const retdata = m_active_version_hi_nibble | m_version_lo_nibble;
 
 	return retdata | (retdata << 8);
 }
@@ -675,6 +675,8 @@ void md_base_state::machine_start()
 	md_core_state::machine_start();
 
 	m_genz80.z80_run_timer = timer_alloc(FUNC(md_base_state::megadriv_z80_run_state), this);
+
+	save_item(NAME(m_active_version_hi_nibble));
 }
 
 void md_base_state::machine_reset()
@@ -692,6 +694,8 @@ void md_base_state::machine_reset()
 
 	if (m_megadrive_ram)
 		memset(m_megadrive_ram, 0x00, 0x10000);
+
+	m_active_version_hi_nibble = m_version_hi_nibble;
 }
 
 
@@ -766,7 +770,7 @@ void md_core_state::md_core_ntsc(machine_config &config)
 	m_vdp->hint_cb().set(FUNC(md_core_state::vdp_hint_cb));
 	m_vdp->set_screen("megadriv");
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(MASTER_CLOCK_NTSC / 10 / 262 / 342); // same as SMS?
 //  m_screen->set_refresh_hz(double(MASTER_CLOCK_NTSC) / 8 / 262 / 427); // or 427 Htotal?
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0)); // Vblank handled manually.
@@ -790,7 +794,7 @@ void md_core_state::md_core_pal(machine_config &config)
 	m_vdp->hint_cb().set(FUNC(md_core_state::vdp_hint_cb));
 	m_vdp->set_screen("megadriv");
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	m_screen->set_refresh_hz(MASTER_CLOCK_PAL / 10 / 313 / 342); // same as SMS?
 //  m_screen->set_refresh_hz(MASTER_CLOCK_PAL / 8 / 313 / 423); // or 423 Htotal?
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(0)); // Vblank handled manually.

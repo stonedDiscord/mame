@@ -58,8 +58,8 @@ namespace {
 class es9606_state : public driver_device
 {
 public:
-	es9606_state(const machine_config &mconfig, device_type type, const char *tag)
-		: driver_device(mconfig, type, tag),
+	es9606_state(const machine_config &mconfig, device_type type, const char *tag) :
+		driver_device(mconfig, type, tag),
 		m_maincpu(*this, "maincpu"),
 		m_eeprom(*this, "eeprom"),
 		m_hopper(*this,"hopper"),
@@ -137,7 +137,7 @@ void es9606_state::program_map(address_map &map)
 
 	map(0x000000, 0x0fffff).rom();
 	map(0x100000, 0x17ffff).m(m_vdp2, FUNC(imagetek_i4220_device::v2_map));
-	map(0x400000, 0x400003).mirror(0x00000c).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write)).umask16(0x00ff); // r/w mirror if reset from win screen
+	map(0x400000, 0x400003).mirror(0x00000c).umask16(0x00ff).rw("ymz", FUNC(ymz280b_device::read), FUNC(ymz280b_device::write)); // r/w mirror if reset from win screen
 	map(0x600000, 0x600001).portr("IN0").w(FUNC(es9606_state::eeprom_w));
 	map(0x600002, 0x600003).portr("IN1").w(FUNC(es9606_state::watchdog_w));
 	map(0x600004, 0x600005).portr("DSW");
@@ -308,7 +308,7 @@ void es9606_state::es9606(machine_config &config)
 	m_vdp2->set_tmap_flip_xoffsets(72,72,72);
 	m_vdp2->set_tmap_flip_yoffsets(39,39,39);
 
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	SCREEN(config, m_screen);
 	// TODO: copied verbatim from vmetal config, unverified
 	m_screen->set_refresh_hz(58.2328); // VSync 58.2328Hz, HSync 15.32kHz
 	m_screen->set_vblank_time(ATTOSECONDS_IN_USEC(1500));

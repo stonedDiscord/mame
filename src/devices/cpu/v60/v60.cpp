@@ -94,6 +94,7 @@ v60_device::v60_device(const machine_config &mconfig, const char *tag, device_t 
 
 v60_device::v60_device(const machine_config &mconfig, device_type type, const char *tag, device_t *owner, uint32_t clock, int databits, int addrbits, uint32_t pir)
 	: cpu_device(mconfig, type, tag, owner, clock)
+	, m_irq_cycle(*this, 0)
 	, m_program_config("program", ENDIANNESS_LITTLE, databits, addrbits, 0)
 	, m_io_config("io", ENDIANNESS_LITTLE, 16, 24, 0)
 	, m_start_pc(0xfffffff0)
@@ -342,7 +343,7 @@ uint32_t v60_device::v60_update_psw_for_exception(int is_interrupt, int target_l
 }
 
 
-#define GETINTVECT(nint)                    m_program->read_dword((SBR & ~0xfff) + (nint) * 4)
+#define GETINTVECT(nint) m_program->read_dword((SBR & ~0xfff) + (nint) * 4)
 #define EXCEPTION_CODE_AND_SIZE(code, size) (((code) << 16) | (size))
 
 
@@ -560,9 +561,9 @@ void v60_device::stall()
 }
 
 
-void v60_device::v60_do_irq(int vector)
+void v60_device::v60_do_irq(int line, int vector)
 {
-	debugger_exception_hook(vector);
+	standard_irq_callback(line, PC);
 	uint32_t oldPSW = v60_update_psw_for_exception(1, 0);
 
 	// Push PC and PSW onto the stack
@@ -584,9 +585,9 @@ void v60_device::v60_try_irq()
 		if(m_irq_line != ASSERT_LINE)
 			m_irq_line = CLEAR_LINE;
 
-		vector = standard_irq_callback(0, PC);
+		vector = m_irq_cycle();
 
-		v60_do_irq(vector + 0x40);
+		v60_do_irq(0, vector + 0x40);
 	}
 }
 
@@ -597,7 +598,7 @@ void v60_device::execute_set_input(int irqline, int state)
 		case ASSERT_LINE:
 			if(m_nmi_line == CLEAR_LINE) {
 				m_nmi_line = ASSERT_LINE;
-				v60_do_irq(2);
+				v60_do_irq(INPUT_LINE_NMI, 2);
 			}
 			break;
 		case CLEAR_LINE:

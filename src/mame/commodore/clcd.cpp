@@ -74,7 +74,7 @@ public:
 	{
 	}
 
-	virtual void driver_start() override
+	virtual void machine_start() override
 	{
 		m_mmu_mode = MMU_MODE_TEST;
 		update_mmu_mode(MMU_MODE_KERN);
@@ -94,6 +94,7 @@ public:
 		save_item(NAME(m_key_poll));
 		save_item(NAME(m_key_row));
 		save_item(NAME(m_key_shift));
+		save_item(NAME(m_key_force_format));
 		save_item(NAME(m_power));
 		save_item(NAME(m_power_on));
 
@@ -403,6 +404,14 @@ public:
 		m_key_row = data;
 	}
 
+	uint8_t via0_r(offs_t offset)
+	{
+		if (!offset && !m_iec->sample_ready(*m_maincpu))
+			return 0xff;
+
+		return m_via0->read(offset);
+	}
+
 	uint8_t via0_pb_r()
 	{
 		uint8_t data = 0;
@@ -603,7 +612,7 @@ void clcd_state::clcd_mem(address_map &map)
 	map(0x4000, 0x7fff).rw(m_bankdev[1], FUNC(address_map_bank_device::read8), FUNC(address_map_bank_device::write8));
 	map(0x8000, 0xbfff).rw(m_bankdev[2], FUNC(address_map_bank_device::read8), FUNC(address_map_bank_device::write8));
 	map(0xc000, 0xf7ff).rw(m_bankdev[3], FUNC(address_map_bank_device::read8), FUNC(address_map_bank_device::write8));
-	map(0xf800, 0xf80f).mirror(0x70).m(m_via0, FUNC(via6522_device::map));
+	map(0xf800, 0xf80f).mirror(0x70).r(FUNC(clcd_state::via0_r)).w(m_via0, FUNC(via6522_device::write));
 	map(0xf880, 0xf88f).mirror(0x70).m("via1", FUNC(via6522_device::map));
 	map(0xf980, 0xf983).mirror(0x7c).rw(m_acia, FUNC(mos6551_device::read), FUNC(mos6551_device::write));
 	map(0xfa00, 0xffff).rom().region("maincpu", 0x1fa00);
@@ -776,7 +785,7 @@ void clcd_state::clcd(machine_config &config)
 	m_rtc->set_default_24h(true);
 
 	// video hardware
-	screen_device &screen(SCREEN(config, "screen", SCREEN_TYPE_LCD));
+	screen_device &screen(SCREEN(config, "screen").set_lcd());
 	screen.set_refresh_hz(80);
 	screen.set_screen_update(FUNC(clcd_state::screen_update));
 	screen.set_size(480, 128);
@@ -829,4 +838,4 @@ ROM_END
 
 
 /*    YEAR  NAME  PARENT  COMPAT  MACHINE  INPUT  CLASS       INIT        COMPANY                        FULLNAME           FLAGS */
-COMP( 1985, clcd, 0,      0,      clcd,    clcd,  clcd_state, empty_init, "Commodore Business Machines", "LCD (prototype)", 0 )
+COMP( 1985, clcd, 0,      0,      clcd,    clcd,  clcd_state, empty_init, "Commodore Business Machines", "LCD (prototype)", MACHINE_SUPPORTS_SAVE )
