@@ -365,11 +365,16 @@ private:
 	void gfxcpu_mem(address_map &map) ATTR_COLD;
 	void maincpu_mem(address_map &map) ATTR_COLD;
 	void pmccpu_mem(address_map &map) ATTR_COLD;
-	template <unsigned Chip> void servo_program_map(address_map &map) ATTR_COLD;
-	template <unsigned Chip> void servo_data_map(address_map &map) ATTR_COLD;
-	template <unsigned Chip> u16 servo_program_r(offs_t offset);
-	template <unsigned Chip> void servo_program_w(offs_t offset, u16 data, u16 mem_mask);
-	template <unsigned Chip> void servo_control_w(offs_t, u16 data, u16 mem_mask);
+	void servo0_program_map(address_map &map) ATTR_COLD;
+	void servo1_program_map(address_map &map) ATTR_COLD;
+	void servo0_data_map(address_map &map) ATTR_COLD;
+	void servo1_data_map(address_map &map) ATTR_COLD;
+	void servo_data_map(address_map &map, unsigned chip) ATTR_COLD;
+	u16 servo_program_r(offs_t offset);
+	void servo_program_w(offs_t offset, u16 data, u16 mem_mask);
+	void servo0_control_w(offs_t, u16 data, u16 mem_mask);
+	void servo1_control_w(offs_t, u16 data, u16 mem_mask);
+	void servo_control_w(unsigned chip, u16 data, u16 mem_mask);
 	void servo_sync_w(u16 data);
 	void servo_control_clock_w(int state);
 	TIMER_DEVICE_CALLBACK_MEMBER(servo_sample_tick);
@@ -402,10 +407,9 @@ void fanucs15_state::maincpu_mem(address_map &map)
 	map(0x00000000, 0x0017ffff).rom().region("base1b", 0);
 	map(0x000e0000, 0x000fffff).ram(); // Tested by the CNC firmware during startup
 	map(0x10200000, 0x10201fff).ram(); // Servo board communication RAM
-	map(0x10204000, 0x10204001).w(FUNC(fanucs15_state::servo_control_w<0>));
-	map(0x10206000, 0x10206001).w(FUNC(fanucs15_state::servo_control_w<1>));
-	map(0x10208000, 0x1020bfff).rw(FUNC(fanucs15_state::servo_program_r<0>), FUNC(fanucs15_state::servo_program_w<0>));
-	map(0x1020c000, 0x1020ffff).rw(FUNC(fanucs15_state::servo_program_r<1>), FUNC(fanucs15_state::servo_program_w<1>));
+	map(0x10204000, 0x10204001).w(FUNC(fanucs15_state::servo0_control_w));
+	map(0x10206000, 0x10206001).w(FUNC(fanucs15_state::servo1_control_w));
+	map(0x10208000, 0x1020ffff).rw(FUNC(fanucs15_state::servo_program_r), FUNC(fanucs15_state::servo_program_w));
 	map(0x103f0000, 0x103f0001).lr16(NAME([] { return u16(0x3001); })); // Four-axis digital servo board
 	map(0x30000000, 0x3001ffff).ram(); // CNC work RAM
 	map(0x4000b000, 0x4000b007).rw("pit", FUNC(pit8253_device::read), FUNC(pit8253_device::write)).umask32(0x00ff00ff);
@@ -430,51 +434,77 @@ void fanucs15_state::maincpu_mem(address_map &map)
 	map(0xfffc0000, 0xffffffff).ram(); // Local work RAM and initial stack
 }
 
-template <unsigned Chip> void fanucs15_state::servo_program_map(address_map &map)
+void fanucs15_state::servo0_program_map(address_map &map)
 {
-	map(0x0000, 0x1fff).ram().share(m_servo_program[Chip]);
+	map(0x0000, 0x1fff).ram().share(m_servo_program[0]);
 }
 
-template <unsigned Chip> void fanucs15_state::servo_data_map(address_map &map)
+void fanucs15_state::servo1_program_map(address_map &map)
+{
+	map(0x0000, 0x1fff).ram().share(m_servo_program[1]);
+}
+
+void fanucs15_state::servo0_data_map(address_map &map)
+{
+	servo_data_map(map, 0);
+}
+
+void fanucs15_state::servo1_data_map(address_map &map)
+{
+	servo_data_map(map, 1);
+}
+
+void fanucs15_state::servo_data_map(address_map &map, unsigned chip)
 {
 	map(0x0300, 0x03ff).ram();
 	// The firmware sets GREG to $fc and points each DSP at its communication RAM.
-	constexpr u16 base = 0xfc00 + Chip * 0x100;
+	u16 const base = 0xfc00 + chip * 0x100;
+	u32 const cnc_base = 0x10200000 + chip * 0x200;
 	map(base, base + 0xff).lrw16(
-		NAME([this](offs_t offset) { return m_maincpu->space(AS_PROGRAM).read_word(0x10200000 + Chip * 0x200 + (offset << 1)); }),
-		NAME([this](offs_t offset, u16 data, u16 mem_mask) { m_maincpu->space(AS_PROGRAM).write_word(0x10200000 + Chip * 0x200 + (offset << 1), data, mem_mask); }));
+		[this, cnc_base](offs_t offset) { return m_maincpu->space(AS_PROGRAM).read_word(cnc_base + (offset << 1)); }, "servo_comm_r",
+		[this, cnc_base](offs_t offset, u16 data, u16 mem_mask) { m_maincpu->space(AS_PROGRAM).write_word(cnc_base + (offset << 1), data, mem_mask); }, "servo_comm_w");
 	map(0x0400, 0x047f).ram();
 	// The DSP acknowledges the board requests by writing zero to the pending bits.
 	map(0x0402, 0x0402).lrw16(
-		NAME([this] { return m_servo_irq_status[Chip]; }),
-		NAME([this](u16 data) { m_servo_irq_status[Chip] &= data; }));
+		[this, chip] { return m_servo_irq_status[chip]; }, "servo_irq_status_r",
+		[this, chip](u16 data) { m_servo_irq_status[chip] &= data; }, "servo_irq_status_w");
 	// The DSP polls these during current-sense offset calibration.
 	map(0x0405, 0x0405).lr16(NAME([] { return u16(0); })); // No measured current
-	map(0x0406, 0x0406).lr16(NAME([this] {
-		return u16(m_adc_control[Chip] | 0x00c0);
-	})).lw16(NAME([this](u16 data) { m_adc_control[Chip] = data; }));
+	map(0x0406, 0x0406).lrw16(
+		[this, chip] { return u16(m_adc_control[chip] | 0x00c0); }, "servo_adc_control_r",
+		[this, chip](u16 data) { m_adc_control[chip] = data; }, "servo_adc_control_w");
 }
 
-template <unsigned Chip> u16 fanucs15_state::servo_program_r(offs_t offset)
+u16 fanucs15_state::servo_program_r(offs_t offset)
 {
-	return m_servo_program[Chip][offset];
+	return m_servo_program[offset >> 13][offset & 0x1fff];
 }
 
-template <unsigned Chip> void fanucs15_state::servo_program_w(offs_t offset, u16 data, u16 mem_mask)
+void fanucs15_state::servo_program_w(offs_t offset, u16 data, u16 mem_mask)
 {
-	COMBINE_DATA(&m_servo_program[Chip][offset]);
+	COMBINE_DATA(&m_servo_program[offset >> 13][offset & 0x1fff]);
 }
 
-template <unsigned Chip> void fanucs15_state::servo_control_w(offs_t, u16 data, u16 mem_mask)
+void fanucs15_state::servo0_control_w(offs_t, u16 data, u16 mem_mask)
+{
+	servo_control_w(0, data, mem_mask);
+}
+
+void fanucs15_state::servo1_control_w(offs_t, u16 data, u16 mem_mask)
+{
+	servo_control_w(1, data, mem_mask);
+}
+
+void fanucs15_state::servo_control_w(unsigned chip, u16 data, u16 mem_mask)
 {
 	if (ACCESSING_BITS_0_7)
 	{
 		if (!BIT(data, 0))
 		{
-			m_adc_control[Chip] = 0;
-			m_servo_irq_status[Chip] = 0;
+			m_adc_control[chip] = 0;
+			m_servo_irq_status[chip] = 0;
 		}
-		m_servo_dsp[Chip]->set_input_line(INPUT_LINE_RESET, BIT(data, 0) ? CLEAR_LINE : ASSERT_LINE);
+		m_servo_dsp[chip]->set_input_line(INPUT_LINE_RESET, BIT(data, 0) ? CLEAR_LINE : ASSERT_LINE);
 	}
 }
 
@@ -792,11 +822,11 @@ void fanucs15_state::fanucs15(machine_config &config)
 	// The CNC uploads the TMS320C2x program from the Base 1 servo ROM.
 	// DSP clock and external data decoding are provisional.
 	TMS320C25(config, m_servo_dsp[0], 24_MHz_XTAL);
-	m_servo_dsp[0]->set_addrmap(AS_PROGRAM, &fanucs15_state::servo_program_map<0>);
-	m_servo_dsp[0]->set_addrmap(AS_DATA, &fanucs15_state::servo_data_map<0>);
+	m_servo_dsp[0]->set_addrmap(AS_PROGRAM, &fanucs15_state::servo0_program_map);
+	m_servo_dsp[0]->set_addrmap(AS_DATA, &fanucs15_state::servo0_data_map);
 	TMS320C25(config, m_servo_dsp[1], 24_MHz_XTAL);
-	m_servo_dsp[1]->set_addrmap(AS_PROGRAM, &fanucs15_state::servo_program_map<1>);
-	m_servo_dsp[1]->set_addrmap(AS_DATA, &fanucs15_state::servo_data_map<1>);
+	m_servo_dsp[1]->set_addrmap(AS_PROGRAM, &fanucs15_state::servo1_program_map);
+	m_servo_dsp[1]->set_addrmap(AS_DATA, &fanucs15_state::servo1_data_map);
 	TIMER(config, "servo_sample").configure_periodic(FUNC(fanucs15_state::servo_sample_tick), attotime::from_hz(1'000)); // Provisional sample clock
 
 	// The HD6445 supplies the board's raster timing. Use the dimensions
