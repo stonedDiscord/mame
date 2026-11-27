@@ -308,6 +308,10 @@
 #include "cpu/m68000/m68000.h"
 #include "cpu/m68000/m68020.h"
 #include "cpu/i86/i286.h"
+#include "video/hd63484.h"
+
+#include "emupal.h"
+#include "screen.h"
 
 
 namespace {
@@ -321,6 +325,7 @@ public:
 		, m_pmccpu(*this, "pmccpu")         // sub 68000-12
 		, m_gfxcpu(*this, "gfxcpu")         // gfx 68000-10
 		, m_convcpu(*this, "convcpu")       // conversational 80286-8
+		, m_acrtc(*this, "acrtc")
 	{ }
 
 	void fanucs15(machine_config &config);
@@ -330,11 +335,14 @@ private:
 	required_device<m68000_device> m_pmccpu;
 	required_device<m68000_device> m_gfxcpu;
 	required_device<i80286_cpu_device> m_convcpu;
+	required_device<hd63484_device> m_acrtc;
 
+	void acrtc_mem(address_map &map) ATTR_COLD;
 	void convcpu_mem(address_map &map) ATTR_COLD;
 	void gfxcpu_mem(address_map &map) ATTR_COLD;
 	void maincpu_mem(address_map &map) ATTR_COLD;
 	void pmccpu_mem(address_map &map) ATTR_COLD;
+	void gfx_palette(palette_device &palette) const ATTR_COLD;
 
 	virtual void machine_reset() override ATTR_COLD;
 };
@@ -342,8 +350,11 @@ private:
 void fanucs15_state::maincpu_mem(address_map &map)
 {
 	map(0x00000000, 0x0017ffff).rom().region("base1b", 0);
+	map(0x000e0000, 0x000e02ff).ram(); // Tested by the CNC firmware during startup
 	map(0x000f8000, 0x000fffff).ram(); // filled with 0x96 on boot
-	map(0xffff0000, 0xffffffff).ram(); // initial stack
+	map(0x40040000, 0x40040fff).ram(); // Backplane board inventory and startup workspace
+	map(0x7fff0300, 0x7fff0301).lr16(NAME([] { return u16(0x0023); })); // CNC board ID, slot 0
+	map(0xfffc0000, 0xffffffff).ram(); // Local work RAM and initial stack
 }
 
 void fanucs15_state::pmccpu_mem(address_map &map)
@@ -355,7 +366,23 @@ void fanucs15_state::pmccpu_mem(address_map &map)
 void fanucs15_state::gfxcpu_mem(address_map &map)
 {
 	map(0x000000, 0x01ffff).rom().region("gfxboard", 0);
+	map(0xc00004, 0xc00007).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
 	map(0xfe0000, 0xfeffff).ram();
+}
+
+void fanucs15_state::acrtc_mem(address_map &map)
+{
+	map(0x00000, 0x2ffff).ram(); // Twelve 64K x 4 MB81464 DRAMs
+}
+
+void fanucs15_state::gfx_palette(palette_device &palette) const
+{
+	// Provisional grayscale until the Fanuc GBC color registers are understood.
+	for (int index = 0; index < 16; ++index)
+	{
+		u8 const level = pal4bit(index);
+		palette.set_pen_color(index, rgb_t(level, level, level));
+	}
 }
 
 void fanucs15_state::convcpu_mem(address_map &map)
@@ -379,19 +406,30 @@ void fanucs15_state::fanucs15(machine_config &config)
 	/* basic machine hardware */
 	M68020(config, m_maincpu, XTAL(12'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &fanucs15_state::maincpu_mem);
-	m_maincpu->set_disable();
 
 	M68000(config, m_pmccpu, XTAL(12'000'000));
 	m_pmccpu->set_addrmap(AS_PROGRAM, &fanucs15_state::pmccpu_mem);
 	m_pmccpu->set_disable();
 
-	M68000(config, m_gfxcpu, XTAL(10'000'000));      // wants bit 15 of 70500 to be set
+	M68000(config, m_gfxcpu, XTAL(20'000'000) / 2);
 	m_gfxcpu->set_addrmap(AS_PROGRAM, &fanucs15_state::gfxcpu_mem);
-	//m_gfxcpu->set_disable();
 
 	I80286(config, m_convcpu, XTAL(8'000'000));      // wants 70500 to return 0x8000 (same as what gfxcpu looks for, basically)
 	m_convcpu->set_addrmap(AS_PROGRAM, &fanucs15_state::convcpu_mem);
-    m_convcpu->set_disable();
+	m_convcpu->set_disable();
+
+	// The HD6445 supplies the board's raster timing. Use the dimensions
+	// programmed by the 600B firmware until the timing chip is emulated.
+	screen_device &screen(SCREEN(config, "screen"));
+	screen.set_raw(20_MHz_XTAL, 792, 0, 592, 457, 0, 432);
+	screen.set_screen_update(m_acrtc, FUNC(hd63484_device::update_screen));
+	screen.set_palette("palette");
+
+	PALETTE(config, "palette", FUNC(fanucs15_state::gfx_palette), 16);
+
+	HD63484(config, m_acrtc).set_addrmap(0, &fanucs15_state::acrtc_mem);
+	m_acrtc->set_screen("screen");
+	m_acrtc->set_auto_configure_screen(false);
 }
 
 /* ROM definition */
