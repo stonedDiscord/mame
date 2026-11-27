@@ -309,6 +309,7 @@
 #include "cpu/m68000/m68020.h"
 #include "cpu/i86/i286.h"
 #include "video/hd63484.h"
+#include "machine/nvram.h"
 
 #include "emupal.h"
 #include "screen.h"
@@ -326,6 +327,10 @@ public:
 		, m_gfxcpu(*this, "gfxcpu")         // gfx 68000-10
 		, m_convcpu(*this, "convcpu")       // conversational 80286-8
 		, m_acrtc(*this, "acrtc")
+		, m_text_ram(*this, "text_ram")
+		, m_gfx_ram(*this, "gfx_ram")
+		, m_chargen(*this, "chargen")
+		, m_servo_rom(*this, "servo")
 	{ }
 
 	void fanucs15(machine_config &config);
@@ -336,6 +341,14 @@ private:
 	required_device<m68000_device> m_gfxcpu;
 	required_device<i80286_cpu_device> m_convcpu;
 	required_device<hd63484_device> m_acrtc;
+	required_shared_ptr<u16> m_text_ram;
+	required_shared_ptr<u16> m_gfx_ram;
+	required_region_ptr<u8> m_chargen;
+	required_region_ptr<u8> m_servo_rom;
+
+	u8 m_crtc_address = 0;
+	u8 m_crtc_regs[0x40]{};
+	bool m_gfx_start_pending = false;
 
 	void acrtc_mem(address_map &map) ATTR_COLD;
 	void convcpu_mem(address_map &map) ATTR_COLD;
@@ -343,17 +356,43 @@ private:
 	void maincpu_mem(address_map &map) ATTR_COLD;
 	void pmccpu_mem(address_map &map) ATTR_COLD;
 	void gfx_palette(palette_device &palette) const ATTR_COLD;
+	void crtc_address_w(u8 data);
+	void crtc_data_w(u8 data);
+	u16 text_ram_r(offs_t offset);
+	void text_ram_w(offs_t offset, u16 data, u16 mem_mask);
+	u16 gfx_ram_r(offs_t offset);
+	void gfx_ram_w(offs_t offset, u16 data, u16 mem_mask);
+	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect);
+	u16 gfx_board_table_r(offs_t offset);
+	void gfx_board_table_w(offs_t offset, u16 data, u16 mem_mask);
+	void backplane_start_w(offs_t, u16 data, u16 mem_mask);
+	u16 gfx_start_r();
+	void gfx_start_ack_w(offs_t, u16 data, u16 mem_mask);
+	void gfx_status_w(offs_t, u16 data, u16 mem_mask);
 
+	virtual void machine_start() override ATTR_COLD;
 	virtual void machine_reset() override ATTR_COLD;
 };
 
 void fanucs15_state::maincpu_mem(address_map &map)
 {
 	map(0x00000000, 0x0017ffff).rom().region("base1b", 0);
-	map(0x000e0000, 0x000e02ff).ram(); // Tested by the CNC firmware during startup
-	map(0x000f8000, 0x000fffff).ram(); // filled with 0x96 on boot
-	map(0x40040000, 0x40040fff).ram(); // Backplane board inventory and startup workspace
+	map(0x000e0000, 0x000fffff).ram(); // Tested by the CNC firmware during startup
+	map(0x30000000, 0x3001ffff).ram(); // CNC work RAM
+	map(0x40040000, 0x400411ff).ram(); // Backplane board inventory and startup workspace
+	map(0x40041200, 0x400bffff).ram().share("file_ram"); // CNC file area
+	map(0x41380000, 0x4138ffff).lr8(NAME([this](offs_t offset) { return m_servo_rom[offset]; })).umask32(0x00ff00ff);
+	map(0x41ffb0d0, 0x41ffb0d3).portr("KEYS");
+	map(0x41ffb0d4, 0x41ffb0d7).portr("KEYS2");
+	map(0x44c0000d, 0x44c0000d).w(FUNC(fanucs15_state::crtc_address_w));
+	map(0x44c0000f, 0x44c0000f).w(FUNC(fanucs15_state::crtc_data_w));
+	map(0x44e00000, 0x44e1ffff).rw(FUNC(fanucs15_state::text_ram_r), FUNC(fanucs15_state::text_ram_w));
+	map(0x44fe0000, 0x44feffff).rw(FUNC(fanucs15_state::gfx_ram_r), FUNC(fanucs15_state::gfx_ram_w));
+	map(0x7fff0100, 0x7fff0101).lr16(NAME([] { return u16(0xffee); })); // Slots 0 and 4 populated, active low
 	map(0x7fff0300, 0x7fff0301).lr16(NAME([] { return u16(0x0023); })); // CNC board ID, slot 0
+	map(0x7fff0340, 0x7fff0341).lr16(NAME([] { return u16(0x0022); })); // Graphics board ID, slot 4
+	map(0x7fff0700, 0x7fff0701).w(FUNC(fanucs15_state::backplane_start_w));
+	map(0x7fff0900, 0x7fff0901).lr16(NAME([] { return u16(0xffff); })); // No secondary board IDs
 	map(0xfffc0000, 0xffffffff).ram(); // Local work RAM and initial stack
 }
 
@@ -366,8 +405,57 @@ void fanucs15_state::pmccpu_mem(address_map &map)
 void fanucs15_state::gfxcpu_mem(address_map &map)
 {
 	map(0x000000, 0x01ffff).rom().region("gfxboard", 0);
+	map(0x440088, 0x440089).lw16(NAME([this](offs_t, u16 data, u16 mem_mask) {
+		m_maincpu->space(AS_PROGRAM).write_word(0x40040088, data, mem_mask);
+	}));
+	map(0x4e0000, 0x4e02ff).rw(FUNC(fanucs15_state::gfx_board_table_r), FUNC(fanucs15_state::gfx_board_table_w));
+	map(0x700046, 0x700047).w(FUNC(fanucs15_state::gfx_status_w));
+	map(0x700110, 0x700111).lr16(NAME([] { return u16(4); })); // Graphics backplane slot
+	map(0x700240, 0x700241).w(FUNC(fanucs15_state::gfx_start_ack_w));
+	map(0x700500, 0x700501).r(FUNC(fanucs15_state::gfx_start_r));
 	map(0xc00004, 0xc00007).rw(m_acrtc, FUNC(hd63484_device::read16), FUNC(hd63484_device::write16));
-	map(0xfe0000, 0xfeffff).ram();
+	map(0xc0000d, 0xc0000d).w(FUNC(fanucs15_state::crtc_address_w));
+	map(0xc0000f, 0xc0000f).w(FUNC(fanucs15_state::crtc_data_w));
+	map(0xe00000, 0xe1ffff).ram().share(m_text_ram);
+	map(0xfe0000, 0xfeffff).ram().share(m_gfx_ram);
+}
+
+void fanucs15_state::backplane_start_w(offs_t, u16 data, u16 mem_mask)
+{
+	// The CNC issues two active-low startup requests on the backplane.
+	if (ACCESSING_BITS_0_7 && (data == 0xffbf || data == 0xff7f))
+	{
+		m_gfx_start_pending = true;
+		machine().scheduler().perfect_quantum(attotime::from_msec(10));
+	}
+}
+
+u16 fanucs15_state::gfx_start_r()
+{
+	return m_gfx_start_pending ? 0x8000 : 0;
+}
+
+void fanucs15_state::gfx_start_ack_w(offs_t, u16 data, u16 mem_mask)
+{
+	if (ACCESSING_BITS_0_7 && (data & 0xff) == 0)
+		m_gfx_start_pending = false;
+}
+
+void fanucs15_state::gfx_status_w(offs_t, u16 data, u16 mem_mask)
+{
+	// Status 0xb completes the second request, before the command block wait.
+	if (ACCESSING_BITS_0_7 && (data & 0xff) == 0x0b)
+		m_gfx_start_pending = false;
+}
+
+u16 fanucs15_state::gfx_board_table_r(offs_t offset)
+{
+	return m_maincpu->space(AS_PROGRAM).read_word(0x000e0000 + (offset << 1));
+}
+
+void fanucs15_state::gfx_board_table_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	m_maincpu->space(AS_PROGRAM).write_word(0x000e0000 + (offset << 1), data, mem_mask);
 }
 
 void fanucs15_state::acrtc_mem(address_map &map)
@@ -383,6 +471,67 @@ void fanucs15_state::gfx_palette(palette_device &palette) const
 		u8 const level = pal4bit(index);
 		palette.set_pen_color(index, rgb_t(level, level, level));
 	}
+	palette.set_pen_color(16, rgb_t::white());
+}
+
+void fanucs15_state::crtc_address_w(u8 data)
+{
+	m_crtc_address = data & 0x3f;
+}
+
+void fanucs15_state::crtc_data_w(u8 data)
+{
+	m_crtc_regs[m_crtc_address] = data;
+}
+
+u16 fanucs15_state::text_ram_r(offs_t offset)
+{
+	return m_text_ram[offset];
+}
+
+void fanucs15_state::text_ram_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_text_ram[offset]);
+}
+
+u16 fanucs15_state::gfx_ram_r(offs_t offset)
+{
+	return m_gfx_ram[offset];
+}
+
+void fanucs15_state::gfx_ram_w(offs_t offset, u16 data, u16 mem_mask)
+{
+	COMBINE_DATA(&m_gfx_ram[offset]);
+}
+
+u32 fanucs15_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect)
+{
+	bitmap.fill(0, cliprect);
+	m_acrtc->update_screen(screen, bitmap, cliprect);
+
+	// The HD6445 scans the character plane independently of the HD63484.
+	// The CNC writes a character and attribute word per cell with a 128-cell pitch.
+	unsigned const start = (m_crtc_regs[12] << 8) | m_crtc_regs[13];
+	unsigned const height = (m_crtc_regs[9] & 0x1f) + 1;
+	unsigned const columns = m_crtc_regs[1];
+	unsigned const rows = m_crtc_regs[6];
+	for (int y = cliprect.top(); y <= cliprect.bottom(); ++y)
+	{
+		if (unsigned(y) / height >= rows)
+			break;
+
+		unsigned const row = start + (y / height) * 128;
+		unsigned const raster = y % height;
+		for (int x = cliprect.left(); x <= cliprect.right() && unsigned(x) / 8 < columns; ++x)
+		{
+			unsigned const cell = (row + x / 8) & 0x7fff;
+			u16 const code = m_text_ram[cell * 2] & 0x0fff;
+			u8 const dots = m_chargen[((code & 0x0f00) << 4) | ((raster & 0x0f) << 8) | (code & 0xff)];
+			if (BIT(dots, x & 7))
+				bitmap.pix(y, x) = 16;
+		}
+	}
+	return 0;
 }
 
 void fanucs15_state::convcpu_mem(address_map &map)
@@ -395,10 +544,40 @@ void fanucs15_state::convcpu_mem(address_map &map)
 
 /* Input ports */
 static INPUT_PORTS_START( fanucs15 )
+	PORT_START("KEYS")
+	PORT_BIT(0x0000007b, IP_ACTIVE_HIGH, IPT_UNUSED)
+	PORT_BIT(0x00000080, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_Y) PORT_CHAR('Y')
+	PORT_BIT(0x00000004, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_N) PORT_CHAR('N')
+	PORT_BIT(0x0001ff00, IP_ACTIVE_HIGH, IPT_UNUSED)
+	PORT_BIT(0x00020000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_0) PORT_CHAR('0')
+	PORT_BIT(0x00040000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_1) PORT_CHAR('1')
+	PORT_BIT(0x00080000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_2) PORT_CHAR('2')
+	PORT_BIT(0x00100000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_3) PORT_CHAR('3')
+	PORT_BIT(0x00200000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_4) PORT_CHAR('4')
+	PORT_BIT(0x00400000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_5) PORT_CHAR('5')
+	PORT_BIT(0x00800000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_6) PORT_CHAR('6')
+	PORT_BIT(0x01000000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_7) PORT_CHAR('7')
+	PORT_BIT(0x02000000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_8) PORT_CHAR('8')
+	PORT_BIT(0x04000000, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_9) PORT_CHAR('9')
+	PORT_BIT(0xf8000000, IP_ACTIVE_HIGH, IPT_UNUSED)
+
+	PORT_START("KEYS2")
+	PORT_BIT(0xfffffffd, IP_ACTIVE_HIGH, IPT_UNUSED)
+	PORT_BIT(0x00000002, IP_ACTIVE_HIGH, IPT_KEYBOARD) PORT_CODE(KEYCODE_ENTER) PORT_CHAR(13) PORT_NAME("Input")
 INPUT_PORTS_END
+
+void fanucs15_state::machine_start()
+{
+	save_item(NAME(m_crtc_address));
+	save_item(NAME(m_crtc_regs));
+	save_item(NAME(m_gfx_start_pending));
+}
 
 void fanucs15_state::machine_reset()
 {
+	m_crtc_address = 0;
+	m_gfx_start_pending = false;
+	std::fill(std::begin(m_crtc_regs), std::end(m_crtc_regs), 0);
 }
 
 void fanucs15_state::fanucs15(machine_config &config)
@@ -406,6 +585,7 @@ void fanucs15_state::fanucs15(machine_config &config)
 	/* basic machine hardware */
 	M68020(config, m_maincpu, XTAL(12'000'000));
 	m_maincpu->set_addrmap(AS_PROGRAM, &fanucs15_state::maincpu_mem);
+	NVRAM(config, "file_ram", nvram_device::DEFAULT_ALL_0);
 
 	M68000(config, m_pmccpu, XTAL(12'000'000));
 	m_pmccpu->set_addrmap(AS_PROGRAM, &fanucs15_state::pmccpu_mem);
@@ -422,10 +602,10 @@ void fanucs15_state::fanucs15(machine_config &config)
 	// programmed by the 600B firmware until the timing chip is emulated.
 	screen_device &screen(SCREEN(config, "screen"));
 	screen.set_raw(20_MHz_XTAL, 792, 0, 592, 457, 0, 432);
-	screen.set_screen_update(m_acrtc, FUNC(hd63484_device::update_screen));
+	screen.set_screen_update(FUNC(fanucs15_state::screen_update));
 	screen.set_palette("palette");
 
-	PALETTE(config, "palette", FUNC(fanucs15_state::gfx_palette), 16);
+	PALETTE(config, "palette", FUNC(fanucs15_state::gfx_palette), 17);
 
 	HD63484(config, m_acrtc).set_addrmap(0, &fanucs15_state::acrtc_mem);
 	m_acrtc->set_screen("screen");
@@ -434,10 +614,12 @@ void fanucs15_state::fanucs15(machine_config &config)
 
 /* ROM definition */
 ROM_START( fanucs15 )
-	ROM_REGION16_BE( 0x50000, "base1a", 0 ) // 68000 sub CPU code and data on base 1 board (verified)
+	ROM_REGION16_BE( 0x40000, "base1a", 0 ) // 68000 sub CPU code and data on base 1 board (verified)
 	ROM_LOAD16_BYTE( "4040_001e_001.23m", 0x000001, 0x020000, CRC(2e12109f) SHA1(83ed846d3d59ab0d81b2e2e2231d1a444e462590) )
 	ROM_LOAD16_BYTE( "4040_002e_002.27m", 0x000000, 0x020000, CRC(a5469692) SHA1(31c44edb36fb69d3d418a97e32e4a2769d1ec9e7) )
-	ROM_LOAD16_BYTE( "9030_001e_381.18j", 0x040001, 0x008000, CRC(9f10a022) SHA1(dc4a242f7611143cc2d9564993fd5fa52f0ac13a) )
+
+	ROM_REGION( 0x8000, "servo", 0 )
+	ROM_LOAD( "9030_001e_381.18j", 0x0000, 0x8000, CRC(9f10a022) SHA1(dc4a242f7611143cc2d9564993fd5fa52f0ac13a) )
 
 	ROM_REGION32_BE( 0x180000, "base1b", 0 )    // 68020 main CPU code and data on base 1 board (verified)
 	ROM_LOAD16_BYTE( "ab02_081a_081.23e", 0x000001, 0x020000, CRC(5328b023) SHA1(661f2908f3287f7cd2b215cd29962f2789f7d99a) )
@@ -460,13 +642,14 @@ ROM_START( fanucs15 )
 	ROM_LOAD16_BYTE( "5a00_001b.001", 0x040000, 0x020000, CRC(cd2a2839) SHA1(bc20fd9ae9d071e1df835244aea85648d1bd1dbc) )
 	ROM_LOAD16_BYTE( "5a00_002b.002", 0x040001, 0x020000, CRC(d9ebbb4a) SHA1(9c3d96e9b88848472210beacdf9d300ddd42d16e) )
 
-	ROM_REGION16_BE( 0x50000, "gfxboard", 0 )   // graphics board 68000 code/data.  600a for lathe, 600b for mill, 6082 common to both
+	ROM_REGION16_BE( 0x40000, "gfxboard", 0 )   // graphics board 68000 code/data.  600a for lathe, 600b for mill
 	ROM_LOAD16_BYTE( "600b_001d_low.3l",  0x000001, 0x010000, CRC(50566c5c) SHA1(966c8d90d09a9c50c5dedebe9c67f1755846b234) )
 	ROM_LOAD16_BYTE( "600b_002d_high.3j", 0x000000, 0x010000, CRC(304e1ecb) SHA1(1e4b149b306550750fc03bd80bd399f239f68657) )
 	ROM_LOAD16_BYTE( "600a_001c.bin",     0x020001, 0x010000, CRC(63d9fc2f) SHA1(280e825ba7b79e7c38282a4f4b762d2219fd873b) )
 	ROM_LOAD16_BYTE( "600a_002c.bin",     0x020000, 0x010000, CRC(4d78e702) SHA1(a89bd07dc1ae030bdee5a541777825eaadbc2307) )
-	// font or tilemap data?
-	ROM_LOAD( "6082_001a_cg.12b", 0x040000, 0x010000, CRC(f3d10cf9) SHA1(bc5bc88dcb5f347e1442aa4a0897747958a53413) )
+
+	ROM_REGION( 0x10000, "chargen", 0 ) // Character generator, common to mill and lathe
+	ROM_LOAD( "6082_001a_cg.12b", 0x00000, 0x10000, CRC(f3d10cf9) SHA1(bc5bc88dcb5f347e1442aa4a0897747958a53413) )
 
 	ROM_REGION16_BE( 0x40000, "cassette", 0 )   // "PMC Cassette C", ROM cartridge that plugs into the Base 1 board
 	ROM_LOAD16_BYTE( "pmc_high.a2",  0x000000, 0x020000, CRC(7b8f9a96) SHA1(08d828b612c45bb3f2f7a56df418cd8e34731bf4) )
